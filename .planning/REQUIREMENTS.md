@@ -130,17 +130,59 @@
 
 ## Traceability
 
-需求和阶段的对应关系，在生成路线图时填写。
+需求和阶段的对应关系，由路线图生成时填写。每条 v1 需求只对应一个阶段。
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | | |
+| ENV-01 | Phase 1 | Pending |
+| ENV-02 | Phase 1 | Pending |
+| ENV-03 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Pending |
+| SAFE-01 | Phase 1 | Pending |
+| SAFE-02 | Phase 1 | Pending |
+| SAFE-03 | Phase 1 | Pending |
+| SAFE-04 | Phase 1 | Pending |
+| MOCK-01 | Phase 1 | Pending |
+| MOCK-02 | Phase 2 | Pending |
+| MOCK-03 | Phase 2 | Pending |
+| MOCK-04 | Phase 2 | Pending |
+| MOCK-05 | Phase 2 | Pending |
+| MOCK-06 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| WEEK-01 | Phase 3 | Pending |
+| WEEK-02 | Phase 3 | Pending |
+| WEEK-03 | Phase 3 | Pending |
+| WEEK-04 | Phase 3 | Pending |
+| WEEK-05 | Phase 3 | Pending |
+| WEEK-06 | Phase 3 | Pending |
+| CAL-01 | Phase 4 | Pending |
+| CAL-02 | Phase 4 | Pending |
+| CAL-03 | Phase 4 | Pending |
+| CAL-04 | Phase 4 | Pending |
+| GOAL-01 | Phase 4 | Pending |
+| GOAL-02 | Phase 4 | Pending |
+| GOAL-03 | Phase 4 | Pending |
+| GOAL-04 | Phase 4 | Pending |
+| GOAL-05 | Phase 4 | Pending |
+| TL-01 | Phase 5 | Pending |
+| TL-02 | Phase 5 | Pending |
+| EDIT-01 | Phase 3 | Pending |
+| EDIT-02 | Phase 3 | Pending |
+| EDIT-03 | Phase 3 | Pending |
+| IO-01 | Phase 1 | Pending |
+| IO-02 | Phase 2 | Pending |
+| IO-03 | Phase 2 | Pending |
+| IO-04 | Phase 5 | Pending |
+| IO-05 | Phase 5 | Pending |
+| RESP-01 | Phase 5 | Pending |
+| BUG-01 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 43 total
-- Mapped to phases: 0
-- Unmapped: 43 ⚠️
+- Mapped to phases: 43
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-01*
-*Last updated: 2026-11-01 after initial definition*
+*Last updated: 2026-11-01 after roadmap creation（traceability 已填写）*
