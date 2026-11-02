@@ -19,7 +19,7 @@
 
 小数阶段按数字顺序排在前后两个整数阶段之间。
 
-- [ ] **Phase 1: 测试环境、护栏与本地切片（Harness & Local Slice）** - 一条命令用本机 Edge 跑通本地模式端到端用例；网络、时钟、页面错误和应用完整性护栏对所有用例生效；完成六项运行时探针
+- [x] **Phase 1: 测试环境、护栏与本地切片（Harness & Local Slice）** - 一条命令用本机 Edge 跑通本地模式端到端用例；网络、时钟、页面错误和应用完整性护栏对所有用例生效；完成六项运行时探针 (completed 2026-11-01)
 - [ ] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容
 - [ ] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图
 - [ ] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互
@@ -38,7 +38,7 @@
   3. 每次运行的“今天”都固定为 2026-03-18（周三），时区为 `America/New_York`，语言为 zh-CN；连续运行两次，结果完全一致。
   4. 护栏自检用例全部通过：页面请求允许列表之外的外部地址会让测试失败；页面出现未预期的 JS 错误会让测试失败；`us-journey-tracker.html` 的 sha256 与记录的基线一致；`.gitignore` 忽略测试产物和备份类 JSON，合成标记检查会对缺少标记的 fixture 报错。
   5. 六项运行时探针都有结论并记录在仓库里：Edge headless 启动、`--host-resolver-rules` 是否生效、`page.reload()` 后 `setFixedTime` 是否保持、`expect.poll` 读取防抖保存的时序是否稳定、`dragTo` 能否驱动 HTML5 拖放（只做 spike）、`clock.install` 加 `pauseAt` 后元素稳定性检查是否正常。
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -140,7 +140,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | In Progress | - |
+| 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 0/TBD | Not started | - |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 0/TBD | Not started | - |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
