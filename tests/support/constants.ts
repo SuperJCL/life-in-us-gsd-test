@@ -32,3 +32,10 @@ export const DEAD_PROXY_SERVER = 'http://127.0.0.1:9';
 
 // 只有回环地址绕过死代理，其余地址一律不放行（D-16）
 export const PROXY_BYPASS = '127.0.0.1,localhost';
+
+// 应用文件的 sha256 基线（SAFE-02）。这是本里程碑的基线，
+// 只有在后续里程碑经用户批准修改应用时才能更新。
+export const APP_SHA256 = '2a954fd0e41df78669bddda384f6307b09974fb32969be4d94e130d63a8a1872';
+
+// 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
+export const SYNTHETIC_MARKER = '_synthetic';

@@ -8,6 +8,16 @@ const path = require('node:path');
 const APP_FILE = path.resolve(__dirname, '..', '..', 'us-journey-tracker.html');
 const PORT = Number(process.env.PORT || 4789);
 
+// 应用文件不在 git 仓库里（D-10）。克隆后缺少它时，在 listen 之前就失败，
+// 给出清楚的中文提示。提示里只用仓库相对的说法，不打印解析后的绝对路径。
+const MISSING_APP_MESSAGE =
+  '找不到 us-journey-tracker.html：这个应用文件不在 git 仓库里。请把本地的 us-journey-tracker.html 放到仓库根目录，再运行 npm test（说明见 tests/README.md）。';
+
+if (!fs.existsSync(APP_FILE)) {
+  process.stderr.write(MISSING_APP_MESSAGE + '\n');
+  process.exit(1);
+}
+
 const server = http.createServer((req, res) => {
   let pathname = '';
   try {

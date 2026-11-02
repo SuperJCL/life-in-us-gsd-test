@@ -1,0 +1,17 @@
+{
+  "_synthetic": "合成数据：仅供本地测试，不含任何真实信息",
+  "arrival": "",
+  "tasks": {},
+  "custom": [],
+  "logs": [
+    {
+      "id": "synth-seed-1",
+      "date": "2026-03-17",
+      "text": "SYNTH-SEED seeded entry",
+      "cat": "其他"
+    }
+  ],
+  "lifts": {},
+  "reviews": {},
+  "presets": {}
+}
