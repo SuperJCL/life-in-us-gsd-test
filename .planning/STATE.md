@@ -4,10 +4,10 @@ current_phase: 1
 current_phase_name: 测试环境、护栏与本地切片（Harness & Local Slice）
 status: planning
 stopped_at: Phase 1 context gathered
-last_updated: "2026-11-02T00:09:49.379Z"
+last_updated: "2026-11-02T00:40:42.362Z"
 last_activity: 2026-11-01
 last_activity_desc: 路线图已创建：5 个阶段，43 条 v1 需求全部映射
-state_head: 6e16aef290e70112520ea201fb772752df40d191
+state_head: e56b751c352e9ead2d84b7e368a14b7b3ce6ae84
 progress:
   total_phases: 5
   completed_phases: 0
@@ -74,6 +74,12 @@ None yet.
 - [Phase 1]: 本机 Edge 156 能否被 Playwright 1.64.1 驱动还没验证。如果探针失败，计划必须停下来询问用户，不运行任何安装命令。
 - [Phase 2]: `exposeBinding` 在页面脚本运行前是否可用还没验证；不可用时退回带前缀的 `sessionStorage` 方案。
 - [Phase 5]: N3（导入 `{}` 后清空数据）的期望行为未定，需要用户决定。
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261101-mh6 | 隐私护栏：.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理 | 2026-11-01 | e56b751 | [261101-mh6-privacy-guard-github-public](./quick/261101-mh6-privacy-guard-github-public/) |
 
 ## Deferred Items
 
