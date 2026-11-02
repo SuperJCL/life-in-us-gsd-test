@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 1
 current_phase_name: 测试环境、护栏与本地切片（Harness & Local Slice）
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-11-02T03:38:08.508Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-11-02T03:49:09.887Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 1 execution started
-state_head: e28e350333361286f19afcc71cdbdc635fd6fd6f
+state_head: a40ae0343fca993e0735799673eb8b47b6e34b97
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-01)
 ## Current Position
 
 Phase: 1 (测试环境、护栏与本地切片（Harness & Local Slice）) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-11-01 — Phase 1 execution started
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 4 min | 3 tasks | 8 files |
+| Phase 01 P02 | 7min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Roadmap]: 编辑弹窗的三处入口（EDIT-01）放在 Phase 3，和共享 helper 一起完成，后面的视图直接复用。
 - [Phase 01]: [01-01] 死代理放在 launchOptions.proxy（浏览器级），与 127.0.0.1:4789 页面共存，保留不动 — 探针手动创建的 context 也自动带上；实测 npm test 通过，没有 ERR_PROXY_CONNECTION_FAILED
 - [Phase 01]: [01-01] Edge 156.0.4314.58 无需下载即可被 Playwright 1.64.1 驱动，条件检查点（Task 3）未触发 — npm test 用 msedge 通道一次通过，没有运行任何安装器
+- [Phase 01]: SAFE-04 page-error self-check throws via queueMicrotask: under setFixedTime, timer-callback errors surface only as console.error, not pageerror
+- [Phase 01]: ENV-03 runtime evidence added: raw node:http traversal requests and loopback-only listener check (non-loopback connect must fail)
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T03:38:08.470Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-11-02T03:49:09.854Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None

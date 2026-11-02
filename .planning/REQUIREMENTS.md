@@ -11,15 +11,15 @@
 
 - [ ] **ENV-01**: 开发者在项目目录运行一条命令（`npm test`），就能用本机 Edge 跑完全部测试，并得到一份本地 HTML 报告（不自动弹出）
 - [x] **ENV-02**: 安装只增加项目内的 devDependency（`@playwright/test` 精确版本，加上 lockfile），不下载浏览器、不做全局安装、不改全局配置
-- [ ] **ENV-03**: 测试通过本地静态服务器加载页面，该服务器只监听 127.0.0.1，只提供 `us-journey-tracker.html`
-- [ ] **ENV-04**: 每次运行都固定“今天”、时区和语言，结果可以重复
+- [x] **ENV-03**: 测试通过本地静态服务器加载页面，该服务器只监听 127.0.0.1，只提供 `us-journey-tracker.html`
+- [x] **ENV-04**: 每次运行都固定“今天”、时区和语言，结果可以重复
 
 ### Safety
 
-- [ ] **SAFE-01**: 测试运行时所有外部网络请求都被拦截；一旦出现允许列表之外的外部请求，测试失败
-- [ ] **SAFE-02**: 测试能证明 `us-journey-tracker.html` 没被改动（与记录的 sha256 基线比对）
-- [ ] **SAFE-03**: 仓库通过 `.gitignore` 忽略测试产物和备份类 JSON；所有 fixture 都带合成数据标记，并有测试检查这一点
-- [ ] **SAFE-04**: 页面出现未预期的 JS 错误时，测试失败
+- [x] **SAFE-01**: 测试运行时所有外部网络请求都被拦截；一旦出现允许列表之外的外部请求，测试失败
+- [x] **SAFE-02**: 测试能证明 `us-journey-tracker.html` 没被改动（与记录的 sha256 基线比对）
+- [x] **SAFE-03**: 仓库通过 `.gitignore` 忽略测试产物和备份类 JSON；所有 fixture 都带合成数据标记，并有测试检查这一点
+- [x] **SAFE-04**: 页面出现未预期的 JS 错误时，测试失败
 
 ### Claude API Mock
 
@@ -136,12 +136,12 @@
 |-------------|-------|--------|
 | ENV-01 | Phase 1 | Pending |
 | ENV-02 | Phase 1 | Complete |
-| ENV-03 | Phase 1 | Pending |
-| ENV-04 | Phase 1 | Pending |
-| SAFE-01 | Phase 1 | Pending |
-| SAFE-02 | Phase 1 | Pending |
-| SAFE-03 | Phase 1 | Pending |
-| SAFE-04 | Phase 1 | Pending |
+| ENV-03 | Phase 1 | Complete |
+| ENV-04 | Phase 1 | Complete |
+| SAFE-01 | Phase 1 | Complete |
+| SAFE-02 | Phase 1 | Complete |
+| SAFE-03 | Phase 1 | Complete |
+| SAFE-04 | Phase 1 | Complete |
 | MOCK-01 | Phase 1 | Pending |
 | MOCK-02 | Phase 2 | Pending |
 | MOCK-03 | Phase 2 | Pending |
