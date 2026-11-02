@@ -79,7 +79,7 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 261101-mh6 | 隐私护栏：.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理 | 2026-11-01 | e56b751 | [261101-mh6-privacy-guard-github-public](./quick/261101-mh6-privacy-guard-github-public/) |
+| 261101-mh6 | 隐私护栏：.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理 | 2026-11-01 | 002d8d2 | [261101-mh6-privacy-guard-github-public](./quick/261101-mh6-privacy-guard-github-public/) |
 
 ## Deferred Items
 
