@@ -9,7 +9,7 @@
 
 ### Environment
 
-- [ ] **ENV-01**: 开发者在项目目录运行一条命令（`npm test`），就能用本机 Edge 跑完全部测试，并得到一份本地 HTML 报告（不自动弹出）
+- [x] **ENV-01**: 开发者在项目目录运行一条命令（`npm test`），就能用本机 Edge 跑完全部测试，并得到一份本地 HTML 报告（不自动弹出）
 - [x] **ENV-02**: 安装只增加项目内的 devDependency（`@playwright/test` 精确版本，加上 lockfile），不下载浏览器、不做全局安装、不改全局配置
 - [x] **ENV-03**: 测试通过本地静态服务器加载页面，该服务器只监听 127.0.0.1，只提供 `us-journey-tracker.html`
 - [x] **ENV-04**: 每次运行都固定“今天”、时区和语言，结果可以重复
@@ -134,7 +134,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENV-01 | Phase 1 | Pending |
+| ENV-01 | Phase 1 | Complete |
 | ENV-02 | Phase 1 | Complete |
 | ENV-03 | Phase 1 | Complete |
 | ENV-04 | Phase 1 | Complete |

@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 1
 current_phase_name: 测试环境、护栏与本地切片（Harness & Local Slice）
-status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-11-02T04:09:19.821Z"
+status: verifying
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-11-02T04:35:39.010Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 1 execution started
-state_head: 260907d67c075147e13fee7c03d356ffcacd61cb
+state_head: bb501633b6eae6d3c800a7858792c9c48a1fc1c1
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-01)
 
 Phase: 1 (测试环境、护栏与本地切片（Harness & Local Slice）) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01 — Phase 1 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 4 min | 3 tasks | 8 files |
 | Phase 01 P02 | 7min | 2 tasks | 9 files |
 | Phase 01 P03 | 16 min | 3 tasks | 6 files |
+| Phase 01 P04 | 25 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 01]: ENV-03 runtime evidence added: raw node:http traversal requests and loopback-only listener check (non-loopback connect must fail)
 - [Phase 01]: [01-03] PROBE-2 两层网络兜底都被用例证明（解析层：localhost、probe.localhost 加去规则对照；代理层：probe.invalid 与 WebSocket 对照），网络检查点（Task 3）未触发 — 对照浏览器只去掉解析规则、保留死代理；经代理的主机名由代理层保证
 - [Phase 01]: [01-03] preconnect 在这台无界面 Edge 上没有被直接观察到（字体主机 CONNECT 为 0），PROBES.md 写成推断；Plan 04 的 README 要写明这一点 — 诚实记录：不把未观察到的行为写成已证明
+- [Phase 01]: [01-04] 报告器默认不变（list 加 html，open: 'never'），json 只在设置 PW_JSON_REPORT 时追加，确定性检查跑交付配置本身 — 命令行不覆盖报告器，list 和 html 照常工作；两次 25 条运行结果一致，flaky 0
+- [Phase 01]: [01-04] 阶段末人工验收 approved：test:ui 能回放 IO-01，show-report 能打开报告，全程无安装提示；内嵌终端不会自动打开浏览器，README 已补手动打开说明；UI 模式浏览器按配置为 msedge，用户未在窗口上确认品牌 — 如实记录：品牌是配置层面的推断，不当作已验证事实
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T04:09:19.758Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-11-02T04:35:38.959Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
