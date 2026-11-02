@@ -28,36 +28,36 @@
 ## Implementation Decisions
 
 ### 运行体验
-- **D-01：** `npm test` 默认无界面（headless）跑完全部用例。另外只加一个快捷脚本 `test:ui`（Playwright UI 模式）。不加 `test:headed`、`test:debug`、`report` 脚本；需要看报告时，在 tests/README 里写明用项目内的 `npx playwright show-report`（不会安装任何东西）。
-- **D-02：** 只在失败时保留证据：`trace: 'retain-on-failure'`、`screenshot: 'only-on-failure'`。证据只存在本地 `test-results/`，并被 `.gitignore` 忽略。截图和 trace 会拍到应用源码里写死的个人计划文字，所以绝不能上传或提交。
-- **D-03：** 报告器用“终端列表 + HTML”：`[['list'], ['html', { open: 'never' }]]`，HTML 报告不自动弹出。
-- **D-04：** `retries: 1`（用户选择）。报告里被标为 flaky（重试后才通过）的用例都算缺陷，必须在本阶段查明原因并修好，不能靠重试掩盖，这样才满足 ENV-04“连续运行结果一致”。
+- **D-01:** `npm test` 默认无界面（headless）跑完全部用例。另外只加一个快捷脚本 `test:ui`（Playwright UI 模式）。不加 `test:headed`、`test:debug`、`report` 脚本；需要看报告时，在 tests/README 里写明用项目内的 `npx playwright show-report`（不会安装任何东西）。
+- **D-02:** 只在失败时保留证据：`trace: 'retain-on-failure'`、`screenshot: 'only-on-failure'`。证据只存在本地 `test-results/`，并被 `.gitignore` 忽略。截图和 trace 会拍到应用源码里写死的个人计划文字，所以绝不能上传或提交。
+- **D-03:** 报告器用“终端列表 + HTML”：`[['list'], ['html', { open: 'never' }]]`，HTML 报告不自动弹出。
+- **D-04:** `retries: 1`（用户选择）。报告里被标为 flaky（重试后才通过）的用例都算缺陷，必须在本阶段查明原因并修好，不能靠重试掩盖，这样才满足 ENV-04“连续运行结果一致”。
 
 ### 语言与命名
-- **D-05：** 测试标题（`test()`/`test.describe()` 的名字）用**英文**，开头带需求编号，例如 `IO-01 saves an entry to localStorage and keeps it after reload`。护栏和探针类用例用 `SAFE-0x`、`ENV-0x` 或 `PROBE` 前缀。
-- **D-06：** 代码注释，以及 `tests/README.md`、`tests/PROBES.md`、`tests/KNOWN-BUGS.md`（后者 Phase 3 起使用）这些说明文档用**中文**。变量名、函数名、文件名、目录名一律用英文。
-- **D-07：** 测试代码用 **TypeScript**（`.ts`），由 Playwright 直接转译，不加 tsconfig，也不做构建。`@types/node` 和 `typescript` 不作为默认依赖。
-- **D-08：** 界面上的中文文案（状态栏文字、标签名、按钮文字）集中放在 `tests/support/strings.ts`，用例从这里引用，不在各处散写中文字符串。
+- **D-05:** 测试标题（`test()`/`test.describe()` 的名字）用**英文**，开头带需求编号，例如 `IO-01 saves an entry to localStorage and keeps it after reload`。护栏和探针类用例用 `SAFE-0x`、`ENV-0x` 或 `PROBE` 前缀。
+- **D-06:** 代码注释，以及 `tests/README.md`、`tests/PROBES.md`、`tests/KNOWN-BUGS.md`（后者 Phase 3 起使用）这些说明文档用**中文**。变量名、函数名、文件名、目录名一律用英文。
+- **D-07:** 测试代码用 **TypeScript**（`.ts`），由 Playwright 直接转译，不加 tsconfig，也不做构建。`@types/node` 和 `typescript` 不作为默认依赖。
+- **D-08:** 界面上的中文文案（状态栏文字、标签名、按钮文字）集中放在 `tests/support/strings.ts`，用例从这里引用，不在各处散写中文字符串。
 
 ### GitHub 与隐私（影响本阶段的部分）
-- **D-09：** 仓库会以**公开**仓库推送到 GitHub（账号 SuperJCL）。本阶段新增的所有文件都必须适合公开：没有本机绝对路径（如 `C:/Users/...`），没有真实邮箱，没有真实数据，也不复制应用源码里的个人计划文字（目标任务文本、力量目标数值、预设标签文本）。 — **Reversibility:** one-way — 公开推送后，内容可能已被缓存、fork 或索引，删除也无法收回。
-- **D-10：** `us-journey-tracker.html` **不进 git**，只留在本机。SAFE-02 用记录在测试里的 sha256 基线证明它没被改动（当前基线 `2a954fd0e41df78669bddda384f6307b09974fb32969be4d94e130d63a8a1872`）。如果克隆下来的仓库里没有这个文件，测试在启动阶段就要给出清楚的中文提示（例如“请把本地的 us-journey-tracker.html 放到仓库根目录”）并失败，不能报出看不懂的错误。
-- **D-11：** 推送前会先运行一个 `/gsd-quick` 任务，内容是：
+- **D-09:** 仓库会以**公开**仓库推送到 GitHub（账号 SuperJCL）。本阶段新增的所有文件都必须适合公开：没有本机绝对路径（如 `C:/Users/...`），没有真实邮箱，没有真实数据，也不复制应用源码里的个人计划文字（目标任务文本、力量目标数值、预设标签文本）。 — **Reversibility:** one-way — 公开推送后，内容可能已被缓存、fork 或索引，删除也无法收回。
+- **D-10:** `us-journey-tracker.html` **不进 git**，只留在本机。SAFE-02 用记录在测试里的 sha256 基线证明它没被改动（当前基线 `2a954fd0e41df78669bddda384f6307b09974fb32969be4d94e130d63a8a1872`）。如果克隆下来的仓库里没有这个文件，测试在启动阶段就要给出清楚的中文提示（例如“请把本地的 us-journey-tracker.html 放到仓库根目录”）并失败，不能报出看不懂的错误。
+- **D-11:** 推送前会先运行一个 `/gsd-quick` 任务，内容是：
   - 基础 `.gitignore`；
   - git pre-commit 隐私检查钩子；
   - 清理已提交文档里的本机路径和真实备份文件名；
   - 提交作者改为 `49228728+SuperJCL@users.noreply.github.com`，并重写尚未推送的本地提交。
 
   本阶段要在这个基础上**追加** `.gitignore` 条目（`node_modules/`、`test-results/`、`playwright-report/`、`blob-report/`、`.planning/research/.cache/` 等）。本阶段的每次提交都必须通过隐私钩子。如果到本阶段执行时这个 quick 任务还没做，执行者要先停下来提醒用户。
-- **D-12：** `.claude/settings.local.json` 和 `.claude/` 下的 GSD 安装文件（agents、commands、gsd-core、hooks、scripts 等）不进 git，只有 `.claude/CLAUDE.md` 进 git。
+- **D-12:** `.claude/settings.local.json` 和 `.claude/` 下的 GSD 安装文件（agents、commands、gsd-core、hooks、scripts 等）不进 git，只有 `.claude/CLAUDE.md` 进 git。
 
 ### 沿用的项目级决定（已锁定，见 research/SUMMARY.md 的 Research Conflicts Resolved）
-- **D-13：** `@playwright/test` 精确锁定为 `1.64.1`，装在项目内，并提交 `package-lock.json`。浏览器用 `channel: 'msedge'`。严禁 `npx playwright install`、`npm init playwright@latest` 和任何 `-g` 安装。
-- **D-14：** 页面由 `tests/support/static-server.cjs`（零依赖 `node:http`）提供：监听 `127.0.0.1`，只提供 `us-journey-tracker.html`；`webServer.reuseExistingServer: false`；不用 `file://` 作为主路径。
-- **D-15：** 冻结时间用 `page.clock.setFixedTime(Date.UTC(2026, 2, 18, 12))`，配合 `timezoneId: 'America/New_York'` 和 `locale: 'zh-CN'`。只有少数需要推进定时器的用例才单独启用 `clock.install`。
-- **D-16：** 网络护栏：用一个兜底的 `context.route` 只放行应用自己的来源；字体主机（`fonts.googleapis.com`、`fonts.gstatic.com`）直接 abort，并记为“已预期拦截”；其他任何外部请求都让用例失败。再加 `--host-resolver-rules` 作为第二层（由探针验证）。不使用 `setOffline`。
-- **D-17：** 所有用例只能从 `tests/support/test.ts` 导入 `test` 和 `expect`。这个出口挂两个 auto fixture：`guard`（网络护栏和页面错误收集，teardown 时断言两者都为空）和 `frozenClock`。注入脚本只用 `addInitScript(fn, arg)` 形式。`workers: 2`。
-- **D-18：** local 模式的种子数据用“没有才写入”的 init 函数写进 localStorage，防止 `reload` 时覆盖刚保存的数据。持久化断言的顺序是：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。
+- **D-13:** `@playwright/test` 精确锁定为 `1.64.1`，装在项目内，并提交 `package-lock.json`。浏览器用 `channel: 'msedge'`。严禁 `npx playwright install`、`npm init playwright@latest` 和任何 `-g` 安装。
+- **D-14:** 页面由 `tests/support/static-server.cjs`（零依赖 `node:http`）提供：监听 `127.0.0.1`，只提供 `us-journey-tracker.html`；`webServer.reuseExistingServer: false`；不用 `file://` 作为主路径。
+- **D-15:** 冻结时间用 `page.clock.setFixedTime(Date.UTC(2026, 2, 18, 12))`，配合 `timezoneId: 'America/New_York'` 和 `locale: 'zh-CN'`。只有少数需要推进定时器的用例才单独启用 `clock.install`。
+- **D-16:** 网络护栏：用一个兜底的 `context.route` 只放行应用自己的来源；字体主机（`fonts.googleapis.com`、`fonts.gstatic.com`）直接 abort，并记为“已预期拦截”；其他任何外部请求都让用例失败。再加 `--host-resolver-rules` 作为第二层（由探针验证）。不使用 `setOffline`。
+- **D-17:** 所有用例只能从 `tests/support/test.ts` 导入 `test` 和 `expect`。这个出口挂两个 auto fixture：`guard`（网络护栏和页面错误收集，teardown 时断言两者都为空）和 `frozenClock`。注入脚本只用 `addInitScript(fn, arg)` 形式。`workers: 2`。
+- **D-18:** local 模式的种子数据用“没有才写入”的 init 函数写进 localStorage，防止 `reload` 时覆盖刚保存的数据。持久化断言的顺序是：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。
 
 ### Claude's Discretion
 - **探针失败怎么办**（用户没选这个话题，由 Claude 决定）：
