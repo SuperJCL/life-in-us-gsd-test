@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-01)
+See: .planning/PROJECT.md (updated 2026-11-01 after Phase 1)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** Phase 1 — 测试环境、护栏与本地切片（Harness & Local Slice）
+**Current focus:** Phase 2 — 账户模式、合成数据与导出（Account Mock, Data & Export）
 
 ## Current Position
 
@@ -87,15 +87,16 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: 本机 Edge 156 能否被 Playwright 1.64.1 驱动还没验证。如果探针失败，计划必须停下来询问用户，不运行任何安装命令。
-- [Phase 1]: 计划检查到达 3 轮上限，用户接受了剩余的 6 个 WARNING（0 个 BLOCKER）。执行和阶段末验证时要重点核对以下几项：
-  - ENV-03“只监听 127.0.0.1”缺少运行时证据；
-  - `/%2e%2e/` 路径穿越检查可能被客户端规范化，变成空操作；
-  - SAFE-04 控制台过滤的应急路径覆盖不全（favicon 应急也可能无效）；
-  - PROBE-2 解析层的证人是 localhost（在 bypass 名单里），而且回退方案可能让探针在保证失效时仍然通过；
-  - 01-03 Task 2 范围过大；
-  - 01-01 的部分 truths 写的是配置字面量。
+- [Phase 1 遗留]: 代码审查（`01-REVIEW.md`）有 6 个 WARNING，状态都还是 open（见 `01-REVIEW-DISPOSITION.md`）。可以用 `/gsd-code-review 1 --fix` 修，也可以在 Phase 2 顺手处理：
+  - WR-01：静态服务器不校验 Host 头（DNS 重绑定的理论窗口）；
+  - WR-02：`guard.reset()` 会清空全部记录；
+  - WR-03：PROBE-2c 的标题比断言说得多；
+  - WR-04：README 第 7 节夸大了解析层的保证范围；
+  - WR-05：guard 只记录 HTTP 请求，弹窗不受监控；
+  - WR-06：启动时 localStorage 为空的断言只采样一次。
+- [Phase 1 遗留]: 安全审计（`/gsd-secure-phase 1`）还没运行，所以没有 SECURITY.md。`phase.complete` 已经把这条记为警告。
 - [Phase 2]: `exposeBinding` 在页面脚本运行前是否可用还没验证；不可用时退回带前缀的 `sessionStorage` 方案。
+- [Phase 6]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。
 - [Phase 5]: N3（导入 `{}` 后清空数据）的期望行为未定，需要用户决定。
 
 ### Quick Tasks Completed
