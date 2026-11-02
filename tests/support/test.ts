@@ -3,6 +3,7 @@
 // 注入脚本只用 addInitScript(fn, arg) 的形式，不拼接字符串。
 import { test as base, expect } from '@playwright/test';
 import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW } from './constants';
+import { AppHarness } from './app';
 
 // guard 收集的全部状态；用例可以通过 ({ guard }) 读取 guard.state
 export interface GuardState {
@@ -38,6 +39,7 @@ export function guardViolations(state: GuardState): string[] {
 type Fixtures = {
   guard: GuardHandle;
   frozenClock: void;
+  app: AppHarness;
 };
 
 function emptyState(): GuardState {
@@ -127,6 +129,11 @@ export const test = base.extend<Fixtures>({
     },
     { auto: true },
   ],
+
+  // 应用 harness：用例通过它打开应用、reload 和断言持久化（D-17）
+  app: async ({ page }, use) => {
+    await use(new AppHarness(page));
+  },
 });
 
 export { expect };

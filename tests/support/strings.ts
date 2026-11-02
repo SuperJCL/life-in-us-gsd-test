@@ -10,6 +10,9 @@ export const TOAST_RECORDED = '已记录';
 // 类别名：应用持久化的是中文显示名，不是键
 export const CAT_LANGUAGE = '语言';
 
+// 四个标签的文案，键是 data-tab 的值（应用源码逐字复制）
+export const TAB_LABELS = { wk: '本周', cal: '日历', goal: '目标', tl: '时间线' } as const;
+
 // 本周视图的标题（应用源码逐字复制）
 export const WEEK_TITLE_CURRENT = '本周';
 
