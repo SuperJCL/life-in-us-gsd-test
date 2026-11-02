@@ -42,6 +42,11 @@ type Fixtures = {
   app: AppHarness;
 };
 
+// 时钟模式：fixed 为默认；manual 时 frozenClock 什么都不做，由用例自己调用 page.clock.install
+type Options = {
+  clockMode: 'fixed' | 'manual';
+};
+
 function emptyState(): GuardState {
   return {
     unexpectedRequests: [],
@@ -52,7 +57,10 @@ function emptyState(): GuardState {
   };
 }
 
-export const test = base.extend<Fixtures>({
+export const test = base.extend<Fixtures & Options>({
+  // option fixture：用 test.use({ clockMode: 'manual' }) 切换
+  clockMode: ['fixed', { option: true }],
+
   // 网络护栏（D-16）和页面错误收集（SAFE-04）
   guard: [
     async ({ context, page }, use) => {
@@ -123,8 +131,11 @@ export const test = base.extend<Fixtures>({
 
   // 固定时钟（D-15）：在任何导航之前设置固定时间
   frozenClock: [
-    async ({ page }, use) => {
-      await page.clock.setFixedTime(FROZEN_NOW);
+    async ({ page, clockMode }, use) => {
+      // 同一个用例不混用 install 和 setFixedTime（D-15）：manual 时这里什么都不做
+      if (clockMode === 'fixed') {
+        await page.clock.setFixedTime(FROZEN_NOW);
+      }
       await use();
     },
     { auto: true },
@@ -137,3 +148,5 @@ export const test = base.extend<Fixtures>({
 });
 
 export { expect };
+// 类型也从这个出口导出，spec 里不直接导入 @playwright/test
+export type { Browser, Page } from '@playwright/test';
