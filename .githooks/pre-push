@@ -1,0 +1,10 @@
+#!/bin/sh
+# pre-push 钩子：运行隐私检查器的 --push 模式。
+# 找不到 node 或检查器出错时一律阻止推送（fail closed）。
+# 用 exec 让钩子的退出码直接等于检查器的退出码，并让 git 写入的 stdin 原样交给检查器。
+cd "$(git rev-parse --show-toplevel)" || exit 1
+if ! command -v node >/dev/null 2>&1; then
+  echo "找不到 node，已阻止推送，请安装 Node.js 后重试" >&2
+  exit 1
+fi
+exec node tools/privacy/privacy-check.mjs --push

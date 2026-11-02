@@ -1,0 +1,2 @@
+# 系统级 core.autocrlf=true 会在检出时把钩子转成 CRLF，sh 解释器随后会报错，所以固定为 LF
+.githooks/** text eol=lf

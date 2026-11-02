@@ -1,0 +1,30 @@
+# ===== 隐私护栏：仓库将公开，以下内容只留在本机，不进入 git =====
+# 详见 PRIVACY.md
+
+# --- 应用文件（源码里写死了个人计划，D-10）---
+/us-journey-tracker.html
+
+# --- 真实备份与应用导出（含真实数据）---
+*备份*.json
+在美国的日子-*.json
+在美国的日子-*.csv
+
+# --- 本地私有目录（例如 private/denylist.txt）---
+private/
+
+# --- .claude：只跟踪 CLAUDE.md（D-12）---
+# 必须写成 .claude/*，不能写 .claude/，否则下面的取反规则无效
+.claude/*
+!.claude/CLAUDE.md
+
+# --- 调研缓存 ---
+.planning/research/.cache/
+
+# --- 依赖与测试产物（截图和 trace 会拍到个人计划文字，D-02）---
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+
+# --- 环境变量与密钥 ---
+.env*

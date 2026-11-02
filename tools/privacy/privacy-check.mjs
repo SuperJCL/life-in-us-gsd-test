@@ -1,0 +1,632 @@
+#!/usr/bin/env node
+// 隐私检查器：仓库公开前的最后一道防线。零依赖，只使用 node: 内置模块。
+//
+// 模式：
+//   --staged     检查暂存区（pre-commit 使用）
+//   --all        检查 HEAD 树加暂存区（手动全量检查）
+//   --push       从 stdin 读取 pre-push 的引用列表，检查即将推送的每个提交
+//   --self-test  内置正例和反例自检，不依赖 git 状态
+//
+// 规则：
+//   A-forbidden-path  不允许进入仓库的文件路径
+//   B-abs-path        内容里的本机绝对路径（用户名）
+//   C-email           内容里的真实邮箱
+//   D-plan-term       个人计划词条（运行时从本地私有来源提取，只输出编号）
+//   E-author-email    提交的作者或提交者邮箱不是 GitHub noreply 地址
+//
+// 退出码：0 通过；1 发现问题；2 参数错误或内部错误（fail closed，同样会阻止提交）。
+//
+// 本文件自身必须能通过 --staged 和 --all，且不靠豁免自己：
+// 所有会命中规则 B、C 的样本都在运行时拼接，源码里不出现完整的命中字面量。
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
+// ---------- 常量 ----------
+
+const MAX_BUFFER = 64 * 1024 * 1024;
+const NOREPLY_SUFFIX = '@users.noreply.github.com';
+const APP_FILE = 'us-journey-tracker.html';
+const DENYLIST_FILE = 'private/denylist.txt';
+const TERM_BLOCK_NAMES = ['CATS', 'GROUPS', 'LIFTS'];
+const FILE_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico',
+  'js', 'mjs', 'cjs', 'ts', 'json', 'md', 'css', 'html', 'htm',
+]);
+const GENERIC_DIRS = /^(public|default( user)?|all users)([\\/]|$)/i;
+
+export const RULES = {
+  A: 'A-forbidden-path',
+  B: 'B-abs-path',
+  C: 'C-email',
+  D: 'D-plan-term',
+  E: 'E-author-email',
+};
+
+// ---------- 纯函数：规则 A（路径） ----------
+
+export function checkPath(path) {
+  const norm = String(path).replace(/\\/g, '/');
+  const segments = norm.split('/').filter((s) => s.length > 0);
+  const base = segments.length > 0 ? segments[segments.length - 1] : '';
+  if (base === APP_FILE) return '应用文件只能留在本机，不能进入仓库';
+  if (base.includes('备份') && base.endsWith('.json')) return '真实备份文件不能进入仓库';
+  if (base.startsWith('在美国的日子-') && (base.endsWith('.json') || base.endsWith('.csv'))) {
+    return '应用导出文件含真实数据，不能进入仓库';
+  }
+  if (segments.includes('private')) return 'private 目录只留在本机，不能进入仓库';
+  if (norm === '.claude/settings.local.json') return '本机 Claude 设置不能进入仓库';
+  if (base.startsWith('.env')) return '环境变量文件不能进入仓库';
+  return null;
+}
+
+// ---------- 纯函数：规则 B（本机绝对路径） ----------
+
+const USER_SEG = '[\\p{L}\\p{N}_][\\p{L}\\p{N}._-]{0,63}';
+const WIN_RE = new RegExp(`((?<![A-Za-z])[A-Za-z]:[\\\\/]+users[\\\\/]+)(${USER_SEG})`, 'giu');
+const UNIX_RE = new RegExp(`((?<![\\p{L}\\p{N}_.:])\\/(?:Users|home)\\/)(${USER_SEG})(?=\\/)`, 'gu');
+
+export function findAbsPaths(line) {
+  const hits = [];
+  for (const re of [WIN_RE, UNIX_RE]) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      const nameStart = m.index + m[1].length;
+      if (GENERIC_DIRS.test(line.slice(nameStart))) continue;
+      hits.push(`${m[1]}<用户名>`);
+    }
+  }
+  return hits;
+}
+
+// ---------- 纯函数：规则 C（邮箱） ----------
+
+const EMAIL_RE = /([A-Za-z0-9._%+-]+)@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})/g;
+
+function isAllowedEmail(local, domain) {
+  const d = domain.toLowerCase();
+  const full = `${local}@${domain}`.toLowerCase();
+  if (d.endsWith('users.noreply.github.com')) return true;
+  if (full === 'noreply@anthropic.com') return true;
+  if (['example.com', 'example.org', 'example.net'].some((x) => d === x || d.endsWith(`.${x}`))) {
+    return true;
+  }
+  const tld = d.slice(d.lastIndexOf('.') + 1);
+  if (FILE_EXTENSIONS.has(tld)) return true;
+  return false;
+}
+
+export function redactEmail(email) {
+  const at = String(email).lastIndexOf('@');
+  if (at < 1) return '***';
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
+export function findEmails(line) {
+  const hits = [];
+  EMAIL_RE.lastIndex = 0;
+  let m;
+  while ((m = EMAIL_RE.exec(line)) !== null) {
+    if (isAllowedEmail(m[1], m[2])) continue;
+    hits.push(redactEmail(`${m[1]}@${m[2]}`));
+  }
+  return hits;
+}
+
+// ---------- 纯函数：规则 E（作者和提交者邮箱） ----------
+
+export function checkIdentityEmail(email, role) {
+  const e = String(email).trim();
+  if (e.toLowerCase().endsWith(NOREPLY_SUFFIX)) return null;
+  return {
+    rule: RULES.E,
+    message: `${role}邮箱 ${redactEmail(e)} 不是 GitHub noreply 地址`,
+  };
+}
+
+// ---------- 纯函数：扫描文本 ----------
+
+export function isBinary(buffer) {
+  const end = Math.min(buffer.length, 8000);
+  for (let i = 0; i < end; i += 1) if (buffer[i] === 0) return true;
+  return false;
+}
+
+export function splitLines(text) {
+  return String(text).replace(/^\uFEFF/, '').split(/\r\n|\r|\n/);
+}
+
+// 返回 [{ location, rule, message }]；location 形如 "文件:行号"
+export function scanText(location, text, terms = []) {
+  const findings = [];
+  const lines = splitLines(text);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (line.length === 0) continue;
+    const where = `${location}:${i + 1}`;
+    const paths = findAbsPaths(line);
+    if (paths.length > 0) {
+      findings.push({ location: where, rule: RULES.B, message: `本机绝对路径 ${paths[0]}` });
+    }
+    const emails = findEmails(line);
+    if (emails.length > 0) {
+      findings.push({ location: where, rule: RULES.C, message: `疑似真实邮箱 ${emails[0]}` });
+    }
+    for (let t = 0; t < terms.length; t += 1) {
+      if (line.includes(terms[t])) {
+        findings.push({ location: where, rule: RULES.D, message: `个人计划词条 #${t + 1}` });
+        break;
+      }
+    }
+  }
+  return findings;
+}
+
+export function scanBuffer(location, buffer, terms = []) {
+  if (isBinary(buffer)) return [];
+  return scanText(location, buffer.toString('utf8'), terms);
+}
+
+export function formatFinding(f) {
+  return `${f.location} [${f.rule}] ${f.message}`;
+}
+
+// ---------- 纯函数：规则 D 的词条来源 ----------
+
+function readBlock(html, name) {
+  const m = new RegExp(`const\\s+${name}\\s*=\\s*\\[`).exec(html);
+  if (!m) return [];
+  let i = m.index + m[0].length;
+  let depth = 1;
+  const strings = [];
+  while (i < html.length && depth > 0) {
+    const ch = html[i];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      let j = i + 1;
+      while (j < html.length && html[j] !== quote) {
+        if (html[j] === '\\') j += 1;
+        j += 1;
+      }
+      if (quote === '"') strings.push(html.slice(i, j + 1));
+      i = j + 1;
+      continue;
+    }
+    if (ch === '[') depth += 1;
+    else if (ch === ']') depth -= 1;
+    i += 1;
+  }
+  return strings;
+}
+
+export function extractPlanTerms(html) {
+  const seen = new Set();
+  const terms = [];
+  for (const name of TERM_BLOCK_NAMES) {
+    for (const literal of readBlock(html, name)) {
+      let value;
+      try {
+        value = JSON.parse(literal);
+      } catch {
+        value = literal.slice(1, -1);
+      }
+      value = String(value).trim().replace(/[：:]$/, '').trim();
+      if (!/\p{Script=Han}/u.test(value)) continue;
+      if ([...value].length < 4) continue;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      terms.push(value);
+    }
+  }
+  return terms;
+}
+
+export function parseDenylist(text) {
+  const terms = [];
+  for (const raw of splitLines(text)) {
+    const term = raw.split('#')[0].trim();
+    if (term.length > 0) terms.push(term);
+  }
+  return terms;
+}
+
+// ---------- 纯函数：pre-push 输入 ----------
+
+const SHA_RE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i;
+const ZERO_RE = /^0+$/;
+
+export function parsePushInput(text) {
+  const entries = [];
+  for (const raw of String(text).split(/\r\n|\r|\n/)) {
+    const line = raw.trim();
+    if (line.length === 0) continue;
+    const parts = line.split(/\s+/);
+    if (parts.length !== 4 || !SHA_RE.test(parts[1]) || !SHA_RE.test(parts[3])) {
+      throw new Error('pre-push 输入格式错误，已阻止推送');
+    }
+    entries.push({ localRef: parts[0], localSha: parts[1], remoteRef: parts[2], remoteSha: parts[3] });
+  }
+  return entries;
+}
+
+// 返回 null 表示跳过；否则 { primary, fallback }
+export function planRevListArgs(entry) {
+  if (ZERO_RE.test(entry.localSha)) return null;
+  if (ZERO_RE.test(entry.remoteSha)) {
+    return { primary: [entry.localSha, '--not', '--remotes'], fallback: null };
+  }
+  return {
+    primary: [`${entry.remoteSha}..${entry.localSha}`],
+    fallback: [entry.localSha, '--not', '--remotes'],
+  };
+}
+
+// ---------- git 辅助 ----------
+
+function git(args, opts = {}) {
+  return execFileSync('git', args, { encoding: 'buffer', maxBuffer: MAX_BUFFER, ...opts });
+}
+
+function gitText(args) {
+  return git(args).toString('utf8');
+}
+
+function gitPathList(args, opts = {}) {
+  return git(args, opts).toString('utf8').split('\0').filter((p) => p.length > 0);
+}
+
+function repoRoot() {
+  return gitText(['rev-parse', '--show-toplevel']).trim();
+}
+
+function mainWorktreeRoot() {
+  try {
+    const common = gitText(['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+    return dirname(common);
+  } catch {
+    return null;
+  }
+}
+
+// ---------- 规则 D：加载词条 ----------
+
+function loadPlanTerms() {
+  const roots = [process.cwd()];
+  const main = mainWorktreeRoot();
+  if (main && !roots.includes(main)) roots.push(main);
+  const firstExisting = (rel) => {
+    for (const root of roots) {
+      const p = join(root, rel);
+      if (existsSync(p)) return p;
+    }
+    return null;
+  };
+  const terms = [];
+  const add = (list) => {
+    for (const t of list) if (!terms.includes(t)) terms.push(t);
+  };
+  const htmlPath = firstExisting(APP_FILE);
+  if (htmlPath) add(extractPlanTerms(readFileSync(htmlPath, 'utf8')));
+  const denyPath = firstExisting(DENYLIST_FILE);
+  if (denyPath) add(parseDenylist(readFileSync(denyPath, 'utf8')));
+  if (terms.length > 0) {
+    process.stderr.write(`规则 D：已加载 ${terms.length} 个个人计划词条\n`);
+  } else {
+    process.stderr.write(`规则 D 已跳过：未找到 ${APP_FILE} 或 ${DENYLIST_FILE}\n`);
+  }
+  return terms;
+}
+
+// ---------- 模式：--staged ----------
+
+function runStaged(terms) {
+  const paths = gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']);
+  if (paths.length === 0) {
+    process.stderr.write('没有暂存文件，隐私检查已跳过\n');
+    return { findings: [], count: 0 };
+  }
+  const findings = [];
+  for (const path of paths) {
+    const reason = checkPath(path);
+    if (reason) {
+      findings.push({ location: path, rule: RULES.A, message: reason });
+      continue;
+    }
+    findings.push(...scanBuffer(path, git(['show', `:${path}`]), terms));
+  }
+  return { findings, count: paths.length };
+}
+
+// ---------- 模式：--all ----------
+
+function runAll(terms) {
+  const head = gitPathList(['ls-tree', '-r', '-z', '--name-only', 'HEAD']);
+  const hasHead = (() => {
+    try {
+      git(['rev-parse', '--verify', '-q', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  const headPaths = hasHead ? head : [];
+  const deleted = new Set(gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=D']));
+  const staged = gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']);
+  const stagedSet = new Set(staged);
+  const all = [];
+  const seen = new Set();
+  for (const p of [...headPaths.filter((x) => !deleted.has(x)), ...staged]) {
+    if (!seen.has(p)) {
+      seen.add(p);
+      all.push(p);
+    }
+  }
+  const findings = [];
+  for (const path of all) {
+    const reason = checkPath(path);
+    if (reason) {
+      findings.push({ location: path, rule: RULES.A, message: reason });
+      continue;
+    }
+    let buf;
+    if (stagedSet.has(path)) {
+      try {
+        buf = readFileSync(join(process.cwd(), path));
+      } catch {
+        buf = git(['show', `:${path}`]);
+      }
+    } else {
+      buf = git(['show', `HEAD:${path}`]);
+    }
+    findings.push(...scanBuffer(path, buf, terms));
+  }
+  return { findings, count: all.length };
+}
+
+// ---------- 模式：--push ----------
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function revList(args) {
+  return gitText(['rev-list', ...args]).split(/\r?\n/).filter((l) => l.length > 0);
+}
+
+function commitsFor(entry) {
+  const plan = planRevListArgs(entry);
+  if (!plan) return [];
+  try {
+    return revList(plan.primary);
+  } catch (err) {
+    if (!plan.fallback) throw err;
+    return revList(plan.fallback);
+  }
+}
+
+function checkCommit(sha, terms) {
+  const short = sha.slice(0, 8);
+  const findings = [];
+  const ids = gitText(['log', '-1', '--format=%ae%x00%ce', sha]).trim().split('\0');
+  const authorHit = checkIdentityEmail(ids[0] ?? '', '作者');
+  if (authorHit) findings.push({ location: `${short}:作者`, ...authorHit });
+  const committerHit = checkIdentityEmail(ids[1] ?? '', '提交者');
+  if (committerHit) findings.push({ location: `${short}:提交者`, ...committerHit });
+
+  const message = gitText(['log', '-1', '--format=%B', sha]);
+  findings.push(...scanText(`${short}:提交说明`, message, terms));
+
+  let paths;
+  try {
+    // 有父提交时与第一父提交比较；根提交没有父提交，改用 --root（--no-commit-id 去掉输出开头的提交号）
+    paths = gitPathList(
+      ['diff-tree', '-r', '-z', '--name-only', '--diff-filter=ACMR', `${sha}^`, sha],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+  } catch {
+    paths = gitPathList(['diff-tree', '--root', '--no-commit-id', '-r', '-z', '--name-only', '--diff-filter=ACMR', sha]);
+  }
+  for (const path of paths) {
+    const reason = checkPath(path);
+    if (reason) {
+      findings.push({ location: `${short}:${path}`, rule: RULES.A, message: reason });
+      continue;
+    }
+    findings.push(...scanBuffer(`${short}:${path}`, git(['show', `${sha}:${path}`]), terms));
+  }
+  return findings;
+}
+
+async function runPush(terms) {
+  const entries = parsePushInput(await readStdin());
+  const shas = [];
+  for (const entry of entries) {
+    for (const sha of commitsFor(entry)) if (!shas.includes(sha)) shas.push(sha);
+  }
+  const findings = [];
+  for (const sha of shas) findings.push(...checkCommit(sha, terms));
+  return { findings, count: shas.length };
+}
+
+// ---------- 模式：--self-test ----------
+
+function runSelfTest() {
+  const failures = [];
+  let total = 0;
+  const expect = (name, ok) => {
+    total += 1;
+    if (!ok) failures.push(name);
+  };
+  const ruleSet = (findings) => findings.map((f) => f.rule).join(',');
+
+  // 样本在运行时拼接，源码里不出现完整的命中字面量
+  const name = 'someone';
+  const winFwd = ['C:', 'Users', name, 'x'].join('/');
+  const winBack = ['C:', 'Users', name, 'x'].join('\\');
+  const winJson = ['C:', 'Users', name, 'x'].join('\\\\');
+  const winLower = ['c:', 'users', name, 'x'].join('/');
+  const mac = ['', 'Users', name, 'x'].join('/');
+  const linux = ['', 'home', name, 'x'].join('/');
+  const zh = ['C:', 'Users', '某某某', 'x'].join('/');
+  const company = `${name}@${['corp-mail', 'com'].join('.')}`;
+  const digitDomain = `${name}@${['163', 'com'].join('.')}`;
+
+  // 规则 A
+  const pathPos = [
+    APP_FILE, `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
+    '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
+  ];
+  for (const p of pathPos) expect(`规则 A 正例 ${p}`, checkPath(p) !== null);
+  const pathNeg = [
+    'PRIVACY.md', 'tools/privacy/privacy-check.mjs', 'privateer.txt', 'docs/backup.md',
+    'src/environment.ts', '.claude/CLAUDE.md',
+  ];
+  for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
+
+  // 规则 B
+  const bPos = [
+    ['Windows 正斜杠', winFwd], ['Windows 单反斜杠', winBack], ['Windows JSON 双反斜杠', winJson],
+    ['Windows 小写', winLower], ['macOS', mac], ['Linux', linux], ['中文用户名', zh],
+  ];
+  for (const [label, sample] of bPos) {
+    const f = scanText('f', `前缀 ${sample} 后缀`);
+    expect(`规则 B 正例 ${label}`, ruleSet(f) === RULES.B);
+    expect(`规则 B 输出不含用户名 ${label}`, !formatFinding(f[0] ?? { location: '', rule: '', message: '' }).includes(name) && !formatFinding(f[0] ?? { location: '', rule: '', message: '' }).includes('某某某'));
+  }
+  const bNeg = [
+    '~/AppData/Local/x', 'C:/Users/<name>/x', 'C:/Users/.../x', 'C:/Users/{user}/x',
+    'C:/Users/$USER/x', '%USERPROFILE%/x', 'C:/Users/Public/x', 'https://example.com/home/page/',
+    'D:/Projects/x', 'C:/Users/<用户名>/x',
+  ];
+  for (const sample of bNeg) expect(`规则 B 反例 ${sample}`, scanText('f', sample).length === 0);
+
+  // 规则 C
+  for (const [label, sample] of [['公司邮箱', company], ['数字开头域名', digitDomain]]) {
+    const f = scanText('f', `联系 ${sample} 即可`);
+    expect(`规则 C 正例 ${label}`, ruleSet(f) === RULES.C);
+    expect(`规则 C 输出不含 local part ${label}`, !formatFinding(f[0] ?? { location: '', rule: '', message: '' }).includes(name));
+  }
+  const cNeg = [
+    '@playwright/test', 'npm i -D @playwright/test@1.64.1', 'npm init playwright@latest',
+    '12345+someone@users.noreply.github.com', 'noreply@anthropic.com', 'test@example.com',
+    'a@example.org', 'icon@2x.png', '<ID>+<用户名>@users.noreply.github.com',
+  ];
+  for (const sample of cNeg) expect(`规则 C 反例 ${sample}`, scanText('f', sample).length === 0);
+
+  // 换行无关与二进制
+  const body = ['第一行', `路径 ${winFwd}`, '第三行', `邮箱 ${company}`];
+  const variants = [body.join('\n'), body.join('\r\n'), body.join('\r')];
+  const keys = variants.map((v) => scanText('f', v).map((x) => `${x.location}${x.rule}`).join('|'));
+  expect('换行无关 LF/CRLF/CR 结果一致', keys[0] === keys[1] && keys[1] === keys[2] && keys[0].includes('f:2') && keys[0].includes('f:4'));
+  expect('二进制内容跳过', scanBuffer('f', Buffer.from(`${winFwd}\0`)).length === 0);
+  expect('文本内容不跳过', scanBuffer('f', Buffer.from(winFwd)).length === 1);
+
+  // 规则 D：词条提取
+  const fixture = String.raw`var s="块外字符串前置不提取";
+const CATS=[{n:"合成样例条目一",k:"a",x:["嵌套数组条目二"]},{n:"带\"引号\"的条目三四"}];
+const other="块外字符串不应提取";
+const GROUPS = [ {t:["全角冒号结尾条目：","合成样例条目一","三个字","only ascii words"]} ];
+const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引号串' ];`;
+  const got = extractPlanTerms(fixture);
+  const want = ['合成样例条目一', '嵌套数组条目二', '带"引号"的条目三四', '全角冒号结尾条目', '半角冒号结尾条目'];
+  expect('词条提取：内容和顺序', JSON.stringify(got) === JSON.stringify(want));
+  expect('denylist 解析', JSON.stringify(parseDenylist('# 注释\n\n  甲乙  \n丙丁 # 尾注\r\nab\n')) === JSON.stringify(['甲乙', '丙丁', 'ab']));
+  const dFind = scanText('f', '这一行包含 嵌套数组条目二 内容', want);
+  expect('规则 D 命中并给出编号', dFind.length === 1 && dFind[0].message.endsWith('#2'));
+  expect('规则 D 输出不含词条', !formatFinding(dFind[0] ?? { location: '', rule: '', message: '' }).includes('嵌套数组条目二'));
+
+  // 规则 E
+  expect('规则 E 放行 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX}`, '作者') === null);
+  expect('规则 E 放行大写 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX.toUpperCase()}`, '作者') === null);
+  const eHit = checkIdentityEmail(company, '提交者');
+  expect('规则 E 拒绝普通邮箱', eHit !== null && eHit.rule === RULES.E && !eHit.message.includes(name));
+
+  // pre-push 输入
+  const zero = '0'.repeat(40);
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+  const parsed = parsePushInput(`refs/heads/x ${a} refs/heads/x ${zero}\r\n\r\nrefs/heads/y ${b} refs/heads/y ${a}`);
+  expect('push 解析：两行含 CRLF 和无结尾换行', parsed.length === 2 && parsed[1].remoteSha === a);
+  let threw = false;
+  try {
+    parsePushInput('refs/heads/x abc refs/heads/x def');
+  } catch {
+    threw = true;
+  }
+  expect('push 解析：格式错误按失败处理', threw);
+  const newBranch = planRevListArgs(parsed[0]);
+  expect('push 范围：新分支', newBranch !== null && newBranch.primary.join(' ') === `${a} --not --remotes`);
+  const updateRange = planRevListArgs(parsed[1]);
+  expect('push 范围：更新', updateRange !== null && updateRange.primary[0] === `${a}..${b}`);
+  expect('push 范围：删除分支跳过', planRevListArgs({ localSha: zero, remoteSha: a }) === null);
+
+  // 实时词条自检：不写盘、不打印词条
+  const live = loadPlanTerms();
+  if (live.length > 0) {
+    let liveOk = true;
+    let liveBad = 0;
+    for (let i = 0; i < live.length; i += 1) {
+      const line = `前缀 ${live[i]} 后缀`;
+      const expectedIdx = live.findIndex((t) => line.includes(t)) + 1;
+      const f = scanText('f', line, live);
+      const ok = f.length === 1 && f[0].rule === RULES.D && f[0].message.endsWith(`#${expectedIdx}`) && !formatFinding(f[0]).includes(live[i]);
+      if (!ok) {
+        liveOk = false;
+        liveBad += 1;
+      }
+    }
+    expect(`实时词条自检：共 ${live.length} 个，失败 ${liveBad} 个`, liveOk);
+  } else {
+    process.stderr.write('实时词条自检已跳过：没有可用的词条来源\n');
+  }
+
+  if (failures.length > 0) {
+    for (const f of failures) process.stdout.write(`自检失败：${f}\n`);
+    return 1;
+  }
+  process.stdout.write(`自检通过：${total} 项\n`);
+  return 0;
+}
+
+// ---------- 入口 ----------
+
+async function main() {
+  const args = process.argv.slice(2).filter((a) => a.startsWith('--'));
+  const known = ['--staged', '--all', '--push', '--self-test'];
+  const unknown = args.filter((a) => !known.includes(a));
+  if (unknown.length > 0 || args.length !== 1) {
+    process.stderr.write('用法：node tools/privacy/privacy-check.mjs --staged | --all | --push | --self-test\n');
+    return 2;
+  }
+  const mode = args[0];
+  process.chdir(repoRoot());
+  if (mode === '--self-test') return runSelfTest();
+
+  const terms = loadPlanTerms();
+  let result;
+  if (mode === '--staged') result = runStaged(terms);
+  else if (mode === '--all') result = runAll(terms);
+  else result = await runPush(terms);
+
+  if (result.findings.length > 0) {
+    process.stdout.write(`${result.findings.map(formatFinding).join('\n')}\n`);
+    process.stderr.write(`隐私检查未通过：共 ${result.findings.length} 处问题。请修改后再提交，不要用 --no-verify 绕过。\n`);
+    return 1;
+  }
+  process.stderr.write(`隐私检查通过（${mode.slice(2)}，${result.count} 个${mode === '--push' ? '提交' : '文件'}）\n`);
+  return 0;
+}
+
+main().then(
+  (code) => {
+    process.exitCode = code;
+  },
+  (err) => {
+    process.stderr.write(`隐私检查出错（已阻止）：${err instanceof Error ? err.message : String(err)}\n`);
+    process.exitCode = 2;
+  },
+);
