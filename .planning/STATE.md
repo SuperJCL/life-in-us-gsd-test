@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 1
 current_phase_name: 测试环境、护栏与本地切片（Harness & Local Slice）
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-11-02T03:49:09.887Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-11-02T04:09:19.821Z"
 last_activity: 2026-11-01
 last_activity_desc: Phase 1 execution started
-state_head: a40ae0343fca993e0735799673eb8b47b6e34b97
+state_head: 260907d67c075147e13fee7c03d356ffcacd61cb
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-01)
 ## Current Position
 
 Phase: 1 (测试环境、护栏与本地切片（Harness & Local Slice）) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-11-01 — Phase 1 execution started
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 |------|----------|-------|-------|
 | Phase 01 P01 | 4 min | 3 tasks | 8 files |
 | Phase 01 P02 | 7min | 2 tasks | 9 files |
+| Phase 01 P03 | 16 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-01] Edge 156.0.4314.58 无需下载即可被 Playwright 1.64.1 驱动，条件检查点（Task 3）未触发 — npm test 用 msedge 通道一次通过，没有运行任何安装器
 - [Phase 01]: SAFE-04 page-error self-check throws via queueMicrotask: under setFixedTime, timer-callback errors surface only as console.error, not pageerror
 - [Phase 01]: ENV-03 runtime evidence added: raw node:http traversal requests and loopback-only listener check (non-loopback connect must fail)
+- [Phase 01]: [01-03] PROBE-2 两层网络兜底都被用例证明（解析层：localhost、probe.localhost 加去规则对照；代理层：probe.invalid 与 WebSocket 对照），网络检查点（Task 3）未触发 — 对照浏览器只去掉解析规则、保留死代理；经代理的主机名由代理层保证
+- [Phase 01]: [01-03] preconnect 在这台无界面 Edge 上没有被直接观察到（字体主机 CONNECT 为 0），PROBES.md 写成推断；Plan 04 的 README 要写明这一点 — 诚实记录：不把未观察到的行为写成已证明
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T03:49:09.854Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-11-02T04:09:19.758Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None

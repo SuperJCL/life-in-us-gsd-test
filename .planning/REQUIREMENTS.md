@@ -23,7 +23,7 @@
 
 ### Claude API Mock
 
-- [ ] **MOCK-01**: 测试可以在“本地模式”下打开应用：没有 `window.claude`，可以预置 localStorage
+- [x] **MOCK-01**: 测试可以在“本地模式”下打开应用：没有 `window.claude`，可以预置 localStorage
 - [ ] **MOCK-02**: 测试可以在“账户模式”下打开应用：注入的 `window.claude` mock 按真实契约提供 `use("db")`、`use("user")`、`use("downloads")`（异步返回、命名空间冻结、未知名字返回 `null`），只实现正常路径
 - [ ] **MOCK-03**: 账户模式下，测试能读到 mock 记录的 db 读写，数据在页面刷新后仍然保留
 - [ ] **MOCK-04**: 账户模式下导出按钮会出现，测试能读到 `downloads.save` 收到的文件名和内容
@@ -79,7 +79,7 @@
 
 ### Persistence & Import/Export
 
-- [ ] **IO-01**: 本地模式下数据保存到 localStorage，刷新后仍在；导出按钮隐藏
+- [x] **IO-01**: 本地模式下数据保存到 localStorage，刷新后仍在；导出按钮隐藏
 - [ ] **IO-02**: 账户模式下导出的日历 CSV 内容正确（表头、MM/DD/YYYY 日期、引号和逗号转义）
 - [ ] **IO-03**: 导出的 JSON 备份内容与当前状态一致
 - [ ] **IO-04**: 用户导入 JSON 备份时，确认后全部数据被替换；取消则数据不变；选择非 JSON 文件时提示错误
@@ -142,7 +142,7 @@
 | SAFE-02 | Phase 1 | Complete |
 | SAFE-03 | Phase 1 | Complete |
 | SAFE-04 | Phase 1 | Complete |
-| MOCK-01 | Phase 1 | Pending |
+| MOCK-01 | Phase 1 | Complete |
 | MOCK-02 | Phase 2 | Pending |
 | MOCK-03 | Phase 2 | Pending |
 | MOCK-04 | Phase 2 | Pending |
@@ -170,7 +170,7 @@
 | EDIT-01 | Phase 3 | Pending |
 | EDIT-02 | Phase 3 | Pending |
 | EDIT-03 | Phase 3 | Pending |
-| IO-01 | Phase 1 | Pending |
+| IO-01 | Phase 1 | Complete |
 | IO-02 | Phase 2 | Pending |
 | IO-03 | Phase 2 | Pending |
 | IO-04 | Phase 5 | Pending |

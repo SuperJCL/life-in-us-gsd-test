@@ -38,7 +38,7 @@
   3. 每次运行的“今天”都固定为 2026-03-18（周三），时区为 `America/New_York`，语言为 zh-CN；连续运行两次，结果完全一致。
   4. 护栏自检用例全部通过：页面请求允许列表之外的外部地址会让测试失败；页面出现未预期的 JS 错误会让测试失败；`us-journey-tracker.html` 的 sha256 与记录的基线一致；`.gitignore` 忽略测试产物和备份类 JSON，合成标记检查会对缺少标记的 fixture 报错。
   5. 六项运行时探针都有结论并记录在仓库里：Edge headless 启动、`--host-resolver-rules` 是否生效、`page.reload()` 后 `setFixedTime` 是否保持、`expect.poll` 读取防抖保存的时序是否稳定、`dragTo` 能否驱动 HTML5 拖放（只做 spike）、`clock.install` 加 `pauseAt` 后元素稳定性检查是否正常。
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 **Wave 1**
@@ -48,7 +48,7 @@ Plans:
 - [x] 01-02-PLAN.md — 护栏自检：网络、页面错误、固定时钟、sha256 基线与缺失提示、单文件白名单、.gitignore 和合成标记
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 01-03-PLAN.md — AppHarness 补齐 MOCK-01 和 IO-01 切片，六项 PROBE 用例与 tests/PROBES.md（PROBE-2 断言解析层和死代理并观察 preconnect），两层网络兜底都无法证明时的条件检查点
+- [x] 01-03-PLAN.md — AppHarness 补齐 MOCK-01 和 IO-01 切片，六项 PROBE 用例与 tests/PROBES.md（PROBE-2 断言解析层和死代理并观察 preconnect），两层网络兜底都无法证明时的条件检查点
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 01-04-PLAN.md — 中文 tests/README.md，连续两次一致与隐私全量检查，test:ui 和 show-report 的只读检查与阶段末人工验收
@@ -140,7 +140,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 2/4 | In Progress | - |
+| 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 3/4 | In Progress | - |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 0/TBD | Not started | - |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 0/TBD | Not started | - |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
