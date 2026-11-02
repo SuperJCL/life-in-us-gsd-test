@@ -21,6 +21,7 @@
 ## 4. 看报告
 
 - HTML 报告生成在 `playwright-report/`，不会自动弹出。用 `npx playwright show-report` 打开：它只在本机起一个查看服务，使用项目内已装好的 Playwright，不安装任何东西。看完在终端按 Ctrl+C 结束查看服务。
+- 如果运行 `npx playwright show-report` 后没有自动打开浏览器（例如在内嵌终端里），终端会打印一个 `http://localhost:9323` 形式的地址，手动在浏览器里打开它即可。查看服务会一直运行，直到你按 Ctrl+C。
 - 失败时的截图和 trace 只保存在 `test-results/`，已被 git 忽略。里面可能拍到个人计划文字，不要上传，也不要提交。
 
 ## 5. 目录结构
