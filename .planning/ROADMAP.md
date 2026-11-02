@@ -38,7 +38,20 @@
   3. 每次运行的“今天”都固定为 2026-03-18（周三），时区为 `America/New_York`，语言为 zh-CN；连续运行两次，结果完全一致。
   4. 护栏自检用例全部通过：页面请求允许列表之外的外部地址会让测试失败；页面出现未预期的 JS 错误会让测试失败；`us-journey-tracker.html` 的 sha256 与记录的基线一致；`.gitignore` 忽略测试产物和备份类 JSON，合成标记检查会对缺少标记的 fixture 报错。
   5. 六项运行时探针都有结论并记录在仓库里：Edge headless 启动、`--host-resolver-rules` 是否生效、`page.reload()` 后 `setFixedTime` 是否保持、`expect.poll` 读取防抖保存的时序是否稳定、`dragTo` 能否驱动 HTML5 拖放（只做 spike）、`clock.install` 加 `pauseAt` 后元素稳定性检查是否正常。
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+**Wave 1**
+- [ ] 01-01-PLAN.md — Walking Skeleton：安装前包合法性检查点 → tracer（npm test → Edge → 127.0.0.1 服务器 → 本地模式记一笔 → localStorage → reload，从第一次运行起带死代理）→ Edge 失败时的条件检查点
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 01-02-PLAN.md — 护栏自检：网络、页面错误、固定时钟、sha256 基线与缺失提示、单文件白名单、.gitignore 和合成标记
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 01-03-PLAN.md — AppHarness 补齐 MOCK-01 和 IO-01 切片，六项 PROBE 用例与 tests/PROBES.md（PROBE-2 断言解析层和死代理并观察 preconnect），两层网络兜底都无法证明时的条件检查点
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 01-04-PLAN.md — 中文 tests/README.md，连续两次一致与隐私全量检查，test:ui 和 show-report 的只读检查与阶段末人工验收
 
 **Notes:**
 - 如果探针显示 Edge 无法在不下载任何东西的情况下被驱动，计划必须停下来询问用户（可以把改用本机 Chrome 的 `PW_CHANNEL=chrome` 作为一个选项提出），绝不运行任何安装命令。

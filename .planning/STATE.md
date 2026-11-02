@@ -2,16 +2,16 @@
 gsd_state_version: "1.0"
 current_phase: 1
 current_phase_name: 测试环境、护栏与本地切片（Harness & Local Slice）
-status: planning
+status: executing
 stopped_at: Phase 1 context gathered
-last_updated: "2026-11-02T00:40:42.362Z"
+last_updated: "2026-11-02T03:25:14.744Z"
 last_activity: 2026-11-01
 last_activity_desc: 路线图已创建：5 个阶段，43 条 v1 需求全部映射
-state_head: e56b751c352e9ead2d84b7e368a14b7b3ce6ae84
+state_head: bd2eb782bf67dba7c6be65bde511e6198eff9da0
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-11-01)
 
 ## Current Position
 
-Phase: 1 of 5 (测试环境、护栏与本地切片（Harness & Local Slice）)
+Phase: 1 (测试环境、护栏与本地切片（Harness & Local Slice）) — READY TO EXECUTE
 Plan: —
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-11-01 - Completed quick task 261101-mh6: 隐私护栏（.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理）
 
 Progress: [░░░░░░░░░░] 0%
@@ -72,6 +72,13 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 1]: 本机 Edge 156 能否被 Playwright 1.64.1 驱动还没验证。如果探针失败，计划必须停下来询问用户，不运行任何安装命令。
+- [Phase 1]: 计划检查到达 3 轮上限，用户接受了剩余的 6 个 WARNING（0 个 BLOCKER）。执行和阶段末验证时要重点核对以下几项：
+  - ENV-03“只监听 127.0.0.1”缺少运行时证据；
+  - `/%2e%2e/` 路径穿越检查可能被客户端规范化，变成空操作；
+  - SAFE-04 控制台过滤的应急路径覆盖不全（favicon 应急也可能无效）；
+  - PROBE-2 解析层的证人是 localhost（在 bypass 名单里），而且回退方案可能让探针在保证失效时仍然通过；
+  - 01-03 Task 2 范围过大；
+  - 01-01 的部分 truths 写的是配置字面量。
 - [Phase 2]: `exposeBinding` 在页面脚本运行前是否可用还没验证；不可用时退回带前缀的 `sessionStorage` 方案。
 - [Phase 5]: N3（导入 `{}` 后清空数据）的期望行为未定，需要用户决定。
 
