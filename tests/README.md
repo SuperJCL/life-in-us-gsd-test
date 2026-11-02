@@ -1,0 +1,83 @@
+# 测试使用说明
+
+## 1. 这是什么
+
+这里是对单文件网页应用 `us-journey-tracker.html` 的本地黑盒浏览器测试。测试用 Playwright Test 驱动本机 Edge，只使用合成数据，不修改应用源码，不连接任何线上服务。
+
+## 2. 准备
+
+- 需要 Node.js 20 或更高版本，以及系统自带的 Microsoft Edge。
+- 应用文件 `us-journey-tracker.html` 不在仓库里（里面写死了个人内容，见 `PRIVACY.md`）。需要把自己本地的副本放到仓库根目录。缺少时，`npm test` 会在启动阶段用中文提示你放好文件，而不是报出看不懂的错误。
+- 克隆后先运行一次 `git config core.hooksPath .githooks`，启用隐私钩子，详见 `PRIVACY.md`。这条命令只影响本仓库。
+- 安装依赖用 `npm ci --ignore-scripts`。它只按 lockfile 安装项目内依赖，不运行安装脚本，不会下载浏览器。
+
+## 3. 运行
+
+- `npm test`：无界面跑完全部用例。
+- `npm run test:ui`：Playwright UI 模式，可以逐步回放每个用例的动作和页面快照。它会打开一个使用本机 Edge 或 Chrome 的窗口。如果提示需要安装浏览器，不要安装，按第 8 节“浏览器出问题时”处理。
+
+只跑部分用例时，把参数接在 `--` 后面，例如 `npm test -- -g "IO-01"`。
+
+## 4. 看报告
+
+- HTML 报告生成在 `playwright-report/`，不会自动弹出。用 `npx playwright show-report` 打开：它只在本机起一个查看服务，使用项目内已装好的 Playwright，不安装任何东西。看完在终端按 Ctrl+C 结束查看服务。
+- 失败时的截图和 trace 只保存在 `test-results/`，已被 git 忽略。里面可能拍到个人计划文字，不要上传，也不要提交。
+
+## 5. 目录结构
+
+| 路径 | 放什么 |
+|------|--------|
+| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、零依赖静态服务器 |
+| `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
+| `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针 |
+| `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记 |
+| `tests/PROBES.md` | 运行时探针的结论 |
+
+## 6. 约定
+
+- 用例标题用英文，以需求编号或 `PROBE` 开头，例如 `IO-01 ...`、`PROBE-3 ...`。
+- 注释和说明文档用中文；变量名、函数名、文件名用英文。
+- 界面中文文案只放在 `tests/support/strings.ts`，用例里不写死。
+- spec 只从 `tests/support/test.ts` 导入 `test` 和 `expect`，不直接导入 `@playwright/test`。
+- 种子数据用“没有才写”的 init 函数写入 localStorage，防止 `reload` 时覆盖刚保存的新数据。
+- 持久化断言按固定顺序：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。不要用固定睡眠。
+- 用例不稳定（flaky）就是缺陷。配置里 `retries` 是 1，但一次重试通过也要查明原因，不能靠重试掩盖。
+
+## 7. 护栏
+
+每次 `npm test` 都自动生效，下面每一项都有对应的用例证明它会在该失败的时候失败：
+
+- **网络拦截**（`tests/e2e/platform/guardrails.spec.ts`、`tests/e2e/platform/probes.spec.ts`）：分几道。
+  1. `context.route` 只放行应用自己的来源；两个字体主机直接中止并记为“已预期拦截”；其他外部 HTTP 请求会让用例失败。
+  2. `--host-resolver-rules` 让除 `127.0.0.1` 之外的主机名都解析失败。
+  3. 死代理 `127.0.0.1:9` 让所有非回环连接只能连到本机一个关闭的端口。
+
+  `route` 只看得到 HTTP 请求，看不到浏览器直接发起的 socket 连接，例如应用 head 里的 `preconnect`。后两道（第 2、3 道）就是为这类连接准备的。哪一层已被证明，以 `tests/PROBES.md` 的 PROBE-2 为准：
+  - 解析层已证明：不在代理名单里的名字都是 `ERR_NAME_NOT_RESOLVED`。
+  - 代理层已证明：`.invalid` 地址和 WebSocket 都只到达代理，页面请求以 `ERR_PROXY_CONNECTION_FAILED` 失败。
+  - `preconnect` 本身没有被直接观察到：探针运行时无界面 Edge 没有发出任何 `preconnect`。所以“`preconnect` 到不了字体主机”是由已证明的两层（解析规则加死代理）推断出来的，不是直接观察到的事实。
+  - 探针里观察到 Edge 自己的后台流量（`bing.com`、`edge.microsoft.com`）也只到达了本机的录制代理，没有到达任何真实主机。
+- **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
+- **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
+- **应用完整性**（`tests/e2e/platform/app-integrity.spec.ts`）：测试记录了应用文件的 sha256 基线，应用文件被改动时用例变红；应用文件始终只读。
+- **合成标记**（`tests/e2e/platform/repo-hygiene.spec.ts`）：fixture 必须带 `_synthetic`，报告和截图目录必须被 git 忽略。
+
+## 8. 浏览器出问题时
+
+- 绝对不要运行 `npx playwright install`，任何形式都不要，也不要运行 `npm init playwright`。测试使用系统自带的 Edge，不需要下载浏览器；安装命令会往你的机器上装东西，也可能装错包。
+- Edge 启动失败时，可以临时改用本机 Chrome：PowerShell 里运行 `$env:PW_CHANNEL='chrome'; npm test`，Git Bash 里运行 `PW_CHANNEL=chrome npm test`。
+- 两个都不行时，停下来排查，不要安装浏览器。
+
+## 9. 隐私
+
+本仓库会公开，所以：
+
+- 只用合成数据，fixture 必须带 `_synthetic` 标记。
+- 不复制应用里的个人计划文字到测试、fixture 或文档里。
+- 不提交报告、截图和 trace。
+- 不使用 `--no-verify` 跳过隐私钩子。
+- 详见 `PRIVACY.md`。
+
+## 10. 探针结论
+
+六项运行时探针的结论、证据和采用的方案见 `tests/PROBES.md`。它们每次 `npm test` 都会重新运行，假设不成立时用例会变红。

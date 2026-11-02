@@ -19,8 +19,20 @@ export default defineConfig({
   retries: 1,
   workers: 2,
 
-  // 报告器：终端列表 + HTML，HTML 报告不自动弹出（D-03）
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
+  // 报告器：终端列表 + HTML，HTML 报告不自动弹出（D-03）。
+  // 第三项只有设置了环境变量 PW_JSON_REPORT 时才加入，未设置时报告器恰好是上面两项。
+  // 它只服务于阶段收尾的确定性检查（ENV-04、D-04）：检查跑的是交付时的同一份配置，
+  // list 照常输出到终端，html 照常重新生成 playwright-report/，json 只多写一个文件。
+  // 命令行上不要传报告器参数，免得覆盖这里的报告器。
+  // 文件建议写到 test-results/ 下（已被 git 忽略）；Playwright 每次运行开始时会清空该目录，
+  // 所以每次运行结束后要立即读取结果文件。
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+    ...(process.env.PW_JSON_REPORT
+      ? [['json', { outputFile: process.env.PW_JSON_REPORT }] as ['json', { outputFile: string }]]
+      : []),
+  ],
 
   use: {
     baseURL: APP_ORIGIN,
