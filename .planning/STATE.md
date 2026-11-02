@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-01)
 Phase: 1 of 5 (测试环境、护栏与本地切片（Harness & Local Slice）)
 Plan: —
 Status: Ready to plan
-Last activity: 2026-11-01 — 路线图已创建：5 个阶段，43 条 v1 需求全部映射
+Last activity: 2026-11-01 - Completed quick task 261101-mh6: 隐私护栏（.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理）
 
 Progress: [░░░░░░░░░░] 0%
 
