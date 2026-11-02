@@ -9,3 +9,9 @@ export const TOAST_RECORDED = '已记录';
 
 // 类别名：应用持久化的是中文显示名，不是键
 export const CAT_LANGUAGE = '语言';
+
+// 本周视图的标题（应用源码逐字复制）
+export const WEEK_TITLE_CURRENT = '本周';
+
+// 冻结日 2026-03-18 所在周的范围文案：中间是 U+2013 en dash，两边各一个空格
+export const WEEK_RANGE_FROZEN = '3月16日 – 22日';
