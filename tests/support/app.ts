@@ -35,6 +35,8 @@ export class AppHarness {
   private bindingExposed = false;
   // open() 每个 AppHarness 只能调用一次：init script 和 binding 都会在同一个 page 上累积（WR-04）
   private opened = false;
+  // 本地模式 open() 写进 localStorage 的种子原文；没有种子时为 null（saved() 用它区分“种子”和“应用写回”）
+  private seedJson: string | null = null;
 
   constructor(private readonly page: Page) {}
 
@@ -79,6 +81,7 @@ export class AppHarness {
           key: STATE_KEY,
           json: JSON.stringify(opts.seed),
         });
+        this.seedJson = JSON.stringify(opts.seed);
       }
     }
     await this.page.goto('/');
@@ -139,6 +142,32 @@ export class AppHarness {
   async expectPersisted(predicate: (state: any) => boolean, message = '等待保存落盘') {
     const check = async () => {
       const state = await this.persisted();
+      return state === null ? false : predicate(state);
+    };
+    await expect.poll(check, { message }).toBe(true);
+  }
+
+  // 应用最新保存的状态；还没有保存时返回 null（D-09）。两种模式的语义不同：
+  //  - account：只认应用发出的写入，返回 backend.writes 最后一条的 data（深拷贝）；
+  //    种子文档在 mock 里但不算“保存”，所以还没有写入时返回 null。
+  //  - local：读 localStorage[STATE_KEY]。键不存在，或值仍是 open() 写进去的种子原文时返回 null。
+  //    依据：本地种子由 init 脚本写进同一个键，所有 fixture 都带 _synthetic，而应用的 normalize
+  //    会丢掉它，所以应用写回的内容不可能与种子原文相同。
+  async saved(): Promise<any> {
+    if (this.store === 'account') {
+      const writes = this.backend.writes;
+      return writes.length === 0 ? null : JSON.parse(JSON.stringify(writes[writes.length - 1].data));
+    }
+    const raw = await this.page.evaluate((key) => localStorage.getItem(key), STATE_KEY);
+    if (raw === null || raw === this.seedJson) return null;
+    return JSON.parse(raw);
+  }
+
+  // 等应用保存的状态满足 predicate。保存有 600 ms 防抖，所以用 expect.poll，不用固定睡眠；
+  // 默认 message 不含任何状态内容（状态里可能有个人计划文字）
+  async expectSaved(predicate: (state: any) => boolean, message = '等待应用保存（内容已隐藏）') {
+    const check = async () => {
+      const state = await this.saved();
       return state === null ? false : predicate(state);
     };
     await expect.poll(check, { message }).toBe(true);

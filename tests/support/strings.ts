@@ -64,3 +64,6 @@ export const CSV_GROUP_SUFFIX = ' 计划';
 
 // 没有任何可导出的日期时 #exportCsv 弹出的 toast（应用源码逐字复制）
 export const TOAST_NOTHING_TO_EXPORT = '还没有可导出的日期';
+
+// toast 动作按钮的文字（应用源码逐字复制）
+export const TOAST_UNDO_LABEL = '撤销';
