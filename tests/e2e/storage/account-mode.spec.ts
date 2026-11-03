@@ -71,7 +71,33 @@ test('MOCK-05 the account-mode check fails when user.id() resolves null and the 
   expect(app.backend.reads).toEqual([]);
 
   // 账户模式的校验在这种情况下必须失败（reads 检查是第一条，同步失败，变成被 reject 的 Promise）
-  await expect(app.expectAccountMode()).rejects.toThrow();
+  // 用消息限定是哪一项失败，防止被别的错误顶替
+  await expect(app.expectAccountMode()).rejects.toThrow(/读取次数或路径不对/);
+});
+
+// 上面那条只让三项检查里的第一项（reads）失败，后两项没有被执行到。
+// 下面两条各自只破坏一项：reads 满足，其余按需破坏，证明状态栏检查和 localStorage 检查也不是“永远通过”。
+test('MOCK-05 the account-mode check fails on its own when the status bar shows the local text', async ({
+  page,
+  app,
+}) => {
+  await app.open({ mode: 'account', seed: loadSeed() });
+  await app.expectAccountMode();
+
+  // 只把状态栏改成本地文案：reads 仍然是 1 次，localStorage 仍然是空的
+  await page.locator('#status').evaluate((el, text) => {
+    el.textContent = text;
+  }, STATUS_LOCAL);
+  await expect(app.expectAccountMode({ timeout: 500 })).rejects.toThrow(/状态栏不是账户同步文案/);
+});
+
+test('MOCK-05 the account-mode check fails on its own when localStorage holds the app key', async ({ page, app }) => {
+  await app.open({ mode: 'account', seed: loadSeed() });
+  await app.expectAccountMode();
+
+  // 只往 localStorage 写应用的键：reads 和状态栏仍然正常
+  await page.evaluate((key) => localStorage.setItem(key, '{}'), STATE_KEY);
+  await expect(app.expectAccountMode()).rejects.toThrow(/localStorage 里出现了应用的键/);
 });
 
 // 否定断言（“启动时没写 mock”）必须在足够长的窗口里持续成立才有意义（同 WR-06）。

@@ -110,13 +110,16 @@ export class AppHarness {
   // 必须声明为 async，第一条语句就是 reads 检查：这样任何失败都表现为被 reject 的 Promise，
   // 不会在调用时同步抛出，反向对照用例里的 await expect(...).rejects.toThrow() 才成立。
   // reads 检查放最前面还有一个原因：应用静默退回本地时 reads 是空的，这条同步检查立刻失败，不用等 expect 超时。
-  async expectAccountMode(opts: { reads?: number } = {}) {
+  // timeout 只用于状态栏那一项：反向对照里需要它快速失败，不用等满默认的 5 秒
+  async expectAccountMode(opts: { reads?: number; timeout?: number } = {}) {
     const count = opts.reads ?? 1;
     expect(
       this.backend.reads,
       `mock 的读取次数或路径不对：应用可能静默退回了本地模式（期望 ${count} 次 ${ACCOUNT_DOC_PATH}）`,
     ).toEqual(Array(count).fill(ACCOUNT_DOC_PATH));
-    await expect(this.page.locator('#status'), '状态栏不是账户同步文案：应用没有走账户存储').toHaveText(STATUS_ACCOUNT);
+    await expect(this.page.locator('#status'), '状态栏不是账户同步文案：应用没有走账户存储').toHaveText(STATUS_ACCOUNT, {
+      timeout: opts.timeout,
+    });
     expect(
       await this.page.evaluate((key) => localStorage.getItem(key), STATE_KEY),
       'localStorage 里出现了应用的键：账户模式不应该写本地存储',
