@@ -33,6 +33,8 @@ export class AppHarness {
   private store: 'local' | 'account' = 'local';
   // 同一个 page 只能注册一次 binding
   private bindingExposed = false;
+  // open() 每个 AppHarness 只能调用一次：init script 和 binding 都会在同一个 page 上累积（WR-04）
+  private opened = false;
 
   constructor(private readonly page: Page) {}
 
@@ -47,6 +49,13 @@ export class AppHarness {
       expectStore?: 'local' | 'account';
     } = {},
   ) {
+    // 账户 mock 用 Object.defineProperty 装 window.claude（不可配置），第二个 init script 会抛
+    // “Cannot redefine property: claude”；本地种子也是“有就不写”，第二次会被静默忽略。
+    // 所以重复调用直接报错，比一个难懂的 pageerror 好。
+    if (this.opened) {
+      throw new Error('AppHarness.open 每个用例只能调用一次；要换配置请新开一个 page（reload 用 app.reload()）');
+    }
+    this.opened = true;
     const mode = opts.mode ?? 'local';
     if (mode === 'account') {
       if (!this.bindingExposed) {

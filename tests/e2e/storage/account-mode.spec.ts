@@ -100,6 +100,14 @@ test('MOCK-05 the account-mode check fails on its own when localStorage holds th
   await expect(app.expectAccountMode()).rejects.toThrow(/localStorage 里出现了应用的键/);
 });
 
+// WR-04：同一个 AppHarness 第二次 open 会让 init script 累积（账户 mock 重定义 window.claude 会抛 TypeError），
+// 所以直接拒绝，并且在碰 page 之前就失败。
+test('MOCK-05 a second AppHarness.open on the same page is rejected with a clear error', async ({ app }) => {
+  await app.open({ mode: 'account', seed: loadSeed() });
+  await app.expectAccountMode();
+  await expect(app.open({ mode: 'account' })).rejects.toThrow(/每个用例只能调用一次/);
+});
+
 // 否定断言（“启动时没写 mock”）必须在足够长的窗口里持续成立才有意义（同 WR-06）。
 // manual 时钟让这个窗口确定、不靠睡眠。
 test.describe('MOCK-03 manual clock', () => {
