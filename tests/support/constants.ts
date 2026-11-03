@@ -57,3 +57,6 @@ export const WEEK_END_FROZEN = '2026-03-22';
 
 // 合成数据里的抵达日期（D-05）
 export const ARRIVAL_DATE_FIXTURE = '2026-01-12';
+
+// mock 和 tests/mocks/CONTRACT.md 对齐的 Claude Artifact 运行时契约版本（MOCK-06）；契约升级时和 CONTRACT.md 一起改
+export const CLAUDE_CONTRACT_VERSION = '0.2.96';
