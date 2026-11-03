@@ -49,3 +49,18 @@ export const LIFT_HISTORY_PREFIX = '最近：';
 
 // 时间线空状态文案，含弯引号（应用源码逐字复制）
 export const TIMELINE_EMPTY = '还没有内容。在“本周”里写下今天做过的事。';
+
+// 日历 CSV 的表头（应用源码逐字复制）
+export const CSV_HEADER = 'Subject,Start Date,All Day Event,Description';
+
+// CSV 里已完成任务的主题前缀，冒号是全角（应用源码逐字复制）
+export const CSV_DONE_PREFIX = '完成：';
+
+// CSV 里有截止日期的未完成任务的主题前缀，冒号是全角（应用源码逐字复制）
+export const CSV_DUE_PREFIX = '截止：';
+
+// CSV 任务行的描述后缀，前面有一个空格；前面接组号（应用源码逐字复制）
+export const CSV_GROUP_SUFFIX = ' 计划';
+
+// 没有任何可导出的日期时 #exportCsv 弹出的 toast（应用源码逐字复制）
+export const TOAST_NOTHING_TO_EXPORT = '还没有可导出的日期';
