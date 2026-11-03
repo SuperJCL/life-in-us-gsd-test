@@ -163,6 +163,10 @@ test('MOCK-04 account mode shows both export buttons and records what downloads.
   await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
   await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
 
+  // JSON 和 CSV 成功后的 toast 文案相同，toast 约显示 1800 ms：先等 JSON 的 toast 自然消失，
+  // 再点 CSV，后面的 toast 断言才能证明是 CSV 导出弹出的（WR-05）
+  await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
+
   // 日历 CSV：逐字内容比较放在 02-04，这里只确认文件名和种子条目的日期
   await page.locator('#exportCsv').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(2);
