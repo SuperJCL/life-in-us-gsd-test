@@ -1,7 +1,7 @@
 // 所有 spec 只能从这里导入 test 和 expect（D-17）。
 // 这个出口挂两个 auto fixture：guard（网络护栏和页面错误收集）和 frozenClock（固定时钟）。
 // 注入脚本只用 addInitScript(fn, arg) 的形式，不拼接字符串。
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW } from './constants';
 import { AppHarness } from './app';
 
@@ -19,10 +19,16 @@ export interface GuardState {
   filteredConsoleNoise: string[];
 }
 
+// 会让用例失败的三类违规记录（expectedAborts 和 filteredConsoleNoise 不算违规，不可删除）
+export type ViolationKind = 'unexpectedRequests' | 'pageErrors' | 'consoleErrors';
+
 export interface GuardHandle {
   state: GuardState;
-  // 清空五个数组。只能在故意制造违规的自检里调用，用来清掉那一条故意的违规
-  reset(): void;
+  // 只删掉 kind 这一类里包含 match 的记录，返回删掉的条数（原地修改数组）。
+  // 不提供清空全部记录的方法（WR-02）。
+  // 只能在故意制造违规的自检里调用：调用之前先断言该类记录恰好是预期的那几条，
+  // 所以同一用例里真实发生的违规不会被一起删掉。
+  remove(kind: ViolationKind, match: string): number;
 }
 
 // 把 guard 状态转成违规清单：teardown 和自检共用这一个函数，
@@ -67,12 +73,17 @@ export const test = base.extend<Fixtures & Options>({
       const state = emptyState();
       const handle: GuardHandle = {
         state,
-        reset() {
-          state.unexpectedRequests.length = 0;
-          state.expectedAborts.length = 0;
-          state.pageErrors.length = 0;
-          state.consoleErrors.length = 0;
-          state.filteredConsoleNoise.length = 0;
+        remove(kind, match) {
+          const list = state[kind];
+          let removed = 0;
+          // 从后往前删，下标不会因 splice 错位
+          for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i].includes(match)) {
+              list.splice(i, 1);
+              removed++;
+            }
+          }
+          return removed;
         },
       };
 
@@ -98,29 +109,49 @@ export const test = base.extend<Fixtures & Options>({
         return route.abort('blockedbyclient');
       });
 
-      // 页面未捕获异常：一律记录
-      page.on('pageerror', (error) => {
-        state.pageErrors.push(String(error));
-      });
+      // guard 的报警范围和限制（WR-05）：
+      //  - 会报警：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page 的
+      //    未捕获异常和 console.error。
+      //  - 无法报警：preconnect 这类不产生 Playwright 事件的 socket 连接。guard 没有事件可听，
+      //    只能靠解析层（--host-resolver-rules）和死代理挡住，两层的证据见 PROBE-2。
+      //  - 没有加 requestfailed 监听：交付配置里 context.route 先拦下页面的每个 HTTP 请求，
+      //    被 abort 的请求错误是 ERR_BLOCKED_BY_CLIENT；代理层和解析层的错误码
+      //    （ERR_PROXY_CONNECTION_FAILED、ERR_NAME_NOT_RESOLVED）在 guard 的页面里不会出现，
+      //    这样的监听永远不会触发，也无法自证。
+      const attach = (target: Page) => {
+        // 页面未捕获异常：一律记录
+        target.on('pageerror', (error) => {
+          state.pageErrors.push(String(error));
+        });
 
-      // 控制台错误：只过滤“字体请求被 abort”产生的噪音，来源主机在 FONT_HOSTS 里才算。
-      // 不按通用的 “Failed to load resource” 文本过滤。监听器同步处理，判断之前不 await。
-      // 以后有用例需要豁免（例如 Phase 5 的畸形导入），要在用例里显式调用 reset
-      // 或断言具体错误，不要放宽这里的过滤规则。
-      page.on('console', (msg) => {
-        if (msg.type() !== 'error') return;
-        let host = '';
-        try {
-          host = new URL(msg.location().url).hostname;
-        } catch (e) {
-          host = '';
-        }
-        if (FONT_HOSTS.includes(host)) {
-          state.filteredConsoleNoise.push(msg.text());
-        } else {
-          state.consoleErrors.push(msg.text());
-        }
-      });
+        // 控制台错误：只过滤“字体请求被 abort”产生的噪音，来源主机在 FONT_HOSTS 里才算。
+        // 不按通用的 “Failed to load resource” 文本过滤。监听器同步处理，判断之前不 await。
+        // 以后有用例需要豁免（例如 Phase 5 的畸形导入），要用 guard.remove 删掉具体那一条，
+        // 或断言具体错误，不要放宽这里的过滤规则。
+        target.on('console', (msg) => {
+          if (msg.type() !== 'error') return;
+          let host = '';
+          try {
+            host = new URL(msg.location().url).hostname;
+          } catch (e) {
+            host = '';
+          }
+          if (FONT_HOSTS.includes(host)) {
+            state.filteredConsoleNoise.push(msg.text());
+          } else {
+            state.consoleErrors.push(msg.text());
+          }
+        });
+
+        // WebSocket 不经过 context.route，应用也不应发起任何 WebSocket：连接一创建就记为外部请求
+        target.on('websocket', (ws) => {
+          state.unexpectedRequests.push(ws.url());
+        });
+      };
+
+      // fixture 的 page 先挂一次；context.on('page') 不会为它触发，只覆盖之后新开的 page
+      attach(page);
+      context.on('page', attach);
 
       await use(handle);
 

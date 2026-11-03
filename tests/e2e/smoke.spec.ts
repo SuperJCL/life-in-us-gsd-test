@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../support/test';
-import { STATE_KEY, FROZEN_TODAY } from '../support/constants';
+import { FROZEN_NOW, FROZEN_TODAY } from '../support/constants';
 import { CAT_LANGUAGE, TAB_LABELS } from '../support/strings';
 
 // 合成文本，不含任何真实内容
@@ -45,9 +45,9 @@ test('IO-01 keeps the export buttons hidden in local mode', async ({ page, app }
 test('MOCK-01 opens in local mode without window.claude and switches all four tabs', async ({ page, app }) => {
   await app.open();
 
-  // 本地模式：页面没有 window.claude；新 context 里应用启动时不写存储
+  // 本地模式：页面没有 window.claude。
+  // “启动时不写存储”不在这里做单次采样（WR-06），见下面 manual 时钟的用例
   expect(await page.evaluate(() => 'claude' in window)).toBe(false);
-  expect(await page.evaluate((key) => localStorage.getItem(key), STATE_KEY)).toBeNull();
 
   const keys = Object.keys(TAB_LABELS) as Array<keyof typeof TAB_LABELS>;
   for (const k of keys) {
@@ -83,4 +83,35 @@ test('MOCK-01 starts from seeded synthetic localStorage and reload keeps newly s
     page.locator(`#tab-wk [data-wday="${FROZEN_TODAY}"] [data-edit]`).filter({ hasText: AFTER_SEED_TEXT }),
   ).toBeVisible();
   expect(hasBoth(await app.persisted())).toBe(true);
+});
+
+// WR-06：否定断言（“启动时没写 localStorage”）必须在足够长的窗口里持续成立才有意义。
+// 单次采样会在 600 ms 防抖触发之前就通过，永远测不到启动路径之后的保存。
+// manual 时钟让这个窗口确定、不靠睡眠：先推过防抖，再断言；再用一次对照证明窗口真的推进了防抖。
+test.describe('MOCK-01 manual clock', () => {
+  // 同一个用例不混用 install 和 setFixedTime（D-15）：manual 时 frozenClock 什么都不做
+  test.use({ clockMode: 'manual' });
+
+  test('MOCK-01 local mode leaves localStorage empty at startup even after timers pass the save debounce', async ({
+    page,
+    app,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open();
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+    // 启动时如果调用过保存，600 ms 防抖会在这次推进里触发；本地模式的写入是同步的
+    await page.clock.runFor(2_000);
+    expect(await app.persisted()).toBeNull();
+
+    // 对照：记一笔再推进同样的窗口，localStorage 里必须能读到它，
+    // 证明上面的 runFor 确实推进了防抖，否定断言不是空转
+    const controlText = 'SYNTH-WR06 control';
+    await page.locator('#wkComp #w-text').fill(controlText);
+    await page.locator('#wkComp #w-add').click();
+    await page.clock.runFor(2_000);
+    const saved = await app.persisted();
+    expect(saved).not.toBeNull();
+    expect(saved.logs.some((l: Log) => l.text === controlText)).toBe(true);
+  });
 });

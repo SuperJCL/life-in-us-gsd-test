@@ -9,9 +9,14 @@ import { STATUS_LOCAL } from './strings';
 // 所以必须“没有才写”，否则 reload 会用种子覆盖应用刚保存的新数据（D-18）。
 // 函数体必须自包含，不能引用模块里的任何变量：addInitScript 会把函数序列化成源码发给浏览器。
 export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
-  if (localStorage.getItem(arg.key) === null) {
-    localStorage.setItem(arg.key, arg.json);
-  }
+  // init script 在每个 frame、每次导航都会执行：导航到 opaque origin（例如 data: URL、
+  // 沙箱 iframe）时访问 localStorage 会抛 SecurityError，那不是被测应用的错误，
+  // 不能让它变成页面异常被 guard 报出来（IN-05）
+  try {
+    if (localStorage.getItem(arg.key) === null) {
+      localStorage.setItem(arg.key, arg.json);
+    }
+  } catch (e) {}
 }
 
 // 本阶段只支持 local 模式（页面没有 window.claude，数据存在 localStorage）。

@@ -30,8 +30,16 @@ test('SAFE-01 a page fetch to example.com is blocked and reported as a guard vio
   expect(violations.length).toBeGreaterThan(0);
   expect(violations.join('\n')).toMatch(/外部请求/);
 
-  // 只清掉本用例故意制造的违规，让 teardown 通过
-  guard.reset();
+  // 只删掉本用例故意制造的记录：先断言该类记录恰好是预期的，再按内容删除（WR-02）
+  expect(guard.state.unexpectedRequests).toEqual(['https://example.com/']);
+  expect(guard.remove('unexpectedRequests', 'https://example.com/')).toBe(1);
+
+  // 被 route abort 的 fetch，Chromium 还会为它写一条 console.error（不含 URL，来源不是字体主机，
+  // 过滤规则不会吞掉它）。这是同一次故意违规的副产物。以前一次清空全部记录时它被悄悄抹掉，
+  // 现在同样按条处理：先等到它恰好出现一条，核对内容，再按内容删除
+  await expect.poll(() => guard.state.consoleErrors.length).toBe(1);
+  expect(guard.state.consoleErrors[0]).toContain('ERR_BLOCKED_BY_CLIENT');
+  expect(guard.remove('consoleErrors', 'ERR_BLOCKED_BY_CLIENT')).toBe(1);
 });
 
 test('SAFE-01 opening the app only aborts the allowlisted font hosts', async ({ page, guard }) => {
@@ -68,8 +76,10 @@ test('SAFE-04 an uncaught page error is reported as a guard violation', async ({
 
   expect(guardViolations(guard.state).join('\n')).toMatch(/页面未捕获异常/);
 
-  // 只清掉本用例故意制造的违规
-  guard.reset();
+  // 只删掉本用例故意制造的那一条：先断言该类记录恰好一条且是预期的，再按内容删除
+  expect(guard.state.pageErrors).toHaveLength(1);
+  expect(guard.state.pageErrors[0]).toContain('SYNTH page error');
+  expect(guard.remove('pageErrors', 'SYNTH page error')).toBe(1);
 });
 
 test('SAFE-04 console.error is reported while aborted-font noise is filtered', async ({
@@ -91,6 +101,118 @@ test('SAFE-04 console.error is reported while aborted-font noise is filtered', a
 
   expect(guardViolations(guard.state).join('\n')).toMatch(/console\.error/);
 
-  // 只清掉本用例故意制造的违规
-  guard.reset();
+  // 只删掉本用例故意制造的那一条：先断言该类记录恰好是预期的，再按内容删除
+  expect(guard.state.consoleErrors).toEqual(['SYNTH console error']);
+  expect(guard.remove('consoleErrors', 'SYNTH console error')).toBe(1);
+});
+
+test('SAFE-01 guard.remove clears only the matching violation and keeps the others', async ({
+  page,
+  guard,
+}) => {
+  await page.goto('/');
+  await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  // 两个 .invalid 主机（RFC 6761 保留，永远不会解析）：route 会 abort 两者，结果转成字符串，不抛错
+  const results = await page.evaluate(() =>
+    Promise.all(
+      ['https://probe-a.invalid/', 'https://probe-b.invalid/'].map((url) =>
+        fetch(url).then(
+          (res) => 'resolved:' + res.status,
+          (err) => 'rejected:' + String(err),
+        ),
+      ),
+    ),
+  );
+  expect(results.every((r) => r.startsWith('rejected:'))).toBe(true);
+
+  // 两条都被记录之后再删
+  await expect
+    .poll(() => [...guard.state.unexpectedRequests].sort())
+    .toEqual(['https://probe-a.invalid/', 'https://probe-b.invalid/']);
+
+  // 两次被 abort 的 fetch 各自带来一条 console.error（同一次故意违规的副产物）：
+  // 先等到恰好两条并核对内容，再按内容删除，让下面对违规清单的“恰好一条”断言只剩外部请求
+  await expect.poll(() => guard.state.consoleErrors.length).toBe(2);
+  expect(guard.state.consoleErrors.every((text) => text.includes('ERR_BLOCKED_BY_CLIENT'))).toBe(true);
+  expect(guard.remove('consoleErrors', 'ERR_BLOCKED_BY_CLIENT')).toBe(2);
+
+  // 只删匹配项：返回 1，另一条还在，违规清单恰好一条
+  expect(guard.remove('unexpectedRequests', 'probe-a.invalid')).toBe(1);
+  expect(guard.state.unexpectedRequests).toEqual(['https://probe-b.invalid/']);
+  expect(guardViolations(guard.state)).toEqual(['外部请求：https://probe-b.invalid/']);
+
+  // 最后删掉另一条，违规清单才为空，teardown 通过
+  expect(guard.remove('unexpectedRequests', 'probe-b.invalid')).toBe(1);
+  expect(guardViolations(guard.state)).toEqual([]);
+});
+
+test('SAFE-01 a page WebSocket to a non-loopback host is reported as a guard violation', async ({
+  page,
+  guard,
+}, testInfo) => {
+  await page.goto('/');
+  await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  // 页面里新建指向保留域名的 WebSocket：evaluate 返回的 Promise 在 close 事件时 resolve，不用定时器
+  await page.evaluate(
+    () =>
+      new Promise<string>((resolve) => {
+        const ws = new WebSocket('ws://probe.invalid/');
+        ws.addEventListener('close', () => resolve('closed'));
+      }),
+  );
+
+  // 1) 确定性信号（WR-05 要证明的事实）：guard 的 websocket 监听在连接创建时就记录，与连接成败无关
+  await expect.poll(() => guard.state.unexpectedRequests).toEqual(['ws://probe.invalid/']);
+  expect(guardViolations(guard.state).join('\n')).toMatch(/外部请求/);
+  expect(guard.remove('unexpectedRequests', 'ws://probe.invalid/')).toBe(1);
+
+  // 2) console 输出：Chromium 可能把这次连接失败写成一条 console.error（来源是应用页面，
+  // 不是字体主机，噪音过滤不会吞掉它），也可能不写。两种行为得到同一个结果。
+  // 屏障：同一页面的控制台消息按产生顺序到达，连接失败的消息如果有，产生在 close 事件之前，
+  // 所以屏障被记录时它也一定已经被记录
+  await page.evaluate(() => console.error('SYNTH ws barrier'));
+  await expect.poll(() => guard.state.consoleErrors).toContain('SYNTH ws barrier');
+
+  // 除屏障以外最多一条，并且每一条都包含 probe.invalid；任何别的 console.error 都让用例失败
+  const others = guard.state.consoleErrors.filter((text) => !text.includes('SYNTH ws barrier'));
+  expect(others.length).toBeLessThanOrEqual(1);
+  for (const text of others) {
+    expect(text).toContain('probe.invalid');
+  }
+
+  // 没有放宽护栏：只删掉自己制造、并且删除前逐条核对过的记录
+  expect(guard.remove('consoleErrors', 'SYNTH ws barrier')).toBe(1);
+  const wsConsoleErrors = guard.remove('consoleErrors', 'probe.invalid');
+  expect(wsConsoleErrors).toBe(others.length);
+  testInfo.annotations.push({ type: 'note', description: `wsConsoleErrors=${wsConsoleErrors}` });
+
+  expect(guard.state.consoleErrors).toEqual([]);
+  expect(guardViolations(guard.state)).toEqual([]);
+});
+
+test('SAFE-04 a page error in a second page of the same context is reported', async ({
+  context,
+  guard,
+}) => {
+  // 用例后开的 page：guard 通过 context.on('page') 给它挂监听
+  const second = await context.newPage();
+  await second.goto('/');
+  await expect(second.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  // 同样在微任务里抛出（原因见上面的 SAFE-04 用例）
+  await second.evaluate(() => {
+    queueMicrotask(() => {
+      throw new Error('SYNTH second page error');
+    });
+  });
+
+  await expect.poll(() => guard.state.pageErrors.some((m) => m.includes('SYNTH second page error'))).toBe(true);
+  expect(guardViolations(guard.state).join('\n')).toMatch(/页面未捕获异常/);
+
+  // 只删掉这一条（先核对恰好一条且是预期的），再关闭第二个 page
+  expect(guard.state.pageErrors).toHaveLength(1);
+  expect(guard.remove('pageErrors', 'SYNTH second page error')).toBe(1);
+  await second.close();
 });
