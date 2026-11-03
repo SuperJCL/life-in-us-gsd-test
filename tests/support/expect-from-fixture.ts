@@ -7,3 +7,44 @@ export type SynthLog = { id: string; date: string; text: string; cat: string };
 export function logsInWeek(state: { logs: SynthLog[] }, start: string, end: string): SynthLog[] {
   return state.logs.filter((l) => l.date >= start && l.date <= end);
 }
+
+// 与 logsInWeek 互补：不在 [start, end] 内的记录
+export function logsOutsideWeek(state: { logs: SynthLog[] }, start: string, end: string): SynthLog[] {
+  return state.logs.filter((l) => l.date < start || l.date > end);
+}
+
+export type TaskBuckets = { done: string[]; overdue: string[]; dueToday: string[]; dueFuture: string[] };
+
+// 把 state.tasks 里所有任务（内置和自定义）按状态分桶。
+// done：done 为真且有 doneDate；其余只看未完成的：due 早于 today 是 overdue，等于是 dueToday，晚于是 dueFuture。
+// 日期都是 YYYY-MM-DD 字符串比较，与应用的规则一致。
+export function taskBuckets(state: { tasks: Record<string, any> }, today: string): TaskBuckets {
+  const out: TaskBuckets = { done: [], overdue: [], dueToday: [], dueFuture: [] };
+  for (const [id, s] of Object.entries(state.tasks ?? {})) {
+    if (s.done && s.doneDate) {
+      out.done.push(id);
+    } else if (!s.done && s.due) {
+      if (s.due < today) out.overdue.push(id);
+      else if (s.due === today) out.dueToday.push(id);
+      else out.dueFuture.push(id);
+    }
+  }
+  return out;
+}
+
+// state.tasks 里的内置任务 id（P<组号>-<序号>），按组号、再按序号的数值排序
+export function builtinTaskIds(state: { tasks: Record<string, any> }): string[] {
+  const num = (id: string) => id.slice(1).split('-').map(Number);
+  return Object.keys(state.tasks ?? {})
+    .filter((id) => /^P\d-\d+$/.test(id))
+    .sort((a, b) => {
+      const [ag, ai] = num(a);
+      const [bg, bi] = num(b);
+      return ag - bg || ai - bi;
+    });
+}
+
+// 自定义待办，原样返回
+export function customTasks(state: { custom: { id: string; group: string; text: string }[] }) {
+  return state.custom;
+}

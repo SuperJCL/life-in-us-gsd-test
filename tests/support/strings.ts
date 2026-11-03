@@ -1,5 +1,6 @@
 // 所有界面中文文案只放在这里，用例从这里引用（D-08）。
 // 不要抄 CATS、GROUPS、LIFTS 里的个人计划文字（D-09）。
+// 例外：类别显示名和 LEGACY 旧类别名是结构性标签，按 Phase 2 D-12 的澄清可以写，并且只写在这个文件里。
 
 // 本地模式下状态行的文案，括号是全角；它出现说明 store 已就位
 export const STATUS_LOCAL = '已保存在此浏览器中（换设备不会同步）';
@@ -30,3 +31,21 @@ export const FILENAME_CSV = '在美国的日子-日历.csv';
 
 // JSON 备份的导出文件名；日期是冻结的今天 2026-03-18（D-16）。只是字符串常量，不对应磁盘上的文件
 export const FILENAME_BACKUP_FROZEN = '在美国的日子-备份-2026-03-18.json';
+
+// 五个类别的显示名，即应用 CATS 的 n 字段，应用持久化的就是它们；按 D-12 的澄清允许复制，第一项复用上面的 CAT_LANGUAGE
+export const CATEGORY_NAMES = [CAT_LANGUAGE, '专业', '健身', '求职', '其他'] as const;
+
+// “其他”类别的显示名：未知类别经 normalize 后落到这里（D-12 澄清允许复制）
+export const CAT_OTHER = '其他';
+
+// 应用 normalize 用的 LEGACY 旧类别映射：旧名 -> 新名，按 D-12 的澄清允许复制，DATA-02 用
+export const LEGACY_CATEGORY_MAP = { 学习: '专业', 活动社交: '求职', 生活: '其他', 里程碑: '其他' } as const;
+
+// 目标视图里已过期任务的标记文字（应用源码逐字复制）
+export const GOAL_OVERDUE = '已过期';
+
+// 力量输入框下方历史行的前缀，冒号是全角（应用源码逐字复制）
+export const LIFT_HISTORY_PREFIX = '最近：';
+
+// 时间线空状态文案，含弯引号（应用源码逐字复制）
+export const TIMELINE_EMPTY = '还没有内容。在“本周”里写下今天做过的事。';
