@@ -3,7 +3,7 @@
 // 文件名和内容只从 app.backend.downloads（mock 的 downloads.save 记录）读取。
 import { test, expect } from '../../support/test';
 import { loadFixture, withoutSynthetic } from '../../support/fixture-files';
-import { builtinTaskIds, expectedCalendarCsv } from '../../support/expect-from-fixture';
+import { builtinTaskIds, csvMismatch, expectedCalendarCsv } from '../../support/expect-from-fixture';
 import {
   CAT_OTHER,
   CATEGORY_NAMES,
@@ -67,7 +67,9 @@ test('IO-02 the calendar CSV export matches the spec-derived expectation byte fo
 
   const { filename, data } = app.backend.downloads[0];
   expect(filename).toBe(FILENAME_CSV);
-  expect(data).toBe(expected);
+  // 逐字节比较，但失败时不能把内置任务文字打印出来：expect 只拿到布尔值和脱敏后的诊断（WR-01）
+  const mismatch = csvMismatch(data, expected, texts);
+  expect(mismatch === null, mismatch ?? '').toBe(true);
 
   await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
   await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);

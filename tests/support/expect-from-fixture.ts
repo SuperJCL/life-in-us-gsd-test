@@ -74,6 +74,57 @@ export function usDate(ymd: string): string {
   return `${m}/${d}/${y}`;
 }
 
+// 失败输出的脱敏（D-14）：把运行时读到的内置任务文字换成 <task:ID>，
+// 这样 CSV 比较失败时，终端、报告和 CI 日志里只有 id，不含个人计划文字。
+// 原文含双引号时 CSV 里是写成两个双引号的形式，两种写法都要替换；
+// 先换长的文字，避免某条文字是另一条的子串时留下残片。
+export function maskTaskTexts(csv: string, texts: Map<string, string>): string {
+  const entries = [...texts].sort((a, b) => b[1].length - a[1].length);
+  let out = csv;
+  for (const [id, text] of entries) {
+    if (!text) continue;
+    const placeholder = `<task:${id}>`;
+    out = out.split(text.replace(/"/g, '""')).join(placeholder);
+    out = out.split(text).join(placeholder);
+  }
+  return out;
+}
+
+// 比较实际 CSV 与期望 CSV，要求逐字节相同；不同时只返回一条不含任务正文的诊断文字。
+// 判定用原始字符串直接比较（逐字节、不经过脱敏）；脱敏只用于构造诊断。
+// 诊断里：先按 maskTaskTexts 脱敏；脱敏后仍以任务前缀开头、又没有 <task:ID> 占位符、也不是合成文字的行
+// （例如应用把任务文字改写了），整行用 <redacted task row> 代替，保证不会把正文打印出来。
+export function csvMismatch(
+  actual: string,
+  expected: string,
+  texts: Map<string, string>,
+): string | null {
+  if (actual === expected) return null;
+  const isTaskRow = (line: string) => {
+    const body = line.startsWith('"') ? line.slice(1) : line;
+    return body.startsWith(CSV_DONE_PREFIX) || body.startsWith(CSV_DUE_PREFIX);
+  };
+  const toLines = (csv: string) =>
+    maskTaskTexts(csv, texts)
+      .split('\n')
+      .map((line) =>
+        isTaskRow(line) && !line.includes('<task:') && !line.includes('SYNTH') ? '<redacted task row>' : line,
+      );
+  const a = toLines(actual);
+  const e = toLines(expected);
+  const max = Math.max(a.length, e.length);
+  for (let i = 0; i < max; i++) {
+    if (a[i] !== e[i]) {
+      return (
+        `CSV 与期望不一致（已脱敏）：实际 ${a.length} 行，期望 ${e.length} 行；` +
+        `第 ${i + 1} 行不同\n  实际：${a[i] ?? '<无>'}\n  期望：${e[i] ?? '<无>'}`
+      );
+    }
+  }
+  // 脱敏后的行都相同，说明差别藏在被脱敏的任务文字里（例如换行、行尾空白以外的字节）
+  return `CSV 与期望不一致，但差别只在被脱敏的任务文字里（实际 ${actual.length} 字符，期望 ${expected.length} 字符）`;
+}
+
 // 整份日历 CSV 文本：表头，记录行（按 state.logs 的顺序），任务行（内置任务按组号、序号，再按 state.custom 的顺序）。
 // 行之间用 \n 连接，末尾没有换行。
 export function expectedCalendarCsv(
