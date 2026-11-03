@@ -146,7 +146,11 @@ test('DATA-01 the full fixture renders logs, task states, custom todos, lift his
     ).toHaveCount(1);
   }
   const buckets = taskBuckets(fixture, FROZEN_TODAY);
-  for (const id of buckets.done) await expect(task(id), `已完成 ${id}`).toBeChecked();
+  // 不用 toBeChecked：失败日志会打印复选框元素预览，其中 aria-label 是内置任务文字。
+  // 改用 :checked 选择器加 toHaveCount，日志里只有元素个数（D-14）
+  for (const id of buckets.done) {
+    await expect(page.locator(`#goals [data-task="${id}"]:checked`), `已完成 ${id}`).toHaveCount(1);
+  }
   for (const id of buckets.overdue) await expect(row(id).locator('.od'), `已过期 ${id}`).toHaveText(GOAL_OVERDUE);
   for (const id of [...buckets.dueToday, ...buckets.dueFuture]) {
     await expect(page.locator(`#goals [data-due="${id}"]`), `截止日期 ${id}`).toHaveValue(fixture.tasks[id].due);
@@ -158,9 +162,14 @@ test('DATA-01 the full fixture renders logs, task states, custom todos, lift his
   }
   for (const [id, lift] of Object.entries<any>(fixture.lifts)) {
     await expect(page.locator(`#lf-${id}`)).toHaveValue(String(lift.cur));
-    await expect(page.locator('#goals .lift').filter({ has: page.locator(`#lf-${id}`) }).locator('.hist')).toContainText(
-      LIFT_HISTORY_PREFIX,
-    );
+    // 没有历史时 .hist 里是力量项目自己的备注。用 expect.poll 在 Node 侧做布尔判断，
+    // 失败时只打印 true/false，不把备注带进日志（D-14）
+    const hist = page.locator('#goals .lift').filter({ has: page.locator(`#lf-${id}`) }).locator('.hist');
+    await expect
+      .poll(async () => ((await hist.textContent()) ?? '').startsWith(LIFT_HISTORY_PREFIX), {
+        message: `力量项目 ${id} 的历史行没有以“${LIFT_HISTORY_PREFIX}”开头（内容已隐藏）`,
+      })
+      .toBe(true);
   }
 });
 
