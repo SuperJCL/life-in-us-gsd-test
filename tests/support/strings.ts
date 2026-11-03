@@ -153,3 +153,5 @@ export const TOAST_EMPTY_TEXT = '内容不能为空，想删掉请点“删除�
 export const TOAST_LOG_DELETED = '已删除这条记录';
 // 点撤销后的 toast
 export const TOAST_RESTORED = '已恢复';
+// 在完成计划弹窗里点“标记为未完成”后的 toast（应用源码逐字复制）
+export const TOAST_MARKED_UNDONE = '已改回未完成';
