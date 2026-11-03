@@ -20,7 +20,7 @@
 小数阶段按数字顺序排在前后两个整数阶段之间。
 
 - [x] **Phase 1: 测试环境、护栏与本地切片（Harness & Local Slice）** - 一条命令用本机 Edge 跑通本地模式端到端用例；网络、时钟、页面错误和应用完整性护栏对所有用例生效；完成六项运行时探针 (completed 2026-11-01)
-- [ ] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容
+- [x] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容 (completed 2026-11-03)
 - [ ] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图
 - [ ] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互
 - [ ] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖
@@ -70,7 +70,7 @@ Plans:
   3. 账户模式下记一笔后，测试能读到 mock 记录的写入；刷新页面后，数据仍然从 mock 读回。
   4. 合成的完整状态 fixture 和边界 fixture（旧类别名、最小状态、畸形导入文件）都已就位，并通过 Phase 1 的合成标记检查。用完整 fixture 启动后，五个类别的记录、各种状态的任务、自定义待办、力量历史和本周复盘都能在页面上找到。
   5. 账户模式下导出按钮出现。导出的日历 CSV 与根据 fixture 推导的期望逐字一致（表头、MM/DD/YYYY 日期、引号和逗号转义），导出的 JSON 备份与当前状态深度相等，文件名和内容都从 `downloads.save` 的记录中读到。
-**Plans:** 5/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -155,7 +155,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
-| 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | In Progress | - |
+| 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 0/TBD | Not started | - |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |
