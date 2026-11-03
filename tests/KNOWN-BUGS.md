@@ -19,10 +19,11 @@
 | 编号 | CONCERNS.md 出处 | 对照用例 | 标记用例 | 期望行为 | 现状 |
 |------|------------------|----------|----------|----------|------|
 | B1 | `.planning/codebase/CONCERNS.md` 的 Known Bugs 一节 “Composer draft lost when choosing another day”（本周视图那一处；日历日面板那一处在 Phase 4 登记） | `BUG-01 B1 control: the week draft is typed and picking another day moves the selection` | `BUG-01 B1 expected: the week draft survives picking another day` | 点另一天后，本周记一笔的草稿仍在，记录按钮可用 | 已复现（`test.fail`）：点另一天后草稿被清空，实际值为空字符串 |
+| N1 | CONCERNS.md 没有单独的 N1 条目；同源条目是 `.planning/codebase/CONCERNS.md` Known Bugs 一节的 “Composer draft lost when choosing another day”（即上面的 B1），根因相同（整页重绘 renderAll / renderWeek 重建 composer，草稿随之丢失），触发不同（B1 是点另一天，N1 是点直接记录的预设，走 addLog → renderAll）；触发的出处是 `.planning/research/FEATURES.md` 已知 bug 对照表的 N1 | `BUG-01 N1 control: the week draft is typed and the direct-record preset saves its entry` | `BUG-01 N1 expected: the week draft survives a direct-record preset` | 点直接记录的预设后，本周记一笔的草稿仍在，记录按钮可用 | 已复现（`test.fail`）：点预设记了一条并保存后草稿被清空，实际值为空字符串。FEATURES.md 对照表里 N1 的另外 4 种触发（在目标页勾选任务、删除记录、拖拽、改抵达日期）未验证，留给后续阶段（Phase 4/5 视图用例可复用同一对照加 `test.fail` 模式）；本行只验证直接记录的预设这一种触发 |
 
 ## 以后的阶段
 
-- N1：由 Phase 3 的 03-04 计划 Task 2 登记。
+- N1：已登记（Phase 3 的 03-04 计划，只验证直接记录的预设这一种触发）。
 - B4（复盘末尾内容丢失）：由 Phase 3 的 03-02 计划登记。
 - Phase 4：登记日历日面板的 B1 实例。
 - Phase 5：登记 B2（取消导入后重选同一文件）和 N3（导入 `{}`）。

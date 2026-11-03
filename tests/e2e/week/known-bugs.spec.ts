@@ -9,7 +9,9 @@ import type { Page } from '../../support/test';
 import type { AppHarness } from '../../support/app';
 import { composer } from '../../support/composer';
 import { FROZEN_TODAY } from '../../support/constants';
+import { expectToast } from '../../support/toast';
 import { loadFixture } from '../../support/fixture-files';
+import { CAT_LANGUAGE, TOAST_RECORDED_PREFIX } from '../../support/strings';
 
 const B1_DRAFT = 'SYNTH-B1 draft';
 const B1_TARGET_DAY = '2026-03-19';
@@ -50,6 +52,53 @@ test.describe('BUG-01 B1 week draft is cleared when picking another day', () => 
     await header.click();
 
     await expect(c.text).toHaveValue(B1_DRAFT, { timeout: 2_000 });
+    await expect(c.addButton).toBeEnabled({ timeout: 2_000 });
+  });
+});
+
+// N1 与 CONCERNS.md 的 B1 条目同源：整页重绘（renderAll / renderWeek）重建 composer，草稿随之丢失；
+// CONCERNS.md 没有单独的 N1 条目。触发不同：这里是点直接记录的预设（addLog → renderAll），不是选日期。
+// 按 D-13 另写一对，便于以后分别看到修复。
+const N1_DRAFT = 'SYNTH-N1 draft';
+
+test.describe('BUG-01 N1 week draft is cleared when a direct-record preset adds an entry', () => {
+  // 准备和触发：输入草稿，点 fixture 里的合成自定义标签（不以冒号结尾，所以是直接记录）
+  async function typeDraftThenClickPreset(page: Page, app: AppHarness) {
+    const fixture = loadFixture('full-state.json');
+    await app.open({ mode: 'account', seed: fixture });
+    await app.expectAccountMode();
+    const name: string = fixture.presets[CAT_LANGUAGE].add[0];
+    const c = composer(page, 'w');
+    await c.type(N1_DRAFT);
+    return { c, name };
+  }
+
+  test('BUG-01 N1 control: the week draft is typed and the direct-record preset saves its entry', async ({
+    page,
+    app,
+  }) => {
+    const { c, name } = await typeDraftThenClickPreset(page, app);
+
+    // 前提：草稿确实在文本框里，记录按钮可用
+    await expect(c.text).toHaveValue(N1_DRAFT);
+    await expect(c.addButton).toBeEnabled();
+
+    // 触发：真实点击合成标签
+    await c.presetNamed(name).click();
+
+    // 触发确实走了 addLog：toast 为已记录，并且保存里多了一条今天的记录
+    await expectToast(page, TOAST_RECORDED_PREFIX + name);
+    await app.expectSaved((s) =>
+      s.logs.some((l: { text: string; date: string }) => l.text === name && l.date === FROZEN_TODAY),
+    );
+  });
+
+  test('BUG-01 N1 expected: the week draft survives a direct-record preset', async ({ page, app }) => {
+    knownBug('N1', '带草稿时点直接记录的预设，草稿被清空');
+    const { c, name } = await typeDraftThenClickPreset(page, app);
+    await c.presetNamed(name).click();
+
+    await expect(c.text).toHaveValue(N1_DRAFT, { timeout: 2_000 });
     await expect(c.addButton).toBeEnabled({ timeout: 2_000 });
   });
 });
