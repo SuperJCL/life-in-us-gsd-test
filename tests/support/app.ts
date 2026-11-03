@@ -3,7 +3,7 @@
 import { expect, type Page } from '@playwright/test';
 import { installClaudeMock } from '../mocks/claude-runtime';
 import { MockBackend } from '../mocks/claude-backend';
-import { ACCOUNT_USER_ID, MOCK_BINDING_NAME, STATE_KEY } from './constants';
+import { ACCOUNT_DOC_PATH, ACCOUNT_USER_ID, MOCK_BINDING_NAME, STATE_KEY } from './constants';
 import { STATUS_ACCOUNT, STATUS_LOCAL } from './strings';
 
 // 预置种子：只有 localStorage 里没有这个键时才写入。
@@ -103,6 +103,24 @@ export class AppHarness {
     }
     const raw = await this.page.evaluate((key) => localStorage.getItem(key), STATE_KEY);
     return raw === null ? null : JSON.parse(raw);
+  }
+
+  // 账户模式自证（D-07）：状态栏是账户文案、mock 恰好记录到预期次数的读取且路径都对、
+  // 页面 localStorage 里没有应用的键。
+  // 必须声明为 async，第一条语句就是 reads 检查：这样任何失败都表现为被 reject 的 Promise，
+  // 不会在调用时同步抛出，反向对照用例里的 await expect(...).rejects.toThrow() 才成立。
+  // reads 检查放最前面还有一个原因：应用静默退回本地时 reads 是空的，这条同步检查立刻失败，不用等 expect 超时。
+  async expectAccountMode(opts: { reads?: number } = {}) {
+    const count = opts.reads ?? 1;
+    expect(
+      this.backend.reads,
+      `mock 的读取次数或路径不对：应用可能静默退回了本地模式（期望 ${count} 次 ${ACCOUNT_DOC_PATH}）`,
+    ).toEqual(Array(count).fill(ACCOUNT_DOC_PATH));
+    await expect(this.page.locator('#status'), '状态栏不是账户同步文案：应用没有走账户存储').toHaveText(STATUS_ACCOUNT);
+    expect(
+      await this.page.evaluate((key) => localStorage.getItem(key), STATE_KEY),
+      'localStorage 里出现了应用的键：账户模式不应该写本地存储',
+    ).toBeNull();
   }
 
   // 保存有 600 ms 防抖，所以用 expect.poll 等条件成立，不用固定睡眠

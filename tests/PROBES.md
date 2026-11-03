@@ -1,4 +1,4 @@
-# 运行时探针结论（PROBE-1 到 PROBE-6）
+# 运行时探针结论（PROBE-1 到 PROBE-7）
 
 这些探针验证后续阶段依赖的运行时假设。每一项都对应 `tests/e2e/platform/probes.spec.ts` 里以 `PROBE-n` 开头的用例，每次 `npm test` 都会运行；假设哪天不成立，用例会变红。
 
@@ -26,6 +26,7 @@
 | PROBE-4 | `expect.poll` 读取防抖保存 | `PROBE-4 expect.poll observes the debounced localStorage save` | 通过 | 三次耗时 1012、960、975 ms（都在 500 到 5000 ms 之间） | 默认的 `expectPersisted` 即可 |
 | PROBE-5 | `dragTo` 驱动 HTML5 拖放 | `PROBE-5 dragTo drives HTML5 drag and drop in the week view` | 通过（方案 A） | 条目从 2026-03-16 拖到 2026-03-19，落盘日期变化，目标列可见 | 方案 A：`dragTo(..., { steps: 10 })` |
 | PROBE-6 | `clock.install` 加 `pauseAt` 后的稳定性检查 | `PROBE-6 clock.install with pauseAt keeps actionability checks working` | 通过 | 暂停后点击标签、记一笔、toast 出现，`runFor(1800)` 后消失，保存落盘 | install、open、pauseAt、runFor 的顺序可用 |
+| PROBE-7 | `exposeBinding` 在页面脚本运行前可调用 | `PROBE-7 exposeBinding is callable from an init script before any page script runs` | 通过 | init 阶段 `typeof` 为 `function`，init 阶段调用返回 `pong`；账户 tracer 里应用调用 `get()` 时 binding 也可用 | 采用 `exposeBinding`，不启用 `sessionStorage` 退路 |
 
 ## PROBE-1：Edge 无界面启动
 
@@ -103,7 +104,17 @@
 - **备选方案：** 无需。若以后卡在稳定性检查，去掉 `pauseAt` 改用 install 加 `runFor`，或在动作前调用 `page.clock.resume()`。
 - **对后续阶段的影响：** Phase 4 撤销 toast 过期的用例沿用这个写法：manual 模式、install、open、pauseAt、动作、`runFor`。同一个用例不混用 `install` 和 `setFixedTime`。
 
+## PROBE-7：`exposeBinding` 的时序（D-01）
+
+- **怎么测的：** 先 `page.exposeBinding('__probeBinding', () => 'pong')`，再用 `page.addInitScript(fn, '__probeBinding')` 注入一个函数：它在 init 阶段把 `typeof window[name]` 记到 `window.__probeTypeAtInit`；如果是函数就立即调用，把结果写到 `window.__probeInitCall`。导航到应用后，先读出 `typeAtInit` 记成 probe annotation，再断言它为 `'function'`；然后 poll 到 `__probeInitCall` 为 `'pong'`，`initCall` 在 `finally` 里记成 annotation。观察值先记再断言，所以失败时报告里也有观察值。
+- **观察到什么：** `typeAtInit=function`，`initCall=pong`。也就是说 init script 运行的时候 binding 已经是可调用的函数，调用能拿到 Node 侧的返回值。
+- **断言是写死的：** 两条断言的期望值固定为 `'function'` 和 `'pong'`，不随观察值改写，所以 binding 在 init 阶段不可调用时这条探针会失败，不会静默通过。
+- **和账户 tracer 的分工：** 账户 tracer（`MOCK-03 account mode saves a new entry to the mock and reads it back after reload`）证明的是应用自己调用 `get()` 时 binding 可用，并且 reload 之后 Node 侧的数据仍在；PROBE-7 证明的是更早的 init 阶段也可用。
+- **D-01 的最终结论：** `exposeBinding` 方案可用（证据：PROBE-7 和上面的 tracer 用例）。**没有启用 `sessionStorage` 退路。** mock 的页面侧代码仍然只在 `get`、`set`、`save` 被调用时才去取 binding（懒调用），不依赖 init 阶段的顺序。
+- **退路备忘（没有启用）：** 如果以后某个 Edge 或 Playwright 版本让 PROBE-7 变红，D-01 的退路是把 mock 数据放到页面侧的 `sessionStorage`。键名必须带固定前缀（例如 `__claude-mock:`），不能和应用的 `us-journey-tracker-v1` 冲突。但这条退路和“用例不用 `page.evaluate` 读记录”（D-09）冲突，需要重新规划，不能在用例里临时改。
+- **对后续阶段的影响：** Phase 2 到 5 的账户模式用例直接读 `app.backend`（`reads`、`writes`、`downloads`、`lastState()`），不需要 `page.evaluate`。
+
 ## 未覆盖的事项
 
-`exposeBinding` 在页面脚本运行前是否可用，由 Phase 2 的账户冒烟用例验证，不在本阶段探针范围内。
+目前没有。`exposeBinding` 的时序已由 PROBE-7 和账户 tracer 覆盖。
 

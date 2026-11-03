@@ -21,3 +21,12 @@ export const WEEK_RANGE_FROZEN = '3月16日 – 22日';
 
 // 账户模式下状态行的文案（应用源码逐字复制）；它出现说明应用走了 db 存储
 export const STATUS_ACCOUNT = '已同步保存到你的账户';
+
+// 导出成功后弹出的 toast 文案（应用源码逐字复制）
+export const TOAST_EXPORTED = '已导出';
+
+// 日历 CSV 的导出文件名（应用源码逐字复制）
+export const FILENAME_CSV = '在美国的日子-日历.csv';
+
+// JSON 备份的导出文件名；日期是冻结的今天 2026-03-18（D-16）。只是字符串常量，不对应磁盘上的文件
+export const FILENAME_BACKUP_FROZEN = '在美国的日子-备份-2026-03-18.json';

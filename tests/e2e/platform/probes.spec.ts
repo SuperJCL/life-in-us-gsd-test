@@ -277,3 +277,46 @@ test.describe('PROBE-6 manual clock', () => {
     testInfo.annotations.push({ type: 'probe', description: 'install + pauseAt + runFor(1800) 可行' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// PROBE-7：exposeBinding 的时序（D-01）
+// 账户 tracer 证明应用调用 get() 时 binding 可用；这条探针证明更早的 init 阶段也可用。
+// 两条断言的期望值写死为 'function' 和 'pong'，不随观察值改写：
+// binding 在 init 阶段不可调用时它必须失败，按 D-01 停下重新规划。
+// ---------------------------------------------------------------------------
+test('PROBE-7 exposeBinding is callable from an init script before any page script runs', async ({ page }, testInfo) => {
+  await page.exposeBinding('__probeBinding', () => 'pong');
+  // 函数体必须自包含：addInitScript 会把函数序列化成源码发给浏览器
+  await page.addInitScript((name: string) => {
+    const w = window as any;
+    w.__probeTypeAtInit = typeof w[name];
+    if (typeof w[name] === 'function') {
+      w[name]().then((result: unknown) => {
+        w.__probeInitCall = result;
+      });
+    }
+  }, '__probeBinding');
+
+  await page.goto('/');
+  await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  // 观察值先记下再断言：断言失败时报告里也有观察值
+  const typeAtInit = await page.evaluate(() => (window as any).__probeTypeAtInit);
+  testInfo.annotations.push({ type: 'probe', description: `typeAtInit=${typeAtInit}` });
+  expect(typeAtInit).toBe('function');
+
+  let initCall: unknown;
+  try {
+    await expect
+      .poll(
+        async () => {
+          initCall = await page.evaluate(() => (window as any).__probeInitCall);
+          return initCall;
+        },
+        { message: '等待 init 阶段的 binding 调用返回' },
+      )
+      .toBe('pong');
+  } finally {
+    testInfo.annotations.push({ type: 'probe', description: `initCall=${String(initCall)}` });
+  }
+});
