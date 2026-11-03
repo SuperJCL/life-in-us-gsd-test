@@ -31,11 +31,22 @@
 - ✓ 合成测试数据：完整状态 fixture（五个类别、各状态任务、自定义待办、力量历史、本周复盘、预设增删）加边界 fixture（旧类别名、最小状态、只放在内存里的畸形导入），期望值由 helper 从 fixture 推导 — Phase 2
 - ✓ 导出验证：日历 CSV 与独立生成器逐字一致，另有手写金标准行；JSON 备份深度相等；内置任务文字只在运行时从 DOM 读取，断言失败时也不会打印出来 — Phase 2
 
+- ✓ 可复用的测试 helper：
+  - `composer(page, 'w' | 'c')` 负责记一笔；内置预设在页面内按序号操作，失败时不打印原文；
+  - `editor(page)` 负责编辑弹窗；
+  - `toast` 读回状态后在 Node 侧比较；
+  - `app.saved()` 和 `expectSaved()` 统一账户和本地两种模式。
+
+  — Phase 3
+- ✓ 本周视图：渲染结果与从 fixture 推导的期望一致，周导航和选日正常；记一笔、类别、预设（直接记录或预填、添加、删除、撤销）、Ctrl+Enter 都覆盖；拖放后保存的日期确实变了；复盘刷新后仍在 — Phase 3
+- ✓ 编辑弹窗：从本周、日历、时间线三个入口修改后三个视图同步；取消、Escape、点遮罩都不保存；删除后可撤销；空文字不能保存；完成计划可以改日期，也可以改回未完成 — Phase 3
+- ✓ 已知 bug 约定：每个 bug 是一条对照用例加一条窄断言的 `test.fail`，带 `known-bug` 注解，登记在 `tests/KNOWN-BUGS.md`；登记护栏双向核对。B1、N1、B4 都已复现并标记 — Phase 3
+
 ### Active
 
 <!-- 第一个里程碑：只搭测试，不改应用（第 6 阶段例外，见下）。 -->
 
-- [ ] 四个视图（本周、日历、目标、时间线）的渲染和交互测试，覆盖尽量完整（包括编辑弹窗、拖拽、撤销、导入）
+- [ ] 日历、目标、时间线三个视图的渲染和交互测试，加上导入和窄屏，覆盖尽量完整
 - [ ] 个人内容外置 + 本地私有目录与查看页：把应用里写死的个人计划搬到本地私有文件，仓库只放示例数据；另建本地 `private/` 目录和查看页。用户同意作为当前里程碑的第 6 阶段，并为这一阶段放宽“不改应用”的约束；还没加进 ROADMAP
 
 ### Out of Scope
@@ -58,20 +69,24 @@
 - **界面语言：** 全中文，测试选择器会用到中文文本和 ARIA 标签。
 - **环境：** Windows 11，Node v24.20.0，npm 11.19.0，已安装 Microsoft Edge 和 Google Chrome。Phase 1 已证明 Playwright 1.64.1 可以直接驱动 Edge 156.0.4314.58。
 - **Git 与 GitHub：** 公开仓库，主分支是 `main`。提交身份是 SuperJCL 加 noreply 地址（只在本仓库设置），首次推送前已清理过提交历史。`.githooks` 里的 pre-commit 和 pre-push 隐私检查（`tools/privacy/privacy-check.mjs`）会拦截应用原文件、真实备份、本机路径、真实邮箱和个人计划文字，规则见 `PRIVACY.md`。应用文件不进 git，克隆下来的仓库跑测试时会给出中文提示。
-- **测试工程现状（Phase 2 后）：** 共 64 条用例，分为：
+- **测试工程现状（Phase 3 后）：** 共 99 条用例（含 B1、N1、B4 三条预期失败），分为：
   - 护栏自检；
   - 7 项探针；
   - 契约自测；
   - 本地和账户两种模式的端到端用例；
   - 合成数据覆盖；
-  - CSV 和 JSON 导出。
+  - CSV 和 JSON 导出；
+  - 本周视图与记一笔；
+  - 编辑弹窗；
+  - 已知 bug 的成对用例和登记护栏。
 
   文件分布：
-  - `tests/support/`：共享 helper，包括 `AppHarness`（`open({ mode, seed })`、`backend`、`expectAccountMode()`）、`guard`（`guard.remove` 定向删除）、`frozenClock`，以及 fixture 期望值 helper；
+  - `tests/support/`：共享 helper，包括 `AppHarness`（`open({ mode, seed })`、`backend`、`expectAccountMode()`、`saved()`/`expectSaved()`）、`guard`（`guard.remove` 定向删除）、`frozenClock`、`knownBug()`、`composer`、`editor`、`toast`，以及 fixture 期望值 helper；
+  - `tests/KNOWN-BUGS.md`：已知 bug 登记表；
   - `tests/mocks/`：mock；
   - `tests/fixtures/`：合成数据。
 
-  探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查还剩几条 INFO 没处理：Phase 1 有 3 个，Phase 2 有 7 个。
+  探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查还剩几条 INFO 没处理：Phase 1 有 3 个，Phase 2 有 7 个，Phase 3 有 8 个。
 - **之前存在过的真实备份文件**（文件名不记录）现在已不在目录中，从未被读取；测试中禁止使用任何真实备份。
 
 ## Constraints
@@ -103,6 +118,8 @@
 | 类别显示名和旧类别名可以写进仓库 | 这些是结构性标签，已经出现在公开文档里，而且 `normalize()` 必须用到；个人计划文字仍然禁止 | ✓ Good — 只放在 `tests/support/strings.ts`，隐私检查照常通过 |
 | 断言失败时的输出也不能泄漏个人计划文字 | 失败信息会进入终端和 HTML 报告 | ✓ Good — 代码审查 3 轮后，涉及任务文字的断言都改成布尔或脱敏比较 |
 | Phase 3–5 讨论题直接采用推荐答案 | 用户希望长时间无人值守地运行 | — Pending |
+| 已知 bug 的对照用例和 `test.fail` 用例分成两条 | `test.fail` 会把同一条用例里的任何失败都当成“预期失败”，对照放在里面会被掩盖 | ✓ Good — B1、N1、B4 去掉标记后，都只在那条窄断言上失败 |
+| 测试运行一律低优先级、1 个 worker，配置文件不改 | 用户的电脑在长时间运行时会卡；用户选择不改 `playwright.config.ts` 的默认值 | ✓ Good — 全套用时从约 1.7 分钟变成 2.2 分钟 |
 | N3（导入 `{}` 会清空数据）算已知 bug | 用户决定：不像备份的文件不应该能清空数据 | — Pending（Phase 5 用 `test.fail` 标记） |
 
 ## Evolution
@@ -123,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-03 after Phase 2*
+*Last updated: 2026-11-03 after Phase 3*

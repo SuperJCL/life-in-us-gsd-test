@@ -4,10 +4,10 @@ current_phase: 4
 current_phase_name: 日历与目标视图（Calendar & Goals）
 status: planning
 stopped_at: Phase 3 complete, ready to plan Phase 4
-last_updated: "2026-11-03T23:56:56.785Z"
+last_updated: "2026-11-03T23:58:32.265Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 3 complete, transitioned to Phase 4
-state_head: 5acd8114d59e1d681ac0e2b2633d98301e4f0d80
+state_head: 85fa796fdc7b269f614c97869731f27d6a705ffc
 progress:
   total_phases: 5
   completed_phases: 3
@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-03 after Phase 2)
+See: .planning/PROJECT.md (updated 2026-11-03 after Phase 3)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** Phase 3 — 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）
+**Current focus:** Phase 4 — 日历与目标视图（Calendar & Goals）
 
 ## Current Position
 
@@ -117,6 +117,8 @@ None yet.
 
 - [Phase 1 遗留，非阻塞]: 安全审计（`/gsd-secure-phase 1`）还没运行，所以没有 SECURITY.md。`phase.complete` 已经把这条记为警告。（Phase 1 代码审查的 6 个 WARNING 已在 02-01 修复，3 个 INFO 保持 open。）
 - [Phase 2，非阻塞]: 代码审查跑完 `--auto` 3 轮，共 7 个 WARNING 都已修复。还剩 7 个 INFO，状态是 open，不在修复范围内，见 `02-REVIEW-DISPOSITION.md`。`--auto` 的迭代备份（`02-REVIEW*.iter*.md`）按流程保留在本地，未提交。
+- [Phase 3，非阻塞]: 代码审查共 4 个 WARNING，已在第 1 轮修复，第 2 轮复审时修复范围已经收敛。还剩 8 个 INFO，状态是 open，见 `03-REVIEW-DISPOSITION.md`。其中 IN-08 指出 `tests/README.md` 里关于 manual 时钟和“一对用例”的说法已过时：撤销用例现在也用 manual 时钟，B4 是一条标记用例加两条对照用例。这条交给 Phase 4 顺手更新。
+- [运行环境，非阻塞]: 用户的电脑在长时间运行时会卡，所以测试一律低优先级、只开 1 个 worker、不同时跑两次，也不做全盘扫描（见记忆 local-resource-limits）。`playwright.config.ts` 按用户决定保持不变。
 - [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。本次自动运行只到 Phase 5。
 
 ### Quick Tasks Completed
@@ -135,6 +137,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T23:22:52.796Z
+Last session: 2026-11-03T23:58:30.254Z
 Stopped at: Phase 3 complete, ready to plan Phase 4
 Resume file: None
