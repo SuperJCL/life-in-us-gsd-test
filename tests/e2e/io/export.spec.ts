@@ -24,7 +24,7 @@ test('IO-03 the JSON backup of the full fixture equals the fixture without _synt
   await app.open({ mode: 'account', seed: fixture });
   await app.expectAccountMode();
 
-  expect(app.backend.downloads).toEqual([]);
+  expect(app.backend.downloads.length).toBe(0);
 
   await page.locator('#exportJson').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
@@ -61,7 +61,8 @@ test('IO-02 the calendar CSV export matches the spec-derived expectation byte fo
 
   const expected = expectedCalendarCsv(fixture, (id) => texts.get(id) as string);
 
-  expect(app.backend.downloads).toEqual([]);
+  // 用 length 而不是 toEqual([])：失败时不打印下载记录里的 CSV 内容（WR-01）
+  expect(app.backend.downloads.length).toBe(0);
   await page.locator('#exportCsv').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(1);
 
@@ -99,7 +100,11 @@ test('IO-02 handwritten golden rows anchor quoting, the 80-character subject cut
   await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(1);
   const { data } = app.backend.downloads[0];
   expect(data.startsWith(CSV_HEADER + '\n')).toBe(true);
-  for (const row of golden) expect(data, `应用导出缺少金标准行：${row.slice(0, 40)}`).toContain(row);
+  // 用布尔值断言：data 含全部内置任务文字，toContain 失败时会把整段 CSV 打印出来（WR-01）。
+  // 消息里只放金标准行的前 40 个字符，那是合成文字。
+  for (const row of golden) {
+    expect(data.includes(row), `应用导出缺少金标准行：${row.slice(0, 40)}`).toBe(true);
+  }
 
   // 同样的金标准也必须出现在独立生成器的输出里（内置任务用合成占位文字，不读页面）：
   // 这样金标准同时约束应用和生成器，防止两者犯同一个错误
@@ -122,7 +127,7 @@ test('IO-02 exporting the calendar with nothing dated shows the empty toast and 
   // CSV 如果调用过 save，它的记录一定排在后面这次 JSON 导出之前
   await page.locator('#exportJson').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
-  expect(app.backend.downloads).toHaveLength(1);
+  expect(app.backend.downloads.length).toBe(1);
   expect(app.backend.downloads[0].filename).toBe(FILENAME_BACKUP_FROZEN);
 });
 
@@ -155,7 +160,7 @@ test('MOCK-04 exporting twice records two identical downloads and every test sta
   // 每个用例的 AppHarness 新建自己的 MockBackend，workers: 2 并行时用例之间不共享任何记录
   expect(app.backend.reads).toEqual([]);
   expect(app.backend.writes).toEqual([]);
-  expect(app.backend.downloads).toEqual([]);
+  expect(app.backend.downloads.length).toBe(0);
 
   await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
   await app.expectAccountMode();
@@ -165,7 +170,12 @@ test('MOCK-04 exporting twice records two identical downloads and every test sta
   await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 CSV 下载记录' }).toBe(1);
   await page.locator('#exportCsv').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待第 2 条 CSV 下载记录' }).toBe(2);
-  expect(app.backend.downloads[1]).toEqual(app.backend.downloads[0]);
+  // 两条 CSV 都含内置任务文字：比较布尔值，失败时不能打印 data（WR-01）
+  expect(
+    app.backend.downloads[1].filename === app.backend.downloads[0].filename &&
+      app.backend.downloads[1].data === app.backend.downloads[0].data,
+    '连续两次导出的 CSV 不一致（内容已隐藏）',
+  ).toBe(true);
 
   await page.locator('#exportJson').click();
   await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 JSON 下载记录' }).toBe(3);
