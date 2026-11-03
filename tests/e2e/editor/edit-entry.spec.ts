@@ -114,3 +114,130 @@ test('EDIT-01 editing an entry from the week view updates text, category and dat
   // 原来的那一列里已经没有它
   await expect(page.locator(`#tab-wk [data-wday="${original.date}"] [data-edit="${id}"]`)).toHaveCount(0);
 });
+
+test('EDIT-01 editing an entry from the calendar day panel saves with Ctrl+Enter and updates every view', async ({
+  page,
+  app,
+}) => {
+  const fixture = loadFixture('full-state.json');
+  await app.open({ mode: 'account', seed: fixture });
+  await app.expectAccountMode();
+
+  const id = 'synth-full-04';
+  const newText = 'SYNTH-EDIT01 calendar edited';
+  const newCat = CATEGORY_NAMES[0];
+  const newDate = '2026-03-20';
+  const ed = editor(page);
+
+  // 日面板默认是冻结的今天；点条目里的文字打开（不点删除按钮）
+  await gotoTab(page, TAB_LABELS.cal);
+  await ed.openLog(page.locator(`#dayPanel [data-edit="${id}"] .li-text`));
+  await ed.setText(newText);
+  await ed.setCategory(newCat);
+  await ed.setDate(newDate);
+  await ed.save('keyboard');
+
+  await ed.expectClosed();
+  await expectToast(page, TOAST_SAVED_MOVED_PREFIX + mdLabel(newDate));
+  // 它已经移出今天
+  await expect(page.locator(`#dayPanel [data-edit="${id}"]`)).toHaveCount(0);
+
+  await app.expectSaved((s) => {
+    const l = s.logs.find((x: Log) => x.id === id);
+    return !!l && l.text === newText && l.cat === newCat && l.date === newDate && s.logs.length === fixture.logs.length;
+  }, '等待保存后的记录是新值');
+
+  await expectLogInEveryView(page, { id, text: newText, cat: newCat, date: newDate });
+});
+
+test('EDIT-01 editing an entry from the timeline without changing its date keeps it in place and updates every view', async ({
+  page,
+  app,
+}) => {
+  const fixture = loadFixture('full-state.json');
+  await app.open({ mode: 'account', seed: fixture });
+  await app.expectAccountMode();
+
+  const id = 'synth-full-02';
+  const original: Log = fixture.logs.find((l: Log) => l.id === id);
+  const newText = 'SYNTH-EDIT01 timeline edited';
+  const newCat = CATEGORY_NAMES[4];
+  const ed = editor(page);
+
+  await gotoTab(page, TAB_LABELS.tl);
+  await ed.openLog(page.locator(`#timeline [data-edit="${id}"]`));
+  await ed.setText(newText);
+  await ed.setCategory(newCat);
+  // 不改日期：toast 只是“已保存”，不带“移到”
+  await ed.save();
+
+  await ed.expectClosed();
+  await expectToast(page, TOAST_SAVED);
+
+  // 文字和类别是新值，日期仍是 fixture 里的原日期
+  await app.expectSaved((s) => {
+    const l = s.logs.find((x: Log) => x.id === id);
+    return !!l && l.text === newText && l.cat === newCat && l.date === original.date;
+  }, '等待保存后的记录是新值');
+
+  await expectLogInEveryView(page, { id, text: newText, cat: newCat, date: original.date });
+});
+
+// 证明“没有保存”要用 manual 时钟（D-05、D-15）：先推过防抖窗口再比较写入次数，
+// 再用哨兵写入证明这个窗口确实推进了防抖。同一个用例里不混用 setFixedTime。
+test.describe('EDIT-01 manual clock', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('EDIT-01 cancel, Escape and a backdrop click close the editor and save nothing', async ({ page, app }) => {
+    const fixture = loadFixture('full-state.json');
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'account', seed: fixture });
+    await app.expectAccountMode();
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+    const id = 'synth-full-01';
+    const original: Log = fixture.logs.find((l: Log) => l.id === id);
+    const entry = page.locator(`#tab-wk [data-edit="${id}"]`);
+    const ed = editor(page);
+    const writesBefore = app.backend.writes.length;
+
+    // 三种关闭方式：取消按钮、Escape、点弹窗以外的遮罩。
+    // 每一轮都先改文字，关闭后重新打开，文本框里必须是 fixture 原文
+    const closers: Array<() => Promise<void>> = [
+      () => ed.cancel(),
+      () => page.keyboard.press('Escape'),
+      () => page.mouse.click(5, 5),
+    ];
+    for (const [n, close] of closers.entries()) {
+      await ed.openLog(entry);
+      await ed.setText(`SYNTH-EDIT01 discarded ${n}`);
+      await close();
+      await ed.expectClosed();
+
+      await ed.openLog(entry);
+      await expect(ed.text).toHaveValue(original.text);
+      await ed.cancel();
+      await ed.expectClosed();
+    }
+
+    // 推过保存防抖：写入次数没变，本周那一条的文字仍是 fixture 原文
+    await page.clock.runFor(2_000);
+    expect(app.backend.writes.length).toBe(writesBefore);
+    await expect(page.locator(`#tab-wk [data-wday="${original.date}"] [data-edit="${id}"] > span`)).toHaveText(
+      original.text,
+    );
+
+    // 哨兵：真的保存一次，证明上面的窗口确实推进了防抖
+    const sentinel = 'SYNTH-EDIT01 sentinel';
+    await ed.openLog(entry);
+    await ed.setText(sentinel);
+    await ed.save();
+    await ed.expectClosed();
+    await page.clock.runFor(2_000);
+    await expect
+      .poll(() => app.backend.writes.some((w) => w.data.logs.some((l: Log) => l.id === id && l.text === sentinel)), {
+        message: '等待哨兵写入到达 mock',
+      })
+      .toBe(true);
+  });
+});

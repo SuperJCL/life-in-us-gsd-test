@@ -146,3 +146,10 @@ export const EDITOR_TITLE_TASK = '完成的计划';
 export const TOAST_SAVED = '已保存';
 // 保存并改了日期时的 toast 前缀，后面接 M月D日
 export const TOAST_SAVED_MOVED_PREFIX = '已保存，移到 ';
+
+// 编辑弹窗里文字只剩空白时点保存的提示（弯引号从应用源码复制）
+export const TOAST_EMPTY_TEXT = '内容不能为空，想删掉请点“删除”';
+// 在弹窗里删除记录后的 toast
+export const TOAST_LOG_DELETED = '已删除这条记录';
+// 点撤销后的 toast
+export const TOAST_RESTORED = '已恢复';
