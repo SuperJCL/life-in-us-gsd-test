@@ -73,9 +73,9 @@
 
 ### Editor & Cross-view
 
-- [ ] **EDIT-01**: 用户从本周、日历、时间线点任意记录都能打开编辑弹窗，修改文字、类别、日期并保存后，所有视图同步更新
-- [ ] **EDIT-02**: 用户可以在编辑弹窗里删除记录并撤销；内容为空时不能保存
-- [ ] **EDIT-03**: 在完成计划的编辑弹窗里，用户可以修改完成日期，或改回未完成
+- [x] **EDIT-01**: 用户从本周、日历、时间线点任意记录都能打开编辑弹窗，修改文字、类别、日期并保存后，所有视图同步更新
+- [x] **EDIT-02**: 用户可以在编辑弹窗里删除记录并撤销；内容为空时不能保存
+- [x] **EDIT-03**: 在完成计划的编辑弹窗里，用户可以修改完成日期，或改回未完成
 
 ### Persistence & Import/Export
 
@@ -167,9 +167,9 @@
 | GOAL-05 | Phase 4 | Pending |
 | TL-01 | Phase 5 | Pending |
 | TL-02 | Phase 5 | Pending |
-| EDIT-01 | Phase 3 | Pending |
-| EDIT-02 | Phase 3 | Pending |
-| EDIT-03 | Phase 3 | Pending |
+| EDIT-01 | Phase 3 | Complete |
+| EDIT-02 | Phase 3 | Complete |
+| EDIT-03 | Phase 3 | Complete |
 | IO-01 | Phase 1 | Complete |
 | IO-02 | Phase 2 | Complete |
 | IO-03 | Phase 2 | Complete |
