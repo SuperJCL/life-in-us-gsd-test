@@ -91,7 +91,7 @@
 
 ### Known Bugs
 
-- [ ] **BUG-01**: 测试碰到的已知 bug 用统一方式标记：一条窄断言加上 `test.fail` 或 `test.fixme`，并附 `known-bug` 注解；登记在 `tests/KNOWN-BUGS.md`，与 `.planning/codebase/CONCERNS.md` 对应；不修改应用
+- [x] **BUG-01**: 测试碰到的已知 bug 用统一方式标记：一条窄断言加上 `test.fail` 或 `test.fixme`，并附 `known-bug` 注解；登记在 `tests/KNOWN-BUGS.md`，与 `.planning/codebase/CONCERNS.md` 对应；不修改应用
 
 ## v2 Requirements
 
@@ -176,7 +176,7 @@
 | IO-04 | Phase 5 | Pending |
 | IO-05 | Phase 5 | Pending |
 | RESP-01 | Phase 5 | Pending |
-| BUG-01 | Phase 3 | Pending |
+| BUG-01 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 43 total

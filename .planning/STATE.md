@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 3
 current_phase_name: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-11-03T22:14:41.081Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-11-03T22:27:35.229Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 3 execution started
-state_head: 8f1f6aad8f23c2b594b58adc8a6ecbb705f83ffc
+state_head: d1463413b1cb95adbeb03cb224e4c5efbea5f6c8
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 40
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-03 after Phase 2)
 ## Current Position
 
 Phase: 3 (记一笔、编辑弹窗与本周视图（Composer, Editor & Week）) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 3 execution started
 
@@ -67,6 +67,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02 P05 | 13 min | 3 tasks | 4 files |
 | Phase 02 P04 | 8min | 3 tasks | 5 files |
 | Phase 03 P01 | 25 min | 2 tasks | 6 files |
+| Phase 03 P04 | 20min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,7 @@ Recent decisions affecting current work:
 - [用户决定 2026-11-03]: N3（导入 `{}` 这类合法但不像备份的 JSON 并确认后会清空全部数据）算已知 bug：期望应用拒绝，Phase 5 用 `test.fail` 标记一条窄断言，并登记到 KNOWN-BUGS.md
 - [Phase 03]: 03-01: saved() 账户模式只认 backend.writes 最后一条，本地模式用种子原文区分种子与应用写回
 - [Phase 03]: 03-01: 内置预设的点选与删除在页面内 page.evaluate 完成，真实指针路径由合成标签证明
+- [Phase 03]: 03-04: B1 and N1 reproduced with the marker removed and marked test.fail; registry guard cross-checks knownBug ids and titles against tests/KNOWN-BUGS.md
 
 ### Pending Todos
 
@@ -128,6 +130,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T22:14:39.659Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-11-03T22:27:33.745Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
