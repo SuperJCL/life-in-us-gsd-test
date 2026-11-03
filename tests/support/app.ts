@@ -1,8 +1,10 @@
 // AppHarness：收拢打开应用、reload 和持久化断言（D-17、D-18）。
 // 这里只能从 @playwright/test 导入，不能从 ./test 导入，否则会和 test.ts 循环引用。
 import { expect, type Page } from '@playwright/test';
-import { STATE_KEY } from './constants';
-import { STATUS_LOCAL } from './strings';
+import { installClaudeMock } from '../mocks/claude-runtime';
+import { MockBackend } from '../mocks/claude-backend';
+import { ACCOUNT_USER_ID, MOCK_BINDING_NAME, STATE_KEY } from './constants';
+import { STATUS_ACCOUNT, STATUS_LOCAL } from './strings';
 
 // 预置种子：只有 localStorage 里没有这个键时才写入。
 // addInitScript 注入的脚本在每次导航（包括 reload）时都会重新执行，
@@ -19,26 +21,73 @@ export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
   } catch (e) {}
 }
 
-// 本阶段只支持 local 模式（页面没有 window.claude，数据存在 localStorage）。
-// Phase 2 会在这里加 account 模式。
+// 两种存储模式（D-09）：
+//  - local（默认）：页面没有 window.claude，数据存在 localStorage，Phase 1 的用例都走这条；
+//  - account：页面装 window.claude mock，数据存在 Node 侧的 MockBackend（app.backend），
+//    种子写进 MockBackend 而不写 localStorage。
 export class AppHarness {
+  // Node 侧的 mock 后端：用例通过它直接读 reads、writes、downloads、lastState()，不用 page.evaluate
+  readonly backend = new MockBackend();
+
+  // 当前期望应用走哪种存储，决定 ready() 的就绪条件
+  private store: 'local' | 'account' = 'local';
+  // 同一个 page 只能注册一次 binding
+  private bindingExposed = false;
+
   constructor(private readonly page: Page) {}
 
-  // 打开应用并等到就绪；有 seed 时先注入种子，再导航
-  async open(opts: { seed?: unknown } = {}) {
-    if (opts.seed !== undefined) {
-      await this.page.addInitScript(seedLocalStorageIfAbsent, {
-        key: STATE_KEY,
-        json: JSON.stringify(opts.seed),
+  // 打开应用并等到就绪。
+  // mode 缺省为 local；account 模式下 userId 缺省为 ACCOUNT_USER_ID，显式传 null 表示没有身份。
+  // expectStore 只给 D-07 的反向对照用：账户 mock 已装但应用预期退回本地，就绪条件按本地算。
+  async open(
+    opts: {
+      mode?: 'local' | 'account';
+      seed?: unknown;
+      userId?: string | null;
+      expectStore?: 'local' | 'account';
+    } = {},
+  ) {
+    const mode = opts.mode ?? 'local';
+    if (mode === 'account') {
+      if (!this.bindingExposed) {
+        await this.page.exposeBinding(MOCK_BINDING_NAME, (_source, op: string, json: string) =>
+          this.backend.handle(op, json),
+        );
+        this.bindingExposed = true;
+      }
+      if (opts.seed !== undefined) {
+        this.backend.seed(opts.seed);
+      }
+      await this.page.addInitScript(installClaudeMock, {
+        binding: MOCK_BINDING_NAME,
+        userId: opts.userId === undefined ? ACCOUNT_USER_ID : opts.userId,
       });
+      this.store = opts.expectStore ?? 'account';
+    } else {
+      this.store = 'local';
+      if (opts.seed !== undefined) {
+        await this.page.addInitScript(seedLocalStorageIfAbsent, {
+          key: STATE_KEY,
+          json: JSON.stringify(opts.seed),
+        });
+      }
     }
     await this.page.goto('/');
     await this.ready();
   }
 
-  // 就绪条件：状态行显示本地模式文案，说明 store 已就位
+  // 就绪条件。
+  // local：状态行显示本地模式文案，说明 store 已就位。
+  // account（D-08）：状态行显示账户文案，并且两个导出按钮都可见。
+  // 只看状态栏会抢跑：应用在 setStatus 之后还要再 await use("downloads") 才显示导出按钮。
   async ready() {
-    await expect(this.page.locator('#status')).toHaveText(STATUS_LOCAL);
+    if (this.store === 'account') {
+      await expect(this.page.locator('#status')).toHaveText(STATUS_ACCOUNT);
+      await expect(this.page.locator('#exportCsv')).toBeVisible();
+      await expect(this.page.locator('#exportJson')).toBeVisible();
+    } else {
+      await expect(this.page.locator('#status')).toHaveText(STATUS_LOCAL);
+    }
   }
 
   async reload() {
@@ -46,14 +95,18 @@ export class AppHarness {
     await this.ready();
   }
 
-  // 读取 localStorage 里落盘的状态；没有数据时返回 null
+  // 读取落盘的状态；没有数据时返回 null。
+  // account 模式读 MockBackend 里账户文档的当前内容，local 模式读 localStorage。
   async persisted(): Promise<any> {
+    if (this.store === 'account') {
+      return this.backend.lastState();
+    }
     const raw = await this.page.evaluate((key) => localStorage.getItem(key), STATE_KEY);
     return raw === null ? null : JSON.parse(raw);
   }
 
   // 保存有 600 ms 防抖，所以用 expect.poll 等条件成立，不用固定睡眠
-  async expectPersisted(predicate: (state: any) => boolean, message = '等待 localStorage 保存') {
+  async expectPersisted(predicate: (state: any) => boolean, message = '等待保存落盘') {
     const check = async () => {
       const state = await this.persisted();
       return state === null ? false : predicate(state);

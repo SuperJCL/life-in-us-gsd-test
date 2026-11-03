@@ -18,3 +18,6 @@ export const WEEK_TITLE_CURRENT = '本周';
 
 // 冻结日 2026-03-18 所在周的范围文案：中间是 U+2013 en dash，两边各一个空格
 export const WEEK_RANGE_FROZEN = '3月16日 – 22日';
+
+// 账户模式下状态行的文案（应用源码逐字复制）；它出现说明应用走了 db 存储
+export const STATUS_ACCOUNT = '已同步保存到你的账户';

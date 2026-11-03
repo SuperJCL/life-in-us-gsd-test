@@ -39,3 +39,21 @@ export const APP_SHA256 = '2a954fd0e41df78669bddda384f6307b09974fb32969be4d94e13
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
+
+// 账户模式用的合成用户 id（D-06）
+export const ACCOUNT_USER_ID = 'synth-user-0001';
+
+// 账户模式下应用读写的文档路径：data/users/<id>/state（D-06）
+export const ACCOUNT_DOC_PATH = `data/users/${ACCOUNT_USER_ID}/state`;
+
+// Node 侧 MockBackend 通过 exposeBinding 暴露给页面的 binding 名（D-01）
+export const MOCK_BINDING_NAME = '__claudeMockBackend';
+
+// 固定的“本周”起点：冻结日 2026-03-18 所在周的周一（D-05）
+export const WEEK_START_FROZEN = '2026-03-16';
+
+// 固定的“本周”终点：同一周的周日（D-05）
+export const WEEK_END_FROZEN = '2026-03-22';
+
+// 合成数据里的抵达日期（D-05）
+export const ARRIVAL_DATE_FIXTURE = '2026-01-12';
