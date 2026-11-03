@@ -4,10 +4,10 @@ current_phase: 3
 current_phase_name: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）
 status: planning
 stopped_at: Phase 2 complete, ready to plan Phase 3
-last_updated: "2026-11-03T20:21:56.088Z"
+last_updated: "2026-11-03T20:24:02.709Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 2 complete, transitioned to Phase 3
-state_head: 01219e56683985577789bde16e9b3cd5b751c7d0
+state_head: c80925f7b84089abebc485a1ddee27d818a6c931
 progress:
   total_phases: 5
   completed_phases: 2
@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-01 after Phase 1)
+See: .planning/PROJECT.md (updated 2026-11-03 after Phase 2)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** Phase 2 — 账户模式、合成数据与导出（Account Mock, Data & Export）
+**Current focus:** Phase 3 — 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）
 
 ## Current Position
 
@@ -93,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-03: expectedCategory is an independent spec of normalize; category and LEGACY names live only in tests/support/strings.ts (D-12 clarification)
 - [Phase 02]: 02-05: contract self-tests found no deviation in the mock; CONTRACT.md excerpts are verbatim (33 lines script-checked) and window.claude freezing is recorded as a stricter mock choice, not a contract item
 - [Phase 02]: [02-04] "与种子文档相等" 按去掉 _synthetic 理解：normalize 丢掉未知键，备份里没有 _synthetic
+- [Phase 02]: 代码审查修复的主线是“失败输出也不能泄漏个人计划文字”：涉及内置任务文字或力量备注的断言，一律改成布尔比较或脱敏比较（`csvMismatch`/`maskTaskTexts`），并有常驻反向对照
+- [用户决定 2026-11-03]: Phase 3–5 的讨论灰区直接采用推荐答案（smart discuss 委托），只在真正需要用户决定的产品行为上停下
+- [用户决定 2026-11-03]: N3（导入 `{}` 这类合法但不像备份的 JSON 并确认后会清空全部数据）算已知 bug：期望应用拒绝，Phase 5 用 `test.fail` 标记一条窄断言，并登记到 KNOWN-BUGS.md
 
 ### Pending Todos
 
@@ -100,17 +103,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1 遗留]: 代码审查（`01-REVIEW.md`）有 6 个 WARNING，状态都还是 open（见 `01-REVIEW-DISPOSITION.md`）。可以用 `/gsd-code-review 1 --fix` 修，也可以在 Phase 2 顺手处理：
-  - WR-01：静态服务器不校验 Host 头（DNS 重绑定的理论窗口）；
-  - WR-02：`guard.reset()` 会清空全部记录；
-  - WR-03：PROBE-2c 的标题比断言说得多；
-  - WR-04：README 第 7 节夸大了解析层的保证范围；
-  - WR-05：guard 只记录 HTTP 请求，弹窗不受监控；
-  - WR-06：启动时 localStorage 为空的断言只采样一次。
-- [Phase 1 遗留]: 安全审计（`/gsd-secure-phase 1`）还没运行，所以没有 SECURITY.md。`phase.complete` 已经把这条记为警告。
-- [Phase 2]: `exposeBinding` 在页面脚本运行前是否可用还没验证；不可用时退回带前缀的 `sessionStorage` 方案。
-- [Phase 6]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。
-- [Phase 5]: N3（导入 `{}` 后清空数据）的期望行为未定，需要用户决定。
+没有阻塞项。以下是非阻塞的关注点：
+
+- [Phase 1 遗留，非阻塞]: 安全审计（`/gsd-secure-phase 1`）还没运行，所以没有 SECURITY.md。`phase.complete` 已经把这条记为警告。（Phase 1 代码审查的 6 个 WARNING 已在 02-01 修复，3 个 INFO 保持 open。）
+- [Phase 2，非阻塞]: 代码审查跑完 `--auto` 3 轮，共 7 个 WARNING 都已修复。还剩 7 个 INFO，状态是 open，不在修复范围内，见 `02-REVIEW-DISPOSITION.md`。`--auto` 的迭代备份（`02-REVIEW*.iter*.md`）按流程保留在本地，未提交。
+- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。本次自动运行只到 Phase 5。
 
 ### Quick Tasks Completed
 
@@ -128,6 +125,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T19:34:57.947Z
+Last session: 2026-11-03T20:24:01.417Z
 Stopped at: Phase 2 complete, ready to plan Phase 3
 Resume file: None

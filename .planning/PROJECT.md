@@ -26,13 +26,16 @@
 - ✓ 本地 Playwright 测试环境：项目内 `@playwright/test@1.64.1`（精确版本，`--ignore-scripts`），用本机 Edge 156，`npm test` 一条命令跑完全部用例并生成本地 HTML 报告（不自动弹出）；没有下载浏览器，也没有全局安装 — Phase 1
 - ✓ 测试安全护栏：网络有三层（route 拦截、`--host-resolver-rules`、死代理），后两层都有用例证明；另有固定时钟和时区、页面错误护栏、应用 sha256 完整性基线、`.gitignore` 和合成数据标记检查。preconnect 的拦截是根据两层证明推断的，没有直接观察到；非 HTTP 的出网尝试会被代理层挡住，但不会让用例失败（见 01-REVIEW WR-05） — Phase 1
 
+- ✓ Claude Artifact API mock：页面侧 `installClaudeMock` 加 Node 侧 `MockBackend`（经 `exposeBinding`，刷新后数据还在），按运行时契约 0.2.96 提供 `db`、`user`、`downloads` 的正常路径；8 条契约自测；`tests/mocks/CONTRACT.md` 记录已实现和未实现的条目 — Phase 2
+- ✓ 能被证明的账户模式：`expectAccountMode()` 检查三项（只读一次且路径正确、状态栏账户文案、localStorage 无应用键），每一项都有常驻反向对照；记一笔后能读到写入，刷新后从 mock 读回 — Phase 2
+- ✓ 合成测试数据：完整状态 fixture（五个类别、各状态任务、自定义待办、力量历史、本周复盘、预设增删）加边界 fixture（旧类别名、最小状态、只放在内存里的畸形导入），期望值由 helper 从 fixture 推导 — Phase 2
+- ✓ 导出验证：日历 CSV 与独立生成器逐字一致，另有手写金标准行；JSON 备份深度相等；内置任务文字只在运行时从 DOM 读取，断言失败时也不会打印出来 — Phase 2
+
 ### Active
 
 <!-- 第一个里程碑：只搭测试，不改应用（第 6 阶段例外，见下）。 -->
 
-- [ ] Claude Artifact API mock：在页面脚本运行前注入假的 `window.claude`，模拟 `db`、`user`、`downloads` 的正常路径（本地模式“没有 `window.claude`”已在 Phase 1 验证）
-- [ ] 合成测试数据：自己编造的 fixture，覆盖五个类别、完成/到期/过期任务、自定义待办、力量历史、本周复盘（Phase 1 只有一份最小种子）
-- [ ] 四个视图（本周、日历、目标、时间线）的渲染和交互测试，覆盖尽量完整（包括编辑弹窗、拖拽、撤销、导入导出）
+- [ ] 四个视图（本周、日历、目标、时间线）的渲染和交互测试，覆盖尽量完整（包括编辑弹窗、拖拽、撤销、导入）
 - [ ] 个人内容外置 + 本地私有目录与查看页：把应用里写死的个人计划搬到本地私有文件，仓库只放示例数据；另建本地 `private/` 目录和查看页。用户同意作为当前里程碑的第 6 阶段，并为这一阶段放宽“不改应用”的约束；还没加进 ROADMAP
 
 ### Out of Scope
@@ -55,7 +58,20 @@
 - **界面语言：** 全中文，测试选择器会用到中文文本和 ARIA 标签。
 - **环境：** Windows 11，Node v24.20.0，npm 11.19.0，已安装 Microsoft Edge 和 Google Chrome。Phase 1 已证明 Playwright 1.64.1 可以直接驱动 Edge 156.0.4314.58。
 - **Git 与 GitHub：** 公开仓库，主分支是 `main`。提交身份是 SuperJCL 加 noreply 地址（只在本仓库设置），首次推送前已清理过提交历史。`.githooks` 里的 pre-commit 和 pre-push 隐私检查（`tools/privacy/privacy-check.mjs`）会拦截应用原文件、真实备份、本机路径、真实邮箱和个人计划文字，规则见 `PRIVACY.md`。应用文件不进 git，克隆下来的仓库跑测试时会给出中文提示。
-- **测试工程现状（Phase 1 后）：** 25 条用例：护栏自检、6 项探针、本地模式端到端。共享 helper 在 `tests/support/`，包括 `AppHarness`、`guard` 和 `frozenClock` fixture；探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查（`01-REVIEW.md`）还有 6 个 WARNING 没处理。
+- **测试工程现状（Phase 2 后）：** 共 64 条用例，分为：
+  - 护栏自检；
+  - 7 项探针；
+  - 契约自测；
+  - 本地和账户两种模式的端到端用例；
+  - 合成数据覆盖；
+  - CSV 和 JSON 导出。
+
+  文件分布：
+  - `tests/support/`：共享 helper，包括 `AppHarness`（`open({ mode, seed })`、`backend`、`expectAccountMode()`）、`guard`（`guard.remove` 定向删除）、`frozenClock`，以及 fixture 期望值 helper；
+  - `tests/mocks/`：mock；
+  - `tests/fixtures/`：合成数据。
+
+  探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查还剩几条 INFO 没处理：Phase 1 有 3 个，Phase 2 有 7 个。
 - **之前存在过的真实备份文件**（文件名不记录）现在已不在目录中，从未被读取；测试中禁止使用任何真实备份。
 
 ## Constraints
@@ -83,6 +99,11 @@
 | 视图交互覆盖尽量完整 | 用户选择；包括编辑弹窗、拖拽、撤销、导入导出 | — Pending |
 | 只用合成数据 | 隐私，不触碰真实个人数据 | — Pending |
 | 已知 bug 不修，在测试里标记 | 控制范围；修复留到后续里程碑 | — Pending |
+| mock 状态放在 Node 侧，用 `exposeBinding` 连接 | 刷新后数据还在；测试直接读 Node 内存；不和应用的 localStorage 混在一起 | ✓ Good — PROBE-7 证明应用调用 `get()` 时 binding 已可用，不需要 sessionStorage 退路 |
+| 类别显示名和旧类别名可以写进仓库 | 这些是结构性标签，已经出现在公开文档里，而且 `normalize()` 必须用到；个人计划文字仍然禁止 | ✓ Good — 只放在 `tests/support/strings.ts`，隐私检查照常通过 |
+| 断言失败时的输出也不能泄漏个人计划文字 | 失败信息会进入终端和 HTML 报告 | ✓ Good — 代码审查 3 轮后，涉及任务文字的断言都改成布尔或脱敏比较 |
+| Phase 3–5 讨论题直接采用推荐答案 | 用户希望长时间无人值守地运行 | — Pending |
+| N3（导入 `{}` 会清空数据）算已知 bug | 用户决定：不像备份的文件不应该能清空数据 | — Pending（Phase 5 用 `test.fail` 标记） |
 
 ## Evolution
 
@@ -102,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-01 after Phase 1*
+*Last updated: 2026-11-03 after Phase 2*
