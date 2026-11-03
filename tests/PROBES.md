@@ -96,6 +96,7 @@
 - **方案 B（hover、mouse.down、hover 目标两次、mouse.up）：** 没有尝试，A 已可行。
 - **方案 C（合成 `DataTransfer` 事件）：** 没有尝试，A 已可行。
 - **对后续阶段的影响：** Phase 3 的拖放用例直接用方案 A。拖放前源条目必须有 `data-edit`，目标是带 `data-wday` 的整列。
+- **Phase 3 结论（WEEK-05）：** 用例 `WEEK-05 dragging an entry to another day changes its saved date` 在账户模式加完整 fixture 下，把 2026-03-16 的一条合成记录用 `dragTo`（方案 A，`steps: 10`）拖到 2026-03-19，一次通过，没有改用方案 B 或 C，所以没有用合成事件，走的是真实指针路径。断言以保存后的状态为准：这条记录的 `date` 变为目标日期，其余记录的 `date` 都没变；toast 为“已移到 ”加目标日期；目标列里有它、原列里没有；完成的计划条目没有 `draggable` 属性（只计数）。没有出现需要退路的失败现象。
 
 ## PROBE-6：`clock.install` 加 `pauseAt`
 

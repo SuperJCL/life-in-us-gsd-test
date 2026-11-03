@@ -1,4 +1,4 @@
-// 本文件覆盖 WEEK-01：本周视图的渲染（标题、范围、五类计数和目标、7 列内容）。
+// 本文件覆盖 WEEK-01（本周视图的渲染：标题、范围、五类计数和目标、7 列内容）和 WEEK-02（周导航与选中某天）。
 // 视图用例默认账户模式加完整 fixture（D-10）：开局后立刻 expectAccountMode，期望值全部由
 // tests/support/expect-from-fixture.ts 的推导函数从 fixture 算出，用例里不抄数字。
 //
@@ -11,10 +11,12 @@
 import { test, expect } from '../../support/test';
 import type { Page } from '../../support/test';
 import type { AppHarness } from '../../support/app';
+import { composer } from '../../support/composer';
 import { FROZEN_TODAY, WEEK_END_FROZEN, WEEK_START_FROZEN } from '../../support/constants';
 import { BUILTIN_TASK_IDS } from '../../support/task-ids';
 import { loadFixture } from '../../support/fixture-files';
 import {
+  composerWhenLabel,
   dayAriaLabel,
   expectedWeekRange,
   expectedWeekTitle,
@@ -209,4 +211,53 @@ test('WEEK-01 the fitness goal row is marked as met when every day of the week h
   expect(weekGoalDays(state, WEEK_START_FROZEN)[2]).toBe(7);
   const areas = await readAreas(page);
   expect(areas.find((a) => a.name === CAT_FITNESS)?.ok, '一周 7 天都有健身记录，目标行应带 ok 类').toBe(true);
+});
+
+test('WEEK-02 previous, next and this-week buttons move the week and reset the record date', async ({ page, app }) => {
+  const fixture = loadFixture('full-state.json');
+  await openWeek(app, fixture);
+  const c = composer(page, 'w');
+
+  // 上一周：含两条完成的计划，计数会包含它们；选中日重置为那一周的周一，composer 的记录日期随之变化
+  await page.locator('#wkPrev').click();
+  await expectWeekMatches(page, fixture, '2026-03-09', '2026-03-09');
+  await expect(c.when).toHaveText(composerWhenLabel('2026-03-09'));
+
+  // 下一周两次：回到本周之后的一周
+  await page.locator('#wkNext').click();
+  await page.locator('#wkNext').click();
+  await expectWeekMatches(page, fixture, '2026-03-23', '2026-03-23');
+  await expect(c.when).toHaveText(composerWhenLabel('2026-03-23'));
+
+  // 本周按钮的文字与标签页同名，所以只用 #wkNow 定位；回到冻结的今天所在周，选中今天
+  await page.locator('#wkNow').click();
+  await expectWeekMatches(page, fixture, WEEK_START_FROZEN, FROZEN_TODAY);
+  await expect(c.when).toHaveText(composerWhenLabel(FROZEN_TODAY));
+});
+
+test('WEEK-02 clicking a day or pressing Enter or Space on it selects it as the record date', async ({ page, app }) => {
+  const fixture = loadFixture('full-state.json');
+  await openWeek(app, fixture);
+  const c = composer(page, 'w');
+
+  // 每次重绘后都重新定位，不复用元素句柄。点列头选中那一天
+  await page.locator('#tab-wk [data-wday="2026-03-20"] .dh').click();
+  await expectWeekMatches(page, fixture, WEEK_START_FROZEN, '2026-03-20');
+  await expect(c.when).toHaveText(composerWhenLabel('2026-03-20'));
+
+  // 在聚焦的列上按 Enter
+  await page.locator('#tab-wk [data-wday="2026-03-21"]').press('Enter');
+  await expectWeekMatches(page, fixture, WEEK_START_FROZEN, '2026-03-21');
+  await expect(c.when).toHaveText(composerWhenLabel('2026-03-21'));
+
+  // 在聚焦的列上按空格
+  await page.locator('#tab-wk [data-wday="2026-03-22"]').press('Space');
+  await expectWeekMatches(page, fixture, WEEK_START_FROZEN, '2026-03-22');
+  await expect(c.when).toHaveText(composerWhenLabel('2026-03-22'));
+
+  // 之后记一笔保存在选中的那一天
+  const text = 'SYNTH-WEEK02 picked by keyboard';
+  await c.type(text);
+  await c.submit();
+  await app.expectSaved((s) => s.logs.some((l: { text: string; date: string }) => l.text === text && l.date === '2026-03-22'));
 });
