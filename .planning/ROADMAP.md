@@ -21,7 +21,7 @@
 
 - [x] **Phase 1: 测试环境、护栏与本地切片（Harness & Local Slice）** - 一条命令用本机 Edge 跑通本地模式端到端用例；网络、时钟、页面错误和应用完整性护栏对所有用例生效；完成六项运行时探针 (completed 2026-11-01)
 - [x] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容 (completed 2026-11-03)
-- [ ] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图
+- [x] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图 (completed 2026-11-03)
 - [ ] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互
 - [ ] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖
 
@@ -103,7 +103,7 @@ Plans:
   3. 把一条记录拖到另一天后，保存下来的状态里这条记录的日期确实变了；本周复盘文本保存后，刷新仍在。
   4. 从本周、日历、时间线点任意记录都能打开编辑弹窗，修改文字、类别、日期并保存后，三个视图同步更新。在弹窗里删除可以撤销，内容为空时不能保存；完成计划的弹窗可以修改完成日期，或改回未完成。
   5. 碰到的已知 bug（如本周视图的草稿丢失）用统一方式标记：一条普通的对照断言证明前提成立，再用一条窄断言加 `test.fail` 或 `test.fixme`，并附 `known-bug` 注解；每条都登记在 `tests/KNOWN-BUGS.md`，与 `.planning/codebase/CONCERNS.md` 的条目对应。
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -169,6 +169,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
-| 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | In Progress | - |
+| 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |
