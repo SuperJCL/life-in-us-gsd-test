@@ -46,8 +46,8 @@
 
 - [ ] **WEEK-01**: 本周视图正确渲染标题、日期范围、五个类别的统计和目标、7 天记录列
 - [ ] **WEEK-02**: 用户可以切换上一周、下一周、本周，并选中某一天作为记录日期
-- [ ] **WEEK-03**: 用户可以用“记一笔”记录：切换类别、用预设标签直接记录或预填、按 Ctrl+Enter 提交；记录会出现在对应日期并被保存
-- [ ] **WEEK-04**: 用户可以添加预设标签，在编辑模式下删除，并通过 toast 撤销删除
+- [x] **WEEK-03**: 用户可以用“记一笔”记录：切换类别、用预设标签直接记录或预填、按 Ctrl+Enter 提交；记录会出现在对应日期并被保存
+- [x] **WEEK-04**: 用户可以添加预设标签，在编辑模式下删除，并通过 toast 撤销删除
 - [ ] **WEEK-05**: 用户把一条记录拖到另一天后，记录日期改变并被保存
 - [ ] **WEEK-06**: 本周复盘文本会被保存，刷新后仍在
 
@@ -152,8 +152,8 @@
 | DATA-02 | Phase 2 | Complete |
 | WEEK-01 | Phase 3 | Pending |
 | WEEK-02 | Phase 3 | Pending |
-| WEEK-03 | Phase 3 | Pending |
-| WEEK-04 | Phase 3 | Pending |
+| WEEK-03 | Phase 3 | Complete |
+| WEEK-04 | Phase 3 | Complete |
 | WEEK-05 | Phase 3 | Pending |
 | WEEK-06 | Phase 3 | Pending |
 | CAL-01 | Phase 4 | Pending |
