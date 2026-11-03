@@ -137,3 +137,12 @@ export const GROUP_CATEGORY: Record<string, string> = {
 
 // 把记录拖到另一天后 toast 的前缀，后面接 M月D日（应用源码逐字复制）
 export const TOAST_MOVED_PREFIX = '已移到 ';
+
+// 编辑记录弹窗的标题
+export const EDITOR_TITLE_LOG = '编辑记录';
+// 编辑已完成计划弹窗的标题
+export const EDITOR_TITLE_TASK = '完成的计划';
+// 保存后没有改日期时的 toast
+export const TOAST_SAVED = '已保存';
+// 保存并改了日期时的 toast 前缀，后面接 M月D日
+export const TOAST_SAVED_MOVED_PREFIX = '已保存，移到 ';

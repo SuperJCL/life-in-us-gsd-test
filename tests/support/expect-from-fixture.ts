@@ -288,3 +288,9 @@ export function weekDayColumns(
 export function dayAriaLabel(date: string, n: number): string {
   return `${mdLabel(date)}${DAY_ARIA_SEPARATOR}${n}${DAY_ARIA_SUFFIX}`;
 }
+
+// 时间线条目的日期标签：月和日去掉前导零，用斜杠连接，形如 3/19
+export function timelineDateLabel(ymd: string): string {
+  const [, m, d] = ymd.split('-').map(Number);
+  return `${m}/${d}`;
+}
