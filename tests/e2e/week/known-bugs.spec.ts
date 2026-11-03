@@ -8,7 +8,7 @@ import { test, expect, knownBug } from '../../support/test';
 import type { Page } from '../../support/test';
 import type { AppHarness } from '../../support/app';
 import { composer } from '../../support/composer';
-import { FROZEN_TODAY } from '../../support/constants';
+import { FROZEN_NOW, FROZEN_TODAY, WEEK_START_FROZEN } from '../../support/constants';
 import { expectToast } from '../../support/toast';
 import { loadFixture } from '../../support/fixture-files';
 import { CAT_LANGUAGE, TOAST_RECORDED_PREFIX } from '../../support/strings';
@@ -100,5 +100,52 @@ test.describe('BUG-01 N1 week draft is cleared when a direct-record preset adds 
 
     await expect(c.text).toHaveValue(N1_DRAFT, { timeout: 2_000 });
     await expect(c.addButton).toBeEnabled({ timeout: 2_000 });
+  });
+});
+
+// B4：复盘先经 800 ms 防抖写进 state，再经 600 ms 防抖落盘；pagehide 的 flush 只会写出已经在 state 里的内容。
+// 所以输入复盘后立刻刷新，刚输入的文字没进 state，刷新后显示的是保存里的旧复盘（CONCERNS.md 的复盘丢失条目）。
+// 本组两条用例都用 manual 时钟（D-05、D-15）：install 加 pauseAt 之后，防抖计时器不会自己走，
+// “刷新发生在 800 ms 防抖之前”成为确定的条件，不靠真实时间的竞态；同一个用例里不混用 setFixedTime。
+const B4_TEXT = 'SYNTH-B4 typed right before reload';
+
+test.describe('BUG-01 B4 the end of the weekly review is lost on an immediate reload', () => {
+  test.use({ clockMode: 'manual' });
+
+  // 准备：装时钟、账户模式加完整 fixture 开局、暂停时钟，记下写入次数，在 #review 输入。返回输入前的写入次数
+  async function typeReviewUnderPausedClock(page: Page, app: AppHarness) {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
+    await app.expectAccountMode();
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const writesBefore = app.backend.writes.length;
+    await page.locator('#review').fill(B4_TEXT);
+    return writesBefore;
+  }
+
+  test('BUG-01 B4 control: the review typed under a paused clock is saved once the debounces run and survives reload', async ({
+    page,
+    app,
+  }) => {
+    const writesBefore = await typeReviewUnderPausedClock(page, app);
+
+    // 前提：文字确实在文本框里，防抖还没到，所以没有新的写入
+    await expect(page.locator('#review')).toHaveValue(B4_TEXT);
+    expect(app.backend.writes.length).toBe(writesBefore);
+
+    // 推过 800 ms 加 600 ms 两段防抖：保存路径本身是好的，刷新后仍在
+    await page.clock.runFor(2_000);
+    await app.expectSaved((s) => s.reviews[WEEK_START_FROZEN] === B4_TEXT);
+    await app.reload();
+    await expect(page.locator('#review')).toHaveValue(B4_TEXT);
+  });
+
+  test('BUG-01 B4 expected: the review typed right before reload survives the reload', async ({ page, app }) => {
+    knownBug('B4', '输入复盘后立即刷新，末尾内容丢失');
+    await typeReviewUnderPausedClock(page, app);
+
+    // 不推进时钟，立刻刷新
+    await app.reload();
+    await expect(page.locator('#review')).toHaveValue(B4_TEXT, { timeout: 2_000 });
   });
 });

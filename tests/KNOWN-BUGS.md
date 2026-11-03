@@ -12,6 +12,7 @@
 - **先确认复现再标记：** 标记前先去掉标记运行一次，确认失败点正是那条期望断言，再恢复标记。没有亲眼复现的问题不标成已知 bug。
 - **不修改应用：** 已知 bug 保持现状，期望行为在标记用例里表达；等应用修好后，`test.fail` 用例会变红，提醒去掉标记。
 - **失败输出不含个人计划文字：** 标记用例只用合成草稿和 fixture 里的合成标签，不碰内置预设、任务或力量项目的元素，也不把它们写进注解。
+- **N2（复盘防抖期间的重绘还原文本框）：** 不写用例（D-03），只立规则：输入复盘后先用 `app.expectSaved` 等保存完成，再做别的操作；规则写在 `tests/e2e/week/review.spec.ts` 的文件头。
 - **新增一条要同时改 spec 和本表：** `tests/e2e/platform/known-bugs-registry.spec.ts` 的护栏用例会双向核对编号和用例标题，漏登记或写错标题都会变红。每行以 `| <编号> |` 开头，用例标题用反引号括起、与 spec 里的标题逐字相同。
 
 ## 登记表
@@ -20,10 +21,11 @@
 |------|------------------|----------|----------|----------|------|
 | B1 | `.planning/codebase/CONCERNS.md` 的 Known Bugs 一节 “Composer draft lost when choosing another day”（本周视图那一处；日历日面板那一处在 Phase 4 登记） | `BUG-01 B1 control: the week draft is typed and picking another day moves the selection` | `BUG-01 B1 expected: the week draft survives picking another day` | 点另一天后，本周记一笔的草稿仍在，记录按钮可用 | 已复现（`test.fail`）：点另一天后草稿被清空，实际值为空字符串 |
 | N1 | CONCERNS.md 没有单独的 N1 条目；同源条目是 `.planning/codebase/CONCERNS.md` Known Bugs 一节的 “Composer draft lost when choosing another day”（即上面的 B1），根因相同（整页重绘 renderAll / renderWeek 重建 composer，草稿随之丢失），触发不同（B1 是点另一天，N1 是点直接记录的预设，走 addLog → renderAll）；触发的出处是 `.planning/research/FEATURES.md` 已知 bug 对照表的 N1 | `BUG-01 N1 control: the week draft is typed and the direct-record preset saves its entry` | `BUG-01 N1 expected: the week draft survives a direct-record preset` | 点直接记录的预设后，本周记一笔的草稿仍在，记录按钮可用 | 已复现（`test.fail`）：点预设记了一条并保存后草稿被清空，实际值为空字符串。FEATURES.md 对照表里 N1 的另外 4 种触发（在目标页勾选任务、删除记录、拖拽、改抵达日期）未验证，留给后续阶段（Phase 4/5 视图用例可复用同一对照加 `test.fail` 模式）；本行只验证直接记录的预设这一种触发 |
+| B4 | `.planning/codebase/CONCERNS.md` 的 Known Bugs 一节 “Last ~1.4 s of review text can be lost on close” | `BUG-01 B4 control: the review typed under a paused clock is saved once the debounces run and survives reload` | `BUG-01 B4 expected: the review typed right before reload survives the reload` | 输入复盘后立刻刷新，刷新后复盘文字仍在 | 已复现（`test.fail`）：manual 时钟暂停后输入复盘、不推进防抖就刷新，刷新后文本框显示保存里的旧复盘，刚输入的文字丢失。对照用例证明把时钟推过 800 ms 加 600 ms 两段防抖后保存和刷新读回都正常。两条用例都在 manual 时钟下运行，不靠真实时间的竞态；刷新后 page.clock 仍保持安装和暂停状态 |
 
 ## 以后的阶段
 
 - N1：已登记（Phase 3 的 03-04 计划，只验证直接记录的预设这一种触发）。
-- B4（复盘末尾内容丢失）：由 Phase 3 的 03-02 计划登记。
+- B4：已登记（Phase 3 的 03-02 计划，manual 时钟下的一对用例）。
 - Phase 4：登记日历日面板的 B1 实例。
 - Phase 5：登记 B2（取消导入后重选同一文件）和 N3（导入 `{}`）。
