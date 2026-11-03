@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: 账户模式、合成数据与导出（Account Mock, Data & Export）
 status: executing
-stopped_at: Phase 1 complete, ready to plan Phase 2
-last_updated: "2026-11-03T18:28:40.525Z"
-last_activity: 2026-11-01
-last_activity_desc: Phase 1 complete, transitioned to Phase 2
-state_head: 8e66fde198e20dca04589613443162b7918b9891
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-11-03T18:45:53.009Z"
+last_activity: 2026-11-03
+last_activity_desc: Phase 2 execution started
+state_head: f653b03d5b3d9ce8864ce48ec83d071ea04db424
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 4
+  completed_plans: 5
   percent: 20
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-11-01 after Phase 1)
 
 ## Current Position
 
-Phase: 2 (账户模式、合成数据与导出（Account Mock, Data & Export）) — READY TO EXECUTE
-Plan: Not started
+Phase: 2 (账户模式、合成数据与导出（Account Mock, Data & Export）) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-11-01 — Phase 1 complete, transitioned to Phase 2
+Last activity: 2026-11-03 — Phase 2 execution started
 
 Progress: [██░░░░░░░░] 20%
 
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01 P02 | 7min | 2 tasks | 9 files |
 | Phase 01 P03 | 16 min | 3 tasks | 6 files |
 | Phase 01 P04 | 25 min | 2 tasks | 2 files |
+| Phase 02 P01 | 12 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-03] preconnect 在这台无界面 Edge 上没有被直接观察到（字体主机 CONNECT 为 0），PROBES.md 写成推断；Plan 04 的 README 要写明这一点 — 诚实记录：不把未观察到的行为写成已证明
 - [Phase 01]: [01-04] 报告器默认不变（list 加 html，open: 'never'），json 只在设置 PW_JSON_REPORT 时追加，确定性检查跑交付配置本身 — 命令行不覆盖报告器，list 和 html 照常工作；两次 25 条运行结果一致，flaky 0
 - [Phase 01]: [01-04] 阶段末人工验收 approved：test:ui 能回放 IO-01，show-report 能打开报告，全程无安装提示；内嵌终端不会自动打开浏览器，README 已补手动打开说明；UI 模式浏览器按配置为 msedge，用户未在窗口上确认品牌 — 如实记录：品牌是配置层面的推断，不当作已验证事实
+- [Phase 02]: 02-01: localhost:<PORT> stays in the static-server Host allowlist (PROBE-2a control browser needs it); other Hosts get 421, non-GET/HEAD get 405
+- [Phase 02]: 02-01: guard has no requestfailed listener and cannot alarm on preconnect; limits documented in test.ts and README section 7
 
 ### Pending Todos
 
@@ -115,6 +118,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T04:35:38.959Z
-Stopped at: Phase 1 complete, ready to plan Phase 2
+Last session: 2026-11-03T18:45:52.694Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
