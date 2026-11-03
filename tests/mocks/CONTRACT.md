@@ -208,3 +208,38 @@
 > `rate_limited` — a prompt is already open, too many recent prompts (each `mov` save that is checked counts as one, shown or not), or an earlier `mov` save still being checked; wait, then retry.
 
 > It is sanitized (invisible characters dropped, repeated whitespace made one space, at most 240 bytes of UTF-8) and allowlist-checked; the viewer confirms the FINAL name, which may differ.
+
+## 4. mock 的结构
+
+mock 分成页面侧和 Node 侧两半，中间只隔一个 `exposeBinding`：
+
+| 部分 | 位置 | 做什么 |
+|------|------|--------|
+| `installClaudeMock(cfg)` | `tests/mocks/claude-runtime.ts` | 页面侧。经 `addInitScript(fn, arg)` 注入，在页面脚本运行前定义冻结的 `window.claude`，提供 `db`、`user`、`downloads` 三个命名空间。函数自包含，文件里没有 `import` 语句，因为 `addInitScript` 会把函数序列化成源码发给浏览器（D-04）。`cfg` 只有两项：binding 名和 `user.id()` 的返回值 |
+| `MockBackend` | `tests/mocks/claude-backend.ts` | Node 侧。持有文档、`reads`、`writes`、`downloads` 三份记录，提供 `seed()`、`lastState()` 和 `handle(op, json)`。状态在 Node 进程里，所以页面刷新后数据仍在；每个 `AppHarness` 新建一个实例，用例之间不共享（D-01） |
+| binding | 名字是 `__claudeMockBackend`（常量 `MOCK_BINDING_NAME`） | `AppHarness.open({ mode: 'account' })` 用 `page.exposeBinding` 注册，同一个 page 只注册一次，处理函数转给 `MockBackend.handle` |
+
+**三个 op，JSON 字符串进出：** 页面侧每次调用 binding 都传 `(op, JSON.stringify(arg))`，Node 侧返回 JSON 字符串，页面侧再 `JSON.parse`。
+
+| op | 入参 | 返回 | 记录 |
+|----|------|------|------|
+| `db.get` | `{ path }` | `{ exists, data }` | 路径追加到 `reads` |
+| `db.set` | `{ path, data }` | `null` | 路径和内容（深拷贝）追加到 `writes`，并替换文档 |
+| `downloads.save` | `{ filename, data }`（`data` 已解码成文本） | `null` | 追加到 `downloads` |
+
+未知 op 是测试代码的编程错误，`handle` 直接抛错，不算 mock 的错误路径。
+
+**懒调用和时序：** binding 只在 `get`、`set`、`save` 被调用时才去取，初始化阶段不碰它（D-01）。`exposeBinding` 在 init 阶段已经可调用的结论见 `tests/PROBES.md` 的 PROBE-7，所以没有启用 `sessionStorage` 退路。
+
+**不走网络：** binding 是页面和本机 Node 进程之间的往返，不产生网络请求，所以 `tests/support/test.ts` 的 guard 和浏览器级的网络兜底都不需要改动。
+
+**自测：** 本文件第 2 节每一条的覆盖用例都在 `tests/e2e/platform/mock-contract.spec.ts`，账户模式的端到端行为在 `tests/e2e/storage/account-mode.spec.ts`。
+
+## 5. 重新核对的步骤
+
+契约版本变化时，或者应用开始用到本 mock 没有的能力时，按下面的顺序重新核对，不要凭记忆改：
+
+1. 用 Claude Code 自带的 artifact-capabilities 技能取新版本的四个类型定义：`claude.d.ts`、`db.d.ts`、`user.d.ts`、`downloads.d.ts`。只读，不要把技能所在的本机目录写进仓库里的任何文件、注释或提交信息。
+2. 逐条对照本文件的第 2 节和第 3 节：第 2 节每个引用块里的原文是否仍逐字存在，措辞变了就按新原文改；第 3 节列的未实现条目是否有新增（例如应用开始用 `onSnapshot` 或 `update`），有新增就先决定是实现它还是继续留在未实现清单里。
+3. 更新 `tests/mocks/claude-runtime.ts`、`tests/mocks/claude-backend.ts`（如果 op 有变化）、本文件，以及 `tests/support/constants.ts` 里的 `CLAUDE_CONTRACT_VERSION`。mock 仍然只做正常路径，不在这里加拒绝、错误码、限流或延迟（那是 v2 的 ERR-01 到 ERR-04）。
+4. 运行 `npm test -- tests/e2e/platform/mock-contract.spec.ts`，确认契约自测通过；再运行完整的 `npm test` 和 `node tools/privacy/privacy-check.mjs --all`。

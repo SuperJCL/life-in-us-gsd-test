@@ -31,6 +31,8 @@
 | `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针 |
+| `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts` |
+| `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记 |
 | `tests/PROBES.md` | 运行时探针的结论 |
 
@@ -84,3 +86,14 @@
 ## 10. 探针结论
 
 六项运行时探针的结论、证据和采用的方案见 `tests/PROBES.md`。它们每次 `npm test` 都会重新运行，假设不成立时用例会变红。
+
+## 11. 账户模式
+
+应用在 Claude Artifact 里通过 `window.claude` 的 `db` 存数据；在本地直接打开时没有它，会退回 localStorage。账户模式就是在页面里装上 mock，让应用走 `db` 这条路，并且把读写和导出都记在 Node 侧，用例可以直接读到。
+
+- **怎么打开：** `await app.open({ mode: 'account', seed, userId, expectStore })`。`mode` 默认是 `'local'`，所以本地模式的用例不用改。`seed` 写进 Node 侧的 `MockBackend`，不写 localStorage；`userId` 缺省是合成用户 `synth-user-0001`，显式传 `null` 表示没有身份；`expectStore` 只给下面的反向对照用例用。
+- **就绪条件（D-08）：** 状态栏显示账户同步文案，并且 `#exportCsv` 和 `#exportJson` 两个导出按钮都可见。`app.open()` 和 `app.reload()` 内部已经等了这两条，用例不用自己再等。只看状态栏会抢跑：应用在显示状态之后还要再等 `downloads` 能力，导出按钮才出现。
+- **怎么读记录（D-09）：** 用 `app.backend.reads`（每次读取的路径）、`app.backend.writes`（每次写入的路径和内容）、`app.backend.downloads`（每次导出的文件名和文本）、`app.backend.lastState()`（账户文档的当前内容，还没有文档时是 `null`）。不要用 `page.evaluate` 去读 mock 的数据。保存有 600 ms 防抖，等写入落盘用 `app.expectPersisted(...)`，它内部是 `expect.poll`，不用固定睡眠。
+- **`app.expectAccountMode()` 和反向对照（D-07）：** 它检查三件事：状态栏是账户同步文案；mock 恰好记录到预期次数的读取，且路径是账户文档路径；页面 localStorage 里没有应用的键。`reload` 之后读取次数会变多，用 `app.expectAccountMode({ reads: 2 })`。为了证明这个检查不是永远通过，`tests/e2e/storage/account-mode.spec.ts` 里有一条常驻的反向对照用例：用 `userId: null` 打开应用，应用会静默退回 localStorage，这时 `expectAccountMode()` 必须失败。它每次 `npm test` 都会运行。
+- **mock 只做正常路径：** 没有拒绝、错误码、限流和延迟（它们是 v2 的 ERR-01 到 ERR-04）。对齐的契约版本、已实现和未实现的条目、mock 的结构和重新核对的步骤都写在 `tests/mocks/CONTRACT.md` 里，契约自测在 `tests/e2e/platform/mock-contract.spec.ts`。
+- **网络：** binding 是页面和本机 Node 进程之间的往返，不走网络，所以 guard 和第 7 节的网络兜底都不变。
