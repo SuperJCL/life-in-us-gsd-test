@@ -138,7 +138,7 @@ test('WEEK-01 the current week renders title, range, five category counts with g
 
   // 本周只有一天有健身记录：目标行没有 ok 类（布尔断言，不打印目标行文字）
   const areas = await readAreas(page);
-  expect(areas.find((a) => a.name === CAT_FITNESS)?.ok, '健身目标行不应达标（只有一天有健身记录）').toBe(false);
+  expect(areas.find((a) => a.name === CAT_FITNESS)?.ok, '本周只有一天有该类记录，目标行不应达标').toBe(false);
 
   // 每条本周记录显示 fixture 原文（都是合成文字）；含 <b> 的那条按文字显示，没有 b 元素
   for (const l of logsInWeek(fixture, WEEK_START_FROZEN, WEEK_END_FROZEN)) {
@@ -210,7 +210,7 @@ test('WEEK-01 the fitness goal row is marked as met when every day of the week h
   // 目标下限不写进仓库：一周 7 天都有健身记录，必然达到每周目标
   expect(weekGoalDays(state, WEEK_START_FROZEN)[2]).toBe(7);
   const areas = await readAreas(page);
-  expect(areas.find((a) => a.name === CAT_FITNESS)?.ok, '一周 7 天都有健身记录，目标行应带 ok 类').toBe(true);
+  expect(areas.find((a) => a.name === CAT_FITNESS)?.ok, '一周 7 天都有该类记录，目标行应带 ok 类').toBe(true);
 });
 
 test('WEEK-02 previous, next and this-week buttons move the week and reset the record date', async ({ page, app }) => {
