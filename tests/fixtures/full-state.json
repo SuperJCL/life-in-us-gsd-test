@@ -1,0 +1,166 @@
+{
+  "_synthetic": "合成数据：完整状态，Phase 2 到 5 共用，不含任何真实信息",
+  "arrival": "2026-01-12",
+  "logs": [
+    {
+      "id": "synth-full-01",
+      "date": "2026-03-16",
+      "cat": "语言",
+      "text": "SYNTH-LANG 晨读 shadowing 20 min"
+    },
+    {
+      "id": "synth-full-02",
+      "date": "2026-03-17",
+      "cat": "专业",
+      "text": "SYNTH-PRO 刷题 two problems"
+    },
+    {
+      "id": "synth-full-03",
+      "date": "2026-03-17",
+      "cat": "求职",
+      "text": "SYNTH-GOLD say \"hi\", then wait, then say \"bye\" again and again until this line is long enough to be cut\nsecond line, still SYNTH"
+    },
+    {
+      "id": "synth-full-04",
+      "date": "2026-03-18",
+      "cat": "健身",
+      "text": "SYNTH-FIT 跑步 5 km"
+    },
+    {
+      "id": "synth-full-05",
+      "date": "2026-03-18",
+      "cat": "其他",
+      "text": "SYNTH-ESC <b>bold</b> & 'single' quotes"
+    },
+    {
+      "id": "synth-full-06",
+      "date": "2026-03-18",
+      "cat": "语言",
+      "text": "SYNTH-LANG 晚上 podcast, notes"
+    },
+    {
+      "id": "synth-full-07",
+      "date": "2026-03-20",
+      "cat": "专业",
+      "text": "SYNTH-PRO 周五 review"
+    },
+    {
+      "id": "synth-full-08",
+      "date": "2026-03-09",
+      "cat": "健身",
+      "text": "SYNTH-FIT 上周 swim"
+    },
+    {
+      "id": "synth-full-09",
+      "date": "2026-02-27",
+      "cat": "求职",
+      "text": "SYNTH-JOB 二月 meetup"
+    },
+    {
+      "id": "synth-full-10",
+      "date": "2026-01-12",
+      "cat": "其他",
+      "text": "SYNTH-OTH 抵达 day one"
+    },
+    {
+      "id": "synth-full-11",
+      "date": "2026-03-23",
+      "cat": "语言",
+      "text": "SYNTH-LANG 下周 plan"
+    }
+  ],
+  "tasks": {
+    "P1-1": {
+      "done": true,
+      "doneDate": "2026-03-12"
+    },
+    "P1-2": {
+      "done": false,
+      "doneDate": "",
+      "due": "2026-03-10"
+    },
+    "P2-1": {
+      "due": "2026-03-18"
+    },
+    "P2-2": {
+      "due": "2026-04-02"
+    },
+    "P3-1": {
+      "done": true,
+      "doneDate": "2026-03-18",
+      "due": "2026-03-15"
+    },
+    "c-synth-1": {
+      "due": "2026-03-25"
+    },
+    "c-synth-2": {
+      "done": true,
+      "doneDate": "2026-03-10"
+    }
+  },
+  "custom": [
+    {
+      "id": "c-synth-1",
+      "group": "P2",
+      "text": "SYNTH-TODO 自定 one"
+    },
+    {
+      "id": "c-synth-2",
+      "group": "P3",
+      "text": "SYNTH-TODO finished, custom"
+    },
+    {
+      "id": "c-synth-3",
+      "group": "P1",
+      "text": "SYNTH-TODO no date"
+    }
+  ],
+  "lifts": {
+    "bench": {
+      "cur": 41,
+      "hist": [
+        {
+          "date": "2026-03-02",
+          "v": 38
+        },
+        {
+          "date": "2026-03-09",
+          "v": 40
+        },
+        {
+          "date": "2026-03-16",
+          "v": 41
+        }
+      ]
+    },
+    "squat": {
+      "cur": 60,
+      "hist": [
+        {
+          "date": "2026-03-11",
+          "v": 60
+        }
+      ]
+    }
+  },
+  "reviews": {
+    "2026-03-16": "SYNTH-REVIEW 本周 went \"ok\", mostly",
+    "2026-03-09": "SYNTH-REVIEW 上周 short"
+  },
+  "presets": {
+    "语言": {
+      "add": [
+        "SYNTH-tag-alpha"
+      ],
+      "hide": [
+        "SYNTH-tag-hidden"
+      ]
+    },
+    "健身": {
+      "add": [
+        "SYNTH-tag-fit"
+      ],
+      "hide": []
+    }
+  }
+}
