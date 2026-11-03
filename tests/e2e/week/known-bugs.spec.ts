@@ -140,6 +140,26 @@ test.describe('BUG-01 B4 the end of the weekly review is lost on an immediate re
     await expect(page.locator('#review')).toHaveValue(B4_TEXT);
   });
 
+  // 对照：标记用例走的“防抖计时器还挂着就刷新”这条路径本身可用。
+  // 只断言与 bug 无关的前提（刷新完成、应用再次读取账户文档、页面就绪、复盘文本框可见），
+  // 不断言刷新后文本框里是新文字还是旧复盘，所以应用修好后这条仍然通过，只有标记用例变红。
+  test('BUG-01 B4 reload path: the page reloads and becomes ready while the debounce timers are still pending', async ({
+    page,
+    app,
+  }) => {
+    const writesBefore = await typeReviewUnderPausedClock(page, app);
+
+    // 前提：和标记用例一样，防抖还没到，没有新的写入
+    await expect(page.locator('#review')).toHaveValue(B4_TEXT);
+    expect(app.backend.writes.length).toBe(writesBefore);
+
+    // 不推进时钟，立刻刷新：app.reload 内部会等账户模式就绪（状态栏和两个导出按钮）
+    await app.reload();
+    expect(app.backend.reads.length, '刷新后应用没有再次读取账户文档').toBe(2);
+    await expect(page.locator('#review')).toBeVisible();
+    await expect(page.locator('#review')).toBeEnabled();
+  });
+
   test('BUG-01 B4 expected: the review typed right before reload survives the reload', async ({ page, app }) => {
     knownBug('B4', '输入复盘后立即刷新，末尾内容丢失');
     await typeReviewUnderPausedClock(page, app);
