@@ -18,7 +18,26 @@ if (!fs.existsSync(APP_FILE)) {
   process.exit(1);
 }
 
+// Host 头白名单（WR-01）。只绑定 127.0.0.1 能挡住局域网访问，却挡不住 DNS rebinding：
+// 被重绑定到 127.0.0.1 的恶意页面，发来的 Host 是它自己控制的域名。
+// 所以只接受这两个 Host，其余一律 421。localhost 要保留：PROBE-2a 的对照浏览器用它连到本机。
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
+
 const server = http.createServer((req, res) => {
+  // 只读服务：只接受 GET 和 HEAD，其余方法返回 405，不读文件
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405);
+    res.end();
+    return;
+  }
+
+  // Host 不在白名单里返回 421，不读文件（不区分大小写）
+  if (!ALLOWED_HOSTS.has(String(req.headers.host).toLowerCase())) {
+    res.writeHead(421);
+    res.end();
+    return;
+  }
+
   let pathname = '';
   try {
     pathname = new URL(req.url || '/', 'http://127.0.0.1').pathname;
@@ -33,6 +52,8 @@ const server = http.createServer((req, res) => {
   }
 
   const stream = fs.createReadStream(APP_FILE);
+  // 客户端中途断开时立即销毁文件流，不等 GC 释放文件描述符（IN-04）
+  res.on('close', () => stream.destroy());
   stream.on('open', () => {
     res.writeHead(200, {
       'content-type': 'text/html; charset=utf-8',
@@ -44,6 +65,12 @@ const server = http.createServer((req, res) => {
     if (!res.headersSent) res.writeHead(500);
     res.end();
   });
+});
+
+// 启动失败（例如端口被占用）时只给中文提示和错误码，不打印堆栈和解析后的绝对路径（IN-04）
+server.on('error', (e) => {
+  process.stderr.write(`静态服务器启动失败：${e && e.code}\n`);
+  process.exit(1);
 });
 
 // 只绑定回环地址，不绑定 0.0.0.0
