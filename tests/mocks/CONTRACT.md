@@ -65,6 +65,90 @@
 - mock：名字表用 `Map.has` 判断，所以 `toString`、`constructor` 这类对象上继承来的名字也返回 `null`。`room` 等本 mock 没有提供的能力同样返回 `null`，对应“not served on this view”。
 - 用例：`MOCK-02 window.claude exposes only a frozen use() and unknown names resolve null`。
 
+### 2.2 `db`（db.d.ts）
+
+**条目 6：PATH GRAMMAR，路径写错时同步抛 `TypeError`。**
+
+来源：db.d.ts
+
+> PATH GRAMMAR (shared by every ref). A document path has an EVEN number of slash-separated segments — the last is the document id, the joined rest is its collection (`tasks/t1`, or nested: `boards/b1/columns/c2`).
+
+> Segments use letters, digits, and `_ - . ~ : @ +` only (never `.` or `..` alone); at most 200 bytes per segment, 1000 bytes and 16 segments per path.
+
+> `doc()`, `collection()` and the builders on refs THROW a `TypeError` synchronously for a path that breaks this grammar (its message names the broken rule; for parity, the segment count) — a programming error to fix where the path is written, not a store condition to handle; building a ref never touches the network.
+
+> it is async, and an un-awaited promise is not a valid path segment, so the builder throws
+
+- mock：`db.doc(path)` 在返回引用之前同步检查：偶数段、至少 2 段、至多 16 段，每段只含字母、数字和 `_ - . ~ : @ +`，不是单独的 `.` 或 `..`，每段最长 200、整条最长 1000；违反任何一条就抛 `TypeError`，消息写明是哪一条。没有一次网络往返（建引用不触发 binding）。长度按字符而不是字节计，见 3.2。
+- 用例：`MOCK-02 db.doc() enforces the document path grammar synchronously`。覆盖奇数段、空字符串、未 await 的 Promise 变成的字符串段、`.` 和 `..` 段、201 字符段、18 段、超长路径，以及合法路径（包括段长 200、段数 16 的边界和全部特殊字符）返回正确的 `id` 和 `path`。
+
+**条目 7：`DocumentReference` 的 `get` 和整体替换的 `set`。**
+
+来源：db.d.ts
+
+> Read once. Absence is NOT an error — branch on `exists`.
+
+> Write the WHOLE document, creating it (and the store) if absent — a full replace, Firestore-style.
+
+- mock：`get()` 经 binding 读 Node 侧 `MockBackend` 的文档，文档不存在时返回 `exists: false` 的快照，不抛错；`set(data)` 整体替换文档，返回 `undefined`，文档不存在时就创建。引用本身（`id`、`path`、方法）是冻结的。
+- 用例：`MOCK-02 namespaces, document references and snapshots are frozen and shaped like DocumentSnapshot`（读取和引用冻结）；写入的往返由 `tests/e2e/storage/account-mode.spec.ts` 里的 MOCK-03 用例覆盖。
+
+**条目 8：`DocumentSnapshot` 的四个字段和冻结。**
+
+来源：db.d.ts
+
+> One document, as reads and snapshots deliver it. Delivered snapshots and their `data()` are frozen;
+
+> The last segment of the document's path.
+
+> False covers both a missing document and one this viewer cannot see — deliberately indistinguishable.
+
+> The document body; `undefined` when `exists` is false.
+
+- mock：快照恰好有 `id`、`exists`、`data`、`metadata` 四个字段；`id` 是路径的最后一段；不存在的文档 `exists` 为 `false`、`data()` 为 `undefined`；快照、`data()` 返回的对象（含嵌套对象）和 `metadata` 都被递归冻结，同一个快照多次调用 `data()` 返回同一个对象。`metadata` 恒为 `{ fromCache: false, hasPendingWrites: false }`，见 3.2。
+- 用例：`MOCK-02 namespaces, document references and snapshots are frozen and shaped like DocumentSnapshot`。
+
+**条目 9：每个查看者自己的路径 `data/users/<id>/...`。**
+
+来源：db.d.ts
+
+> Address the viewer's subtree as `data/users/<id>/...` using the AWAITED value of {@link Claude.user.id}
+
+- mock：账户模式下应用读写的路径是 `data/users/<id>/state`，`<id>` 来自 `user.id()` 的合成值（路径常量见 `tests/support/constants.ts` 里的 `ACCOUNT_DOC_PATH`）。路径隔离没有实现，见 3.2。
+- 用例：`tests/e2e/storage/account-mode.spec.ts` 的 MOCK-03 和 MOCK-05 用例核对读取的路径；`MOCK-02 user.id() resolves the configured synthetic id` 核对 id 本身。
+
+### 2.3 `user`（user.d.ts）
+
+**条目 10：`user.id()` 永不 reject，没有身份时是 `null`。**
+
+来源：user.d.ts
+
+> ONE rule for the whole namespace: every read resolves a value and NEVER REJECTS
+
+> optional data (id, email) is null; never an absent key, never undefined.
+
+> null = no identity here.
+
+- mock：`user.id()` 返回配置里的合成 id（默认 `synth-user-0001`），配置为 `null` 时返回 `null`，从不 reject。`null` 时应用会退回本地模式，常驻的反向对照用例就是靠它证明账户模式的校验不是永远通过（D-07）。
+- 用例：`MOCK-02 user.id() resolves the configured synthetic id`、`MOCK-02 user.id() resolves null when the mock is configured without an id`，以及 `tests/e2e/storage/account-mode.spec.ts` 的 MOCK-05 反向对照。
+
+### 2.4 `downloads`（downloads.d.ts）
+
+**条目 11：`save` 的 `SaveRequest`（`filename`、`data` 的几种类型）和 `SaveResult` 的 `saved`。**
+
+来源：downloads.d.ts
+
+> Suggested filename with extension.
+
+> data: string | Blob | ArrayBuffer | ArrayBufferView;
+
+> Strings encode UTF-8.
+
+> `"saved"` = viewer accepted and the file was handed to the host's save surface
+
+- mock：`save({ filename, data })` 接受字符串、`Blob`、`ArrayBuffer` 和 `ArrayBufferView`，统一解码成文本交给 Node 侧 `MockBackend.downloads` 记录（用例直接读它，D-09），然后返回冻结的、只有 `status` 字段的 `SaveResult`，值恒为 `saved`。
+- 用例：`MOCK-04 downloads.save accepts string, Blob and ArrayBuffer data and resolves status saved`（`ArrayBufferView` 没有单独的用例，它和 `ArrayBuffer` 走同一条解码分支）；账户模式下应用导出时的文件名和内容由 `tests/e2e/storage/account-mode.spec.ts` 的 MOCK-04 用例核对。
+
 ## 3. 明确没实现的条目
 
 这一节是未实现清单，每一项 mock 都**没有**实现。原因只有两种：本里程碑只做正常路径（D-02），错误路径、限流和延迟属于 v2 的 ERR-01 到 ERR-04；或者应用没有用到。读到这里的用例作者不要假设 mock 会表现出这些行为。
