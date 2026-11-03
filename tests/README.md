@@ -42,6 +42,7 @@
 - spec 只从 `tests/support/test.ts` 导入 `test` 和 `expect`，不直接导入 `@playwright/test`。
 - 种子数据用“没有才写”的 init 函数写入 localStorage，防止 `reload` 时覆盖刚保存的新数据。
 - 持久化断言按固定顺序：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。不要用固定睡眠。
+- 护栏自检只用 `guard.remove(kind, match)` 删掉自己制造的那一条违规，删除前先断言该类记录恰好是预期的那几条；不提供清空全部记录的方法。
 - 用例不稳定（flaky）就是缺陷。配置里 `retries` 是 1，但一次重试通过也要查明原因，不能靠重试掩盖。
 
 ## 7. 护栏
@@ -54,10 +55,11 @@
   3. 死代理 `127.0.0.1:9` 让所有非回环连接只能连到本机一个关闭的端口。
 
   `route` 只看得到 HTTP 请求，看不到浏览器直接发起的 socket 连接，例如应用 head 里的 `preconnect`。后两道（第 2、3 道）就是为这类连接准备的。哪一层已被证明，以 `tests/PROBES.md` 的 PROBE-2 为准：
-  - 解析层已证明：不在代理名单里的名字都是 `ERR_NAME_NOT_RESOLVED`。
+  - 解析层已证明：直连的名字（实测只有回环名 `localhost`、`probe.localhost`）除 `127.0.0.1` 外都解析失败（`ERR_NAME_NOT_RESOLVED`）；经过代理的名字（例如 `.invalid` 主机）浏览器不在本机解析，由代理层保证，表现为 `ERR_PROXY_CONNECTION_FAILED`。
   - 代理层已证明：`.invalid` 地址和 WebSocket 都只到达代理，页面请求以 `ERR_PROXY_CONNECTION_FAILED` 失败。
   - `preconnect` 本身没有被直接观察到：探针运行时无界面 Edge 没有发出任何 `preconnect`。所以“`preconnect` 到不了字体主机”是由已证明的两层（解析规则加死代理）推断出来的，不是直接观察到的事实。
   - 探针里观察到 Edge 自己的后台流量（`bing.com`、`edge.microsoft.com`）也只到达了本机的录制代理，没有到达任何真实主机。
+- **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。`preconnect` 这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
 - **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
 - **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
 - **应用完整性**（`tests/e2e/platform/app-integrity.spec.ts`）：测试记录了应用文件的 sha256 基线，应用文件被改动时用例变红；应用文件始终只读。

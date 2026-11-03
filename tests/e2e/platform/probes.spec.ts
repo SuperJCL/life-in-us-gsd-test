@@ -1,6 +1,8 @@
 // 运行时探针（D-05、D-06）：每次 npm test 都会运行，结论记录在 tests/PROBES.md。
 // 每条探针都用 testInfo.annotations 记录观察值（type 为 probe 或 browser-version）。
+import { readFileSync } from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
 import type { Browser, Page } from '../../support/test';
 import { test, expect } from '../../support/test';
 import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, PROXY_BYPASS } from '../../support/constants';
@@ -12,8 +14,8 @@ import { STATUS_LOCAL, TAB_LABELS } from '../../support/strings';
 test('PROBE-1 msedge launches headless and reports browser.version()', async ({ browser, browserName }, testInfo) => {
   expect(browserName).toBe('chromium');
   const version = browser.version();
+  // 只断言版本号格式，不设主版本下限：下限没有依据，换一台 Edge 较旧的机器会无故变红（IN-01）
   expect(version).toMatch(/^\d+\./);
-  expect(Number(version.split('.')[0])).toBeGreaterThanOrEqual(155);
   testInfo.annotations.push({ type: 'browser-version', description: version });
   console.log(`PROBE-1 browser.version() = ${version}`);
 });
@@ -112,7 +114,10 @@ test('PROBE-2 the dead-end proxy rejects non-loopback traffic and still lets 127
   expect(result[urls[2]].status).toBe(404);
 });
 
-test('PROBE-2 route-invisible traffic only ever reaches the proxy (preconnect not observed on this Edge)', async ({ browser }, testInfo) => {
+test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)', async ({ browser }, testInfo) => {
+  // 这条用例的证明范围（WR-03）：route 看不到的 WebSocket 会交给代理；这台 Edge 没有观察到 preconnect。
+  // 录制代理只能看到“到达它的”连接，所以这条用例发现不了绕过代理的直连：
+  // 如果某个 Edge 版本绕过代理直接出网，这条用例照样通过。直连的保证来自解析层（PROBE-2a）。
   // 录制代理：只监听 127.0.0.1 的随机端口，每个连接只读第一块数据，
   // 取第一行（形如 CONNECT host:443 HTTP/1.1）记录下来后立即销毁连接。
   // 它不转发，也不发起任何对外连接。
@@ -153,8 +158,22 @@ test('PROBE-2 route-invisible traffic only ever reaches the proxy (preconnect no
 
     // preconnect 的直接观察：只等有限时间，看字体主机的 CONNECT 是否出现。
     // 这一步只记录，不断言（见 PROBES.md：这台 Edge 没有发出 preconnect）。
+    // 只吞 expect.poll 的超时错误（Playwright 1.64.1 的原文，见 node_modules/playwright/lib/matchers/expect.js）；
+    // 其他错误（例如页面已关闭）照常抛出，不被悄悄吞掉
     const fontLine = () => seen.some((line) => FONT_HOSTS.some((h) => line.includes(h)));
-    await expect.poll(fontLine, { timeout: 3_000 }).toBe(true).catch(() => {});
+    const fontHostObserved = await expect
+      .poll(fontLine, { timeout: 3_000 })
+      .toBe(true)
+      .then(
+        () => true,
+        (error: unknown) => {
+          if (/Timeout \d+ms exceeded while waiting on the predicate/.test(String((error as Error)?.message ?? error))) {
+            return false;
+          }
+          throw error;
+        },
+      );
+    testInfo.annotations.push({ type: 'probe', description: `fontHostObserved=${fontHostObserved}` });
 
     const fontHostLines = seen.filter((line) => FONT_HOSTS.some((h) => line.includes(h)));
     const otherLines = seen.filter(
@@ -212,16 +231,9 @@ test('PROBE-4 expect.poll observes the debounced localStorage save', async ({ pa
 // ---------------------------------------------------------------------------
 test('PROBE-5 dragTo drives HTML5 drag and drop in the week view', async ({ page, app }, testInfo) => {
   const text = 'SYNTH-DRAG source';
-  const seed = {
-    _synthetic: '合成数据：仅供本地测试',
-    arrival: '',
-    tasks: {},
-    custom: [],
-    logs: [{ id: 'synth-drag-1', date: '2026-03-16', text, cat: '其他' }],
-    lifts: {},
-    reviews: {},
-    presets: {},
-  };
+  // 读取 fixture 文件，只把 logs 换成拖放源记录，不再内联一份重复的种子（IN-05）
+  const base = JSON.parse(readFileSync(path.join(__dirname, '../../fixtures/local-seed.json'), 'utf8'));
+  const seed = { ...base, logs: [{ id: 'synth-drag-1', date: '2026-03-16', text, cat: '其他' }] };
   await app.open({ seed });
 
   // 方案 A：dragTo（真实指针路径）。A、B、C 各自的结果见 tests/PROBES.md。

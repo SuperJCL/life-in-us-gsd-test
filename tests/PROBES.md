@@ -18,10 +18,10 @@
 
 | 编号 | 探针 | 用例标题 | 结论 | 证据（观察值） | 采用的方案 |
 |------|------|----------|------|----------------|------------|
-| PROBE-1 | Edge 无界面启动并报告版本 | `PROBE-1 msedge launches headless and reports browser.version()` | 通过 | 156.0.4314.58，主版本不小于 155 | 保持 `channel: 'msedge'` |
+| PROBE-1 | Edge 无界面启动并报告版本 | `PROBE-1 msedge launches headless and reports browser.version()` | 通过 | 156.0.4314.58 | 保持 `channel: 'msedge'` |
 | PROBE-2a | 解析层：`--host-resolver-rules` | `PROBE-2 --host-resolver-rules makes non-excluded hostnames unresolvable` | 通过 | `localhost` 与 `probe.localhost` 都是 `ERR_NAME_NOT_RESOLVED`；`127.0.0.1` 返回 404；去掉规则的对照浏览器里 `localhost` 返回 404 | 保留规则；对直连的名字有效 |
 | PROBE-2b | 代理层：死代理 | `PROBE-2 the dead-end proxy rejects non-loopback traffic and still lets 127.0.0.1 load` | 通过 | `http://` 和 `https://` 的 `probe.invalid` 都是 `ERR_PROXY_CONNECTION_FAILED`；`127.0.0.1` 返回 404 | 保留死代理 `127.0.0.1:9`，端口无需更换 |
-| PROBE-2c | route 看不到的页面流量只会交给代理 | `PROBE-2 route-invisible traffic only ever reaches the proxy (preconnect not observed on this Edge)` | 通过，但 preconnect 本身没有被观察到 | WebSocket 对照行 `CONNECT probe.invalid:80` 出现在录制代理；字体主机的 CONNECT 为 0 条 | 标题按应急办法改写，见下文 |
+| PROBE-2c | route 看不到的 WebSocket 会交给代理 | `PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)` | 通过，但 preconnect 本身没有被观察到 | WebSocket 对照行 `CONNECT probe.invalid:80` 出现在录制代理；字体主机的 CONNECT 为 0 条 | 标题按应急办法改写，见下文 |
 | PROBE-3 | `setFixedTime` 在 reload 后保持 | `PROBE-3 setFixedTime survives page.reload()` | 通过 | reload 前后 `Date.now()` 都是 1773835200000 | 无需在 reload 前重新冻结 |
 | PROBE-4 | `expect.poll` 读取防抖保存 | `PROBE-4 expect.poll observes the debounced localStorage save` | 通过 | 三次耗时 1012、960、975 ms（都在 500 到 5000 ms 之间） | 默认的 `expectPersisted` 即可 |
 | PROBE-5 | `dragTo` 驱动 HTML5 拖放 | `PROBE-5 dragTo drives HTML5 drag and drop in the week view` | 通过（方案 A） | 条目从 2026-03-16 拖到 2026-03-19，落盘日期变化，目标列可见 | 方案 A：`dragTo(..., { steps: 10 })` |
@@ -29,10 +29,10 @@
 
 ## PROBE-1：Edge 无界面启动
 
-- **怎么测的：** 断言 `browserName` 为 chromium，`browser.version()` 以数字开头且主版本不小于 155，把版本记成 `browser-version` annotation 并打印。
+- **怎么测的：** 断言 `browserName` 为 chromium，`browser.version()` 以数字开头（只断言版本号格式，不设主版本下限，依据见 01-REVIEW 的 IN-01），把版本记成 `browser-version` annotation 并打印。
 - **观察到什么：** 156.0.4314.58。Playwright 1.64.1 直接驱动本机 Edge，没有下载任何浏览器。
 - **备选方案：** `PW_CHANNEL=chrome` 改用本机 Chrome；两者都失败时停下来询问用户，不运行 install。本次没有用到。
-- **对后续阶段的影响：** 每次运行都会重新记录版本，Edge 升级到主版本小于 155 时用例会变红。
+- **对后续阶段的影响：** 每次运行都会重新记录版本，只断言版本号格式，不设主版本下限（依据见 01-REVIEW 的 IN-01）；换一台 Edge 较旧的机器不会无故变红。
 
 ## PROBE-2：两层浏览器网络兜底
 
@@ -57,12 +57,13 @@
 - **观察到什么：** 两个 `.invalid` 地址都是 `ERR_PROXY_CONNECTION_FAILED`（不是 `ERR_NAME_NOT_RESOLVED`），说明名字没有在本机解析，而是交给了死代理并在本机被拒绝；`127.0.0.1` 照常收到 404。
 - **端口 9 的应急办法：** 没有触发。结果不是超时，死代理端口没有被占用，`DEAD_PROXY_SERVER` 保持不变。
 
-### PROBE-2c route 看不到的流量只会交给代理（preconnect 没有被直接观察到）
+### PROBE-2c：PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)
 
-- **怎么测的：** 在 Node 侧用 `node:net` 起一个只监听 `127.0.0.1` 随机端口的录制代理，每个连接只读第一行后立即销毁，不转发、不发起任何对外连接。新建 context，代理指向录制代理，`bypass` 用 `PROXY_BYPASS`，route 只放行应用来源。打开应用页面，等状态行就绪，然后在页面里执行 `new WebSocket('ws://probe.invalid/')` 作为对照。
+- **怎么测的：** 在 Node 侧用 `node:net` 起一个只监听 `127.0.0.1` 随机端口的录制代理，每个连接只读第一行后立即销毁，不转发、不发起任何对外连接。新建 context，代理指向录制代理，`bypass` 用 `PROXY_BYPASS`，route 只放行应用来源。打开应用页面，等状态行就绪，然后在页面里执行 `new WebSocket('ws://probe.invalid/')` 作为对照。对字体主机的 CONNECT 只等 3 秒，且只吞掉 `expect.poll` 的超时错误，其他错误照常抛出；是否观察到记成 `fontHostObserved` annotation。
 - **录到的行（只写主机名和端口）：** `www.bing.com:443`（3 条）、`edge.microsoft.com:443`（2 条）、`probe.invalid:80`（1 条，WebSocket 对照）。
 - **字体主机的 CONNECT：0 条。** 所以 preconnect 没有被直接观察到。按计划的应急办法，用例标题改为 `...(preconnect not observed on this Edge)`，断言只保留对照行：route 看不到的页面流量会交给代理。
 - **`www.bing.com` 和 `edge.microsoft.com` 是什么：** 既不是字体主机也不是 `probe.invalid`，是 Edge 自己的后台服务流量。它们同样只到达了本机录制代理。这说明连浏览器自己发起的、和页面无关的连接，在这个配置下也会被交给代理，而不是直接出网。
+- **边界：** 录制代理只能看到到达它的连接，所以这条用例发现不了绕过代理的直连，也就不能证明“只会”到达代理；它只证明 route 看不到的 WebSocket 会交给代理。直连的保证来自解析层（PROBE-2a）。
 - **为什么没有看到 preconnect：** 只做了两次一次性诊断（没有保留为用例）：把 `rel=preconnect` 指向 `.invalid` 主机，以及指向本机一个监听端口的回环地址，两种情况下这台无界面 Edge 都没有发出任何连接。结论是这台 Edge 在无界面模式下不发 preconnect（或观察不到），而不是 preconnect 绕过了代理。
 
 ### 网络兜底结论（只写已被用例证明的层）
