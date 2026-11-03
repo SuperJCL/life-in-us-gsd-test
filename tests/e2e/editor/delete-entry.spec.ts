@@ -93,5 +93,7 @@ test.describe('EDIT-02 manual clock', () => {
         message: '等待哨兵写入到达 mock',
       })
       .toBe(true);
+    // 哨兵到达后，中间不能有别的写入（写入按顺序到达，多余的保存会让总数大于 +1）
+    expect(app.backend.writes.length, '哨兵之前出现了多余的保存').toBe(writesBefore + 1);
   });
 });
