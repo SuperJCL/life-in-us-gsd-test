@@ -61,8 +61,9 @@ test('IO-02 csvMismatch redacts a whole task row when the app rewrote the text i
   expect(text.includes('<redacted task row>'), '诊断里没有整行脱敏标记').toBe(true);
 });
 
-test('IO-02 csvMismatch still reports a difference when the bytes right after masked task text differ', () => {
-  // 脱敏文字后面紧跟的字节不同，判定仍然是不一致（判定用原始字符串，不用脱敏后的文本）
+test('IO-02 csvMismatch still reports a difference that sits right after masked task text', () => {
+  // 差别在脱敏文字后面（多了一个空格），脱敏之后差别依然存在，走正常的逐行比较分支。
+  // 差别完全藏在脱敏文字内部的情形见下一条用例
   const other = new Map<string, string>([['P1-0', 'SYNTH-masking-task-gamma']]);
   const a = csvOf(`${CSV_DONE_PREFIX}SYNTH-masking-task-gamma,03/01/2026,True,P1${CSV_GROUP_SUFFIX}`);
   const e = csvOf(`${CSV_DONE_PREFIX}SYNTH-masking-task-gamma,03/01/2026,True,P1${CSV_GROUP_SUFFIX}`);
@@ -72,4 +73,21 @@ test('IO-02 csvMismatch still reports a difference when the bytes right after ma
   const text = csvMismatch(a, e2, other);
   expect(text).not.toBeNull();
   expect((text as string).includes('SYNTH-masking-task-gamma'), '诊断里出现了任务文字').toBe(false);
+});
+
+test('IO-02 csvMismatch still reports a difference that hides entirely inside masked task text', () => {
+  // 应用把任务文字里的双引号写错了：期望写成两个双引号，实际只写了一个。
+  // maskTaskTexts 把两种写法换成同一个占位符，脱敏后两边一模一样，
+  // 所以必须由兜底分支返回非空诊断；如果有人把判定改成只比较脱敏后的行，这条用例会变红
+  const expected = csvOf(rowQuoted('03/02/2026'));
+  const actual = csvOf(`"${CSV_DUE_PREFIX}${TEXT_QUOTED}",03/02/2026,True,P2${CSV_GROUP_SUFFIX}`);
+  expect(actual === expected, '构造的两份 CSV 应当原始字符串不同').toBe(false);
+  expect(
+    maskTaskTexts(actual, texts) === maskTaskTexts(expected, texts),
+    '构造的两份 CSV 脱敏后应当完全相同，否则测不到兜底分支',
+  ).toBe(true);
+
+  const text = csvMismatch(actual, expected, texts);
+  expect(text, '脱敏后相同、原始不同时必须报告不一致').not.toBeNull();
+  expect((text as string).includes('SYNTH-masking say'), '诊断里出现了任务文字').toBe(false);
 });
