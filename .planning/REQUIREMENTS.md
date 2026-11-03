@@ -24,11 +24,11 @@
 ### Claude API Mock
 
 - [x] **MOCK-01**: 测试可以在“本地模式”下打开应用：没有 `window.claude`，可以预置 localStorage
-- [ ] **MOCK-02**: 测试可以在“账户模式”下打开应用：注入的 `window.claude` mock 按真实契约提供 `use("db")`、`use("user")`、`use("downloads")`（异步返回、命名空间冻结、未知名字返回 `null`），只实现正常路径
+- [x] **MOCK-02**: 测试可以在“账户模式”下打开应用：注入的 `window.claude` mock 按真实契约提供 `use("db")`、`use("user")`、`use("downloads")`（异步返回、命名空间冻结、未知名字返回 `null`），只实现正常路径
 - [x] **MOCK-03**: 账户模式下，测试能读到 mock 记录的 db 读写，数据在页面刷新后仍然保留
 - [ ] **MOCK-04**: 账户模式下导出按钮会出现，测试能读到 `downloads.save` 收到的文件名和内容
 - [x] **MOCK-05**: 测试能证明自己真的跑在账户模式（状态栏文案、读写记录、localStorage 中没有应用的键），不会因为应用静默回退到 localStorage 而误通过
-- [ ] **MOCK-06**: mock 对齐的契约版本（0.2.96）、已实现和未实现的部分，记录在仓库内的 `tests/mocks/CONTRACT.md`
+- [x] **MOCK-06**: mock 对齐的契约版本（0.2.96）、已实现和未实现的部分，记录在仓库内的 `tests/mocks/CONTRACT.md`
 
 ### Synthetic Data
 
@@ -143,11 +143,11 @@
 | SAFE-03 | Phase 1 | Complete |
 | SAFE-04 | Phase 1 | Complete |
 | MOCK-01 | Phase 1 | Complete |
-| MOCK-02 | Phase 2 | Pending |
+| MOCK-02 | Phase 2 | Complete |
 | MOCK-03 | Phase 2 | Complete |
 | MOCK-04 | Phase 2 | Pending |
 | MOCK-05 | Phase 2 | Complete |
-| MOCK-06 | Phase 2 | Pending |
+| MOCK-06 | Phase 2 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
 | WEEK-01 | Phase 3 | Pending |
