@@ -10,42 +10,53 @@ import { TOAST_EMPTY_TEXT, TOAST_LOG_DELETED, TOAST_RESTORED } from '../../suppo
 
 type Log = { id: string; text: string; cat: string; date: string };
 
-test('EDIT-02 deleting an entry from the editor removes it and undo restores it at its original position', async ({
-  page,
-  app,
-}) => {
-  const fixture = loadFixture('full-state.json');
-  await app.open({ mode: 'account', seed: fixture });
-  await app.expectAccountMode();
+// 带撤销的 toast 只显示 5 秒：用 manual 时钟（D-05）让这个窗口不依赖真实时间。
+// 时钟暂停后 toast 不会过期，保存防抖只靠 runFor 推进。同一个用例里不混用 setFixedTime。
+test.describe('EDIT-02 undo window on a manual clock', () => {
+  test.use({ clockMode: 'manual' });
 
-  const id = 'synth-full-01';
-  const originalDate = fixture.logs.find((l: Log) => l.id === id).date;
-  const fixtureIds = fixture.logs.map((l: Log) => l.id);
-  const ed = editor(page);
+  test('EDIT-02 deleting an entry from the editor removes it and undo restores it at its original position', async ({
+    page,
+    app,
+  }) => {
+    const fixture = loadFixture('full-state.json');
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'account', seed: fixture });
+    await app.expectAccountMode();
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
 
-  await ed.openLog(page.locator(`#tab-wk [data-edit="${id}"]`));
-  await ed.deleteEntry();
+    const id = 'synth-full-01';
+    const originalDate = fixture.logs.find((l: Log) => l.id === id).date;
+    const fixtureIds = fixture.logs.map((l: Log) => l.id);
+    const ed = editor(page);
 
-  // 弹窗先关，再弹出带撤销按钮的 toast。
-  // 带撤销的 toast 只显示 5 秒，删除后等保存只用不到 2 秒，中间不做别的操作
-  await ed.expectClosed();
-  await expectToast(page, TOAST_LOG_DELETED);
-  await expectUndoOffered(page);
-  await expect(page.locator(`#tab-wk [data-edit="${id}"]`)).toHaveCount(0);
-  await app.expectSaved(
-    (s) => s.logs.every((l: Log) => l.id !== id) && s.logs.length === fixture.logs.length - 1,
-    '等待保存后的记录里没有被删除的这条',
-  );
+    await ed.openLog(page.locator(`#tab-wk [data-edit="${id}"]`));
+    await ed.deleteEntry();
 
-  // 撤销：toast 变成已恢复，记录回到原来的列，保存后的 id 顺序与 fixture 完全相同
-  await undo(page);
-  await expectToast(page, TOAST_RESTORED);
-  await expect(page.locator(`#tab-wk [data-wday="${originalDate}"] [data-edit="${id}"]`)).toHaveCount(1);
-  const fixtureIdsJson = JSON.stringify(fixtureIds);
-  await app.expectSaved(
-    (s) => JSON.stringify(s.logs.map((l: Log) => l.id)) === fixtureIdsJson,
-    '等待保存后的记录顺序与 fixture 相同',
-  );
+    // 弹窗先关，再弹出带撤销按钮的 toast
+    await ed.expectClosed();
+    await expectToast(page, TOAST_LOG_DELETED);
+    await expectUndoOffered(page);
+    await expect(page.locator(`#tab-wk [data-edit="${id}"]`)).toHaveCount(0);
+
+    // 只推过 600 ms 防抖（远小于 5 秒的 toast 时长），撤销按钮仍在
+    await page.clock.runFor(1_000);
+    await app.expectSaved(
+      (s) => s.logs.every((l: Log) => l.id !== id) && s.logs.length === fixture.logs.length - 1,
+      '等待保存后的记录里没有被删除的这条',
+    );
+
+    // 撤销：toast 变成已恢复，记录回到原来的列，保存后的 id 顺序与 fixture 完全相同
+    await undo(page);
+    await expectToast(page, TOAST_RESTORED);
+    await expect(page.locator(`#tab-wk [data-wday="${originalDate}"] [data-edit="${id}"]`)).toHaveCount(1);
+    await page.clock.runFor(1_000);
+    const fixtureIdsJson = JSON.stringify(fixtureIds);
+    await app.expectSaved(
+      (s) => JSON.stringify(s.logs.map((l: Log) => l.id)) === fixtureIdsJson,
+      '等待保存后的记录顺序与 fixture 相同',
+    );
+  });
 });
 
 // 证明“没有保存”要用 manual 时钟（D-05、D-15）：先推过防抖窗口再比较写入次数，
