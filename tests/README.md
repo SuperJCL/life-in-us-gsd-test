@@ -32,8 +32,10 @@
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针 |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts` |
+| `tests/e2e/data/` | 合成数据用例：完整 fixture、旧类别名、最小状态在三个视图里的呈现 |
+| `tests/e2e/io/` | 导出用例：日历 CSV 与 JSON 备份，内容从 `app.backend.downloads` 读取 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
-| `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记 |
+| `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tests/PROBES.md` | 运行时探针的结论 |
 
 ## 6. 约定
@@ -97,3 +99,12 @@
 - **`app.expectAccountMode()` 和反向对照（D-07）：** 它检查三件事：状态栏是账户同步文案；mock 恰好记录到预期次数的读取，且路径是账户文档路径；页面 localStorage 里没有应用的键。`reload` 之后读取次数会变多，用 `app.expectAccountMode({ reads: 2 })`。为了证明这个检查不是永远通过，`tests/e2e/storage/account-mode.spec.ts` 里有一条常驻的反向对照用例：用 `userId: null` 打开应用，应用会静默退回 localStorage，这时 `expectAccountMode()` 必须失败。它每次 `npm test` 都会运行。
 - **mock 只做正常路径：** 没有拒绝、错误码、限流和延迟（它们是 v2 的 ERR-01 到 ERR-04）。对齐的契约版本、已实现和未实现的条目、mock 的结构和重新核对的步骤都写在 `tests/mocks/CONTRACT.md` 里，契约自测在 `tests/e2e/platform/mock-contract.spec.ts`。
 - **网络：** binding 是页面和本机 Node 进程之间的往返，不走网络，所以 guard 和第 7 节的网络兜底都不变。
+
+## 12. 合成数据与导出
+
+- **四个 fixture 的用途：** `full-state.json` 是 Phase 2 到 5 共用的完整状态（各类别的记录、任务状态、自定义待办、力量历史、复盘、预设标签增删）；`legacy-categories.json` 检查旧类别名迁移；`minimal-state.json` 是只有标记的最小状态，用来测空导出和空视图；`malformed-imports.ts` 是畸形导入内容，只是内存常量，不落盘，避免被误认成真实备份（D-11）。`local-seed.json` 是本地与账户模式冒烟用的小种子。
+- **读取和推导：** `loadFixture(name)` 与 `withoutSynthetic(state)` 在 `tests/support/fixture-files.ts`；应用的 normalize 会丢掉 `_synthetic`，所以导出的备份要和去掉它的 fixture 比较。`tests/support/expect-from-fixture.ts` 里是按规格独立写的推导函数。期望值一律从 fixture 推导，不在用例里抄数字（D-13）。
+- **位置 id：** `tests/support/task-ids.ts` 里的内置任务 id 是位置 id，会随应用源码里任务的顺序变化（D-05）；变了以后页面用例会提示更新这个文件。
+- **内置任务文字：** 只在运行时从目标页的 aria-label 读取，放在单个用例的内存里，不写进任何文件、annotation 或报告（D-14）。
+- **导出用例：** 文件名和内容从 `app.backend.downloads` 读，只在内存里比较，不写文件、不附加到报告（D-16）；不使用 Playwright 的下载事件。日历 CSV 的期望由独立生成器 `expectedCalendarCsv` 算出，再用用例里手写的金标准行锚定转义规则、80 字符截断和日期格式（D-15）；金标准与应用不一致时先按规格核对金标准，不要把它改成应用的输出。
+- **合成文字的写法：** 以 `SYNTH-` 开头，中英混合，中文只用短词。

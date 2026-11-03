@@ -123,3 +123,52 @@ test('IO-02 exporting the calendar with nothing dated shows the empty toast and 
   expect(app.backend.downloads).toHaveLength(1);
   expect(app.backend.downloads[0].filename).toBe(FILENAME_BACKUP_FROZEN);
 });
+
+test('IO-03 the JSON backup equals the latest saved document after a change', async ({ page, app }) => {
+  const fixture = loadFixture('full-state.json');
+  const text = 'SYNTH-IO03 after change';
+  await app.open({ mode: 'account', seed: fixture });
+  await app.expectAccountMode();
+
+  await page.locator('#wkComp #w-text').fill(text);
+  await page.locator('#wkComp #w-add').click();
+
+  // 保存有 600 ms 防抖：poll 等 mock 里的文档出现这条记录
+  await app.expectPersisted((s) => s.logs.some((l: { text: string }) => l.text === text));
+  const saved = app.backend.lastState();
+  expect(saved).toEqual(app.backend.writes[app.backend.writes.length - 1].data);
+
+  await page.locator('#exportJson').click();
+  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
+
+  const backup = JSON.parse(app.backend.downloads[0].data);
+  expect(backup).toEqual(saved);
+  expect(backup).not.toHaveProperty('_synthetic');
+});
+
+test('MOCK-04 exporting twice records two identical downloads and every test starts with an empty mock', async ({
+  page,
+  app,
+}) => {
+  // 每个用例的 AppHarness 新建自己的 MockBackend，workers: 2 并行时用例之间不共享任何记录
+  expect(app.backend.reads).toEqual([]);
+  expect(app.backend.writes).toEqual([]);
+  expect(app.backend.downloads).toEqual([]);
+
+  await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
+  await app.expectAccountMode();
+
+  // 同一份状态连续导出两次：每次都 poll 到记录数增加，两条完全相同
+  await page.locator('#exportCsv').click();
+  await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 CSV 下载记录' }).toBe(1);
+  await page.locator('#exportCsv').click();
+  await expect.poll(() => app.backend.downloads.length, { message: '等待第 2 条 CSV 下载记录' }).toBe(2);
+  expect(app.backend.downloads[1]).toEqual(app.backend.downloads[0]);
+
+  await page.locator('#exportJson').click();
+  await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 JSON 下载记录' }).toBe(3);
+  await page.locator('#exportJson').click();
+  await expect.poll(() => app.backend.downloads.length, { message: '等待第 2 条 JSON 下载记录' }).toBe(4);
+  expect(app.backend.downloads[3]).toEqual(app.backend.downloads[2]);
+  expect(app.backend.downloads[2].filename).toBe(FILENAME_BACKUP_FROZEN);
+});
