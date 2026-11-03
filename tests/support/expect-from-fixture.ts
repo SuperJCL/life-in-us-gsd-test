@@ -1,5 +1,6 @@
 // 从 fixture 推导期望值的纯函数（D-13）。
 // 不导入应用代码，也不读取应用源码：规则都是按应用的行为独立写出的规格。
+import { CAT_OTHER, CATEGORY_NAMES, LEGACY_CATEGORY_MAP } from './strings';
 
 export type SynthLog = { id: string; date: string; text: string; cat: string };
 
@@ -47,4 +48,13 @@ export function builtinTaskIds(state: { tasks: Record<string, any> }): string[] 
 // 自定义待办，原样返回
 export function customTasks(state: { custom: { id: string; group: string; text: string }[] }) {
   return state.custom;
+}
+
+// 应用 normalize 的类别规格：旧类别名映射到新类别，当前类别原样保留，其余一律归为“其他”。
+// 独立实现，不导入应用代码。
+export function expectedCategory(cat: string): string {
+  const legacy: Record<string, string> = LEGACY_CATEGORY_MAP;
+  if (cat in legacy) return legacy[cat];
+  if ((CATEGORY_NAMES as readonly string[]).includes(cat)) return cat;
+  return CAT_OTHER;
 }

@@ -1,14 +1,26 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect } from '../../support/test';
 import { ARRIVAL_DATE_FIXTURE, FROZEN_TODAY, WEEK_END_FROZEN, WEEK_START_FROZEN } from '../../support/constants';
 import { loadFixture } from '../../support/fixture-files';
-import { builtinTaskIds, customTasks, logsInWeek, logsOutsideWeek, taskBuckets } from '../../support/expect-from-fixture';
+import {
+  builtinTaskIds,
+  customTasks,
+  expectedCategory,
+  logsInWeek,
+  logsOutsideWeek,
+  taskBuckets,
+} from '../../support/expect-from-fixture';
+import { MALFORMED_IMPORTS, type MalformedKind } from '../../fixtures/malformed-imports';
 import { BUILTIN_TASK_IDS, LIFT_IDS } from '../../support/task-ids';
 import {
   CAT_LANGUAGE,
   CATEGORY_NAMES,
   GOAL_OVERDUE,
+  LEGACY_CATEGORY_MAP,
   LIFT_HISTORY_PREFIX,
   TAB_LABELS,
+  TIMELINE_EMPTY,
 } from '../../support/strings';
 
 const SYNTH_PREFIX = 'SYNTH-';
@@ -150,4 +162,72 @@ test('DATA-01 the full fixture renders logs, task states, custom todos, lift his
       LIFT_HISTORY_PREFIX,
     );
   }
+});
+
+test('DATA-02 the legacy-categories fixture loads with old category names mapped to current ones', async ({
+  page,
+  app,
+}) => {
+  const fixture = loadFixture('legacy-categories.json');
+  await app.open({ mode: 'account', seed: fixture });
+  await app.expectAccountMode();
+  await page.getByRole('tab', { name: TAB_LABELS.tl, exact: true }).click();
+
+  // 每条记录的类别标签等于按 normalize 规格推导的新类别
+  for (const log of fixture.logs) {
+    await expect(page.locator(`#tab-tl [data-edit="${log.id}"] .tag`), `记录 ${log.id}`).toHaveText(
+      expectedCategory(log.cat),
+    );
+  }
+  // 页面上不再出现旧类别名，也不出现未知类别的原名
+  const tags = await page.locator('#tab-tl .tag').allTextContents();
+  for (const gone of [...Object.keys(LEGACY_CATEGORY_MAP), 'SYNTH-unknown-cat']) {
+    expect(tags, `页面上不应再有类别 ${gone}`).not.toContain(gone);
+  }
+});
+
+test('DATA-02 the minimal fixture loads as an empty state', async ({ page, app }) => {
+  await app.open({ mode: 'account', seed: loadFixture('minimal-state.json') });
+  await app.expectAccountMode();
+
+  await expect(page.locator('#tab-wk [data-edit]')).toHaveCount(0);
+  await expect(page.locator('#arrival')).toHaveValue('');
+  await expect(page.locator('#review')).toHaveValue('');
+
+  await page.getByRole('tab', { name: TAB_LABELS.tl, exact: true }).click();
+  await expect(page.locator('#timeline .empty')).toHaveText(TIMELINE_EMPTY);
+});
+
+test('DATA-02 malformed import payloads stay in memory, carry the synthetic marker and are really malformed', async () => {
+  const fixturesDir = path.join(__dirname, '..', '..', 'fixtures');
+  expect(MALFORMED_IMPORTS.length).toBeGreaterThan(0);
+  const kinds = new Set<MalformedKind>(MALFORMED_IMPORTS.map((m) => m.kind));
+  expect([...kinds].sort()).toEqual(['json-not-object', 'json-wrong-field-types', 'not-json']);
+
+  const isPlainObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  for (const m of MALFORMED_IMPORTS) {
+    // 名字不像备份或应用导出文件，磁盘上也没有同名文件
+    expect(m.name.includes('备份'), m.name).toBe(false);
+    expect(m.name.startsWith('在美国的日子-'), m.name).toBe(false);
+    expect(fs.existsSync(path.join(fixturesDir, m.name)), `${m.name} 不应落盘`).toBe(false);
+
+    if (m.kind === 'not-json') {
+      expect(() => JSON.parse(m.text), m.name).toThrow();
+    } else if (m.kind === 'json-not-object') {
+      const parsed = JSON.parse(m.text);
+      expect(parsed === null || Array.isArray(parsed), m.name).toBe(true);
+    } else {
+      const parsed = JSON.parse(m.text);
+      expect(isPlainObject(parsed), m.name).toBe(true);
+      const wrongTypes =
+        !Array.isArray(parsed.logs) ||
+        !Array.isArray(parsed.custom) ||
+        ['tasks', 'lifts', 'reviews', 'presets'].some((k) => k in parsed && !isPlainObject(parsed[k])) ||
+        typeof parsed.arrival !== 'string';
+      expect(wrongTypes, `${m.name} 至少一个字段类型要错`).toBe(true);
+    }
+  }
+
+  // 常量文件自己带合成标记
+  expect(fs.readFileSync(path.join(fixturesDir, 'malformed-imports.ts'), 'utf8')).toContain('_synthetic');
 });

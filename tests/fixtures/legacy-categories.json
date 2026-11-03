@@ -1,0 +1,17 @@
+{
+  "_synthetic": "合成数据：旧类别名边界，仅供本地测试",
+  "arrival": "",
+  "tasks": {},
+  "custom": [],
+  "logs": [
+    { "id": "synth-legacy-01", "date": "2026-03-16", "cat": "学习", "text": "SYNTH-LEGACY study" },
+    { "id": "synth-legacy-02", "date": "2026-03-17", "cat": "活动社交", "text": "SYNTH-LEGACY social" },
+    { "id": "synth-legacy-03", "date": "2026-03-18", "cat": "生活", "text": "SYNTH-LEGACY life" },
+    { "id": "synth-legacy-04", "date": "2026-03-19", "cat": "里程碑", "text": "SYNTH-LEGACY milestone" },
+    { "id": "synth-legacy-05", "date": "2026-03-20", "cat": "SYNTH-unknown-cat", "text": "SYNTH-LEGACY unknown" },
+    { "id": "synth-legacy-06", "date": "2026-03-20", "cat": "语言", "text": "SYNTH-LEGACY current" }
+  ],
+  "lifts": {},
+  "reviews": {},
+  "presets": {}
+}
