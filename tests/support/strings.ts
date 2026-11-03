@@ -67,3 +67,21 @@ export const TOAST_NOTHING_TO_EXPORT = '还没有可导出的日期';
 
 // toast 动作按钮的文字（应用源码逐字复制）
 export const TOAST_UNDO_LABEL = '撤销';
+
+// 点“直接记录”预设后 toast 的前缀，冒号是全角，后面接标签文字（应用源码逐字复制）
+export const TOAST_RECORDED_PREFIX = '已记录：';
+
+// 添加预设标签后 toast 的前缀，冒号是全角，后面接标签文字（应用源码逐字复制）
+export const TOAST_PRESET_ADDED_PREFIX = '已添加标签：';
+
+// 添加已存在的预设标签时的 toast（应用源码逐字复制）
+export const TOAST_PRESET_DUPLICATE = '已经有这个标签了';
+
+// 删除预设标签后 toast 的前缀，冒号是全角，后面接标签文字（应用源码逐字复制）
+export const TOAST_PRESET_DELETED_PREFIX = '已删除标签：';
+
+// 预设区编辑按钮在普通模式下的文字（应用源码逐字复制）
+export const PRESET_EDIT_LABEL = '编辑';
+
+// 预设区编辑按钮在编辑模式下的文字（应用源码逐字复制）
+export const PRESET_EDIT_DONE_LABEL = '完成';
