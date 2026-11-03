@@ -1,6 +1,27 @@
 // 从 fixture 推导期望值的纯函数（D-13）。
 // 不导入应用代码，也不读取应用源码：规则都是按应用的行为独立写出的规格。
-import { CAT_OTHER, CATEGORY_NAMES, CSV_DONE_PREFIX, CSV_DUE_PREFIX, CSV_GROUP_SUFFIX, CSV_HEADER, LEGACY_CATEGORY_MAP } from './strings';
+import {
+  CAT_OTHER,
+  CATEGORY_NAMES,
+  COMPOSER_WHEN_PREFIX,
+  CSV_DONE_PREFIX,
+  CSV_DUE_PREFIX,
+  CSV_GROUP_SUFFIX,
+  CSV_HEADER,
+  DAY_ARIA_SEPARATOR,
+  DAY_ARIA_SUFFIX,
+  DAY_SUFFIX,
+  GROUP_CATEGORY,
+  LEGACY_CATEGORY_MAP,
+  MONTH_SUFFIX,
+  WEEKDAY_CHARS,
+  WEEKDAY_PREFIX,
+  WEEK_RANGE_SEPARATOR,
+  WEEK_TITLE_ARRIVAL_PREFIX,
+  WEEK_TITLE_ARRIVAL_SUFFIX,
+  WEEK_TITLE_CURRENT,
+  WEEK_TITLE_OTHER,
+} from './strings';
 
 export type SynthLog = { id: string; date: string; text: string; cat: string };
 
@@ -147,4 +168,123 @@ export function expectedCalendarCsv(
     taskRows(c.text, c.group, state.tasks?.[c.id] ?? {});
   }
   return rows.map((r) => r.map(csvCell).join(',')).join('\n');
+}
+
+// ---- 本周视图的独立期望（WEEK-01、WEEK-02，D-10）----
+// 下面的函数都是按应用的行为独立写出的规格，不导入、不读取应用代码。
+// 日期计算一律用 UTC，避免依赖机器时区；周一是一周的第一天。
+
+type WeekState = {
+  logs: SynthLog[];
+  tasks: Record<string, any>;
+  custom: { id: string; group: string; text: string }[];
+};
+
+const DAY_MS = 86_400_000;
+
+function utcMs(ymd: string): number {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+function ymdOfMs(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+// ymd 加 n 天（n 可为负）
+export function ymdAddDays(ymd: string, n: number): string {
+  return ymdOfMs(utcMs(ymd) + n * DAY_MS);
+}
+
+// ymd 所在周的周一
+export function mondayOf(ymd: string): string {
+  const dow = new Date(utcMs(ymd)).getUTCDay(); // 周日为 0
+  return ymdAddDays(ymd, -((dow + 6) % 7));
+}
+
+// 月和日去掉前导零，形如 3月5日
+export function mdLabel(ymd: string): string {
+  const [, m, d] = ymd.split('-').map(Number);
+  return `${m}${MONTH_SUFFIX}${d}${DAY_SUFFIX}`;
+}
+
+// 周X
+export function weekdayLabel(ymd: string): string {
+  return WEEKDAY_PREFIX + WEEKDAY_CHARS[new Date(utcMs(ymd)).getUTCDay()];
+}
+
+// composer 下方的“记录到 M月D日 周X”
+export function composerWhenLabel(ymd: string): string {
+  return `${COMPOSER_WHEN_PREFIX}${mdLabel(ymd)} ${weekdayLabel(ymd)}`;
+}
+
+// 周范围：周日与周一同月时只写日数，否则写完整的月日
+export function expectedWeekRange(weekStart: string): string {
+  const end = ymdAddDays(weekStart, 6);
+  const sameMonth = weekStart.slice(5, 7) === end.slice(5, 7);
+  const endLabel = sameMonth ? `${Number(end.slice(8))}${DAY_SUFFIX}` : mdLabel(end);
+  return mdLabel(weekStart) + WEEK_RANGE_SEPARATOR + endLabel;
+}
+
+// 周标题：有抵达日期且本周不早于抵达周时写“来美国第 N 周”；否则是今天所在周时写“本周”；其余是“这一周”
+export function expectedWeekTitle(arrival: string | null | undefined, weekStart: string, today: string): string {
+  if (arrival && weekStart >= mondayOf(arrival)) {
+    const weeks = Math.round((utcMs(weekStart) - utcMs(mondayOf(arrival))) / (7 * DAY_MS));
+    return `${WEEK_TITLE_ARRIVAL_PREFIX}${weeks + 1}${WEEK_TITLE_ARRIVAL_SUFFIX}`;
+  }
+  return weekStart === mondayOf(today) ? WEEK_TITLE_CURRENT : WEEK_TITLE_OTHER;
+}
+
+// [start, end] 内完成的计划：先内置（按组号、序号），再自定义（按 state.custom 的顺序）；
+// 内置计划的 group 是 id 横线前的部分。只有 id 和组号，不含任何计划文字
+function doneTasksBetween(state: WeekState, start: string, end: string): { id: string; group: string }[] {
+  const inRange = (s: any) => !!s && !!s.done && typeof s.doneDate === 'string' && s.doneDate >= start && s.doneDate <= end;
+  const out: { id: string; group: string }[] = [];
+  for (const id of builtinTaskIds(state)) {
+    if (inRange(state.tasks[id])) out.push({ id, group: id.split('-')[0] });
+  }
+  for (const c of state.custom ?? []) {
+    if (inRange(state.tasks?.[c.id])) out.push({ id: c.id, group: c.group });
+  }
+  return out;
+}
+
+// 五个类别卡上的计数，按 CATEGORY_NAMES 的顺序：
+// 该周该类的记录数，加上该周完成、所属组归该类的计划数
+export function weekCountsByCategory(state: WeekState, weekStart: string): number[] {
+  const end = ymdAddDays(weekStart, 6);
+  const logs = logsInWeek(state, weekStart, end);
+  const done = doneTasksBetween(state, weekStart, end);
+  return CATEGORY_NAMES.map(
+    (name) => logs.filter((l) => l.cat === name).length + done.filter((t) => GROUP_CATEGORY[t.group] === name).length,
+  );
+}
+
+// 五个类别各自在该周有记录的不同日期数，按 CATEGORY_NAMES 的顺序（完成的计划不计入）
+export function weekGoalDays(state: WeekState, weekStart: string): number[] {
+  const end = ymdAddDays(weekStart, 6);
+  const logs = logsInWeek(state, weekStart, end);
+  return CATEGORY_NAMES.map((name) => new Set(logs.filter((l) => l.cat === name).map((l) => l.date)).size);
+}
+
+// 7 列的内容：日期、记录 id（按 state.logs 的顺序）、完成计划的 id（按 doneTasksBetween 的顺序）
+export function weekDayColumns(
+  state: WeekState,
+  weekStart: string,
+): { date: string; logIds: string[]; doneTaskIds: string[] }[] {
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const date = ymdAddDays(weekStart, i);
+    return {
+      date,
+      logIds: state.logs.filter((l) => l.date === date).map((l) => l.id),
+      doneTaskIds: doneTasksBetween(state, date, date).map((t) => t.id),
+    };
+  });
+}
+
+// 日期列的 aria-label：月日，条目数，固定后缀
+export function dayAriaLabel(date: string, n: number): string {
+  return `${mdLabel(date)}${DAY_ARIA_SEPARATOR}${n}${DAY_ARIA_SUFFIX}`;
 }

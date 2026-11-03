@@ -85,3 +85,55 @@ export const PRESET_EDIT_LABEL = '编辑';
 
 // 预设区编辑按钮在编辑模式下的文字（应用源码逐字复制）
 export const PRESET_EDIT_DONE_LABEL = '完成';
+
+// ---- 本周视图（WEEK-01、WEEK-02、WEEK-05）----
+
+// 周标题：抵达日期所在周之后写“来美国第 N 周”，前缀和后缀（应用源码逐字复制）
+export const WEEK_TITLE_ARRIVAL_PREFIX = '来美国第 ';
+export const WEEK_TITLE_ARRIVAL_SUFFIX = ' 周';
+
+// 周标题：既不在抵达日期之后、也不是今天所在周时的通用标题（应用源码逐字复制）
+export const WEEK_TITLE_OTHER = '这一周';
+
+// 日期文案片段（应用源码逐字复制）：月、日的后缀，星期的前缀
+export const MONTH_SUFFIX = '月';
+export const DAY_SUFFIX = '日';
+export const WEEKDAY_PREFIX = '周';
+
+// 星期字符，下标是 Date.getDay() 的值（周日为 0）（应用源码逐字复制）
+export const WEEKDAY_CHARS = '日一二三四五六';
+
+// 周范围的分隔符：U+2013 en dash，两边各一个空格（应用源码逐字复制）
+export const WEEK_RANGE_SEPARATOR = ' – ';
+
+// 类别卡上计数后面的单位（应用源码逐字复制）
+export const AREA_COUNT_UNIT = '项';
+
+// 非健身类别的目标行后缀，前面接不同日期数（应用源码逐字复制）
+export const WEEK_GOAL_RECORDED_SUFFIX = ' 天有记录';
+
+// 健身目标行的前缀和日期数后面的单位；目标数值是个人计划，不写进仓库（应用源码逐字复制）
+export const WEEK_GOAL_FIT_PREFIX = '训练 ';
+export const WEEK_GOAL_DAY_UNIT = ' 天';
+
+// 日期列的 aria-label：月日、分隔符、条目数、后缀（应用源码逐字复制）
+export const DAY_ARIA_SEPARATOR = '，';
+export const DAY_ARIA_SUFFIX = ' 项，点击选为记录日期';
+
+// composer 下方“记录到 M月D日 周X”的前缀（应用源码逐字复制）
+export const COMPOSER_WHEN_PREFIX = '记录到 ';
+
+// 内置计划组号到类别的映射：只来自应用 GROUPS 的组号和类别字段，不含组名和任何任务文字。
+// 健身没有目标组。值引用 CATEGORY_NAMES，不再写新的中文字面量
+export const GROUP_CATEGORY: Record<string, string> = {
+  P1: CATEGORY_NAMES[0],
+  P2: CATEGORY_NAMES[1],
+  P3: CATEGORY_NAMES[1],
+  P4: CATEGORY_NAMES[1],
+  P5: CATEGORY_NAMES[1],
+  P6: CATEGORY_NAMES[3],
+  P7: CATEGORY_NAMES[4],
+};
+
+// 把记录拖到另一天后 toast 的前缀，后面接 M月D日（应用源码逐字复制）
+export const TOAST_MOVED_PREFIX = '已移到 ';
