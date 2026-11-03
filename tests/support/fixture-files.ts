@@ -4,8 +4,9 @@ import path from 'node:path';
 
 // 每次调用都重新读取并解析，用例拿到的是各自独立的对象，改了也不影响别的用例。
 // 只接受 .json 文件名；name 不能带路径分隔符。
+// path.basename 在 Windows 上同时识别 / 和 \，所以反斜杠写的目录穿越也会被拒绝。
 export function loadFixture(name: string): any {
-  if (!name.endsWith('.json') || /[\/]/.test(name)) {
+  if (!name.endsWith('.json') || path.basename(name) !== name) {
     throw new Error(`loadFixture 只接受 tests/fixtures 下的 .json 文件名：${name}`);
   }
   return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
