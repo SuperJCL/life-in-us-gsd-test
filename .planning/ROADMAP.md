@@ -103,7 +103,7 @@ Plans:
   3. 把一条记录拖到另一天后，保存下来的状态里这条记录的日期确实变了；本周复盘文本保存后，刷新仍在。
   4. 从本周、日历、时间线点任意记录都能打开编辑弹窗，修改文字、类别、日期并保存后，三个视图同步更新。在弹窗里删除可以撤销，内容为空时不能保存；完成计划的弹窗可以修改完成日期，或改回未完成。
   5. 碰到的已知 bug（如本周视图的草稿丢失）用统一方式标记：一条普通的对照断言证明前提成立，再用一条窄断言加 `test.fail` 或 `test.fixme`，并附 `known-bug` 注解；每条都登记在 `tests/KNOWN-BUGS.md`，与 `.planning/codebase/CONCERNS.md` 的条目对应。
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 **Wave 1**
@@ -113,7 +113,7 @@ Plans:
 - [x] 03-04-PLAN.md — 已知 bug 约定（从 03-01 拆出）：tracer 为 knownBug、B1 成对用例、KNOWN-BUGS.md 和登记护栏 → N1 成对用例和护栏的反向对照（BUG-01）
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-02-PLAN.md — 本周视图：WEEK-01 渲染与 fixture 推导一致（tracer），WEEK-02 周导航和选中某天，WEEK-05 拖放，WEEK-06 复盘，B4 成对用例（manual 时钟）
+- [x] 03-02-PLAN.md — 本周视图：WEEK-01 渲染与 fixture 推导一致（tracer），WEEK-02 周导航和选中某天，WEEK-05 拖放，WEEK-06 复盘，B4 成对用例（manual 时钟）
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 03-03-PLAN.md — 编辑弹窗：editor helper 加本周入口 tracer，日历和时间线入口、丢弃修改、删除撤销、空文字不能保存，完成计划改日期和改回未完成，README 与阶段收尾
@@ -169,6 +169,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
-| 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 2/4 | In Progress | - |
+| 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 3/4 | In Progress | - |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |

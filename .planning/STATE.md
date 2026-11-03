@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 3
 current_phase_name: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）
 status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-11-03T22:27:35.229Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-11-03T23:03:13.521Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 3 execution started
-state_head: d1463413b1cb95adbeb03cb224e4c5efbea5f6c8
+state_head: 10c599ff59a50b3213be2e19fc0e555b7a2179a1
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 40
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-03 after Phase 2)
 ## Current Position
 
 Phase: 3 (记一笔、编辑弹窗与本周视图（Composer, Editor & Week）) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 3 execution started
 
@@ -68,6 +68,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02 P04 | 8min | 3 tasks | 5 files |
 | Phase 03 P01 | 25 min | 2 tasks | 6 files |
 | Phase 03 P04 | 20min | 2 tasks | 4 files |
+| Phase 03 P02 | 32 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,7 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-01: saved() 账户模式只认 backend.writes 最后一条，本地模式用种子原文区分种子与应用写回
 - [Phase 03]: 03-01: 内置预设的点选与删除在页面内 page.evaluate 完成，真实指针路径由合成标签证明
 - [Phase 03]: 03-04: B1 and N1 reproduced with the marker removed and marked test.fail; registry guard cross-checks knownBug ids and titles against tests/KNOWN-BUGS.md
+- [Phase 03]: 03-02: WEEK-05 drag uses dragTo (plan A) with no synthetic events; B4 reproduced with the marker removed and marked test.fail under a manual clock; page.clock stays installed and paused across reload
 
 ### Pending Todos
 
@@ -130,6 +132,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T22:27:33.745Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-11-03T23:03:11.847Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
