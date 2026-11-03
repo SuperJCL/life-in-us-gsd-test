@@ -70,14 +70,14 @@ Plans:
   3. 账户模式下记一笔后，测试能读到 mock 记录的写入；刷新页面后，数据仍然从 mock 读回。
   4. 合成的完整状态 fixture 和边界 fixture（旧类别名、最小状态、畸形导入文件）都已就位，并通过 Phase 1 的合成标记检查。用完整 fixture 启动后，五个类别的记录、各种状态的任务、自定义待办、力量历史和本周复盘都能在页面上找到。
   5. 账户模式下导出按钮出现。导出的日历 CSV 与根据 fixture 推导的期望逐字一致（表头、MM/DD/YYYY 日期、引号和逗号转义），导出的 JSON 备份与当前状态深度相等，文件名和内容都从 `downloads.save` 的记录中读到。
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 **Wave 1**
 - [x] 02-01-PLAN.md — Phase 1 审查修复（D-10）：tracer 为静态服务器的 Host 头和方法校验（WR-01）→ guard 按条删除、WebSocket 和后开 page、manual 时钟的“启动不写”（WR-02、WR-05、WR-06）→ PROBE-2c 标题、README 与 PROBES.md 一致、INFO 修复和处置记录（WR-03、WR-04）
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — 账户模式：tracer 为种子经 MockBackend 加载、记一笔写入 mock、刷新读回 → expectAccountMode 与 user.id() 为 null 的常驻反向对照、启动只读一次不写、导出按钮和下载记录、PROBE-7（开始前确认契约 0.2.96 原文可读）
+- [x] 02-02-PLAN.md — 账户模式：tracer 为种子经 MockBackend 加载、记一笔写入 mock、刷新读回 → expectAccountMode 与 user.id() 为 null 的常驻反向对照、启动只读一次不写、导出按钮和下载记录、PROBE-7（开始前确认契约 0.2.96 原文可读）
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 02-03-PLAN.md — 合成数据：tracer 为完整 fixture 经账户 mock 显示五个类别 → 推导 helper 证明 D-13 全部覆盖并在三个视图里找到 → 旧类别名、最小状态、畸形导入常量（DATA-01、DATA-02）
@@ -155,7 +155,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
-| 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 1/5 | In Progress | - |
+| 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 2/5 | In Progress | - |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 0/TBD | Not started | - |
 | 4. 日历与目标视图（Calendar & Goals） | 0/TBD | Not started | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |

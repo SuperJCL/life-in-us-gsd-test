@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: 账户模式、合成数据与导出（Account Mock, Data & Export）
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-11-03T18:45:53.009Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-11-03T18:57:43.554Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 2 execution started
-state_head: f653b03d5b3d9ce8864ce48ec83d071ea04db424
+state_head: ab0a861112dfd6d48f19951823bd712a1a4402b6
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 20
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-01 after Phase 1)
 ## Current Position
 
 Phase: 2 (账户模式、合成数据与导出（Account Mock, Data & Export）) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 2 execution started
 
@@ -61,6 +61,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01 P03 | 16 min | 3 tasks | 6 files |
 | Phase 01 P04 | 25 min | 2 tasks | 2 files |
 | Phase 02 P01 | 12 min | 3 tasks | 10 files |
+| Phase 02 P02 | 8 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-04] 阶段末人工验收 approved：test:ui 能回放 IO-01，show-report 能打开报告，全程无安装提示；内嵌终端不会自动打开浏览器，README 已补手动打开说明；UI 模式浏览器按配置为 msedge，用户未在窗口上确认品牌 — 如实记录：品牌是配置层面的推断，不当作已验证事实
 - [Phase 02]: 02-01: localhost:<PORT> stays in the static-server Host allowlist (PROBE-2a control browser needs it); other Hosts get 421, non-GET/HEAD get 405
 - [Phase 02]: 02-01: guard has no requestfailed listener and cannot alarm on preconnect; limits documented in test.ts and README section 7
+- [Phase 02]: D-01 conclusion: exposeBinding is usable at init and at get() time (PROBE-7 and account tracer); no sessionStorage fallback
+- [Phase 02]: Account-mode ready() requires the account status text plus both export buttons visible; the negative control (userId null, expectStore local) proves expectAccountMode can fail
 
 ### Pending Todos
 
@@ -118,6 +121,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T18:45:52.694Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-11-03T18:57:42.983Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
