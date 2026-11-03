@@ -181,3 +181,19 @@ export const test = base.extend<Fixtures & Options>({
 export { expect };
 // 类型也从这个出口导出，spec 里不直接导入 @playwright/test
 export type { Browser, Page } from '@playwright/test';
+
+// 已知 bug 标记（BUG-01，D-11、D-12）。约定：
+//  - 只能作为标记用例的第一句调用；
+//  - 每个已知 bug 都要有一条不带标记的对照用例，走同样的准备和触发并断言前提成立，
+//    因为 test.fail 会把同一条用例里任何原因的失败都当作“预期失败”；
+//  - 默认用 test.fail；只有无法稳定复现或期望行为未定时才传 opts.fixme（写明原因）改用 test.fixme；
+//  - 调用之前，执行者必须已经亲眼确认这个 bug 能复现（D-13）；
+//  - 新增一条要同时在 tests/KNOWN-BUGS.md 登记，护栏用例会核对。
+export function knownBug(id: string, summary: string, opts: { fixme?: string } = {}) {
+  test.info().annotations.push({ type: 'known-bug', description: id + '：' + summary });
+  if (opts.fixme) {
+    test.fixme(true, opts.fixme);
+  } else {
+    test.fail();
+  }
+}
