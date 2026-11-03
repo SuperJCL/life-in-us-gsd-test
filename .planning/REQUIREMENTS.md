@@ -32,7 +32,7 @@
 
 ### Synthetic Data
 
-- [ ] **DATA-01**: 提供一份合成的完整状态 fixture，覆盖：
+- [x] **DATA-01**: 提供一份合成的完整状态 fixture，覆盖：
   - 五个类别的记录；
   - 包含特殊字符的文本；
   - 已完成、已过期、今天到期、将来到期的任务；
@@ -40,7 +40,7 @@
   - 力量历史；
   - 本周复盘；
   - 预设标签的增删
-- [ ] **DATA-02**: 提供边界 fixture：旧类别名、最小状态、畸形导入文件
+- [x] **DATA-02**: 提供边界 fixture：旧类别名、最小状态、畸形导入文件
 
 ### Week View
 
@@ -148,8 +148,8 @@
 | MOCK-04 | Phase 2 | Pending |
 | MOCK-05 | Phase 2 | Complete |
 | MOCK-06 | Phase 2 | Pending |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
 | WEEK-01 | Phase 3 | Pending |
 | WEEK-02 | Phase 3 | Pending |
 | WEEK-03 | Phase 3 | Pending |

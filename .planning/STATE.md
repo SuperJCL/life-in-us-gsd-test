@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 2
 current_phase_name: 账户模式、合成数据与导出（Account Mock, Data & Export）
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-11-03T18:57:43.554Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-11-03T19:10:13.229Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 2 execution started
-state_head: ab0a861112dfd6d48f19951823bd712a1a4402b6
+state_head: bb55bcb5eb47f4b5bb78a5baad6ae1718810c72c
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 20
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-01 after Phase 1)
 ## Current Position
 
 Phase: 2 (账户模式、合成数据与导出（Account Mock, Data & Export）) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 2 execution started
 
@@ -62,6 +62,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01 P04 | 25 min | 2 tasks | 2 files |
 | Phase 02 P01 | 12 min | 3 tasks | 10 files |
 | Phase 02 P02 | 8 min | 2 tasks | 8 files |
+| Phase 02 P03 | 11min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,7 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-01: guard has no requestfailed listener and cannot alarm on preconnect; limits documented in test.ts and README section 7
 - [Phase 02]: D-01 conclusion: exposeBinding is usable at init and at get() time (PROBE-7 and account tracer); no sessionStorage fallback
 - [Phase 02]: Account-mode ready() requires the account status text plus both export buttons visible; the negative control (userId null, expectStore local) proves expectAccountMode can fail
+- [Phase 02]: 02-03: expectedCategory is an independent spec of normalize; category and LEGACY names live only in tests/support/strings.ts (D-12 clarification)
 
 ### Pending Todos
 
@@ -121,6 +123,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T18:57:42.983Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-11-03T19:10:12.802Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
