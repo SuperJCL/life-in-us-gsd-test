@@ -392,3 +392,8 @@ export function expectedMonthCells(
     };
   });
 }
+
+// 日面板的标题“M月D日 周X”
+export function dayPanelTitle(ymd: string): string {
+  return `${mdLabel(ymd)} ${weekdayLabel(ymd)}`;
+}

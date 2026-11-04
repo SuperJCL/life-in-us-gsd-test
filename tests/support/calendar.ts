@@ -52,3 +52,23 @@ export async function readMonth(page: Page): Promise<{ title: string; dow: strin
     return { title, dow, cells };
   });
 }
+
+// 某一格里记录 chip（不含到期和完成）的类别类名：每个 chip 一个数组，只含 k- 开头的类。不读文字
+export async function readCellLogClasses(page: Page, date: string): Promise<string[][]> {
+  return page.evaluate((d) => {
+    const cell = Array.from(document.querySelectorAll('#grid [data-date]')).find((c) => c.getAttribute('data-date') === d);
+    if (!cell) return [];
+    return Array.from(cell.querySelectorAll('.chips .chip'))
+      .filter((chip) => !chip.classList.contains('due') && !chip.classList.contains('done'))
+      .map((chip) => Array.from(chip.classList).filter((c) => c.startsWith('k-')));
+  }, date);
+}
+
+// 日面板里每条记录（li[data-edit]）的类别类名：每条一个数组，只含 k- 开头的类。不读文字
+export async function readDayPanelLogClasses(page: Page): Promise<string[][]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('#dayPanel li[data-edit]')).map((li) =>
+      Array.from(li.classList).filter((c) => c.startsWith('k-')),
+    ),
+  );
+}
