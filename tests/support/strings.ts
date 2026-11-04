@@ -166,3 +166,17 @@ export const MONTH_TITLE_MONTH_SUFFIX = ' 月';
 export const CELL_ARIA_LOGS_SUFFIX = ' 条记录';
 export const CELL_ARIA_DUE_SUFFIX = ' 项到期';
 export const CELL_ARIA_DONE_SUFFIX = ' 项完成';
+
+// 日面板的分区标题（应用源码第 497-503 行逐字复制）
+export const DAY_SECTION_LOGS = '做过的事';
+// 与 EDITOR_TITLE_TASK 文字相同，但这里是日面板的分区标题
+export const DAY_SECTION_DONE = '完成的计划';
+export const DAY_SECTION_DUE = '这天到期';
+
+// 这天没有记录时的空提示，句号是全角（应用源码第 501 行逐字复制）
+export const DAY_EMPTY = '这天还没有记录。';
+
+// 日面板副标题：抵达日及之后写“来美国第 N 天”，之前写“YYYY 年”（应用源码第 497 行逐字复制）
+export const DAY_SUB_ARRIVAL_PREFIX = '来美国第 ';
+export const DAY_SUB_ARRIVAL_SUFFIX = ' 天';
+export const DAY_SUB_YEAR_SUFFIX = ' 年';

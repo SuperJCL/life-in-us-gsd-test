@@ -6,7 +6,7 @@
 // 所以本文件只在 page.evaluate 里读日期、类名、aria-label（只有日期和数量）、数量、id 和组号，
 // 从不读 chip 或条目的文字，也不返回元素定位器，失败输出里不会出现计划原文。
 import { expect, type Page } from '@playwright/test';
-import { TAB_LABELS } from './strings';
+import { DAY_SECTION_DUE, TAB_LABELS } from './strings';
 
 // 打开日历标签并确认它已被选中
 export async function gotoCalendar(page: Page) {
@@ -71,4 +71,42 @@ export async function readDayPanelLogClasses(page: Page): Promise<string[][]> {
       Array.from(li.classList).filter((c) => c.startsWith('k-')),
     ),
   );
+}
+
+// 日面板的读回形状，与 expect-from-fixture.ts 的 DayPanelRead 同形，两个文件各自声明，靠 toEqual 比较
+export type DayPanelReadback = {
+  title: string;
+  sub: string;
+  when: string;
+  sections: string[];
+  logIds: string[];
+  empty: string | null;
+  doneIds: string[];
+  dueGroups: string[];
+};
+
+// 一次 page.evaluate 读回日面板：标题、副标题、“记录到”、分区标题、记录 id、空提示、完成计划 id、到期条目的组号。
+// 计划条目的 .li-text 和 aria-label 是任务原文，不读（D-05）；到期条目只读 .tag（组号）
+export async function readDayPanel(page: Page): Promise<DayPanelReadback> {
+  return page.evaluate((dueSection) => {
+    const panel = document.querySelector('#dayPanel');
+    const sections = Array.from(panel?.querySelectorAll('.sect') ?? []);
+    const dueHeader = sections.find((s) => s.textContent === dueSection);
+    const dueList = dueHeader?.nextElementSibling;
+    return {
+      title: panel?.querySelector(':scope > h3')?.textContent ?? '',
+      sub: panel?.querySelector(':scope > p.sub')?.textContent ?? '',
+      when: panel?.querySelector('.when')?.textContent ?? '',
+      sections: sections.map((s) => s.textContent ?? ''),
+      logIds: Array.from(panel?.querySelectorAll('li[data-edit]') ?? []).map((li) => li.getAttribute('data-edit') ?? ''),
+      empty: panel?.querySelector('p.empty')?.textContent ?? null,
+      doneIds: Array.from(panel?.querySelectorAll('li[data-edittask]') ?? []).map(
+        (li) => li.getAttribute('data-edittask') ?? '',
+      ),
+      dueGroups:
+        dueList && dueList.matches('ul.items')
+          ? Array.from(dueList.querySelectorAll('li')).map((li) => li.querySelector('.tag')?.textContent ?? '')
+          : [],
+    };
+  }, DAY_SECTION_DUE);
 }

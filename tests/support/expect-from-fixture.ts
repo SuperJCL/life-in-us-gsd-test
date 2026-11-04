@@ -13,6 +13,13 @@ import {
   CSV_HEADER,
   DAY_ARIA_SEPARATOR,
   DAY_ARIA_SUFFIX,
+  DAY_EMPTY,
+  DAY_SECTION_DONE,
+  DAY_SECTION_DUE,
+  DAY_SECTION_LOGS,
+  DAY_SUB_ARRIVAL_PREFIX,
+  DAY_SUB_ARRIVAL_SUFFIX,
+  DAY_SUB_YEAR_SUFFIX,
   DAY_SUFFIX,
   GROUP_CATEGORY,
   LEGACY_CATEGORY_MAP,
@@ -396,4 +403,41 @@ export function expectedMonthCells(
 // 日面板的标题“M月D日 周X”
 export function dayPanelTitle(ymd: string): string {
   return `${mdLabel(ymd)} ${weekdayLabel(ymd)}`;
+}
+
+// 日面板副标题：有抵达日期且 ymd 不早于抵达日时是“来美国第 N 天”（抵达当天是第 1 天），否则是“YYYY 年”
+export function dayPanelSub(arrival: string | null | undefined, ymd: string): string {
+  if (arrival && ymd >= arrival) {
+    const days = Math.round((utcMs(ymd) - utcMs(arrival)) / DAY_MS);
+    return `${DAY_SUB_ARRIVAL_PREFIX}${days + 1}${DAY_SUB_ARRIVAL_SUFFIX}`;
+  }
+  return `${ymd.slice(0, 4)}${DAY_SUB_YEAR_SUFFIX}`;
+}
+
+export type DayPanelRead = {
+  title: string;
+  sub: string;
+  when: string;
+  sections: string[];
+  logIds: string[];
+  empty: string | null;
+  doneIds: string[];
+  dueGroups: string[];
+};
+
+// 日面板的整体期望：标题、副标题、composer 的“记录到”、分区（做过的事必有，完成的计划和这天到期只在有内容时出现）、
+// 记录 id、没有记录时的空提示、完成计划 id、到期条目的组号。只有 id 和组号，不含任何计划文字
+export function expectedDayPanel(state: DayState, ymd: string): DayPanelRead {
+  const e = eventsOnDate(state, ymd);
+  const groupOf = (id: string) => (state.custom ?? []).find((c) => c.id === id)?.group ?? id.split('-')[0];
+  return {
+    title: dayPanelTitle(ymd),
+    sub: dayPanelSub(state.arrival, ymd),
+    when: composerWhenLabel(ymd),
+    sections: [DAY_SECTION_LOGS, ...(e.done.length ? [DAY_SECTION_DONE] : []), ...(e.due.length ? [DAY_SECTION_DUE] : [])],
+    logIds: e.logs,
+    empty: e.logs.length ? null : DAY_EMPTY,
+    doneIds: e.done,
+    dueGroups: e.due.map(groupOf),
+  };
 }
