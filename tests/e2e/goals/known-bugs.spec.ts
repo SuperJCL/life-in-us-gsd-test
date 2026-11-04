@@ -44,6 +44,12 @@ test.describe('BUG-01 N1 week draft is cleared when a task is checked in the goa
     // 前提：草稿确实在本周的文本框里、记录按钮可用；切到目标页后复选框恰好一个且未勾选
     await expect(c.text).toHaveValue(N1_DRAFT);
     await expect(c.addButton).toBeEnabled();
+
+    // 基线：只做标签往返、不勾选，草稿仍在（排除“标签切换本身清草稿”，标记用例的失败才只能归因于勾选）
+    await openGoalsBox(page);
+    await backToWeek(page);
+    await expect(c.text).toHaveValue(N1_DRAFT);
+
     const box = await openGoalsBox(page);
     await expect(box).toHaveCount(1);
     await expect(box).not.toBeChecked();
