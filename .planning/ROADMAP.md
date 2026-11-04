@@ -22,7 +22,7 @@
 - [x] **Phase 1: 测试环境、护栏与本地切片（Harness & Local Slice）** - 一条命令用本机 Edge 跑通本地模式端到端用例；网络、时钟、页面错误和应用完整性护栏对所有用例生效；完成六项运行时探针 (completed 2026-11-01)
 - [x] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容 (completed 2026-11-03)
 - [x] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图 (completed 2026-11-03)
-- [ ] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互
+- [x] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互 (completed 2026-11-03)
 - [ ] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖
 
 ## Phase Details
@@ -134,7 +134,7 @@ Plans:
   3. 目标视图渲染力量卡片和 P1–P7 目标组，完成计数和进度条与根据 fixture 推导的期望一致；更新力量值（点保存按钮或按 Enter）后，显示最近的历史和达标提示。
   4. 勾选任务时，完成日期记为冻结的“今天”，进度随之更新，取消勾选后恢复；设置截止日期后，过期的任务显示“已过期”。
   5. 可以添加和删除自定义待办，内置任务没有删除按钮。
-**Plans:** 3/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1**
@@ -180,5 +180,5 @@ Plans:
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
-| 4. 日历与目标视图（Calendar & Goals） | 3/3 | In Progress | - |
+| 4. 日历与目标视图（Calendar & Goals） | 3/3 | Complete    | 2026-11-03 |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |
