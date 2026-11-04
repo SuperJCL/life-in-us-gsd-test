@@ -1,4 +1,4 @@
-# 运行时探针结论（PROBE-1 到 PROBE-7）
+# 运行时探针结论（PROBE-1 到 PROBE-8）
 
 这些探针验证后续阶段依赖的运行时假设。每一项都对应 `tests/e2e/platform/probes.spec.ts` 里以 `PROBE-n` 开头的用例，每次 `npm test` 都会运行；假设哪天不成立，用例会变红。
 
@@ -27,6 +27,7 @@
 | PROBE-5 | `dragTo` 驱动 HTML5 拖放 | `PROBE-5 dragTo drives HTML5 drag and drop in the week view` | 通过（方案 A） | 条目从 2026-03-16 拖到 2026-03-19，落盘日期变化，目标列可见 | 方案 A：`dragTo(..., { steps: 10 })` |
 | PROBE-6 | `clock.install` 加 `pauseAt` 后的稳定性检查 | `PROBE-6 clock.install with pauseAt keeps actionability checks working` | 通过 | 暂停后点击标签、记一笔、toast 出现，`runFor(1800)` 后消失，保存落盘 | install、open、pauseAt、runFor 的顺序可用 |
 | PROBE-7 | `exposeBinding` 在页面脚本运行前可调用 | `PROBE-7 exposeBinding is callable from an init script before any page script runs` | 通过 | init 阶段 `typeof` 为 `function`，init 阶段调用返回 `pong`；账户 tracer 里应用调用 `get()` 时 binding 也可用 | 采用 `exposeBinding`，不启用 `sessionStorage` 退路 |
+| PROBE-8 | 取消导入确认后，`setInputFiles` 再选同一个文件 | `PROBE-8 re-selecting the same file with setInputFiles after a cancelled import` | 通过 | 取消后 change 计数 1，`#importJson` 的 value 仍是浏览器的 fakepath 形式加合成文件名；再选同一个文件后 change 计数 2、确认框再次出现 | Playwright 复现不了“再选同一个文件没有反应”，B2 的期望断言改用确定性的 value 为空字符串 |
 
 ## PROBE-1：Edge 无界面启动
 
@@ -114,6 +115,13 @@
 - **D-01 的最终结论：** `exposeBinding` 方案可用（证据：PROBE-7 和上面的 tracer 用例）。**没有启用 `sessionStorage` 退路。** mock 的页面侧代码仍然只在 `get`、`set`、`save` 被调用时才去取 binding（懒调用），不依赖 init 阶段的顺序。
 - **退路备忘（没有启用）：** 如果以后某个 Edge 或 Playwright 版本让 PROBE-7 变红，D-01 的退路是把 mock 数据放到页面侧的 `sessionStorage`。键名必须带固定前缀（例如 `__claude-mock:`），不能和应用的 `us-journey-tracker-v1` 冲突。但这条退路和“用例不用 `page.evaluate` 读记录”（D-09）冲突，需要重新规划，不能在用例里临时改。
 - **对后续阶段的影响：** Phase 2 到 5 的账户模式用例直接读 `app.backend`（`reads`、`writes`、`downloads`、`lastState()`），不需要 `page.evaluate`。
+
+## PROBE-8：取消导入后再选同一个文件（B2 的 spike，D-01）
+
+- **怎么测的：** 账户模式加 full-state.json 开局，页面里给 `#importJson` 加一个只计数的 change 监听（计数放在带 probe 前缀的 window 属性上，只计数、不阻止事件、不改应用的处理函数）。先 `answerNextDialog(page, 'dismiss')` 再选内存文件 `synth-probe8.json`，等确认框出现，读回 change 计数和 `#importJson` 的 value；再注册一次 dismiss，选同一个文件，读回第二次的 change 计数和确认框是否再次出现。
+- **观察到什么：** 取消后 change 计数为 1；`#importJson` 的 value 没有被清空，形式是浏览器的 fakepath 形式加合成文件名（文档里不照抄带盘符的字符串）。第二次选同一个文件时 change 计数变成 2，确认框再次出现。
+- **断言是写死的：** 四条断言的期望值固定（第一次计数 1、value 为 fakepath 形式加合成文件名、第二次确认框出现、第二次计数 2），先记 annotations 和终端输出，再断言，不随观察值改写；应用以后若在取消路径上清空 input，这条探针会变红，提醒 B2 已修好。
+- **对 B2 的结论：** 应用的取消路径在 `e.target.value=""` 之前就 `return`，value 确实没有清空（这是 B2 的确定性证据）。但 Playwright 的 `setInputFiles` 每次都自己派发 input 和 change，不依赖 value 是否变化，所以用户在真实浏览器里遇到的“再选同一个文件没有反应”在这里复现不了。因此 B2 的期望断言不写“change 会再次触发”，只断言取消后 `#importJson` 的 value 为空字符串（见 `tests/e2e/io/known-bugs.spec.ts`）。
 
 ## 未覆盖的事项
 

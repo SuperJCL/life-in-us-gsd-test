@@ -7,6 +7,8 @@ import type { Browser, Page } from '../../support/test';
 import { test, expect } from '../../support/test';
 import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, PROXY_BYPASS } from '../../support/constants';
 import { STATUS_LOCAL, TAB_LABELS } from '../../support/strings';
+import { loadFixture } from '../../support/fixture-files';
+import { answerNextDialog, chooseImportFile, jsonImportFile } from '../../support/import-file';
 
 // ---------------------------------------------------------------------------
 // PROBE-1：Edge headless 启动并记录 browser.version()
@@ -319,4 +321,61 @@ test('PROBE-7 exposeBinding is callable from an init script before any page scri
   } finally {
     testInfo.annotations.push({ type: 'probe', description: `initCall=${String(initCall)}` });
   }
+});
+
+// ---------------------------------------------------------------------------
+// PROBE-8：取消导入后再选同一个文件（B2 的 spike，D-01）
+// 用户看到的现象是“取消导入确认后，再选同一个文件没有反应”。这条探针在 Playwright 里观察：
+// 取消后 #importJson 的 value 是否还在、第二次 setInputFiles 选同一个文件时 change 是否再次派发、确认框是否再次出现。
+// change 计数监听只计数、不阻止事件、不改应用的处理函数，计数放在带 probe 前缀的 window 属性上（测试侧的观察）。
+// 观察值先记进 annotations 和终端，看清之后把断言写死（同 PROBE-7），结论见 tests/PROBES.md 的 PROBE-8。
+// ---------------------------------------------------------------------------
+test('PROBE-8 re-selecting the same file with setInputFiles after a cancelled import', async ({ page, app }, testInfo) => {
+  await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
+  await app.expectAccountMode();
+  await page.evaluate(() => {
+    const w = window as any;
+    w.__probeImportChanges = 0;
+    document.querySelector('#importJson')!.addEventListener('change', () => {
+      w.__probeImportChanges += 1;
+    });
+  });
+  const changes = () => page.evaluate(() => (window as any).__probeImportChanges as number);
+  const fileValue = () => page.locator('#importJson').inputValue();
+  const file = jsonImportFile('synth-probe8.json', { logs: [] });
+
+  // 第一次：取消确认框
+  const first = answerNextDialog(page, 'dismiss');
+  await chooseImportFile(page, file);
+  await expect.poll(() => first.length, { message: '等待第一次的替换确认框' }).toBe(1);
+  const changesAfterFirst = await changes();
+  const valueAfterCancel = await fileValue();
+  // 只记形式，不记带盘符的 fakepath 字符串
+  const valueShape = valueAfterCancel === '' ? 'empty' : /synth-probe8\.json$/.test(valueAfterCancel) ? 'fakepath+name' : 'other';
+
+  // 第二次：同一个文件再选一次
+  const second = answerNextDialog(page, 'dismiss');
+  await chooseImportFile(page, file);
+  let secondDialog = 'not-observed';
+  try {
+    await expect.poll(() => second.length, { message: '等待第二次的替换确认框', timeout: 3_000 }).toBe(1);
+    secondDialog = 'appeared';
+  } catch {
+    // 没出现：下面的断言会失败，观察值已经在 annotations 里
+  }
+  const changesAfterSecond = await changes();
+  testInfo.annotations.push({
+    type: 'probe',
+    description: `changesAfterFirst=${changesAfterFirst} valueAfterCancel=${valueShape} changesAfterSecond=${changesAfterSecond} secondDialog=${secondDialog}`,
+  });
+  console.log(
+    `PROBE-8 changesAfterFirst=${changesAfterFirst} valueAfterCancel=${valueShape} changesAfterSecond=${changesAfterSecond} secondDialog=${secondDialog}`,
+  );
+
+  // 断言写死，不随观察值改写：取消后 value 仍保留（所以 B2 的期望断言用确定性的 value），
+  // 而 Playwright 的 setInputFiles 每次都会自己派发 change，第二次选同一个文件时 change 再次派发、确认框再次出现
+  expect(changesAfterFirst).toBe(1);
+  expect(valueShape).toBe('fakepath+name');
+  expect(secondDialog).toBe('appeared');
+  expect(changesAfterSecond).toBe(2);
 });
