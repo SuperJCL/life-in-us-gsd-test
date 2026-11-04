@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 4
 current_phase_name: 日历与目标视图（Calendar & Goals）
 status: executing
-stopped_at: Phase 3 complete, ready to plan Phase 4
-last_updated: "2026-11-04T01:39:30.145Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-11-04T01:52:26.330Z"
 last_activity: 2026-11-03
-last_activity_desc: Phase 3 complete, transitioned to Phase 4
-state_head: 9157b3e35ba1b3d98998d8e9bb0114a7b68ead96
+last_activity_desc: Phase 4 execution started
+state_head: 34401ab8ede62c047070e6621fc566e42fa60d9c
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 60
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-11-03 after Phase 3)
 
 ## Current Position
 
-Phase: 4 (日历与目标视图（Calendar & Goals）) — READY TO EXECUTE
-Plan: Not started
+Phase: 4 (日历与目标视图（Calendar & Goals）) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-11-03 — Phase 3 complete, transitioned to Phase 4
+Last activity: 2026-11-03 — Phase 4 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -71,6 +71,7 @@ Progress: [██████░░░░] 60%
 | Phase 03 P04 | 20min | 2 tasks | 4 files |
 | Phase 03 P02 | 32 min | 3 tasks | 8 files |
 | Phase 03 P03 | 19 min | 3 tasks | 7 files |
+| Phase 04 P01 | 11 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,8 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-04: B1 and N1 reproduced with the marker removed and marked test.fail; registry guard cross-checks knownBug ids and titles against tests/KNOWN-BUGS.md
 - [Phase 03]: 03-02: WEEK-05 drag uses dragTo (plan A) with no synthetic events; B4 reproduced with the marker removed and marked test.fail under a manual clock; page.clock stays installed and paused across reload
 - [Phase 03]: 03-03: editor helper and EDIT-01..03 verified with no app/FEATURES mismatch; 'no save' proven only under a manual clock with a sentinel write; EDIT-03 uses only the synthetic custom plan c-synth-2
+- [Phase 04]: 04-01: 日历网格与日面板的期望由 Date.UTC 独立推导，页面内一次读回后在 Node 侧比较；计划条目只读 id、组号和数量 — 保持黑盒且不在失败输出里泄露个人计划文字
+- [Phase 04]: 04-01: B1 日历日面板实例已复现并按一对用例登记（test.fail），撤销 toast 过期在 manual 时钟下验证 — 沿用 Phase 3 的成对已知 bug 约定
 
 ### Pending Todos
 
@@ -137,6 +140,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T23:58:30.254Z
-Stopped at: Phase 3 complete, ready to plan Phase 4
+Last session: 2026-11-04T01:52:24.642Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

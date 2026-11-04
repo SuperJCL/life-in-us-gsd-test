@@ -53,10 +53,10 @@
 
 ### Calendar View
 
-- [ ] **CAL-01**: 日历正确渲染月份网格：周日起始、今天高亮、抵达日标记、记录 chips 和 “+N”
-- [ ] **CAL-02**: 用户可以切换月份、回到今天，点格子选中日期（点相邻月份的格子会跳到那个月）
-- [ ] **CAL-03**: 日面板显示当天的记录、完成的计划和到期任务，用户可以在日面板里记一笔
-- [ ] **CAL-04**: 用户可以在日面板删除记录，并通过 toast 撤销
+- [x] **CAL-01**: 日历正确渲染月份网格：周日起始、今天高亮、抵达日标记、记录 chips 和 “+N”
+- [x] **CAL-02**: 用户可以切换月份、回到今天，点格子选中日期（点相邻月份的格子会跳到那个月）
+- [x] **CAL-03**: 日面板显示当天的记录、完成的计划和到期任务，用户可以在日面板里记一笔
+- [x] **CAL-04**: 用户可以在日面板删除记录，并通过 toast 撤销
 
 ### Goals View
 
@@ -156,10 +156,10 @@
 | WEEK-04 | Phase 3 | Complete |
 | WEEK-05 | Phase 3 | Complete |
 | WEEK-06 | Phase 3 | Complete |
-| CAL-01 | Phase 4 | Pending |
-| CAL-02 | Phase 4 | Pending |
-| CAL-03 | Phase 4 | Pending |
-| CAL-04 | Phase 4 | Pending |
+| CAL-01 | Phase 4 | Complete |
+| CAL-02 | Phase 4 | Complete |
+| CAL-03 | Phase 4 | Complete |
+| CAL-04 | Phase 4 | Complete |
 | GOAL-01 | Phase 4 | Pending |
 | GOAL-02 | Phase 4 | Pending |
 | GOAL-03 | Phase 4 | Pending |

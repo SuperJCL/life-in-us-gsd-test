@@ -134,11 +134,11 @@ Plans:
   3. 目标视图渲染力量卡片和 P1–P7 目标组，完成计数和进度条与根据 fixture 推导的期望一致；更新力量值（点保存按钮或按 Enter）后，显示最近的历史和达标提示。
   4. 勾选任务时，完成日期记为冻结的“今天”，进度随之更新，取消勾选后恢复；设置截止日期后，过期的任务显示“已过期”。
   5. 可以添加和删除自定义待办，内置任务没有删除按钮。
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 04-01-PLAN.md — 日历：tracer 为 D-01 的 35/42 格脚本核对、各 verify 共用的 json 报告检查脚本和 3 月整月网格由 fixture 推导 → 42 格、2 月边界、抵达日、chip 顺序与 CAL-02 导航 → 日面板分区与记一笔、删除加撤销、撤销 toast 过期（manual 时钟）、B1 的日历日面板实例（CAL-01..04）
+- [x] 04-01-PLAN.md — 日历：tracer 为 D-01 的 35/42 格脚本核对、各 verify 共用的 json 报告检查脚本和 3 月整月网格由 fixture 推导 → 42 格、2 月边界、抵达日、chip 顺序与 CAL-02 导航 → 日面板分区与记一笔、删除加撤销、撤销 toast 过期（manual 时钟）、B1 的日历日面板实例（CAL-01..04）
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-02-PLAN.md — 目标视图：tracer 为七个目标组的计数和进度条由 fixture 推导 → 四张力量卡、力量值保存与历史、达标与不达标、失焦不保存（GOAL-01、GOAL-02）
@@ -180,5 +180,5 @@ Plans:
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
-| 4. 日历与目标视图（Calendar & Goals） | 0/3 | Not started | - |
+| 4. 日历与目标视图（Calendar & Goals） | 1/3 | In Progress | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |
