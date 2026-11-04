@@ -25,9 +25,27 @@
 | B2 | `.planning/codebase/CONCERNS.md` 的 Known Bugs 一节 “Cancelled import cannot be retried with the same file” | `BUG-01 B2 control: cancelling the import confirm shows the confirm text and leaves the data unchanged`；`BUG-01 B2 reset path: the file input is cleared after a file that is not JSON`（证明标记用例的 value 断言在这个环境里能通过：格式错误路径走 catch，会清空 input） | `BUG-01 B2 expected: the file input is cleared after cancelling the import confirm` | 取消导入确认后，`#importJson` 的 value 被清空，再选同一个文件会重新触发导入 | 已复现（`test.fail`，05-04 计划）：先去掉标记运行（`--retries=0`），失败点正是 value 断言，实际值是浏览器的 fakepath 形式加合成文件名，不是空字符串；对照用例证明确认框文案等于 CONFIRM_IMPORT、没有 toast、fixture 记录仍在、没有写入。PROBE-8 的 spike 显示 Playwright 的 `setInputFiles` 每次都自己派发 change，第二次选同一个文件时 change 再次派发、确认框再次出现，所以用户看到的“再选同一个文件没有反应”在这里复现不了；期望断言因此只用确定性的 value，不断言 change 会再次触发 |
 | N3 | CONCERNS.md 没有单独的 N3 条目；最接近的是 `.planning/codebase/CONCERNS.md` Tech Debt 一节 “Shallow validation in `normalize()`”（research 的 B8，导入校验过浅）；触发的出处是 `.planning/research/FEATURES.md` 已知 bug 对照表的 N3，用户在 2026-11-03 决定算已知 bug（05-CONTEXT 的 D-02） | `BUG-01 N3 control: importing an empty JSON object reaches the import confirm` | `BUG-01 N3 expected: importing an empty JSON object is rejected with the format error` | 应用拒绝 `{}` 这类不像备份的 JSON：不弹替换确认，提示格式错误，数据不变；标记用例只断言出现格式错误提示 | 已复现（`test.fail`，05-04 计划）：先去掉标记运行（`--retries=0`），失败点正是格式错误 toast 的断言（5 秒内没有出现期望文案）；对照用例证明导入 `{}` 通过了 JSON.parse 和 normalize，走到了替换确认，文案等于 CONFIRM_IMPORT，所以接受后会替换数据并提示已恢复。`[]` 和字段类型错误的对象属于同一类（同样能通过 normalize），没有单独验证 |
 
-## 以后的阶段
+## 里程碑收尾时的状态
 
-- N1：已登记（Phase 3 的 03-04 计划，直接记录的预设这一种触发）。N1 的日面板删除、目标页勾选两种触发由 Phase 4 的 04-03 计划登记；拖拽和改抵达日期两种触发仍未验证。
-- B4：已登记（Phase 3 的 03-02 计划，manual 时钟下的一对用例）。
-- Phase 4：B1 的日历日面板实例已登记（04-01 计划，成对用例在 `tests/e2e/calendar/known-bugs.spec.ts`）。
-- Phase 5：B2（取消导入后重选同一文件）和 N3（导入 `{}`）已登记（05-04 计划，成对用例在 `tests/e2e/io/known-bugs.spec.ts`）。
+本测试里程碑不修改应用，所有已知 bug 保持现状。
+
+**已覆盖**（成对用例已登记，见上表）：
+
+- B1：本周（Phase 3 的 03-04 计划）和日历日面板（Phase 4 的 04-01 计划）两处。
+- B2：取消导入后文件框没有清空（Phase 5 的 05-04 计划）。
+- B4：输入复盘后立刻刷新会丢文字（Phase 3 的 03-02 计划）。
+- N1：直接记录的预设（Phase 3 的 03-04 计划）、日面板删除和目标页勾选（Phase 4 的 04-03 计划）三种触发。
+- N3：导入 `{}` 后数据被清空（Phase 5 的 05-04 计划）。
+- N2 只立了规则、不写用例（见上面的约定）。
+
+**仍未验证**（留给后续修 bug 的里程碑，即 REQUIREMENTS.md 的 FIX-01，或 v2）：
+
+- N1 的拖拽和改抵达日期两种触发。
+- B3：加载完成前的编辑被丢弃，需要 mock 的加载延迟（v2 的 ERR-04）。
+- B5：保存失败不重试。
+- B6（导入 XSS）和 B7（CSV 公式注入）：对应 v2 的 XTRA-03。
+- B8：导入校验过浅，例如日志缺 date。
+- B9：跨午夜不更新。
+- B10：位置 id，只被 GOAL-01 的整体比较间接特征化，没有标记用例。
+- B11、B12：research 标为延期。
+- 与 N3 同类的输入：`[]` 和字段类型错误的对象，同样能通过 normalize。

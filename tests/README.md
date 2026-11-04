@@ -30,7 +30,7 @@
 
 | 路径 | 放什么 |
 |------|--------|
-| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作）、零依赖静态服务器 |
+| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针、已知 bug 登记护栏 |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts` |
@@ -39,7 +39,9 @@
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
 | `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
-| `tests/e2e/io/` | 导出用例：日历 CSV 与 JSON 备份，内容从 `app.backend.downloads` 读取 |
+| `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 的已知 bug 用例；导出内容从 `app.backend.downloads` 读取 |
+| `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
+| `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -94,7 +96,7 @@
 
 ## 10. 探针结论
 
-六项运行时探针的结论、证据和采用的方案见 `tests/PROBES.md`。它们每次 `npm test` 都会重新运行，假设不成立时用例会变红。
+PROBE-1 到 PROBE-8 的结论、证据和采用的方案见 `tests/PROBES.md`；其中 PROBE-8 是 B2（取消导入后再选同一个文件）的 spike。它们每次 `npm test` 都会重新运行，假设不成立时用例会变红。
 
 ## 11. 账户模式
 
@@ -127,7 +129,9 @@
 - **`app.saved()` 和 `app.expectSaved(predicate, message?)`（统一的“已保存”）：** 账户模式只认应用发出的写入，`saved()` 返回 `app.backend.writes` 最后一条的内容，还没有写入时是 `null`，mock 里的种子文档不算保存；本地模式读 localStorage，键不存在或内容与 `open()` 写入的种子原文相同时是 `null`。`expectSaved` 用 `expect.poll` 等 predicate 成立，默认 message 不含状态内容。新用例用它们；Phase 1、2 的 `persisted()`、`expectPersisted()` 保留不动。
 - **`calendar.ts`（日历视图读回）：** `gotoCalendar`、`readMonth`、`readCellLogClasses`、`readDayPanelLogClasses`、`readDayPanel` 等，一次 `page.evaluate` 读回整月或整个日面板，再在 Node 侧与 `expect-from-fixture.ts` 的独立推导比较。只读日期、类名、aria-label、id、组号和数量，不读到期和完成 chip、日面板计划条目的文字（它们是个人计划原文）。
 - **`goals.ts`（目标视图读回和任务操作）：** `gotoGoals`、`readGroups`、`readLifts`、`liftHistoryEquals`、`checkTask`、`setDue`、`readTaskRow`。内置任务的复选框和截止日期只在页面内按位置 id 操作和读回（`checkTask`、`setDue`、`readTaskRow`），不做定位器动作、文字断言或可见性断言，因为它们的 aria-label 是任务原文，Playwright 的调用日志会打印；只有合成的自定义任务才用真实点击和填写。
-- **期望值从 fixture 推导（D-10）：** 本周的标题、范围、计数、7 列内容、时间线日期标签等都由 `expect-from-fixture.ts` 的函数独立算出（`weekCountsByCategory`、`weekDayColumns`、`mdLabel`、`timelineDateLabel` 等），缺的推导函数加在那里，用例里不抄数字。
+- **`timeline.ts`（时间线读回）：** `gotoTimeline`、`pickFilter`、`readTimeline`。一次 `page.evaluate` 读回筛选按钮状态、月份标题、条目的 id、日期、所属月份、记录的类别标签和固定文案；完成计划条目的文字是个人计划原文，不读，只读 id 和日期。
+- **`import-file.ts`（导入文件和确认框）：** `jsonImportFile`、`textImportFile`、`chooseImportFile`、`answerNextDialog`、`recordDialogs`。文件只存在于内存（`{ name, mimeType, buffer }`），文件名必须以 `synth-` 开头，helper 会检查；`answerNextDialog` 预先登记下一次对话框的处理并记录文案，`recordDialogs` 只记录、用来断言“没有弹对话框”。
+- **期望值从 fixture 推导（D-10）：** 本周的标题、范围、计数、7 列内容、时间线日期标签等都由 `expect-from-fixture.ts` 的函数独立算出（`weekCountsByCategory`、`weekDayColumns`、`mdLabel`、`timelineDateLabel`、`expectedTimeline`、`expectedNormalize` 等），缺的推导函数加在那里，用例里不抄数字。
 - **时间与保存：** 输入复盘之后，先 `expectSaved` 等保存完成再做别的操作，防止防抖期间的重绘把文本框还原（N2，D-03）。manual 时钟（`test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 加 `pauseAt`，再用 `runFor` 推进）现在有三类用途：(1) 证明“没有保存”（含力量输入框失焦、空白待办）：`runFor` 推过 600 ms 防抖后比较 `app.backend.writes.length`，再用一次哨兵写入证明这个窗口确实推进了防抖（D-05、D-15）；(2) 撤销窗口和 toast 过期：撤销用例的顺序是 install、open、`expectAccountMode`、`pauseAt`、动作、`runFor(1_000)` 推过防抖、再 undo；过期用例再推过 5 秒，看 `#toast` 的 `.on` 消失、`#toast.act button` 为 0 个；(3) 带计时器的刷新（B4）：暂停时钟后输入、不推进防抖就刷新。同一个用例里不混用 `setFixedTime`，不用固定睡眠。
 
 ## 14. 已知 bug
@@ -139,3 +143,14 @@
 - **先确认复现：** 标记前先去掉标记运行一次，确认失败点正是那条期望断言，再恢复。没有亲眼复现的问题不标成已知 bug。
 - **登记：** 在 `tests/KNOWN-BUGS.md` 的登记表里加一行，写明编号、`.planning/codebase/CONCERNS.md` 的出处、两个用例的完整标题、期望行为和现状（D-12）。`tests/e2e/platform/known-bugs-registry.spec.ts` 的护栏用例会双向核对 spec 里的编号和登记行、用例标题，漏登记或写错标题都会变红。
 - **预期现象：** 跑全部用例时，登记的标记用例在列表里带 x 标记，但汇总计为通过（预期失败），这是正常的；应用修好之后它们会变红，提醒去掉标记。
+
+B2 有两条对照用例（control 和 reset path，写法同 B4 的 reload path）；N3 的标记用例选了“格式错误提示”作为期望，原因写在 `tests/e2e/io/known-bugs.spec.ts` 的注释里。
+
+## 15. 导入和窄屏用例的注意事项
+
+- **导入文件都是内存里的文件：** 用 `setInputFiles` 的 `{ name, mimeType, buffer }` 形式，磁盘上不放任何像备份的文件；文件名一律以 `synth-` 开头（helper 会检查）。
+- **先注册对话框处理，再选文件：** 用 `answerNextDialog` 登记处理，再 `chooseImportFile`；确认框的文案放在 `strings.ts`，逐字比较。不应弹对话框的用例用 `recordDialogs` 断言记录为空。
+- **FileReader 是异步的：** confirm 在读完文件之后才弹出，要用 `expect.poll` 等，不能在 `setInputFiles` 返回后立刻断言。
+- **B2：** 取消导入后文件框没有清空；期望断言用 `#importJson` 的 value 为空，不断言“change 会再次触发”，原因见 PROBE-8（Playwright 每次都会自己派发 change）。
+- **N3：** 导入 `{}` 这类合法 JSON 会通过 normalize、确认后清空全部数据；期望断言是出现格式错误提示。`[]` 和字段类型错误的对象是同类输入，没有单独验证。
+- **窄屏只用 viewport：** 文件顶层 `test.use({ viewport: { width: 520, height: 900 } })`，不用设备描述符；断言经 `page.evaluate` 读计算样式和位置，不截图、不测拖拽，也不读日历 chip 或条目的文字。滚动用例先瞬时滚到确定的位置，点击后用 `expect.poll` 等平滑滚动结束，不用固定睡眠。
