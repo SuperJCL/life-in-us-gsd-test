@@ -563,3 +563,38 @@ export function expectedTimeline(
     empty: rows.length === 0 ? TIMELINE_EMPTY : null,
   };
 }
+
+// ---- 导入的独立期望（IO-04、IO-05）----
+
+// 应用 normalize 的独立规格，不读应用代码。导入一份备份后，保存的状态应当等于它的返回值：
+//  - raw 为 null 或 undefined 时抛错（应用读属性时会抛错，走“文件格式不对”的提示）；
+//  - 先做 JSON 深拷贝，不改调用者的对象；
+//  - arrival 是字符串就原样，否则空字符串；
+//  - tasks、lifts、reviews、presets：是对象（含数组，与 typeof 一致）就原样，否则空对象；
+//  - custom 是数组就原样，否则空数组；
+//  - logs 是数组就逐条复制并把 cat 换成 expectedCategory(cat)，否则空数组；
+//  - 其余键（包括 _synthetic）一律丢掉。
+export function expectedNormalize(raw: any): {
+  arrival: string;
+  tasks: any;
+  custom: any[];
+  logs: any[];
+  lifts: any;
+  reviews: any;
+  presets: any;
+} {
+  if (raw === null || raw === undefined) {
+    throw new Error('expectedNormalize 的参数不能是 null 或 undefined');
+  }
+  const s = JSON.parse(JSON.stringify(raw));
+  const isObj = (v: any) => !!v && typeof v === 'object';
+  return {
+    arrival: typeof s.arrival === 'string' ? s.arrival : '',
+    tasks: isObj(s.tasks) ? s.tasks : {},
+    custom: Array.isArray(s.custom) ? s.custom : [],
+    logs: Array.isArray(s.logs) ? s.logs.map((l: any) => ({ ...l, cat: expectedCategory(l.cat) })) : [],
+    lifts: isObj(s.lifts) ? s.lifts : {},
+    reviews: isObj(s.reviews) ? s.reviews : {},
+    presets: isObj(s.presets) ? s.presets : {},
+  };
+}

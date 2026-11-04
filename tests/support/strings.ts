@@ -214,3 +214,12 @@ export const FILTER_ALL = '全部';
 // 时间线筛选按钮的 data-filter 值：“完成的计划”（应用源码第 530 行逐字复制）。
 // 与 EDITOR_TITLE_TASK、DAY_SECTION_DONE 文字相同，但这里是时间线筛选按钮的值
 export const FILTER_DONE_TASKS = '完成的计划';
+
+// ---- 导入（IO-04、IO-05）----
+
+// 选了备份文件后的替换确认框文案（应用源码第 657 行逐字复制，末尾是全角问号）
+export const CONFIRM_IMPORT = '用备份文件替换当前所有内容？';
+
+// 文件不是备份（解析失败或 normalize 抛错）时的 toast（应用源码第 657 行逐字复制，逗号是全角，.json 前有一个空格）。
+// 接受导入后的 toast 复用上面的 TOAST_RESTORED（与撤销后的 toast 文字相同）
+export const TOAST_IMPORT_BAD_FORMAT = '文件格式不对，请选择导出的备份 .json';
