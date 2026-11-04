@@ -60,8 +60,8 @@
 
 ### Goals View
 
-- [ ] **GOAL-01**: 目标视图渲染力量卡片和 P1–P7 目标组（完成计数、进度条）
-- [ ] **GOAL-02**: 用户更新力量值（点保存按钮或按 Enter）后，显示最近的历史和达标提示
+- [x] **GOAL-01**: 目标视图渲染力量卡片和 P1–P7 目标组（完成计数、进度条）
+- [x] **GOAL-02**: 用户更新力量值（点保存按钮或按 Enter）后，显示最近的历史和达标提示
 - [ ] **GOAL-03**: 用户勾选或取消任务；勾选时完成日期记为今天，进度随之更新
 - [ ] **GOAL-04**: 用户可以设置截止日期，过期后显示“已过期”
 - [ ] **GOAL-05**: 用户可以添加和删除自定义待办；内置任务没有删除按钮
@@ -160,8 +160,8 @@
 | CAL-02 | Phase 4 | Complete |
 | CAL-03 | Phase 4 | Complete |
 | CAL-04 | Phase 4 | Complete |
-| GOAL-01 | Phase 4 | Pending |
-| GOAL-02 | Phase 4 | Pending |
+| GOAL-01 | Phase 4 | Complete |
+| GOAL-02 | Phase 4 | Complete |
 | GOAL-03 | Phase 4 | Pending |
 | GOAL-04 | Phase 4 | Pending |
 | GOAL-05 | Phase 4 | Pending |
