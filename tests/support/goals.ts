@@ -167,3 +167,20 @@ export async function readTaskRow(page: Page, id: string): Promise<TaskRowRead> 
     };
   }, id);
 }
+
+// 设置内置任务 id 的截止日期框的值并派发 change 事件（应用的 change 委托挂在 #goals 上，冒泡即可）。
+// 理由同 checkTask：截止日期框的 aria-label 固定，但所在行的复选框是任务原文，为了和内置任务的其他操作一致，
+// 也为了绕开原生日期选择器，内置任务一律在页面内设值。找不到时断言失败，消息只含 id。合成自定义任务用真实的 fill
+export async function setDue(page: Page, id: string, ymd: string) {
+  const found = await page.evaluate(
+    ({ id, ymd }) => {
+      const el = document.querySelector<HTMLInputElement>(`#goals [data-due="${id}"]`);
+      if (!el) return false;
+      el.value = ymd;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    { id, ymd },
+  );
+  expect(found, `目标页上应当能找到任务 ${id} 的截止日期框`).toBe(true);
+}
