@@ -180,3 +180,16 @@ export const DAY_EMPTY = '这天还没有记录。';
 export const DAY_SUB_ARRIVAL_PREFIX = '来美国第 ';
 export const DAY_SUB_ARRIVAL_SUFFIX = ' 天';
 export const DAY_SUB_YEAR_SUFFIX = ' 年';
+
+// ---- 目标视图的力量卡（GOAL-02）----
+
+// 达标时 toast 的后缀，前面接力量名称（应用源码第 630 行逐字复制）。
+// toast 的前半是力量名称（个人计划文字），所以只比较固定片段（D-02）
+export const LIFT_REACHED_SUFFIX = '达标了';
+
+// 未达标时 toast 里的固定片段，前面是力量名称，后面接数值和单位（应用源码第 630 行逐字复制，末尾一个空格）。
+// 同样只比较固定片段，不比较整句（D-02）
+export const LIFT_UPDATED_INFIX = '已更新为 ';
+
+// 力量历史行里几条记录之间的分隔符，全角逗号（应用源码第 512 行逐字复制）
+export const LIFT_HISTORY_SEPARATOR = '，';

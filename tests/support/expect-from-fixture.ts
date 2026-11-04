@@ -23,6 +23,8 @@ import {
   DAY_SUFFIX,
   GROUP_CATEGORY,
   LEGACY_CATEGORY_MAP,
+  LIFT_HISTORY_PREFIX,
+  LIFT_HISTORY_SEPARATOR,
   MONTH_SUFFIX,
   MONTH_TITLE_MONTH_SUFFIX,
   MONTH_TITLE_YEAR_SEP,
@@ -485,4 +487,11 @@ export function expectedGroup(state: GoalState, group: string, builtinCount: num
     dueInputIds: taskIds.filter((id) => !stateOf(id).done),
     deleteIds: customIds,
   };
+}
+
+// 力量历史行的期望文字：hist 为空时返回 null（此时应用显示的是个人备注，不比较）；
+// 否则是前缀加最后 3 条各自的“M月D日 数值”，用全角逗号连接
+export function liftHistoryText(hist: { date: string; v: number }[]): string | null {
+  if (!hist.length) return null;
+  return LIFT_HISTORY_PREFIX + hist.slice(-3).map((h) => `${mdLabel(h.date)} ${h.v}`).join(LIFT_HISTORY_SEPARATOR);
 }

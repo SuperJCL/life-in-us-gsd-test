@@ -75,3 +75,30 @@ export async function expectToastGone(page: Page) {
     .poll(async () => (await readToast(page)).on, { message: 'toast 仍在显示（内容已隐藏）' })
     .toBe(false);
 }
+
+// toast 显示并且文案以 suffix 结尾；失败消息不含任何文字（D-02）。
+// 力量 toast 带力量名称（个人计划文字），所以只比较结尾的固定片段
+export async function expectToastSuffix(page: Page, suffix: string) {
+  await expect
+    .poll(
+      async () => {
+        const t = await readToast(page);
+        return t.on && t.text.endsWith(suffix);
+      },
+      { message: 'toast 文案后缀不对（内容已隐藏）' },
+    )
+    .toBe(true);
+}
+
+// toast 显示并且文案包含 part；失败消息不含任何文字（D-02）
+export async function expectToastContains(page: Page, part: string) {
+  await expect
+    .poll(
+      async () => {
+        const t = await readToast(page);
+        return t.on && t.text.includes(part);
+      },
+      { message: 'toast 文案不含期望的片段（内容已隐藏）' },
+    )
+    .toBe(true);
+}
