@@ -210,13 +210,31 @@ test('RESP-01 at phone width picking a day scrolls the composer into view', asyn
     )
     .toBe(true);
 
-  // 终态：block:start 把 #wkComp 顶部贴到视口上沿；文档不够长滚不到顶时，退而求其次要求已滚到页面底部
-  const end = await page.evaluate(() => ({
-    compTop: (document.querySelector('#wkComp') as HTMLElement).getBoundingClientRect().top,
-    atBottom: scrollY >= document.documentElement.scrollHeight - innerHeight - 1,
-  }));
+  // 终态读回（只读数字）：#wkComp 的视口矩形、页面是否已滚到底
+  const end = await page.evaluate(() => {
+    const r = (document.querySelector('#wkComp') as HTMLElement).getBoundingClientRect();
+    return {
+      compTop: r.top,
+      compBottom: r.bottom,
+      innerHeight,
+      scrollY,
+      scrollHeight: document.documentElement.scrollHeight,
+      atBottom: scrollY >= document.documentElement.scrollHeight - innerHeight - 1,
+    };
+  });
+  // 两支通过条件：
+  // 1) atTop：block:start 把 #wkComp 顶部贴到视口上沿，这一支才能锁定 block 取值；
+  // 2) visible：窄屏下 #wkComp 是页面最后一块，composer 加底部留白不足一屏时滚不到顶，浏览器停在页面底部。
+  //    这一支只证明“页面滚到底，且 composer 顶部进入视口”，不能区分 block 取值
+  //    （block:"nearest" 或 "end" 在这里同样会停在页面底部）。要锁定 block:"start" 需要页面在 composer 之后有滚动余量，
+  //    本用例不改页面 DOM 和布局，所以接受这个已知的弱点。
+  const atTop = Math.abs(end.compTop) <= 2;
+  const visible = end.atBottom && end.compTop >= -2 && end.compTop < end.innerHeight;
+  const nums = [end.compTop, end.compBottom, end.innerHeight, end.scrollY, end.scrollHeight].map(Math.round).join(',');
+  // 实际走了哪一支，只以数字记在注解里（不含页面文字）
+  test.info().annotations.push({ type: 'scroll-end', description: `${atTop ? 'atTop' : 'atBottom'}; ${nums}` });
   expect(
-    Math.abs(end.compTop) <= 2 || end.atBottom,
-    `#wkComp 顶部应贴近视口上沿或页面已到底（compTop=${Math.round(end.compTop)}）`,
+    atTop || visible,
+    `#wkComp 应贴近视口上沿，或页面已到底且 composer 顶部在视口内（compTop,compBottom,innerHeight,scrollY,scrollHeight=${nums}，atBottom=${end.atBottom}）`,
   ).toBe(true);
 });

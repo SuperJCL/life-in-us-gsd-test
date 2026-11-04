@@ -70,7 +70,7 @@ coverage:
         status: pass
     human_judgment: false
   - id: D4
-    description: "选中某天后平滑滚动到“记一笔”：由布局选出目标日，前提断言后点击，poll 到 #wkComp 顶部进入视口"
+    description: "选中某天后平滑滚动到“记一笔”：由布局选出目标日，前提断言后点击，poll 到平滑滚动结束；终态要求 #wkComp 顶部贴近视口上沿（block:start），或页面已到底且 composer 顶部在视口内（后一支不区分 block 取值）"
     requirement: "RESP-01"
     verification:
       - kind: e2e
