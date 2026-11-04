@@ -18,7 +18,7 @@
 
 只跑部分用例时，把参数接在 `--` 后面，例如 `npm test -- -g "IO-01"`。
 
-需要机器判定“没有失败、没有 flaky、指定的用例都实际运行”时，用 `PW_JSON_REPORT=test-results/<名字>.json` 前缀运行（同时加 `--workers=1` 最省资源），再用 `node tools/test-report/check-report.mjs <报告> "<标题>" …` 检查，通过时输出 `REPORT OK`；`node tools/test-report/check-report.mjs --self-test` 是它的反向对照，证明脚本在该失败时会失败。原因：配置里 `retries: 1`，单看退出码分不出“重试后才通过”的用例，也看不出用例是不是被过滤掉没跑。报告只放在已被 git 忽略的 `test-results/` 下，只在本机读，只打印计数和标题。
+需要机器判定“没有失败、没有 flaky、指定的用例都实际运行”时，用 `PW_JSON_REPORT=test-results/<名字>.json` 前缀运行（同时加 `--workers=1` 最省资源），再用 `node tools/test-report/check-report.mjs <报告> "<标题>" …` 检查，通过时输出 `REPORT OK`；报告里任何不带 known-bug 注解的 skipped 用例、没有 test 的 spec、同标题一过一败都会判为失败；全量回归再加 `--min-expected N`（至少跑了 N 条），否则被过滤或被中断的部分运行也会得到 `REPORT OK`；`node tools/test-report/check-report.mjs --self-test` 是它的反向对照，证明脚本在该失败时会失败。原因：配置里 `retries: 1`，单看退出码分不出“重试后才通过”的用例，也看不出用例是不是被过滤掉没跑。报告只放在已被 git 忽略的 `test-results/` 下，只在本机读，只打印计数和标题。
 
 ## 4. 看报告
 
