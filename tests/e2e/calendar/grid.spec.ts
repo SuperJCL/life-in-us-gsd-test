@@ -10,7 +10,7 @@ import type { AppHarness } from '../../support/app';
 import { gotoCalendar, readCellLogClasses, readDayPanelLogClasses, readMonth } from '../../support/calendar';
 import { FROZEN_TODAY } from '../../support/constants';
 import { loadFixture } from '../../support/fixture-files';
-import { expectedMonthCells, monthGrid, monthTitle, ymdAddDays } from '../../support/expect-from-fixture';
+import { expectedCategory, expectedMonthCells, monthGrid, monthTitle, ymdAddDays } from '../../support/expect-from-fixture';
 import { WEEKDAY_CHARS } from '../../support/strings';
 
 // 表头：WEEKDAY_CHARS 拆成 7 个字，周日在前
@@ -77,6 +77,20 @@ test('CAL-01 chips are ordered entries, then due, then done, and their category 
   expect(cellClasses).toHaveLength(3);
   expect(cellClasses.every((c) => c.length > 0 && c.every((x) => x.startsWith('k-')))).toBe(true);
   expect(cellClasses).toEqual(panelClasses);
+
+  // 类别类本身要正确，不能只是两处互相一致：同一类别（按 fixture 推导）的记录类名相同，不同类别的记录类名不同。
+  // 不依赖具体类名，也不写任何类别文字；顺序与 state.logs 里同一天记录的顺序一致
+  const todayLogs = variant.logs.filter((l: { date: string }) => l.date === FROZEN_TODAY);
+  expect(todayLogs).toHaveLength(cellClasses.length);
+  for (let i = 0; i < todayLogs.length; i++) {
+    for (let j = i + 1; j < todayLogs.length; j++) {
+      const sameCategory = expectedCategory(todayLogs[i].cat) === expectedCategory(todayLogs[j].cat);
+      const sameCellClass = JSON.stringify(cellClasses[i]) === JSON.stringify(cellClasses[j]);
+      const samePanelClass = JSON.stringify(panelClasses[i]) === JSON.stringify(panelClasses[j]);
+      expect(sameCellClass, '格子里 chip 的类别类等价关系与 fixture 的类别分组不一致').toBe(sameCategory);
+      expect(samePanelClass, '日面板里记录的类别类等价关系与 fixture 的类别分组不一致').toBe(sameCategory);
+    }
+  }
 });
 
 test('CAL-01 May 2026 needs six rows and renders 42 cells that match the derivation', async ({ page, app }) => {
