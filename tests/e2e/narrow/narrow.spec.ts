@@ -192,17 +192,31 @@ test('RESP-01 at phone width picking a day scrolls the composer into view', asyn
   expect(before.headBottom, '日期头应完整在视口里（下沿）').toBeLessThanOrEqual(before.innerHeight);
   expect(before.compTop, '#wkComp 应在视口下方').toBeGreaterThanOrEqual(before.innerHeight);
 
-  // 点日期头：选中日变成目标日，页面平滑滚动到 #wkComp（用 poll 等，不用固定睡眠）
+  // 点日期头：选中日变成目标日，页面平滑滚动到 #wkComp
   await page.locator(`#tab-wk [data-wday="${target.wday}"] .dh`).click();
   await expect(page.locator('#tab-wk .day.sel')).toHaveAttribute('data-wday', target.wday);
+
+  // 先等平滑滚动结束：scrollY 连续两次读数相同且比点击前大（用 poll 等，不用固定睡眠）
+  let lastY = Number.NaN;
   await expect
-    .poll(async () => {
-      const now = await page.evaluate(() => ({
-        compTop: (document.querySelector('#wkComp') as HTMLElement).getBoundingClientRect().top,
-        scrollY,
-        innerHeight,
-      }));
-      return now.compTop >= -1 && now.compTop < now.innerHeight && now.scrollY > before.scrollY;
-    })
+    .poll(
+      async () => {
+        const y = await page.evaluate(() => Math.round(scrollY));
+        const settled = y === lastY && y > Math.round(before.scrollY);
+        lastY = y;
+        return settled;
+      },
+      { message: '等待平滑滚动结束' },
+    )
     .toBe(true);
+
+  // 终态：block:start 把 #wkComp 顶部贴到视口上沿；文档不够长滚不到顶时，退而求其次要求已滚到页面底部
+  const end = await page.evaluate(() => ({
+    compTop: (document.querySelector('#wkComp') as HTMLElement).getBoundingClientRect().top,
+    atBottom: scrollY >= document.documentElement.scrollHeight - innerHeight - 1,
+  }));
+  expect(
+    Math.abs(end.compTop) <= 2 || end.atBottom,
+    `#wkComp 顶部应贴近视口上沿或页面已到底（compTop=${Math.round(end.compTop)}）`,
+  ).toBe(true);
 });
