@@ -31,11 +31,11 @@ test.describe('BUG-01 B2 the file input is not cleared when the import confirm i
   }) => {
     const dialogs = await cancelImport(page, app);
 
-    // 前提：确认框文案逐字等于 CONFIRM_IMPORT，取消路径没有 toast，fixture 的记录还在，没有写入
+    // 前提：确认框文案逐字等于 CONFIRM_IMPORT，取消路径没有 toast，fixture 的记录还在
+    // 不断言“没有写入”：真实时钟下 600 ms 防抖还没到期，这条断言必然成立；取消不保存由 import.spec.ts 的 IO-04 manual 时钟用例证明
     expect(dialogs).toEqual([CONFIRM_IMPORT]);
     await expectToastGone(page);
     await expect(page.locator('#tab-wk [data-edit="synth-full-04"]')).toHaveCount(1);
-    expect(app.backend.writes).toEqual([]);
   });
 
   // 证明标记用例的那条断言在这个环境里能通过：格式错误路径走 catch，会执行 e.target.value=""
