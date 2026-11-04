@@ -41,12 +41,32 @@
 - ✓ 本周视图：渲染结果与从 fixture 推导的期望一致，周导航和选日正常；记一笔、类别、预设（直接记录或预填、添加、删除、撤销）、Ctrl+Enter 都覆盖；拖放后保存的日期确实变了；复盘刷新后仍在 — Phase 3
 - ✓ 编辑弹窗：从本周、日历、时间线三个入口修改后三个视图同步；取消、Escape、点遮罩都不保存；删除后可撤销；空文字不能保存；完成计划可以改日期，也可以改回未完成 — Phase 3
 - ✓ 已知 bug 约定：每个 bug 是一条对照用例加一条窄断言的 `test.fail`，带 `known-bug` 注解，登记在 `tests/KNOWN-BUGS.md`；登记护栏双向核对。B1、N1、B4 都已复现并标记 — Phase 3
+- ✓ 日历视图：
+  - 月份网格：35 格、42 格和 2 月边界的期望都由独立推导得出；今天、抵达日、chip 顺序、“+N”都有断言；
+  - 导航：跨年和点相邻月份的格子都覆盖；
+  - 日面板：分区、记一笔、删除后撤销，撤销窗口卡在 5 秒；
+  - B1 的日历实例已复现并标记。
+
+  — Phase 4
+- ✓ 目标视图：
+  - 7 个目标组的计数和进度条与推导一致，4 张力量卡都检查与名称、目标无关的状态；
+  - 力量值只在点保存或按 Enter 时保存，历史、达标和未达标都覆盖；
+  - 勾选和取消勾选任务、截止日期和“已过期”、自定义待办的增删都覆盖；
+  - N1 的日面板删除和目标页勾选两种触发已复现并标记。
+
+  — Phase 4
+- ✓ 报告检查脚本 `tools/test-report/check-report.mjs`：读 JSON 报告，只有满足以下全部条件才算通过，并带 22 条自检：
+  - 没有失败、没有 flaky、没有不带注解的 skipped；
+  - 列出的标题都实际跑过；
+  - 跑过的用例数达到 `--min-expected`。
+
+  — Phase 4
 
 ### Active
 
 <!-- 第一个里程碑：只搭测试，不改应用（第 6 阶段例外，见下）。 -->
 
-- [ ] 日历、目标、时间线三个视图的渲染和交互测试，加上导入和窄屏，覆盖尽量完整
+- [ ] 时间线视图的渲染和筛选、JSON 备份导入（含 B2、N3）和窄屏布局的测试，覆盖尽量完整
 - [ ] 个人内容外置 + 本地私有目录与查看页：把应用里写死的个人计划搬到本地私有文件，仓库只放示例数据；另建本地 `private/` 目录和查看页。用户同意作为当前里程碑的第 6 阶段，并为这一阶段放宽“不改应用”的约束；还没加进 ROADMAP
 
 ### Out of Scope
@@ -69,7 +89,7 @@
 - **界面语言：** 全中文，测试选择器会用到中文文本和 ARIA 标签。
 - **环境：** Windows 11，Node v24.20.0，npm 11.19.0，已安装 Microsoft Edge 和 Google Chrome。Phase 1 已证明 Playwright 1.64.1 可以直接驱动 Edge 156.0.4314.58。
 - **Git 与 GitHub：** 公开仓库，主分支是 `main`。提交身份是 SuperJCL 加 noreply 地址（只在本仓库设置），首次推送前已清理过提交历史。`.githooks` 里的 pre-commit 和 pre-push 隐私检查（`tools/privacy/privacy-check.mjs`）会拦截应用原文件、真实备份、本机路径、真实邮箱和个人计划文字，规则见 `PRIVACY.md`。应用文件不进 git，克隆下来的仓库跑测试时会给出中文提示。
-- **测试工程现状（Phase 3 后）：** 共 99 条用例（含 B1、N1、B4 三条预期失败），分为：
+- **测试工程现状（Phase 4 后）：** 共 132 条用例（含 B1×2、N1×3、B4 六条预期失败），分为：
   - 护栏自检；
   - 7 项探针；
   - 契约自测；
@@ -78,7 +98,9 @@
   - CSV 和 JSON 导出；
   - 本周视图与记一笔；
   - 编辑弹窗；
-  - 已知 bug 的成对用例和登记护栏。
+  - 已知 bug 的成对用例和登记护栏；
+  - 日历视图（网格、导航、日面板）；
+  - 目标视图（目标组、力量卡、任务和自定义待办）。
 
   文件分布：
   - `tests/support/`：共享 helper，包括 `AppHarness`（`open({ mode, seed })`、`backend`、`expectAccountMode()`、`saved()`/`expectSaved()`）、`guard`（`guard.remove` 定向删除）、`frozenClock`、`knownBug()`、`composer`、`editor`、`toast`，以及 fixture 期望值 helper；
@@ -86,7 +108,7 @@
   - `tests/mocks/`：mock；
   - `tests/fixtures/`：合成数据。
 
-  探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查还剩几条 INFO 没处理：Phase 1 有 3 个，Phase 2 有 7 个，Phase 3 有 8 个。
+  探针结论在 `tests/PROBES.md`，用法在 `tests/README.md`。代码审查还剩几条 INFO 没处理：Phase 1 有 3 个，Phase 2 有 7 个，Phase 3 有 8 个，Phase 4 有 4 个。
 - **之前存在过的真实备份文件**（文件名不记录）现在已不在目录中，从未被读取；测试中禁止使用任何真实备份。
 
 ## Constraints
@@ -140,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-03 after Phase 3*
+*Last updated: 2026-11-03 after Phase 4*
