@@ -21,6 +21,8 @@ import {
   DAY_SUB_ARRIVAL_SUFFIX,
   DAY_SUB_YEAR_SUFFIX,
   DAY_SUFFIX,
+  FILTER_ALL,
+  FILTER_DONE_TASKS,
   GROUP_CATEGORY,
   LEGACY_CATEGORY_MAP,
   LIFT_HISTORY_PREFIX,
@@ -28,6 +30,7 @@ import {
   MONTH_SUFFIX,
   MONTH_TITLE_MONTH_SUFFIX,
   MONTH_TITLE_YEAR_SEP,
+  TIMELINE_EMPTY,
   WEEKDAY_CHARS,
   WEEKDAY_PREFIX,
   WEEK_RANGE_SEPARATOR,
@@ -495,4 +498,68 @@ export function expectedGroup(state: GoalState, group: string, builtinCount: num
 export function liftHistoryText(hist: { date: string; v: number }[]): string | null {
   if (!hist.length) return null;
   return LIFT_HISTORY_PREFIX + hist.slice(-3).map((h) => `${mdLabel(h.date)} ${h.v}`).join(LIFT_HISTORY_SEPARATOR);
+}
+
+// ---- 时间线的独立期望（TL-01、TL-02）----
+// 下面的函数是按应用的行为独立写出的规格，不导入、不读取应用代码，也不读任何任务文字。
+// 调用者传入的状态里类别已经是新类别名（fixture 本身，或应用保存后的状态）。
+
+// 时间线一条的读回形状：attr 是 data-edit（记录）或 data-edittask（完成的计划）；
+// date 是 M/D；tag 对记录是类别名，对完成的计划是 null（计划的标签是组号，不读）
+export type TimelineRow = { attr: 'edit' | 'edittask'; id: string; month: string; date: string; tag: string | null };
+
+export type TimelineExpectation = {
+  filters: { value: string; pressed: 'true' | 'false' }[];
+  months: string[];
+  rows: TimelineRow[];
+  empty: string | null;
+};
+
+// 时间线在给定筛选下的期望。规则：
+//  - 记录：filter 不是“完成的计划”时，取 filter 为“全部”或类别等于 filter 的记录，保持 state.logs 的顺序；
+//  - 完成的计划：filter 是“全部”或“完成的计划”时，接在记录后面，先内置（顺序同 builtinTaskIds）、
+//    再自定义（顺序同 state.custom），要求 done 为真且 doneDate 非空，日期取 doneDate；
+//  - 排序：按完整日期字符串稳定倒序，所以同一天里先记录、后计划，各自保持原顺序；
+//  - 月份标题：每个月第一条前出现一次；没有条目时只有空提示。
+export function expectedTimeline(
+  state: { logs?: SynthLog[]; tasks?: Record<string, any>; custom?: { id: string }[] },
+  filter: string,
+): TimelineExpectation {
+  const logs = state.logs ?? [];
+  const tasks = state.tasks ?? {};
+  const custom = state.custom ?? [];
+  type Item = { attr: 'edit' | 'edittask'; id: string; date: string; tag: string | null };
+  const items: Item[] = [];
+  if (filter !== FILTER_DONE_TASKS) {
+    for (const l of logs) {
+      if (filter === FILTER_ALL || l.cat === filter) items.push({ attr: 'edit', id: l.id, date: l.date, tag: l.cat });
+    }
+  }
+  if (filter === FILTER_ALL || filter === FILTER_DONE_TASKS) {
+    const isDone = (s: any) => !!s && !!s.done && !!s.doneDate;
+    for (const id of builtinTaskIds({ tasks })) {
+      if (isDone(tasks[id])) items.push({ attr: 'edittask', id, date: tasks[id].doneDate, tag: null });
+    }
+    for (const c of custom) {
+      if (isDone(tasks[c.id])) items.push({ attr: 'edittask', id: c.id, date: tasks[c.id].doneDate, tag: null });
+    }
+  }
+  // Array.prototype.sort 是稳定的，倒序比较只看日期字符串
+  items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  const months: string[] = [];
+  const rows: TimelineRow[] = items.map((it) => {
+    const [y, m] = it.date.split('-').map(Number);
+    const month = monthTitle(y, m);
+    if (months[months.length - 1] !== month) months.push(month);
+    return { attr: it.attr, id: it.id, month, date: timelineDateLabel(it.date), tag: it.tag };
+  });
+  return {
+    filters: [FILTER_ALL, ...CATEGORY_NAMES, FILTER_DONE_TASKS].map((value) => ({
+      value,
+      pressed: value === filter ? 'true' : 'false',
+    })),
+    months,
+    rows,
+    empty: rows.length === 0 ? TIMELINE_EMPTY : null,
+  };
 }

@@ -205,3 +205,12 @@ export const GOAL_DONE_ON_PREFIX = '完成于 ';
 
 // 未完成且没有过期的任务行里的标记文字（应用源码第 523 行逐字复制）；过期时是上面的 GOAL_OVERDUE
 export const GOAL_DUE_LABEL = '截止';
+
+// ---- 时间线（TL-01、TL-02）----
+
+// 时间线筛选按钮的 data-filter 值：“全部”（应用源码第 530 行逐字复制）。类别筛选的值用 CATEGORY_NAMES
+export const FILTER_ALL = '全部';
+
+// 时间线筛选按钮的 data-filter 值：“完成的计划”（应用源码第 530 行逐字复制）。
+// 与 EDITOR_TITLE_TASK、DAY_SECTION_DONE 文字相同，但这里是时间线筛选按钮的值
+export const FILTER_DONE_TASKS = '完成的计划';
