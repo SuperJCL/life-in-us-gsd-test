@@ -441,3 +441,48 @@ export function expectedDayPanel(state: DayState, ymd: string): DayPanelRead {
     dueGroups: e.due.map(groupOf),
   };
 }
+
+// ---- 目标视图的独立期望（GOAL-01 到 GOAL-05）----
+// 下面的函数都是按应用的行为独立写出的规格，不导入、不读取应用代码，也不复制任何任务原文。
+
+export type GoalState = {
+  tasks: Record<string, any>;
+  custom: { id: string; group: string; text: string }[];
+};
+
+// 一个目标组的期望，与 tests/support/goals.ts 的 GroupRead 同形，两个文件各自声明，靠 toEqual 比较
+export type GroupExpectation = {
+  code: string;
+  cnt: string;
+  taskIds: string[];
+  barPct: number | null;
+  doneIds: string[];
+  overdueIds: string[];
+  dueInputIds: string[];
+  deleteIds: string[];
+};
+
+// 某个目标组的期望。总数取 DOM 里该组的内置任务个数 builtinCount（D-12），不复制任务原文：
+// 内置 id 是位置 id <group>-1 到 <group>-<builtinCount>（B10 的特征化），自定义 id 取 state.custom 里 group 相同的项，排在内置之后。
+// 已完成数除以总数乘 100 与应用是同一个算式，所以进度条数值完全相等；总数为 0 时取 0。
+// 已过期：未完成且有截止日期且早于 today；截止日期输入框只在未完成的行上出现；删除按钮只在自定义任务上出现。
+export function expectedGroup(state: GoalState, group: string, builtinCount: number, today: string): GroupExpectation {
+  const builtin = Array.from({ length: builtinCount }, (_, i) => `${group}-${i + 1}`);
+  const customIds = (state.custom ?? []).filter((c) => c.group === group).map((c) => c.id);
+  const taskIds = [...builtin, ...customIds];
+  const stateOf = (id: string) => state.tasks?.[id] ?? {};
+  const doneIds = taskIds.filter((id) => !!stateOf(id).done);
+  return {
+    code: group,
+    cnt: `${doneIds.length}/${taskIds.length}`,
+    taskIds,
+    barPct: taskIds.length ? (doneIds.length / taskIds.length) * 100 : 0,
+    doneIds,
+    overdueIds: taskIds.filter((id) => {
+      const s = stateOf(id);
+      return !s.done && !!s.due && s.due < today;
+    }),
+    dueInputIds: taskIds.filter((id) => !stateOf(id).done),
+    deleteIds: customIds,
+  };
+}
