@@ -134,7 +134,7 @@ Plans:
   3. 目标视图渲染力量卡片和 P1–P7 目标组，完成计数和进度条与根据 fixture 推导的期望一致；更新力量值（点保存按钮或按 Enter）后，显示最近的历史和达标提示。
   4. 勾选任务时，完成日期记为冻结的“今天”，进度随之更新，取消勾选后恢复；设置截止日期后，过期的任务显示“已过期”。
   5. 可以添加和删除自定义待办，内置任务没有删除按钮。
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -144,7 +144,7 @@ Plans:
 - [x] 04-02-PLAN.md — 目标视图：tracer 为七个目标组的计数和进度条由 fixture 推导 → 四张力量卡、力量值保存与历史、达标与不达标、失焦不保存（GOAL-01、GOAL-02）
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 04-03-PLAN.md — 任务交互：tracer 为页面内勾选内置任务并同步组计数和日历 → 取消勾选、截止日期与已过期、自定义待办增删和空白不添加 → N1 两种新触发、README（IN-08）与 KNOWN-BUGS 约定更新、阶段收尾（GOAL-03..05）
+- [x] 04-03-PLAN.md — 任务交互：tracer 为页面内勾选内置任务并同步组计数和日历 → 取消勾选、截止日期与已过期、自定义待办增删和空白不添加 → N1 两种新触发、README（IN-08）与 KNOWN-BUGS 约定更新、阶段收尾（GOAL-03..05）
 
 **Notes:**
 - 开始前先用脚本核对对应 35 格和 42 格的两个固定月份。
@@ -180,5 +180,5 @@ Plans:
 | 1. 测试环境、护栏与本地切片（Harness & Local Slice） | 4/4 | Complete    | 2026-11-01 |
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
-| 4. 日历与目标视图（Calendar & Goals） | 2/3 | In Progress | - |
+| 4. 日历与目标视图（Calendar & Goals） | 3/3 | In Progress | - |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |

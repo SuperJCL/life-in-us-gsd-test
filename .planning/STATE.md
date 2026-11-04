@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 4
 current_phase_name: 日历与目标视图（Calendar & Goals）
-status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-11-04T02:01:36.303Z"
+status: verifying
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-11-04T02:15:46.920Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 4 execution started
-state_head: 74a31fa32cff3af6e4cad9d283addc09faed947f
+state_head: 9d226a87d413c17965cce6e55de873a58f869219
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
   percent: 60
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-03 after Phase 3)
 
 Phase: 4 (日历与目标视图（Calendar & Goals）) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-03 — Phase 4 execution started
 
 Progress: [██████░░░░] 60%
@@ -73,6 +73,7 @@ Progress: [██████░░░░] 60%
 | Phase 03 P03 | 19 min | 3 tasks | 7 files |
 | Phase 04 P01 | 11 min | 3 tasks | 9 files |
 | Phase 04 P02 | 6 min | 2 tasks | 6 files |
+| Phase 04 P03 | 11 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-01: B1 日历日面板实例已复现并按一对用例登记（test.fail），撤销 toast 过期在 manual 时钟下验证 — 沿用 Phase 3 的成对已知 bug 约定
 - [Phase 04]: 04-02: 目标组的总数取 DOM 里内置任务个数，expectedGroup 按位置 id 构造内置 id，不复制任务原文
 - [Phase 04]: 04-02: 力量 toast 只经 expectToastSuffix 与 expectToastContains 比较固定片段；很小值和极大值分别证明不达标与达标分支，不写目标数值
+- [Phase 04]: N1 的日面板删除、目标页勾选两种触发都先去掉标记亲眼复现（失败点是草稿断言，实际值为空字符串），最终用 test.fail 并登记；拖拽、改抵达日期仍未验证
+- [Phase 04]: 内置任务的勾选和截止日期只经 goals.ts 的 checkTask、setDue、readTaskRow 在页面内按位置 id 操作，期望由保存后的状态推导
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T02:01:34.479Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-11-04T02:15:45.536Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
