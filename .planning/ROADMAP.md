@@ -162,7 +162,20 @@ Plans:
   3. 导入带旧类别名的 fixture 后，记录被迁移到新的类别，并在各视图里按新类别显示。
   4. 在手机宽度下，少量关键用例通过：编辑弹窗变成底部面板，日历 chips 变成圆点，本周日期纵向排列，选中某天后页面滚动到“记一笔”。
   5. 本阶段碰到的已知 bug（如取消导入后重选同一个文件没反应）按 Phase 3 的约定标记并登记。`npm test` 跑完全部用例时，除 `tests/KNOWN-BUGS.md` 登记的标记用例外全部通过，`us-journey-tracker.html` 的 sha256 仍与基线一致。
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+**Wave 1**
+- [ ] 05-01-PLAN.md — 时间线：tracer 为 timeline.ts 的页面内读回加 expectedTimeline 独立推导，“全部”筛选按月倒序 → 五个类别和“完成的计划”筛选、两种空状态、跨年月份、新增记录和勾选待办后的联动（TL-01、TL-02）
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 05-02-PLAN.md — 导入：tracer 为内存 buffer 加先注册确认框，导入合成备份并按 expectedNormalize 核对 → 取消和非 JSON（manual 时钟证明没有保存）、导出再导入往返、旧类别迁移（IO-04、IO-05）
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 05-04-PLAN.md — 导入的已知 bug：tracer 为 B2 的 spike（PROBE-8）、B2 一组用例和登记 → N3 一对用例和登记、ROADMAP Notes 里 N3 一条按用户决定更正（IO-04）
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 05-03-PLAN.md — 窄屏与收尾：tracer 为 520 × 900 下编辑弹窗是底部面板 → 日历圆点、本周纵向排列、选日滚动到“记一笔” → README 与 KNOWN-BUGS 的里程碑收尾更新、最后一次完整套件、sha256 和隐私检查（RESP-01）
 
 **Notes:**
 - B2（取消导入后重选同一个文件没反应）先做 spike，确认 `setInputFiles` 对同一个文件是否派发 `change`。能复现就按约定用 `test.fail` 标记；无法复现就用 `test.fixme` 并写明原因。
@@ -181,4 +194,4 @@ Plans:
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
 | 4. 日历与目标视图（Calendar & Goals） | 3/3 | Complete    | 2026-11-03 |
-| 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/TBD | Not started | - |
+| 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 0/4 | Not started | - |
