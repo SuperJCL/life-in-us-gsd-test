@@ -87,7 +87,7 @@
 
 ### Responsive
 
-- [ ] **RESP-01**: 在手机宽度下，少量关键用例通过：编辑弹窗变成底部面板、日历 chips 变成圆点、本周日期纵向排列、选中某天后滚动到“记一笔”
+- [x] **RESP-01**: 在手机宽度下，少量关键用例通过：编辑弹窗变成底部面板、日历 chips 变成圆点、本周日期纵向排列、选中某天后滚动到“记一笔”
 
 ### Known Bugs
 
@@ -175,7 +175,7 @@
 | IO-03 | Phase 2 | Complete |
 | IO-04 | Phase 5 | Complete |
 | IO-05 | Phase 5 | Complete |
-| RESP-01 | Phase 5 | Pending |
+| RESP-01 | Phase 5 | Complete |
 | BUG-01 | Phase 3 | Complete |
 
 **Coverage:**
