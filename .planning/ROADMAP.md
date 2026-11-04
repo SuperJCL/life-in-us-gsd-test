@@ -179,7 +179,7 @@ Plans:
 
 **Notes:**
 - B2（取消导入后重选同一个文件没反应）先做 spike，确认 `setInputFiles` 对同一个文件是否派发 `change`。能复现就按约定用 `test.fail` 标记；无法复现就用 `test.fixme` 并写明原因。
-- N3（导入 `{}` 这类合法 JSON 并确认后会清空全部数据）的期望行为还没定，只能用 `test.fixme`，等用户决定。
+- N3（导入 `{}` 这类合法 JSON 并确认后会清空全部数据）：用户已在 2026-11-03 决定算已知 bug（05-CONTEXT 的 D-02），用对照用例加一条 `test.fail` 标记用例，登记在 tests/KNOWN-BUGS.md。
 - 窄屏只用 `viewport`（约 520 × 900），不用设备描述符，不测拖拽。
 - 文件输入用内存 buffer，磁盘上不放任何备份类文件。
 
