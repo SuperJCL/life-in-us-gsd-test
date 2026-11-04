@@ -199,8 +199,14 @@ test.describe('CAL-04 undo window on a manual clock', () => {
     await app.expectSaved((s) => s.logs.every((l: Log) => l.id !== id), '等待保存后的记录里没有被删除的这条');
     const writesAfterDelete = app.backend.writes.length;
 
+    // 钉住 5000 ms 的边界：t=1900 时仍在（排除与普通 toast 相同的 1800 ms），t=4900 时仍在，t=5100 时已消失
+    await page.clock.runFor(900);
+    await expectUndoOffered(page);
+    await page.clock.runFor(3_000);
+    await expectUndoOffered(page);
+
     // 越过 5 秒：toast 失去 on 和 act，撤销按钮不再存在，删除仍是已保存的状态
-    await page.clock.runFor(5_000);
+    await page.clock.runFor(200);
     await expectToastGone(page);
     const act = await page.evaluate(() => !!document.querySelector('#toast')?.classList.contains('act'));
     expect(act, 'toast 过期后不应再带 act 类').toBe(false);
