@@ -2,6 +2,9 @@
 // 不导入应用代码，也不读取应用源码：规则都是按应用的行为独立写出的规格。
 import {
   CAT_OTHER,
+  CELL_ARIA_DONE_SUFFIX,
+  CELL_ARIA_DUE_SUFFIX,
+  CELL_ARIA_LOGS_SUFFIX,
   CATEGORY_NAMES,
   COMPOSER_WHEN_PREFIX,
   CSV_DONE_PREFIX,
@@ -14,6 +17,8 @@ import {
   GROUP_CATEGORY,
   LEGACY_CATEGORY_MAP,
   MONTH_SUFFIX,
+  MONTH_TITLE_MONTH_SUFFIX,
+  MONTH_TITLE_YEAR_SEP,
   WEEKDAY_CHARS,
   WEEKDAY_PREFIX,
   WEEK_RANGE_SEPARATOR,
@@ -293,4 +298,97 @@ export function dayAriaLabel(date: string, n: number): string {
 export function timelineDateLabel(ymd: string): string {
   const [, m, d] = ymd.split('-').map(Number);
   return `${m}/${d}`;
+}
+
+// ---- 日历视图的独立期望（CAL-01 到 CAL-04）----
+// 下面的函数都是按应用的行为独立写出的规格，不导入、不读取应用代码；日期计算一律用 UTC。
+
+export type DayState = {
+  arrival?: string | null;
+  logs: SynthLog[];
+  tasks: Record<string, any>;
+  custom: { id: string; group: string; text: string }[];
+};
+
+// 月历的格子：month 为 1-12。起点是当月 1 日所在周的周日；最多 42 格，
+// 第 36 格（下标 35）已经不在当月时停在 35 格。out 表示不在当月
+export function monthGrid(year: number, month: number): { date: string; out: boolean }[] {
+  const first = Date.UTC(year, month - 1, 1);
+  const start = first - new Date(first).getUTCDay() * DAY_MS; // 周日为 0
+  const out: { date: string; out: boolean }[] = [];
+  for (let i = 0; i < 42; i++) {
+    const ms = start + i * DAY_MS;
+    const isOut = new Date(ms).getUTCMonth() !== month - 1;
+    if (i === 35 && isOut) break;
+    out.push({ date: ymdOfMs(ms), out: isOut });
+  }
+  return out;
+}
+
+// date 这一天的事件，都只是 id：记录按 state.logs 的顺序；任务先内置（组号、序号）再自定义（state.custom 的顺序）。
+// 规则：已完成的任务只在完成日算 done，不会再作为到期出现；未完成的任务在截止日算 due
+export function eventsOnDate(state: DayState, date: string): { logs: string[]; due: string[]; done: string[] } {
+  const out = { logs: state.logs.filter((l) => l.date === date).map((l) => l.id), due: [] as string[], done: [] as string[] };
+  const ids = [...builtinTaskIds(state), ...(state.custom ?? []).map((c) => c.id)];
+  for (const id of ids) {
+    const s = state.tasks?.[id] ?? {};
+    if (s.done && s.doneDate === date) out.done.push(id);
+    else if (!s.done && s.due === date) out.due.push(id);
+  }
+  return out;
+}
+
+// 格子的 aria-label：M月D日，N 条记录，N 项到期，N 项完成（逗号是全角）
+export function cellAriaLabel(date: string, counts: { logs: number; due: number; done: number }): string {
+  const sep = DAY_ARIA_SEPARATOR;
+  return (
+    `${mdLabel(date)}${sep}${counts.logs}${CELL_ARIA_LOGS_SUFFIX}` +
+    `${sep}${counts.due}${CELL_ARIA_DUE_SUFFIX}${sep}${counts.done}${CELL_ARIA_DONE_SUFFIX}`
+  );
+}
+
+// 月份标题：YYYY 年 M 月，月不补零
+export function monthTitle(year: number, month: number): string {
+  return `${year}${MONTH_TITLE_YEAR_SEP}${month}${MONTH_TITLE_MONTH_SUFFIX}`;
+}
+
+export type MonthCell = {
+  date: string;
+  out: boolean;
+  today: boolean;
+  sel: boolean;
+  arr: boolean;
+  aria: string;
+  day: string;
+  kinds: ('log' | 'due' | 'done')[];
+  more: string | null;
+};
+
+// 整月每一格的期望：类、aria-label、日号、前 3 个 chip 的种类（记录、到期、完成的顺序）和“+N”
+export function expectedMonthCells(
+  state: DayState,
+  year: number,
+  month: number,
+  today: string,
+  sel: string,
+): MonthCell[] {
+  return monthGrid(year, month).map(({ date, out }) => {
+    const e = eventsOnDate(state, date);
+    const all: ('log' | 'due' | 'done')[] = [
+      ...e.logs.map(() => 'log' as const),
+      ...e.due.map(() => 'due' as const),
+      ...e.done.map(() => 'done' as const),
+    ];
+    return {
+      date,
+      out,
+      today: date === today,
+      sel: date === sel,
+      arr: date === state.arrival,
+      aria: cellAriaLabel(date, { logs: e.logs.length, due: e.due.length, done: e.done.length }),
+      day: String(Number(date.slice(8))),
+      kinds: all.slice(0, 3),
+      more: all.length > 3 ? `+${all.length - 3}` : null,
+    };
+  });
 }

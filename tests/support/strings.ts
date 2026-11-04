@@ -155,3 +155,14 @@ export const TOAST_LOG_DELETED = '已删除这条记录';
 export const TOAST_RESTORED = '已恢复';
 // 在完成计划弹窗里点“标记为未完成”后的 toast（应用源码逐字复制）
 export const TOAST_MARKED_UNDONE = '已改回未完成';
+
+// ---- 日历视图（CAL-01 到 CAL-04）----
+
+// 月份标题“YYYY 年 M 月”：年后的分隔符前后各一个空格，月后缀前面一个空格（应用源码第 482 行逐字复制）
+export const MONTH_TITLE_YEAR_SEP = ' 年 ';
+export const MONTH_TITLE_MONTH_SUFFIX = ' 月';
+
+// 日历格子 aria-label 里三个计数后面的文字，前面接数字（应用源码第 490 行逐字复制）
+export const CELL_ARIA_LOGS_SUFFIX = ' 条记录';
+export const CELL_ARIA_DUE_SUFFIX = ' 项到期';
+export const CELL_ARIA_DONE_SUFFIX = ' 项完成';
