@@ -89,7 +89,8 @@ export function customTasks(state: { custom: { id: string; group: string; text: 
 // 独立实现，不导入应用代码。
 export function expectedCategory(cat: string): string {
   const legacy: Record<string, string> = LEGACY_CATEGORY_MAP;
-  if (cat in legacy) return legacy[cat];
+  // 不用 in：原型链上的键（constructor、toString、__proto__ 等）不是旧类别，应一律落到“其他”
+  if (Object.prototype.hasOwnProperty.call(legacy, cat)) return legacy[cat];
   if ((CATEGORY_NAMES as readonly string[]).includes(cat)) return cat;
   return CAT_OTHER;
 }
