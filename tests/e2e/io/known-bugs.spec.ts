@@ -63,9 +63,10 @@ test.describe('BUG-01 B2 the file input is not cleared when the import confirm i
 
 // N3：导入 {} 这类合法 JSON 并确认后，全部数据被清空（normalize 校验过浅）。
 // 期望行为是应用拒绝它并提示格式错误。D-02 的二选一选了“出现格式错误提示”，理由：
-//  - “fixture 的记录仍在页面上”会在导入处理完之前就立刻成立，bug 存在时也会通过；
+//  - “fixture 的记录仍在页面上”单独使用会在导入处理完之前就立刻成立，bug 存在时也会通过；
 //  - “保存的状态里记录仍在”在应用修好后永远不成立（修好的应用不会保存）；
 //  - 格式错误 toast 是正向、自带同步点的断言：bug 存在时出现的是已恢复，修好后会出现格式错误提示。
+// 所以第一条断言是格式错误 toast；它出现之后，再断言没有弹过确认框、记录仍在页面上（此时这两条不再空转）。
 // 准备函数里不等对话框：应用修好后不会再弹确认，对照用例自己 poll 等消息。
 // [] 和字段类型错误的对象与 {} 同类，没有单独验证。
 test.describe('BUG-01 N3 an empty JSON object passes as a backup and replaces all data', () => {
@@ -91,8 +92,12 @@ test.describe('BUG-01 N3 an empty JSON object passes as a backup and replaces al
     app,
   }) => {
     knownBug('N3', '导入 {} 这类不像备份的 JSON 并确认后，全部数据被清空');
-    await importEmptyObject(page, app);
+    const dialogs = await importEmptyObject(page, app);
 
+    // 第一条断言是同步点：bug 存在时这里就失败（出现的是已恢复，不是格式错误提示）
     await expectToast(page, TOAST_IMPORT_BAD_FORMAT);
+    // 格式错误提示出现之后再检查：不应先弹替换确认，fixture 的记录也还在页面上
+    expect(dialogs, '不应弹出替换确认框').toEqual([]);
+    await expect(page.locator('#tab-wk [data-edit="synth-full-04"]')).toHaveCount(1);
   });
 });
