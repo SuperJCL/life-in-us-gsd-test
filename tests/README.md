@@ -18,6 +18,8 @@
 
 只跑部分用例时，把参数接在 `--` 后面，例如 `npm test -- -g "IO-01"`。
 
+需要机器判定“没有失败、没有 flaky、指定的用例都实际运行”时，用 `PW_JSON_REPORT=test-results/<名字>.json` 前缀运行（同时加 `--workers=1` 最省资源），再用 `node tools/test-report/check-report.mjs <报告> "<标题>" …` 检查，通过时输出 `REPORT OK`；`node tools/test-report/check-report.mjs --self-test` 是它的反向对照，证明脚本在该失败时会失败。原因：配置里 `retries: 1`，单看退出码分不出“重试后才通过”的用例，也看不出用例是不是被过滤掉没跑。报告只放在已被 git 忽略的 `test-results/` 下，只在本机读，只打印计数和标题。
+
 ## 4. 看报告
 
 - HTML 报告生成在 `playwright-report/`，不会自动弹出。用 `npx playwright show-report` 打开：它只在本机起一个查看服务，使用项目内已装好的 Playwright，不安装任何东西。看完在终端按 Ctrl+C 结束查看服务。
@@ -28,18 +30,20 @@
 
 | 路径 | 放什么 |
 |------|--------|
-| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、零依赖静态服务器 |
+| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针、已知 bug 登记护栏 |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts` |
 | `tests/e2e/data/` | 合成数据用例：完整 fixture、旧类别名、最小状态在三个视图里的呈现 |
 | `tests/e2e/week/` | 本周视图：渲染、周导航、记一笔、预设标签、拖放、复盘，以及已知 bug 的成对用例 |
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
+| `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
+| `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
 | `tests/e2e/io/` | 导出用例：日历 CSV 与 JSON 备份，内容从 `app.backend.downloads` 读取 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tests/PROBES.md` | 运行时探针的结论 |
-| `tests/KNOWN-BUGS.md` | 已知 bug 登记表：编号、出处、成对用例标题、期望行为和现状 |
+| `tests/KNOWN-BUGS.md` | 已知 bug 登记表：编号、出处、对照用例和标记用例的标题、期望行为和现状 |
 
 ## 6. 约定
 
@@ -119,17 +123,19 @@
 - **`composer(page, 'w' | 'c')`（记一笔）：** `'w'` 是本周视图的实例，`'c'` 是日历日面板的实例，共用一套选择器。常用成员：`text`、`addButton`、`pickCategory(name)`、`type(s)`、`append(s)`、`submit('click' | 'keyboard')`、`draft()`、`addPreset(name)`、`toggleEditMode()`。内置预设标签是个人计划文字（D-14）：只按序号选，点选、删除和读取都用 `presetIndexes / clickPreset / deletePreset` 在页面内完成，文字只在 Node 侧做布尔比较，不打印、不拼进选择器或断言消息。fixture 里的合成标签和 `SYNTH-` 开头的新标签可以真实点击。
 - **失败输出脱敏要覆盖 Playwright 的调用日志（D-14）：** 动作和单元素断言失败时，日志会打印命中元素的预览（属性加文字），被遮挡时还会打印遮挡元素的预览，定位器命中多个元素时 strict mode 报错会列出每一个。所以属性或文字带个人计划原文的元素（内置预设、内置任务条目、力量备注）不做 Playwright 动作和单元素断言，只用 `toHaveCount` 计数，或用 `page.evaluate` 读回序号、id、布尔；定位器要精确到合成 id。
 - **`editor(page)`（编辑弹窗）：** 从记录打开用 `ed.openLog(entry)`，从已完成的计划打开用 `ed.openTask(entry)`，两者都会确认弹窗已打开且标题对。日面板的条目里还有删除按钮，要传条目里的 `.li-text`，不要传整条。常用成员：`setText`、`setCategory`（点完确认 `aria-pressed`，整个表单会被重绘）、`setDate`、`save('click' | 'keyboard')`、`deleteEntry`、`cancel`、`markUndone`、`expectOpen`、`expectClosed`。弹窗是 `showModal` 打开的，背景不可交互：操作弹窗以外的元素之前先 `expectClosed`。Escape 和点遮罩走浏览器原生关闭，用例直接按键或点击。完成计划的弹窗会显示计划原文，所以只为合成的自定义计划（`c-synth-2`）打开。
-- **toast（`toast.ts`）：** `expectToast(page, text)`、`expectToastPrefix(page, prefix)`、`expectUndoOffered(page)`、`undo(page)`、`expectToastGone(page)`。是否显示只看 `#toast` 的 `.on` 类（D-04）：toast 消失后文字仍留在 DOM 里，元素在 Playwright 看来仍然可见，所以引用 toast 的 spec 里不用可见性断言（`tests/support/toast.ts` 本身也不用）。比较都在 Node 侧用 `expect.poll` 完成，失败消息只含期望值或“内容已隐藏”。带撤销的 toast 只显示 5 秒，所以点撤销前不要做别的耗时操作。
+- **toast（`toast.ts`）：** `expectToast(page, text)`、`expectToastPrefix(page, prefix)`、`expectUndoOffered(page)`、`undo(page)`、`expectToastGone(page)`，以及带力量名称的 toast 用的 `expectToastSuffix`、`expectToastContains`（只在 Node 侧比较后缀或片段，失败消息固定为“内容已隐藏”）。是否显示只看 `#toast` 的 `.on` 类（D-04）：toast 消失后文字仍留在 DOM 里，元素在 Playwright 看来仍然可见，所以引用 toast 的 spec 里不用可见性断言（`tests/support/toast.ts` 本身也不用）。比较都在 Node 侧用 `expect.poll` 完成，失败消息只含期望值或“内容已隐藏”。带撤销的 toast 只显示 5 秒，所以点撤销前不要做别的耗时操作。
 - **`app.saved()` 和 `app.expectSaved(predicate, message?)`（统一的“已保存”）：** 账户模式只认应用发出的写入，`saved()` 返回 `app.backend.writes` 最后一条的内容，还没有写入时是 `null`，mock 里的种子文档不算保存；本地模式读 localStorage，键不存在或内容与 `open()` 写入的种子原文相同时是 `null`。`expectSaved` 用 `expect.poll` 等 predicate 成立，默认 message 不含状态内容。新用例用它们；Phase 1、2 的 `persisted()`、`expectPersisted()` 保留不动。
+- **`calendar.ts`（日历视图读回）：** `gotoCalendar`、`readMonth`、`readCellLogClasses`、`readDayPanelLogClasses`、`readDayPanel` 等，一次 `page.evaluate` 读回整月或整个日面板，再在 Node 侧与 `expect-from-fixture.ts` 的独立推导比较。只读日期、类名、aria-label、id、组号和数量，不读到期和完成 chip、日面板计划条目的文字（它们是个人计划原文）。
+- **`goals.ts`（目标视图读回和任务操作）：** `gotoGoals`、`readGroups`、`readLifts`、`liftHistoryEquals`、`checkTask`、`setDue`、`readTaskRow`。内置任务的复选框和截止日期只在页面内按位置 id 操作和读回（`checkTask`、`setDue`、`readTaskRow`），不做定位器动作、文字断言或可见性断言，因为它们的 aria-label 是任务原文，Playwright 的调用日志会打印；只有合成的自定义任务才用真实点击和填写。
 - **期望值从 fixture 推导（D-10）：** 本周的标题、范围、计数、7 列内容、时间线日期标签等都由 `expect-from-fixture.ts` 的函数独立算出（`weekCountsByCategory`、`weekDayColumns`、`mdLabel`、`timelineDateLabel` 等），缺的推导函数加在那里，用例里不抄数字。
-- **时间与保存：** 输入复盘之后，先 `expectSaved` 等保存完成再做别的操作，防止防抖期间的重绘把文本框还原（N2，D-03）。只有证明“没有保存”时才用 manual 时钟：`test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 加 `pauseAt`，`runFor` 推过防抖后比较 `app.backend.writes.length`，再用一次哨兵写入证明这个窗口确实推进了防抖（D-05、D-15）；同一个用例里不混用 `setFixedTime`，不用固定睡眠。
+- **时间与保存：** 输入复盘之后，先 `expectSaved` 等保存完成再做别的操作，防止防抖期间的重绘把文本框还原（N2，D-03）。manual 时钟（`test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 加 `pauseAt`，再用 `runFor` 推进）现在有三类用途：(1) 证明“没有保存”（含力量输入框失焦、空白待办）：`runFor` 推过 600 ms 防抖后比较 `app.backend.writes.length`，再用一次哨兵写入证明这个窗口确实推进了防抖（D-05、D-15）；(2) 撤销窗口和 toast 过期：撤销用例的顺序是 install、open、`expectAccountMode`、`pauseAt`、动作、`runFor(1_000)` 推过防抖、再 undo；过期用例再推过 5 秒，看 `#toast` 的 `.on` 消失、`#toast.act button` 为 0 个；(3) 带计时器的刷新（B4）：暂停时钟后输入、不推进防抖就刷新。同一个用例里不混用 `setFixedTime`，不用固定睡眠。
 
 ## 14. 已知 bug
 
 应用保持只读，已知 bug 只在测试侧标记和登记（BUG-01）。
 
-- **成对用例（D-11）：** 每个已知 bug 是同一个 `test.describe` 里的一对用例。对照用例不带标记，走完全相同的准备和触发，断言前提成立；标记用例第一句调用 `knownBug(id, summary, opts?)`（来自 `tests/support/test.ts`），只断言一条期望的正确行为。分成两条，是因为 `test.fail` 会把同一条用例里任何原因的失败都当成预期失败。
+- **一条或多条对照用例加一条 `test.fail`（D-11）：** 每个已知 bug 是同一个 `test.describe` 里的几条用例，多数是一条对照加一条标记，B4 有两条对照用例。对照用例不带标记，走完全相同的准备和触发，断言前提成立；标记用例第一句调用 `knownBug(id, summary, opts?)`（来自 `tests/support/test.ts`），只断言一条期望的正确行为。分成两条，是因为 `test.fail` 会把同一条用例里任何原因的失败都当成预期失败。
 - **`test.fail` 还是 `test.fixme`：** 默认 `test.fail`。只有无法稳定复现、或期望行为未定时才用 fixme（`{ fixme: '<原因>' }`），并在登记表的“现状”里写明原因。
 - **先确认复现：** 标记前先去掉标记运行一次，确认失败点正是那条期望断言，再恢复。没有亲眼复现的问题不标成已知 bug。
 - **登记：** 在 `tests/KNOWN-BUGS.md` 的登记表里加一行，写明编号、`.planning/codebase/CONCERNS.md` 的出处、两个用例的完整标题、期望行为和现状（D-12）。`tests/e2e/platform/known-bugs-registry.spec.ts` 的护栏用例会双向核对 spec 里的编号和登记行、用例标题，漏登记或写错标题都会变红。
-- **预期现象：** 跑全部用例时，登记的标记用例在列表里显示为通过（预期失败），这是正常的；应用修好之后它们会变红，提醒去掉标记。
+- **预期现象：** 跑全部用例时，登记的标记用例在列表里带 x 标记，但汇总计为通过（预期失败），这是正常的；应用修好之后它们会变红，提醒去掉标记。
