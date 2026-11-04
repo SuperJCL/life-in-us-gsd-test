@@ -193,3 +193,15 @@ export const LIFT_UPDATED_INFIX = '已更新为 ';
 
 // 力量历史行里几条记录之间的分隔符，全角逗号（应用源码第 512 行逐字复制）
 export const LIFT_HISTORY_SEPARATOR = '，';
+
+
+// ---- 目标视图的任务（GOAL-03 到 GOAL-05）----
+
+// 勾选任务后的 toast（应用源码第 623 行逐字复制，逗号是全角）
+export const TOAST_TASK_DONE = '完成，已记到今天';
+
+// 已完成任务行里的“完成于 ”前缀，后面接 M月D日，末尾一个空格（应用源码第 523 行逐字复制）
+export const GOAL_DONE_ON_PREFIX = '完成于 ';
+
+// 未完成且没有过期的任务行里的标记文字（应用源码第 523 行逐字复制）；过期时是上面的 GOAL_OVERDUE
+export const GOAL_DUE_LABEL = '截止';

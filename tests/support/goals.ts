@@ -109,3 +109,61 @@ export async function liftHistoryEquals(page: Page, id: string, expected: string
     { id, expected },
   );
 }
+
+
+// 在页面内勾选（或取消勾选）任务 id 对应的复选框。内置任务的复选框 aria-label 是任务原文，
+// Playwright 的动作失败时调用日志会打印它，所以这里不用定位器动作，而是在页面内调用元素自己的 click()：
+// 它会切换勾选状态并触发应用挂在 #goals 上的 change 委托。找不到时断言失败，消息只含 id
+export async function checkTask(page: Page, id: string) {
+  const found = await page.evaluate((id) => {
+    const el = document.querySelector<HTMLElement>(`#goals [data-task="${id}"]`);
+    if (!el) return false;
+    el.click();
+    return true;
+  }, id);
+  expect(found, `目标页上应当能找到任务 ${id} 的复选框`).toBe(true);
+}
+
+// 任务行的读回形状：只有布尔、日期、固定文案和 id，不读 .tt 和 aria-label
+export type TaskRowRead = {
+  found: boolean;
+  checked: boolean;
+  isdone: boolean;
+  overdue: boolean;
+  label: string | null;
+  due: string | null;
+  doneOn: string | null;
+  hasDelete: boolean;
+};
+
+// 一次 page.evaluate 读回任务 id 所在的行。行是复选框所在的 .task。
+// label：未完成时 .meta 里第一个直接子 span 的文字（截止或已过期），完成时为 null；
+// doneOn：完成时 .meta 去掉按钮后的文字（完成于 M月D日），否则为 null
+export async function readTaskRow(page: Page, id: string): Promise<TaskRowRead> {
+  return page.evaluate((id) => {
+    const cb = document.querySelector<HTMLInputElement>(`#goals [data-task="${id}"]`);
+    const row = cb?.closest('.task') ?? null;
+    if (!cb || !row) {
+      return { found: false, checked: false, isdone: false, overdue: false, label: null, due: null, doneOn: null, hasDelete: false };
+    }
+    const isdone = row.classList.contains('isdone');
+    const meta = row.querySelector('.meta');
+    let doneOn: string | null = null;
+    if (isdone && meta) {
+      const clone = meta.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('button').forEach((b) => b.remove());
+      doneOn = (clone.textContent ?? '').trim();
+    }
+    const dueInput = row.querySelector<HTMLInputElement>('[data-due]');
+    return {
+      found: true,
+      checked: cb.checked,
+      isdone,
+      overdue: !!row.querySelector('.od'),
+      label: isdone ? null : (meta?.querySelector(':scope > span')?.textContent ?? null),
+      due: dueInput ? dueInput.value : null,
+      doneOn,
+      hasDelete: !!row.querySelector('[data-deltask]'),
+    };
+  }, id);
+}
