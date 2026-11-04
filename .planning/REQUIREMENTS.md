@@ -83,7 +83,7 @@
 - [x] **IO-02**: 账户模式下导出的日历 CSV 内容正确（表头、MM/DD/YYYY 日期、引号和逗号转义）
 - [x] **IO-03**: 导出的 JSON 备份内容与当前状态一致
 - [ ] **IO-04**: 用户导入 JSON 备份时，确认后全部数据被替换；取消则数据不变；选择非 JSON 文件时提示错误
-- [ ] **IO-05**: 带旧类别名的数据导入后，会迁移到新的类别
+- [x] **IO-05**: 带旧类别名的数据导入后，会迁移到新的类别
 
 ### Responsive
 
@@ -174,7 +174,7 @@
 | IO-02 | Phase 2 | Complete |
 | IO-03 | Phase 2 | Complete |
 | IO-04 | Phase 5 | Pending |
-| IO-05 | Phase 5 | Pending |
+| IO-05 | Phase 5 | Complete |
 | RESP-01 | Phase 5 | Pending |
 | BUG-01 | Phase 3 | Complete |
 
