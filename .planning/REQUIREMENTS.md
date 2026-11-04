@@ -68,8 +68,8 @@
 
 ### Timeline View
 
-- [ ] **TL-01**: 时间线按月倒序列出记录和完成的计划；没有内容时显示空状态提示
-- [ ] **TL-02**: 用户可以按类别筛选，也可以只看“完成的计划”
+- [x] **TL-01**: 时间线按月倒序列出记录和完成的计划；没有内容时显示空状态提示
+- [x] **TL-02**: 用户可以按类别筛选，也可以只看“完成的计划”
 
 ### Editor & Cross-view
 
@@ -165,8 +165,8 @@
 | GOAL-03 | Phase 4 | Complete |
 | GOAL-04 | Phase 4 | Complete |
 | GOAL-05 | Phase 4 | Complete |
-| TL-01 | Phase 5 | Pending |
-| TL-02 | Phase 5 | Pending |
+| TL-01 | Phase 5 | Complete |
+| TL-02 | Phase 5 | Complete |
 | EDIT-01 | Phase 3 | Complete |
 | EDIT-02 | Phase 3 | Complete |
 | EDIT-03 | Phase 3 | Complete |
