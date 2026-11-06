@@ -1,37 +1,35 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 5
-status: completed
-stopped_at: Phase 6 removed — v1 milestone ready to close
-last_updated: "2026-11-06T05:13:52.711Z"
+status: Awaiting next milestone
+stopped_at: v1.0 milestone archived — awaiting next milestone
+last_updated: "2026-11-06T05:39:14.700Z"
 last_activity: 2026-11-05
-last_activity_desc: Phase 6 removed (superseded by the multi-account cloud milestone)
-state_head: 962de6855504609a5bcf12b7e3e12e1bf8fdc3cc
+last_activity_desc: Milestone v1.0 completed and archived
+state_head: 48c52c881c10e709cfbf4444166f033199955bc6
 progress:
   total_phases: 5
   completed_phases: 5
   total_plans: 20
   completed_plans: 20
   percent: 100
+current_phase: 5
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-05 after Phase 5)
+See: .planning/PROJECT.md (updated 2026-11-05 after v1.0 milestone)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** 第一个里程碑（Phase 1–5，只写测试）已全部完成，准备收尾归档。用户在 2026-11-05 决定改走新方向：多账号云端版（Vercel + 免费云数据库），用新里程碑来做；原 Phase 6（本地私有文件加查看页）被它取代，已从路线图移除。
+**Current focus:** 规划下一个里程碑：多账号云端版（3 个人各自账号、按账号存取记录、实时同步、按账号导出导入；部署方式要让中国和美国用户都能访问，在新里程碑里定）。下一步：`/gsd-new-milestone`。
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Completed
-Last activity: 2026-11-05 — Phase 6 removed (superseded by the multi-account cloud milestone)
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-05 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -84,47 +82,12 @@ Progress: [██████████] 100%
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Decisions are logged in PROJECT.md Key Decisions table. v1.0 的逐阶段决定已随归档保存在 `.planning/milestones/v1.0-phases/` 各阶段的 CONTEXT 和 SUMMARY 里。
 
-- [Roadmap]: 粒度为 coarse，把调研建议的 7 个阶段压缩为 5 个；顺序保持“护栏和探针 → mock 与合成数据 → 共享 helper 与本周视图 → 其余视图”。
-- [Roadmap]: 所有阶段都是 MVP 模式；Phase 1 只用本地模式，就要跑通一条端到端用例。
-- [Roadmap]: CSV 和 JSON 导出（IO-02、IO-03）放在 Phase 2，和 downloads mock、合成数据一起验证；导入（IO-04、IO-05）放在 Phase 5。
-- [Roadmap]: 编辑弹窗的三处入口（EDIT-01）放在 Phase 3，和共享 helper 一起完成，后面的视图直接复用。
-- [Phase 01]: [01-01] 死代理放在 launchOptions.proxy（浏览器级），与 127.0.0.1:4789 页面共存，保留不动 — 探针手动创建的 context 也自动带上；实测 npm test 通过，没有 ERR_PROXY_CONNECTION_FAILED
-- [Phase 01]: [01-01] Edge 156.0.4314.58 无需下载即可被 Playwright 1.64.1 驱动，条件检查点（Task 3）未触发 — npm test 用 msedge 通道一次通过，没有运行任何安装器
-- [Phase 01]: SAFE-04 page-error self-check throws via queueMicrotask: under setFixedTime, timer-callback errors surface only as console.error, not pageerror
-- [Phase 01]: ENV-03 runtime evidence added: raw node:http traversal requests and loopback-only listener check (non-loopback connect must fail)
-- [Phase 01]: [01-03] PROBE-2 两层网络兜底都被用例证明（解析层：localhost、probe.localhost 加去规则对照；代理层：probe.invalid 与 WebSocket 对照），网络检查点（Task 3）未触发 — 对照浏览器只去掉解析规则、保留死代理；经代理的主机名由代理层保证
-- [Phase 01]: [01-03] preconnect 在这台无界面 Edge 上没有被直接观察到（字体主机 CONNECT 为 0），PROBES.md 写成推断；Plan 04 的 README 要写明这一点 — 诚实记录：不把未观察到的行为写成已证明
-- [Phase 01]: [01-04] 报告器默认不变（list 加 html，open: 'never'），json 只在设置 PW_JSON_REPORT 时追加，确定性检查跑交付配置本身 — 命令行不覆盖报告器，list 和 html 照常工作；两次 25 条运行结果一致，flaky 0
-- [Phase 01]: [01-04] 阶段末人工验收 approved：test:ui 能回放 IO-01，show-report 能打开报告，全程无安装提示；内嵌终端不会自动打开浏览器，README 已补手动打开说明；UI 模式浏览器按配置为 msedge，用户未在窗口上确认品牌 — 如实记录：品牌是配置层面的推断，不当作已验证事实
-- [Phase 02]: 02-01: localhost:<PORT> stays in the static-server Host allowlist (PROBE-2a control browser needs it); other Hosts get 421, non-GET/HEAD get 405
-- [Phase 02]: 02-01: guard has no requestfailed listener and cannot alarm on preconnect; limits documented in test.ts and README section 7
-- [Phase 02]: D-01 conclusion: exposeBinding is usable at init and at get() time (PROBE-7 and account tracer); no sessionStorage fallback
-- [Phase 02]: Account-mode ready() requires the account status text plus both export buttons visible; the negative control (userId null, expectStore local) proves expectAccountMode can fail
-- [Phase 02]: 02-03: expectedCategory is an independent spec of normalize; category and LEGACY names live only in tests/support/strings.ts (D-12 clarification)
-- [Phase 02]: 02-05: contract self-tests found no deviation in the mock; CONTRACT.md excerpts are verbatim (33 lines script-checked) and window.claude freezing is recorded as a stricter mock choice, not a contract item
-- [Phase 02]: [02-04] "与种子文档相等" 按去掉 _synthetic 理解：normalize 丢掉未知键，备份里没有 _synthetic
-- [Phase 02]: 代码审查修复的主线是“失败输出也不能泄漏个人计划文字”：涉及内置任务文字或力量备注的断言，一律改成布尔比较或脱敏比较（`csvMismatch`/`maskTaskTexts`），并有常驻反向对照
-- [用户决定 2026-11-03]: Phase 3–5 的讨论灰区直接采用推荐答案（smart discuss 委托），只在真正需要用户决定的产品行为上停下
-- [用户决定 2026-11-03]: N3（导入 `{}` 这类合法但不像备份的 JSON 并确认后会清空全部数据）算已知 bug：期望应用拒绝，Phase 5 用 `test.fail` 标记一条窄断言，并登记到 KNOWN-BUGS.md
-- [Phase 03]: 03-01: saved() 账户模式只认 backend.writes 最后一条，本地模式用种子原文区分种子与应用写回
-- [Phase 03]: 03-01: 内置预设的点选与删除在页面内 page.evaluate 完成，真实指针路径由合成标签证明
-- [Phase 03]: 03-04: B1 and N1 reproduced with the marker removed and marked test.fail; registry guard cross-checks knownBug ids and titles against tests/KNOWN-BUGS.md
-- [Phase 03]: 03-02: WEEK-05 drag uses dragTo (plan A) with no synthetic events; B4 reproduced with the marker removed and marked test.fail under a manual clock; page.clock stays installed and paused across reload
-- [Phase 03]: 03-03: editor helper and EDIT-01..03 verified with no app/FEATURES mismatch; 'no save' proven only under a manual clock with a sentinel write; EDIT-03 uses only the synthetic custom plan c-synth-2
-- [Phase 04]: 04-01: 日历网格与日面板的期望由 Date.UTC 独立推导，页面内一次读回后在 Node 侧比较；计划条目只读 id、组号和数量 — 保持黑盒且不在失败输出里泄露个人计划文字
-- [Phase 04]: 04-01: B1 日历日面板实例已复现并按一对用例登记（test.fail），撤销 toast 过期在 manual 时钟下验证 — 沿用 Phase 3 的成对已知 bug 约定
-- [Phase 04]: 04-02: 目标组的总数取 DOM 里内置任务个数，expectedGroup 按位置 id 构造内置 id，不复制任务原文
-- [Phase 04]: 04-02: 力量 toast 只经 expectToastSuffix 与 expectToastContains 比较固定片段；很小值和极大值分别证明不达标与达标分支，不写目标数值
-- [Phase 04]: N1 的日面板删除、目标页勾选两种触发都先去掉标记亲眼复现（失败点是草稿断言，实际值为空字符串），最终用 test.fail 并登记；拖拽、改抵达日期仍未验证
-- [Phase 04]: 内置任务的勾选和截止日期只经 goals.ts 的 checkTask、setDue、readTaskRow 在页面内按位置 id 操作，期望由保存后的状态推导
-- [Phase 05]: Timeline readback compares record entry .tag (category name) in addition to ids; done-plan entries read only id, date and month heading — Two pieces of evidence for category filtering while keeping personal plan text out of failure output
-- [Phase 05]: Live-update timeline test derives expectations from app.saved() state rather than hand-built state — New entry id and date come from the app's own saved result
-- [Phase 05]: 05-02: 导入“没有保存”的证明用 manual 时钟加写入次数加哨兵（哨兵写入的记录 id 等于 fixture），往返用例导入导出原文而不重新序列化
-- [Phase 05]: 05-04: B2 and N3 both reproduced and marked test.fail; B2 asserts only the deterministic #importJson value (PROBE-8: setInputFiles always re-dispatches change)
-- [Phase 05]: 05-03: 窄屏三条前提在 520x900 下全部成立，未改视口；里程碑收尾不运行 complete-milestone，Phase 6 等用户决定
+仍然有效的工作方式：
+- 测试一律低优先级、单 worker 运行，不同时跑两次，不做全盘扫描；`playwright.config.ts` 按用户决定保持默认值。
+- 公开仓库：应用原文件、真实数据、本机路径、真实邮箱不进 git，提交和推送前都跑隐私检查；推送前要用户确认。
+- 子代理不得运行 `npx --no playwright` 以外的任何 npx（AR-03-01 的教训）。
 
 ### Pending Todos
 
@@ -132,29 +95,17 @@ None yet.
 
 ### Blockers/Concerns
 
-没有阻塞项。以下是非阻塞的关注点：
+没有阻塞项。v1.0 的遗留项（INFO、Phase 1 未做安全审计、IN-10）记在 `.planning/MILESTONES.md`。
 
-- [Phase 1 遗留，非阻塞]: 安全审计（`/gsd-secure-phase 1`）还没运行，所以没有 SECURITY.md。`phase.complete` 已经把这条记为警告。（Phase 1 代码审查的 6 个 WARNING 已在 02-01 修复，3 个 INFO 保持 open。）
-- [Phase 2，非阻塞]: 代码审查跑完 `--auto` 3 轮，共 7 个 WARNING 都已修复。还剩 7 个 INFO，状态是 open，不在修复范围内，见 `02-REVIEW-DISPOSITION.md`。`--auto` 的迭代备份（`02-REVIEW*.iter*.md`）按流程保留在本地，未提交。
-- [Phase 3，非阻塞]: 代码审查共 4 个 WARNING，已在第 1 轮修复，第 2 轮复审时修复范围已经收敛。还剩 8 个 INFO，状态是 open，见 `03-REVIEW-DISPOSITION.md`。其中 IN-08（README 里关于 manual 时钟和“一对用例”的说法已过时）已在 Phase 4 的 04-03 更新。
-- [Phase 4，非阻塞]: 代码审查共 5 个 WARNING，已在第 1 轮修复，第 2 轮复审时已经收敛，其中 WR-03 让报告检查脚本也拒绝跳过、过滤和部分运行。还剩 4 个 INFO，状态是 open，见 `04-REVIEW-DISPOSITION.md`。验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-03 已确认。
-- [Phase 5，非阻塞]:
-  - 代码审查跑完 `--auto` 3 轮，共 3 个 WARNING：第 1 轮全部修复，WR-01 在第 2 轮补全，第 3 轮复审为 0 个 WARNING。
-  - 还剩 10 个 INFO，状态是 open，见 `05-REVIEW-DISPOSITION.md`。其中 IN-10：窄屏选日滚动用例分不出 `block` 取值，在黑盒约束下无法消除。
-  - 验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-05 已确认。
-  - 最终全套 154 条 `REPORT OK`，0 flaky。
-- [运行环境，非阻塞]: 用户的电脑在长时间运行时会卡，所以测试一律低优先级、只开 1 个 worker、不同时跑两次，也不做全盘扫描（见记忆 local-resource-limits）。`playwright.config.ts` 按用户决定保持不变。
-- [方向变化，非阻塞]: 原 Phase 6（个人内容外置到本地私有文件加查看页）在 2026-11-05 被用户的新方向取代：3 个人各自账号、按账号存取 JSON、实时更新、按账号导出导入，用 Vercel 加免费云数据库实现。它会作为新里程碑来做，个人计划改为存进各自账号。
+- [方向变化，非阻塞]: 用户在 2026-11-05 决定下一个里程碑做多账号云端版。几个约束需要在新里程碑里重新讨论：
+  - “不改应用”“不部署”“不用真实数据”“不引入框架”；
+  - 原 Artifact 仍然不访问、不修改。
+- [部署，待定]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 261101-mh6 | 隐私护栏：.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理 | 2026-11-01 | 002d8d2 | [261101-mh6-privacy-guard-github-public](./quick/261101-mh6-privacy-guard-github-public/) |
-
-### Roadmap Evolution
-
-- Phase 6 added: 个人内容外置与本地私有查看页（用户已同意放进当前里程碑；对应用文件的具体改动要单独批准）
 
 ## Deferred Items
 
@@ -167,5 +118,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-05
-Stopped at: Phase 6 removed — v1 milestone ready to close
+Stopped at: v1.0 milestone archived — awaiting next milestone
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
