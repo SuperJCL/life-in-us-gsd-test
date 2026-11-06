@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 6
-status: planning
-stopped_at: Phase 6 added — ready to plan
-last_updated: "2026-11-06T04:37:19.162Z"
+current_phase: 5
+status: completed
+stopped_at: Phase 6 removed — v1 milestone ready to close
+last_updated: "2026-11-06T05:13:52.711Z"
 last_activity: 2026-11-05
-last_activity_desc: Phase 6 added to roadmap
-state_head: 6faf8942ceca927e2348d1f0e6e41e0167734bc4
+last_activity_desc: Phase 6 removed (superseded by the multi-account cloud milestone)
+state_head: 962de6855504609a5bcf12b7e3e12e1bf8fdc3cc
 progress:
-  total_phases: 6
+  total_phases: 5
   completed_phases: 5
   total_plans: 20
   completed_plans: 20
-  percent: 83
+  percent: 100
 ---
 
 # Project State
@@ -22,16 +22,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-05 after Phase 5)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** Phase 6 — 个人内容外置与本地私有查看页（Personal Content Externalization & Private Viewer）。Phase 1–5 已全部完成；下一步是 `/gsd-discuss-phase 6`（或直接 `/gsd-plan-phase 6`）。对应用文件的每处具体改动都要用户单独批准。
+**Current focus:** 第一个里程碑（Phase 1–5，只写测试）已全部完成，准备收尾归档。用户在 2026-11-05 决定改走新方向：多账号云端版（Vercel + 免费云数据库），用新里程碑来做；原 Phase 6（本地私有文件加查看页）被它取代，已从路线图移除。
 
 ## Current Position
 
-Phase: 6
+Phase: 5
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-05 — Phase 6 added to roadmap
+Status: Completed
+Last activity: 2026-11-05 — Phase 6 removed (superseded by the multi-account cloud milestone)
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -144,7 +144,7 @@ None yet.
   - 验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-05 已确认。
   - 最终全套 154 条 `REPORT OK`，0 flaky。
 - [运行环境，非阻塞]: 用户的电脑在长时间运行时会卡，所以测试一律低优先级、只开 1 个 worker、不同时跑两次，也不做全盘扫描（见记忆 local-resource-limits）。`playwright.config.ts` 按用户决定保持不变。
-- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，已在 2026-11-05 加进 ROADMAP，还没有讨论和计划。本阶段放宽“不改应用”的约束，但对 `us-journey-tracker.html` 的每处具体改动都要用户单独批准；Phase 6 完成前不做里程碑收尾。
+- [方向变化，非阻塞]: 原 Phase 6（个人内容外置到本地私有文件加查看页）在 2026-11-05 被用户的新方向取代：3 个人各自账号、按账号存取 JSON、实时更新、按账号导出导入，用 Vercel 加免费云数据库实现。它会作为新里程碑来做，个人计划改为存进各自账号。
 
 ### Quick Tasks Completed
 
@@ -167,5 +167,5 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-05
-Stopped at: Phase 6 added — ready to plan
+Stopped at: Phase 6 removed — v1 milestone ready to close
 Resume file: None
