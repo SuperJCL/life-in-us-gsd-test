@@ -19,10 +19,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-03 after Phase 4)
+See: .planning/PROJECT.md (updated 2026-11-05 after Phase 5)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** Phase 5 — 时间线、导入与窄屏（Timeline, Import & Narrow）
+**Current focus:** ROADMAP 里的 Phase 1–5 已全部完成。Phase 6（个人内容外置）用户已同意，但还没加进 ROADMAP。加不加、什么时候加，由用户决定。在那之前，不做里程碑收尾。
 
 ## Current Position
 
@@ -138,8 +138,13 @@ None yet.
 - [Phase 2，非阻塞]: 代码审查跑完 `--auto` 3 轮，共 7 个 WARNING 都已修复。还剩 7 个 INFO，状态是 open，不在修复范围内，见 `02-REVIEW-DISPOSITION.md`。`--auto` 的迭代备份（`02-REVIEW*.iter*.md`）按流程保留在本地，未提交。
 - [Phase 3，非阻塞]: 代码审查共 4 个 WARNING，已在第 1 轮修复，第 2 轮复审时修复范围已经收敛。还剩 8 个 INFO，状态是 open，见 `03-REVIEW-DISPOSITION.md`。其中 IN-08（README 里关于 manual 时钟和“一对用例”的说法已过时）已在 Phase 4 的 04-03 更新。
 - [Phase 4，非阻塞]: 代码审查共 5 个 WARNING，已在第 1 轮修复，第 2 轮复审时已经收敛，其中 WR-03 让报告检查脚本也拒绝跳过、过滤和部分运行。还剩 4 个 INFO，状态是 open，见 `04-REVIEW-DISPOSITION.md`。验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-03 已确认。
+- [Phase 5，非阻塞]:
+  - 代码审查跑完 `--auto` 3 轮，共 3 个 WARNING：第 1 轮全部修复，WR-01 在第 2 轮补全，第 3 轮复审为 0 个 WARNING。
+  - 还剩 10 个 INFO，状态是 open，见 `05-REVIEW-DISPOSITION.md`。其中 IN-10：窄屏选日滚动用例分不出 `block` 取值，在黑盒约束下无法消除。
+  - 验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-05 已确认。
+  - 最终全套 154 条 `REPORT OK`，0 flaky。
 - [运行环境，非阻塞]: 用户的电脑在长时间运行时会卡，所以测试一律低优先级、只开 1 个 worker、不同时跑两次，也不做全盘扫描（见记忆 local-resource-limits）。`playwright.config.ts` 按用户决定保持不变。
-- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。本次自动运行只到 Phase 5。
+- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。本次自动运行（`--to 5`）已在 2026-11-05 跑到 Phase 5。ROADMAP 显示“全部阶段完成”，指的只是现有的 5 个阶段，不等于里程碑可以收尾。
 
 ### Quick Tasks Completed
 
@@ -157,6 +162,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T04:39:37.827Z
+Last session: 2026-11-05
 Stopped at: Phase 5 complete — all phases complete
 Resume file: None
