@@ -23,7 +23,7 @@
 - [x] **Phase 2: 账户模式、合成数据与导出（Account Mock, Data & Export）** - 注入按 0.2.96 契约实现的 `window.claude` mock，证明测试真的跑在账户模式；备好合成 fixture；验证 CSV 和 JSON 导出内容 (completed 2026-11-03)
 - [x] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图 (completed 2026-11-03)
 - [x] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互 (completed 2026-11-03)
-- [ ] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖
+- [x] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖 (completed 2026-11-05)
 
 ## Phase Details
 
@@ -162,7 +162,7 @@ Plans:
   3. 导入带旧类别名的 fixture 后，记录被迁移到新的类别，并在各视图里按新类别显示。
   4. 在手机宽度下，少量关键用例通过：编辑弹窗变成底部面板，日历 chips 变成圆点，本周日期纵向排列，选中某天后页面滚动到“记一笔”。
   5. 本阶段碰到的已知 bug（如取消导入后重选同一个文件没反应）按 Phase 3 的约定标记并登记。`npm test` 跑完全部用例时，除 `tests/KNOWN-BUGS.md` 登记的标记用例外全部通过，`us-journey-tracker.html` 的 sha256 仍与基线一致。
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -194,4 +194,4 @@ Plans:
 | 2. 账户模式、合成数据与导出（Account Mock, Data & Export） | 5/5 | Complete    | 2026-11-03 |
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
 | 4. 日历与目标视图（Calendar & Goals） | 3/3 | Complete    | 2026-11-03 |
-| 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 4/4 | In Progress | - |
+| 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 4/4 | Complete    | 2026-11-05 |
