@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 5
-status: completed
-stopped_at: Phase 5 complete — all phases complete
-last_updated: "2026-11-06T04:20:09.634Z"
+current_phase: 6
+status: planning
+stopped_at: Phase 6 added — ready to plan
+last_updated: "2026-11-06T04:37:19.162Z"
 last_activity: 2026-11-05
-last_activity_desc: Phase 5 complete
-state_head: 1e9e29688df5c6c593f892649e9e0183e4bfe7d4
+last_activity_desc: Phase 6 added to roadmap
+state_head: 6faf8942ceca927e2348d1f0e6e41e0167734bc4
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
   total_plans: 20
   completed_plans: 20
-  percent: 100
+  percent: 83
 ---
 
 # Project State
@@ -22,16 +22,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-05 after Phase 5)
 
 **Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** ROADMAP 里的 Phase 1–5 已全部完成。Phase 6（个人内容外置）用户已同意，但还没加进 ROADMAP。加不加、什么时候加，由用户决定。在那之前，不做里程碑收尾。
+**Current focus:** Phase 6 — 个人内容外置与本地私有查看页（Personal Content Externalization & Private Viewer）。Phase 1–5 已全部完成；下一步是 `/gsd-discuss-phase 6`（或直接 `/gsd-plan-phase 6`）。对应用文件的每处具体改动都要用户单独批准。
 
 ## Current Position
 
-Phase: 5
+Phase: 6
 Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-05 — Phase 5 complete
+Status: Ready to plan
+Last activity: 2026-11-05 — Phase 6 added to roadmap
 
-Progress: [██████████] 100%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -144,13 +144,17 @@ None yet.
   - 验证器给出 `human_needed` 的 4 条判断项（P-1..P-4），用户在 2026-11-05 已确认。
   - 最终全套 154 条 `REPORT OK`，0 flaky。
 - [运行环境，非阻塞]: 用户的电脑在长时间运行时会卡，所以测试一律低优先级、只开 1 个 worker、不同时跑两次，也不做全盘扫描（见记忆 local-resource-limits）。`playwright.config.ts` 按用户决定保持不变。
-- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，用户已同意放进当前里程碑，但还没用 `/gsd-phase` 加进 ROADMAP。本次自动运行（`--to 5`）已在 2026-11-05 跑到 Phase 5。ROADMAP 显示“全部阶段完成”，指的只是现有的 5 个阶段，不等于里程碑可以收尾。
+- [Phase 6，非阻塞]: 个人内容外置 + 本地私有目录与查看页，已在 2026-11-05 加进 ROADMAP，还没有讨论和计划。本阶段放宽“不改应用”的约束，但对 `us-journey-tracker.html` 的每处具体改动都要用户单独批准；Phase 6 完成前不做里程碑收尾。
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261101-mh6 | 隐私护栏：.gitignore、隐私检查器、pre-commit/pre-push 钩子、PRIVACY.md、文档清理 | 2026-11-01 | 002d8d2 | [261101-mh6-privacy-guard-github-public](./quick/261101-mh6-privacy-guard-github-public/) |
+
+### Roadmap Evolution
+
+- Phase 6 added: 个人内容外置与本地私有查看页（用户已同意放进当前里程碑；对应用文件的具体改动要单独批准）
 
 ## Deferred Items
 
@@ -163,5 +167,5 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-05
-Stopped at: Phase 5 complete — all phases complete
+Stopped at: Phase 6 added — ready to plan
 Resume file: None

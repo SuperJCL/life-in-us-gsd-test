@@ -24,6 +24,7 @@
 - [x] **Phase 3: 记一笔、编辑弹窗与本周视图（Composer, Editor & Week）** - 建立记一笔、编辑弹窗、toast 的共享 helper 和已知 bug 标记约定，完整覆盖本周视图 (completed 2026-11-03)
 - [x] **Phase 4: 日历与目标视图（Calendar & Goals）** - 复用共享 helper，覆盖日历月格、日面板和目标视图的全部交互 (completed 2026-11-03)
 - [x] **Phase 5: 时间线、导入与窄屏（Timeline, Import & Narrow）** - 覆盖时间线、JSON 备份导入（含旧类别迁移）和手机宽度下的关键布局，四个视图全部被覆盖 (completed 2026-11-05)
+- [ ] **Phase 6: 个人内容外置与本地私有查看页（Personal Content Externalization & Private Viewer）** - 把应用里写死的个人计划搬到本地私有文件，仓库只放示例数据；另建本地 `private/` 目录和查看页
 
 ## Phase Details
 
@@ -183,10 +184,25 @@ Plans:
 - 窄屏只用 `viewport`（约 520 × 900），不用设备描述符，不测拖拽。
 - 文件输入用内存 buffer，磁盘上不放任何备份类文件。
 
+### Phase 6: 个人内容外置与本地私有查看页（Personal Content Externalization & Private Viewer）
+**Goal:** 把应用里写死的个人计划（目标组、任务、预设、力量目标等）搬到本地私有文件，仓库只放示例数据；另建本地 `private/` 目录和查看页。
+**Mode:** mvp
+**Depends on:** Phase 5
+**Requirements:** TBD（讨论阶段确定）
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
+
+**Notes:**
+- 用户已同意把本阶段放进当前里程碑。这是唯一放宽“不改应用”约束的阶段：对 `us-journey-tracker.html` 的每一处具体改动，都要先经用户单独批准。
+- 真实个人内容和 `private/` 目录只留在本机，不进 git。仓库里只放示例数据，隐私检查必须照常通过。
+- 应用改动后，sha256 基线怎么更新，依赖内置计划文字的用例怎么调整，留到讨论阶段决定。
+
 ## Progress
 
 **Execution Order:**
-按数字顺序执行：1 → 2 → 3 → 4 → 5。Phase 4 和 Phase 5 彼此独立，都只依赖前面的阶段。
+按数字顺序执行：1 → 2 → 3 → 4 → 5 → 6。Phase 4 和 Phase 5 彼此独立，都只依赖前面的阶段。
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -195,3 +211,4 @@ Plans:
 | 3. 记一笔、编辑弹窗与本周视图（Composer, Editor & Week） | 4/4 | Complete    | 2026-11-03 |
 | 4. 日历与目标视图（Calendar & Goals） | 3/3 | Complete    | 2026-11-03 |
 | 5. 时间线、导入与窄屏（Timeline, Import & Narrow） | 4/4 | Complete    | 2026-11-05 |
+| 6. 个人内容外置与本地私有查看页（Personal Content Externalization & Private Viewer） | 0/0 | Not started | - |
