@@ -95,16 +95,52 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ## Traceability
 
-建路线图时填写。
+每条 v2.0 需求只对应一个阶段。阶段详情见 `.planning/ROADMAP.md`。
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| INFRA-01 | Phase 6 | Pending |
+| INFRA-02 | Phase 6 | Pending |
+| INFRA-03 | Phase 9 | Pending |
+| ACCT-01 | Phase 9 | Pending |
+| ACCT-02 | Phase 9 | Pending |
+| ACCT-03 | Phase 8 | Pending |
+| ACCT-04 | Phase 8 | Pending |
+| ACCT-05 | Phase 10 | Pending |
+| SYNC-01 | Phase 9 | Pending |
+| SYNC-02 | Phase 10 | Pending |
+| SYNC-03 | Phase 10 | Pending |
+| SYNC-04 | Phase 10 | Pending |
+| SYNC-05 | Phase 9 | Pending |
+| SYNC-06 | Phase 10 | Pending |
+| PLAN-01 | Phase 9 | Pending |
+| PLAN-02 | Phase 12 | Pending |
+| PLAN-03 | Phase 12 | Pending |
+| PLAN-04 | Phase 12 | Pending |
+| PLAN-05 | Phase 7 | Pending |
+| IO-06 | Phase 11 | Pending |
+| IO-07 | Phase 11 | Pending |
+| IO-08 | Phase 11 | Pending |
+| IO-09 | Phase 11 | Pending |
+| IO-10 | Phase 11 | Pending |
+| SEC-01 | Phase 7 | Pending |
+| SEC-02 | Phase 13 | Pending |
+| SEC-03 | Phase 6 | Pending |
+| SEC-04 | Phase 7 | Pending |
+| OPS-01 | Phase 13 | Pending |
+| OPS-02 | Phase 13 | Pending |
+| OPS-03 | Phase 13 | Pending |
+| OPS-04 | Phase 13 | Pending |
+| TEST-01 | Phase 7 | Pending |
+| TEST-02 | Phase 8 | Pending |
+| TEST-03 | Phase 11 | Pending |
+| TEST-04 | Phase 8 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 36 total
-- Mapped to phases: 0
-- Unmapped: 36 ⚠️
+- Mapped to phases: 36
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-06*
-*Last updated: 2026-11-06 after initial definition*
+*Last updated: 2026-11-06 after v2.0 roadmap creation (Phases 6–13)*
