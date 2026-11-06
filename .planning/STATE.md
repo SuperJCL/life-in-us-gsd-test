@@ -1,35 +1,34 @@
 ---
 gsd_state_version: "1.0"
-status: Awaiting next milestone
-stopped_at: v1.0 milestone archived — awaiting next milestone
-last_updated: "2026-11-06T05:39:14.700Z"
+milestone: v2.0
+milestone_name: 多账号云端版（Multi-account Cloud）
+status: planning
+last_updated: "2026-11-06T06:37:38.624Z"
 last_activity: 2026-11-05
-last_activity_desc: Milestone v1.0 completed and archived
-state_head: 48c52c881c10e709cfbf4444166f033199955bc6
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
-current_phase: 5
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-05 after v1.0 milestone)
+See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 
-**Core value:** 不改应用代码、不接触原 Artifact 和真实数据，用一条命令就能在本地浏览器里自动验证四个视图都能正常渲染和交互。
-**Current focus:** 规划下一个里程碑：多账号云端版（3 个人各自账号、按账号存取记录、实时同步、按账号导出导入；部署方式要让中国和美国用户都能访问，在新里程碑里定）。下一步：`/gsd-new-milestone`。
+**Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
+**Current focus:** v2.0 多账号云端版：先调研（PocketBase、云服务器商对比、部署、HTTPS、备份），再定需求和路线图。服务器商在调研后由用户选。
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-05 — Milestone v1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-11-05 — Milestone v2.0 started
+
 
 ## Performance Metrics
 
@@ -100,7 +99,7 @@ None yet.
 - [方向变化，非阻塞]: 用户在 2026-11-05 决定下一个里程碑做多账号云端版。几个约束需要在新里程碑里重新讨论：
   - “不改应用”“不部署”“不用真实数据”“不引入框架”；
   - 原 Artifact 仍然不访问、不修改。
-- [部署，待定]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
+- [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
 
 ### Quick Tasks Completed
 
