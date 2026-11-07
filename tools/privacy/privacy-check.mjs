@@ -8,7 +8,7 @@
 //   --self-test  内置正例和反例自检，不依赖 git 状态
 //
 // 规则：
-//   A-forbidden-path  不允许进入仓库的文件路径
+//   A-forbidden-path  不允许进入仓库的文件路径（应用文件只放行仓库根目录那一份，子目录同名文件和改名副本禁止）
 //   B-abs-path        内容里的本机绝对路径（用户名）
 //   C-email           内容里的真实邮箱
 //   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，只输出编号）
@@ -55,7 +55,8 @@ export function checkPath(path) {
   const norm = String(path).replace(/\\/g, '/');
   const segments = norm.split('/').filter((s) => s.length > 0);
   const base = segments.length > 0 ? segments[segments.length - 1] : '';
-  if (base === APP_FILE) return '应用文件只能留在本机，不能进入仓库';
+  // 根目录的应用文件已去个人化，放行（个人内容由规则 D 挡住）；子目录里的同名文件仍禁止
+  if (base === APP_FILE) return norm === APP_FILE ? null : '应用文件只能放在仓库根目录';
   if (base.startsWith('us-journey-tracker') && base.endsWith('.html')) return '应用文件的副本只能留在 private/，不能进入仓库';
   if (base.includes('备份') && base.endsWith('.json')) return '真实备份文件不能进入仓库';
   if (base.startsWith('在美国的日子-') && (base.endsWith('.json') || base.endsWith('.csv'))) {
@@ -546,14 +547,14 @@ function runSelfTest() {
 
   // 规则 A
   const pathPos = [
-    APP_FILE, `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
+    `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
     '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
     'us-journey-tracker.original.html', 'backup/us-journey-tracker.v1.html',
   ];
   for (const p of pathPos) expect(`规则 A 正例 ${p}`, checkPath(p) !== null);
   const pathNeg = [
     'PRIVACY.md', 'tools/privacy/privacy-check.mjs', 'privateer.txt', 'docs/backup.md',
-    'src/environment.ts', '.claude/CLAUDE.md', 'docs/us-journey-tracker.md',
+    'src/environment.ts', '.claude/CLAUDE.md', 'docs/us-journey-tracker.md', APP_FILE,
   ];
   for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
 

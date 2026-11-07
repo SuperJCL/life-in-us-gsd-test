@@ -5,7 +5,7 @@
 本仓库会公开到 GitHub。公开之后，内容可能被缓存、fork 或索引，无法收回。因此：
 
 - 仓库里不能出现本机路径、真实邮箱、真实数据或个人计划文字（D-09）。
-- 应用文件 `us-journey-tracker.html` 的源码里写死了个人计划，所以它只留在本机，不进入 git（D-10）。
+- 应用文件 `us-journey-tracker.html` 已经去掉个人计划，只含合成的示例计划，所以它在仓库里；所有者的原计划只留在本机（D-10）。提交或推送应用文件需要本机有种子 `private/plan-seed.json`，没有种子时隐私检查会阻止（见 § 5 的种子闸门）。
 
 为了避免靠自觉，仓库带了一套自动检查：`.gitignore` 先把这些文件挡在门外，pre-commit 和 pre-push 钩子再做第二、第三道检查。
 
@@ -13,9 +13,9 @@
 
 | 内容 | 原因 |
 |------|------|
-| 应用文件 `us-journey-tracker.html` | 源码里写死了个人计划（D-10） |
+| 应用文件的改名副本 `us-journey-tracker.*.html`（原件副本只放 `private/`） | 可能带着原来的个人计划（D-12） |
 | 真实备份 `*备份*.json`，以及应用导出的 `在美国的日子-*.json`、`在美国的日子-*.csv` | 含真实数据 |
-| `private/` 目录 | 本机私有内容，例如 `private/denylist.txt` |
+| `private/` 目录 | 本机私有内容，例如 `private/denylist.txt`、`private/plan-seed.json`（原计划种子）和 `private/us-journey-tracker.original.html`（原应用的副本） |
 | `.claude/settings.local.json` 和 GSD 安装文件 | 本机设置；`.claude/` 下只跟踪 `.claude/CLAUDE.md`（D-12） |
 | `.env*` | 环境变量和密钥 |
 | `test-results/`、`playwright-report/`、`blob-report/` | 截图和 trace 会拍到个人计划文字（D-02），失败证据只留在本地 |
@@ -27,7 +27,7 @@
 
 规则：
 
-- 规则 A（`A-forbidden-path`）：文件路径属于上表中不能提交的类型。
+- 规则 A（`A-forbidden-path`）：文件路径属于上表中不能提交的类型。根目录的应用文件放行（它已去个人化，个人内容由规则 D 挡住），子目录里的同名文件和改名副本一律禁止。
 - 规则 B（`B-abs-path`）：内容里出现 Windows、macOS 或 Linux 的本机用户目录路径。`<用户名>`、`...`、`$USER` 这类占位写法不算。
 - 规则 C（`C-email`）：内容里出现真实邮箱。GitHub noreply 地址、example.com 系列地址和 `@2x.png` 这类文件名不算。
 - 规则 D（`D-plan-term`）：内容里出现个人计划词条。词条只在运行时读取，仓库里不保存。
@@ -37,6 +37,7 @@
 
 - pre-commit 运行 `--staged`，检查暂存区里的文件。
 - pre-push 运行 `--push`，检查即将推送的每个提交，包括作者和提交者邮箱、提交说明和文件内容。
+- 两个钩子只调用检查器，规则随检查器更新，钩子文件本身不改。
 
 推送时要求作者和提交者邮箱都是 GitHub noreply 地址。可以只在本仓库设置：`git config user.email "<ID>+<用户名>@users.noreply.github.com"`。
 
@@ -83,4 +84,4 @@ git config core.hooksPath .githooks
 
 ## 8. 后续计划
 
-应用文件在第 6 阶段（Phase 6，计划中）把个人内容外置之前，只在本机保存。这一节只说明计划，本仓库目前没有实现任何外置内容。
+第 7 阶段（Phase 7）已把个人计划移出应用：应用里只有合成的示例计划，所有者的原计划只在本机的种子里，应用文件随仓库提供。应用文件第一次提交只在本机完成；推送到公开仓库之前仍要所有者另外确认。

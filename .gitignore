@@ -1,15 +1,15 @@
 # ===== 隐私护栏：仓库将公开，以下内容只留在本机，不进入 git =====
 # 详见 PRIVACY.md
 
-# --- 应用文件（源码里写死了个人计划，D-10）---
-/us-journey-tracker.html
+# --- 应用文件的改名副本（原件副本只放 private/，D-12）---
+/us-journey-tracker.*.html
 
 # --- 真实备份与应用导出（含真实数据）---
 *备份*.json
 在美国的日子-*.json
 在美国的日子-*.csv
 
-# --- 本地私有目录（例如 private/denylist.txt）---
+# --- 本地私有目录（private/denylist.txt、private/plan-seed.json 是 D-10 的种子、private/us-journey-tracker.original.html 是 D-12 的原件副本）---
 private/
 
 # --- .claude：只跟踪 CLAUDE.md（D-12）---

@@ -6,7 +6,7 @@ export const PORT = 4789;
 // 应用的来源，guard 只放行这个来源（D-16）
 export const APP_ORIGIN = 'http://127.0.0.1:4789';
 
-// 被测应用的文件名，只在仓库根目录，不进 git（D-10）
+// 被测应用的文件名，在仓库根目录，Phase 7 起随仓库提供；所有者的原计划只在本机的 private/plan-seed.json（D-10）
 export const APP_FILE_NAME = 'us-journey-tracker.html';
 
 // 应用写入 localStorage 的键（本地模式）
@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = '7f57f04a3eed1a51b01b3133c367b0115225275bb3ee614bc2b73708b92a209b';
+export const APP_SHA256 = '6d467b4296355534ce6436c62f29e88a6f8fb89925ade3476cf65c3f93314ed5';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';

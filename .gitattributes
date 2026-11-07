@@ -1,2 +1,4 @@
 # 系统级 core.autocrlf=true 会在检出时把钩子转成 CRLF，sh 解释器随后会报错，所以固定为 LF
 .githooks/** text eol=lf
+# SAFE-02 按字节算 sha256，系统级 core.autocrlf=true 会在克隆检出时把应用文件转成 CRLF，所以固定为 LF
+us-journey-tracker.html text eol=lf

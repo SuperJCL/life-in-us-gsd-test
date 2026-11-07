@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>在美国的日子</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F5F9; --surface:#FFFFFF; --ink:#1B2740; --muted:#5E6B82; --line:#D9E0EA; --red:#B4423A;
+  --c-lang:#0E7C7B; --c-lang-s:#DCEFEE;
+  --c-pro:#3D5BC4; --c-pro-s:#E2E8FA;
+  --c-fit:#C2522D; --c-fit-s:#F8E3DA;
+  --c-job:#A87000; --c-job-s:#F6ECD2;
+  --c-oth:#6B7385; --c-oth-s:#E6E9EF;
+  --today:#1B2740; --today-ink:#FFFFFF;
+  --serif:"Noto Serif SC","Songti SC","STSong",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#121826; --surface:#1A2234; --ink:#E6EBF4; --muted:#98A3B8; --line:#2C3650; --red:#E07A70;
+    --c-lang:#4FC1BF; --c-lang-s:#16393B; --c-pro:#8FA6F2; --c-pro-s:#232E52;
+    --c-fit:#EE8B66; --c-fit-s:#41261C; --c-job:#E2A93B; --c-job-s:#3A2E16; --c-oth:#A3ABBD; --c-oth-s:#2A3146;
+    --today:#E6EBF4; --today-ink:#121826; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#121826; --surface:#1A2234; --ink:#E6EBF4; --muted:#98A3B8; --line:#2C3650; --red:#E07A70;
+  --c-lang:#4FC1BF; --c-lang-s:#16393B; --c-pro:#8FA6F2; --c-pro-s:#232E52;
+  --c-fit:#EE8B66; --c-fit-s:#41261C; --c-job:#E2A93B; --c-job-s:#3A2E16; --c-oth:#A3ABBD; --c-oth-s:#2A3146;
+  --today:#E6EBF4; --today-ink:#121826; color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--c-lang);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+.k-lang{--c:var(--c-lang);--s:var(--c-lang-s)} .k-pro{--c:var(--c-pro);--s:var(--c-pro-s)}
+.k-fit{--c:var(--c-fit);--s:var(--c-fit-s)} .k-job{--c:var(--c-job);--s:var(--c-job-s)} .k-oth{--c:var(--c-oth);--s:var(--c-oth-s)}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.title h1{font-family:var(--serif);font-weight:800;font-size:clamp(26px,4vw,34px);margin:0;letter-spacing:.02em}
+.title p{margin:4px 0 0;color:var(--muted)}
+.counter{display:flex;align-items:baseline;gap:10px}
+.counter .n{font-family:var(--serif);font-weight:800;font-size:clamp(44px,8vw,64px);line-height:1;color:var(--c-lang)}
+.counter .lbl{color:var(--muted)}
+.arrival{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;margin-top:6px}
+.arrival input{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 6px}
+
+nav.tabs{display:flex;gap:4px;margin:20px 0 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav.tabs button{background:none;border:0;padding:10px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.toolbar{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
+.ghost{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
+.ghost:hover{color:var(--ink);border-color:var(--muted)}
+.icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.primary{background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:7px 14px;font-weight:600}
+.primary:disabled{opacity:.4;cursor:default}
+select,input[type=date],input[type=text],input[type=number],textarea{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--paper)}
+.empty{color:var(--muted);font-size:14px;padding:6px 0;margin:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.hidden{display:none !important}
+
+/* week */
+.wk-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.wk-head h2{font-family:var(--serif);font-size:24px;margin:0}
+.wk-head .range{color:var(--muted)}
+.wk-head .nav{margin-left:auto;display:flex;gap:6px}
+.areas{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}
+@media (max-width:720px){.areas{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.area{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:10px;padding:10px 12px}
+.area .nm{font-size:13px;color:var(--muted)}
+.area .v{font-family:var(--serif);font-weight:800;font-size:26px;line-height:1.2;color:var(--c)}
+.area .v small{font-family:var(--sans);font-size:12px;font-weight:400;color:var(--muted);margin-left:4px}
+.area .goal{font-size:12px;color:var(--muted)}
+.area .goal.ok{color:var(--c)}
+.wk-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:900px){.wk-layout{grid-template-columns:1fr}}
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+@media (max-width:900px){.days{grid-template-columns:1fr}}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:170px;display:flex;flex-direction:column;gap:5px;text-align:left}
+@media (max-width:900px){.day{min-height:0}}
+.day.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.day .dh{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--muted)}
+.day .dh b{font-size:16px;color:var(--ink)}
+.day.today .dh b{background:var(--today);color:var(--today-ink);border-radius:6px;padding:0 6px}
+.ent{font-size:12.5px;line-height:1.4;background:var(--s);color:var(--ink);border-left:3px solid var(--c);border-radius:4px;padding:3px 6px;word-break:break-word;display:flex;gap:4px;align-items:flex-start}
+.ent span{flex:1;min-width:0}
+.ent.done{background:transparent;color:var(--muted)}
+.ent[data-edit],.ent[data-edittask]{cursor:pointer}
+.ent[data-edit]:hover,.ent[data-edittask]:hover{filter:brightness(.97);box-shadow:0 0 0 1px var(--c)}
+.ent.dragging{opacity:.4}
+.day.drop{border-color:var(--c-pro);box-shadow:inset 0 0 0 2px var(--c-pro)}
+.editable{cursor:pointer}
+.editable:hover{box-shadow:0 0 0 1px var(--c)}
+.x{background:none;border:0;color:var(--muted);font-size:15px;line-height:1;padding:0 2px}
+.x:hover{color:var(--red)}
+.review{margin-top:18px}
+.review h3,.side h3{font-family:var(--serif);font-size:18px;margin:0 0 4px}
+.review p.sub,.side p.sub{color:var(--muted);font-size:13px;margin:0 0 10px}
+.review textarea{width:100%;min-height:90px;resize:vertical;background:var(--paper)}
+
+/* composer */
+.comp{display:grid;gap:10px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--c);border-color:var(--c);color:var(--surface)}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{border:1px dashed var(--c);background:var(--s);color:var(--c);border-radius:6px;padding:3px 9px;font-size:12.5px}
+.presets .hint{font-size:12px;color:var(--muted);width:100%}
+.pchip{display:inline-flex;align-items:stretch}
+.pchip.editing button[data-preset]{border-style:solid;border-radius:6px 0 0 6px;cursor:default;opacity:.75}
+.presets .pdel{border:1px solid var(--c);border-left:0;border-radius:0 6px 6px 0;background:var(--surface);color:var(--red);padding:0 7px;font-size:14px;line-height:1}
+.presets .plus{border:1px dashed var(--line);background:none;color:var(--muted)}
+.presets .plus:hover{color:var(--ink);border-color:var(--muted)}
+.presets .pedit{border:0;background:none;color:var(--muted);text-decoration:underline;padding:3px 4px}
+.presets .padd{width:150px;padding:3px 8px;font-size:12.5px;border-radius:6px;border:1px solid var(--c);background:var(--surface)}
+.comp textarea{width:100%;min-height:64px;resize:vertical}
+.comp .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.comp .when{font-size:13px;color:var(--muted)}
+
+/* calendar */
+.cal-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:24px;align-items:start}
+@media (max-width:820px){.cal-layout{grid-template-columns:1fr}}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-head h2{font-family:var(--serif);font-size:22px;margin:0}
+.cal-head .nav{display:flex;gap:6px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.dow{text-align:center;font-size:12px;color:var(--muted);padding:4px 0}
+.cell{position:relative;min-height:82px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 6px 5px;text-align:left;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cell.out{opacity:.38}
+.cell.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.cell .d{font-size:13px;font-weight:600;width:24px;height:24px;display:grid;place-items:center;border-radius:50%}
+.cell.today .d{background:var(--today);color:var(--today-ink)}
+.cell.arr::after{content:"抵美";position:absolute;top:6px;right:6px;font-size:10px;color:var(--c-lang);border:1px solid var(--c-lang);border-radius:4px;padding:0 3px}
+.chips{display:flex;flex-direction:column;gap:2px}
+.chip{font-size:11px;line-height:1.35;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--s);color:var(--c)}
+.chip.due{background:transparent;border:1px dashed var(--c-job);color:var(--c-job)}
+.chip.done{background:transparent;color:var(--muted);text-decoration:line-through}
+.more{font-size:11px;color:var(--muted)}
+@media (max-width:560px){
+  .cell{min-height:54px;padding:4px}
+  .chips{flex-direction:row;flex-wrap:wrap;gap:3px}
+  .chip{font-size:0;height:7px;width:7px;padding:0;border-radius:50%;background:var(--c)}
+  .chip.due{background:transparent;border-color:var(--c-job)} .chip.done{background:var(--muted)}
+  .more,.cell.arr::after{display:none}
+}
+.sect{font-size:13px;color:var(--muted);margin:14px 0 6px}
+ul.items{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+ul.items li{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:8px;background:var(--paper)}
+.tag{flex:none;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--s);color:var(--c);margin-top:2px}
+.li-text{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.panel h3{font-family:var(--serif);font-size:19px;margin:0}
+.panel .sub{color:var(--muted);font-size:13px;margin:2px 0 14px}
+
+/* goals */
+.goals{display:grid;gap:18px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.group-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.group-h .p{font-family:var(--serif);font-weight:800;color:var(--c);font-size:18px}
+.group-h h3{margin:0;font-size:17px}
+.group-h .cnt{margin-left:auto;color:var(--muted);font-size:13px}
+.note{font-size:13px;color:var(--muted);margin:4px 0 0}
+.bar{height:4px;background:var(--line);border-radius:2px;margin:10px 0 8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);border-radius:2px;transition:width .3s}
+.task{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.task input[type=checkbox]{width:18px;height:18px;accent-color:var(--c)}
+.task.isdone .tt{color:var(--muted);text-decoration:line-through}
+.task .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.task .meta input[type=date]{font-size:12px;padding:3px 5px}
+.task .od{color:var(--red)}
+.task .sub-h{font-size:12px;color:var(--c);font-weight:600}
+@media (max-width:560px){.task{grid-template-columns:auto 1fr}.task .meta{grid-column:2}}
+.addtask{display:flex;gap:8px;margin-top:10px}
+.addtask input{flex:1;min-width:0}
+.lifts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.lift{background:var(--paper);border-radius:10px;padding:12px}
+.lift .ln{font-size:14px;font-weight:600}
+.lift .lv{font-family:var(--serif);font-weight:800;font-size:28px;color:var(--c);line-height:1.2}
+.lift .lv small{font-family:var(--sans);font-size:13px;font-weight:400;color:var(--muted)}
+.lift .lbar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0}
+.lift .lbar i{display:block;height:100%;background:var(--c)}
+.lift .upd{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.lift .upd input{width:80px;padding:4px 6px}
+.lift .hist{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* timeline */
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line)}
+.tl-month{font-family:var(--serif);font-size:18px;margin:22px 0 8px}
+.tl-month:first-child{margin-top:0}
+.tl-item{position:relative;padding:8px 12px;margin-bottom:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;gap:10px;align-items:flex-start}
+.tl-item::before{content:"";position:absolute;left:-21px;top:15px;width:10px;height:10px;border-radius:50%;background:var(--c);border:2px solid var(--paper)}
+.tl-date{flex:none;font-size:13px;color:var(--muted);width:48px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.filters button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.status{font-size:12px;color:var(--muted);margin-top:28px;text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:5;display:flex;gap:14px;align-items:center}
+.toast.on{opacity:1}
+.toast.act{pointer-events:auto}
+.toast button{background:none;border:0;color:var(--c-lang-s);font-weight:700;padding:0;text-decoration:underline}
+dialog#editor{border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink)}
+dialog#editor::backdrop{background:rgba(10,16,30,.45)}
+@media (max-width:560px){dialog#editor{margin:auto 0 0;width:100vw;max-width:100vw;border-radius:14px 14px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
+.ed-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.ed-h h3{font-family:var(--serif);font-size:19px;margin:0}
+.ed-grid{display:grid;gap:12px}
+.ed-grid label.f{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+.ed-grid textarea{width:100%;min-height:96px;resize:vertical;color:var(--ink)}
+.ed-task{padding:10px 12px;background:var(--paper);border-radius:8px}
+.ed-foot{display:flex;gap:8px;align-items:center;margin-top:16px}
+.ed-foot .sp{flex:1}
+.ed-foot .hint{font-size:12px;color:var(--muted)}
+@media (max-width:560px){.ed-foot .hint{display:none}}
+.danger{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;color:var(--red)}
+.danger:hover{border-color:var(--red)}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1>在美国的日子</h1>
+      <p>语言、专业、健身、求职，每天记一点</p>
+      <label class="arrival">抵达美国 <input type="date" id="arrival"></label>
+    </div>
+    <div class="counter" id="counter"><span class="lbl">先设置抵达日期</span></div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="wk" aria-selected="true">本周</button>
+    <button role="tab" data-tab="cal" aria-selected="false">日历</button>
+    <button role="tab" data-tab="goal" aria-selected="false">目标</button>
+    <button role="tab" data-tab="tl" aria-selected="false">时间线</button>
+    <div class="toolbar">
+      <button class="ghost hidden" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
+      <button class="ghost hidden" id="exportJson">备份</button>
+      <label class="ghost" style="cursor:pointer">恢复<input type="file" id="importJson" accept=".json,application/json" class="hidden"></label>
+    </div>
+  </nav>
+
+  <section id="tab-wk">
+    <div class="wk-head">
+      <h2 id="wkTitle"></h2><span class="range" id="wkRange"></span>
+      <div class="nav"><button class="icon" id="wkPrev" aria-label="上一周">‹</button><button class="ghost" id="wkNow">本周</button><button class="icon" id="wkNext" aria-label="下一周">›</button></div>
+    </div>
+    <div class="areas" id="areas"></div>
+    <div class="wk-layout">
+      <div>
+        <div class="days" id="days"></div>
+        <div class="review panel">
+          <h3>本周复盘</h3>
+          <p class="sub">哪些做得好，哪里卡住了，下周调整什么</p>
+          <textarea id="review" placeholder="比如：这周坚持了哪些、哪里没做到，下周打算怎么调整"></textarea>
+        </div>
+      </div>
+      <aside class="panel side" id="wkComp"></aside>
+    </div>
+  </section>
+
+  <section id="tab-cal" class="hidden">
+    <div class="cal-layout">
+      <div>
+        <div class="cal-head"><h2 id="monthTitle"></h2>
+          <div class="nav"><button class="icon" id="prev" aria-label="上个月">‹</button><button class="ghost" id="todayBtn">今天</button><button class="icon" id="next" aria-label="下个月">›</button></div>
+        </div>
+        <div class="grid" id="dow"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <aside class="panel" id="dayPanel"></aside>
+    </div>
+  </section>
+
+  <section id="tab-goal" class="hidden"><div class="goals" id="goals"></div></section>
+
+  <section id="tab-tl" class="hidden">
+    <div class="filters" id="filters"></div>
+    <div class="tl" id="timeline"></div>
+  </section>
+
+  <p class="status" id="status">正在加载…</p>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<dialog id="editor" aria-labelledby="ed-title"><form method="dialog" id="ed-form"></form></dialog>
+
+<script>
+(function(){
+const CATS=[{n:"语言",k:"lang"},{n:"专业",k:"pro"},{n:"健身",k:"fit",direct:true},{n:"求职",k:"job"},{n:"其他",k:"oth"}];
+const CK=Object.fromEntries(CATS.map(c=>[c.n,c.k]));
+const kOf=n=>CK[n]||"oth";
+const LEGACY={"学习":"专业","活动社交":"求职","生活":"其他","里程碑":"其他"};
+/* PLAN-05：内置组和任务的 id 冻结为 DEFAULT_PLAN 里写明的值；以后新增的组、任务、力量项分别用 g-、t-、l- 加 uid()，不会撞上 P 开头的内置 id、c- 开头的自定义待办 id 和内置力量 id */
+const GROUP_ID_RE=/^(P\d{1,3}|g-[A-Za-z0-9_-]{1,40})$/,PLAN_TASK_ID_RE=/^(P\d{1,3}-\d{1,3}|t-[A-Za-z0-9_-]{1,40})$/,LIFT_ID_RE=/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/;
+const DEFAULT_PLAN={v:1,
+  presets:{
+    lang:["背了二十个单词","看了一集不带字幕的美剧","跟读练习十分钟","读了一篇英文文章","写了一段英文日记"],
+    pro:["刷题：","复习：","读文档：","写代码：","整理笔记："],
+    fit:["慢跑三十分钟","核心力量训练","拉伸放松","散步一小时","骑行锻炼"],
+    job:["改简历：","投递岗位：","练习面试：","浏览招聘信息","联系了一位校友"],
+    oth:[]},
+  groups:[
+    {id:"P1",cat:"语言",name:"英语日常练习",tasks:[
+      {id:"P1-1",text:"听力：能完整听懂一段十分钟的新闻广播"},
+      {id:"P1-2",text:"口语：能流畅完成一次五分钟的口头陈述"},
+      {id:"P1-3",text:"阅读：读完一本适合自己水平的英文短篇小说"},
+      {id:"P1-4",text:"写作：写出一封格式规范的英文邮件"},
+      {id:"P1-5",text:"完整做完一套英语模拟测试并记录得分"}]},
+    {id:"P2",cat:"专业",name:"编程基础复习",note:"复习的顺序是先自己默写，再对照资料查漏，最后用小题目检验。",tasks:[
+      {id:"P2-1",text:"变量、类型与表达式"},
+      {id:"P2-2",text:"条件分支与循环语句"},
+      {id:"P2-3",text:"函数的定义与调用"},
+      {id:"P2-4",text:"列表、字典与集合"},
+      {id:"P2-5",text:"字符串处理与正则入门"},
+      {id:"P2-6",text:"文件读写与异常处理"},
+      {id:"P2-7",text:"面向对象的基本概念"},
+      {id:"P2-8",text:"递归与简单的排序算法"},
+      {id:"P2-9",text:"栈、队列与链表"},
+      {id:"P2-10",text:"哈希表与二叉树的基本操作"},
+      {id:"P2-11",text:"时间复杂度的估算方法"},
+      {id:"P2-12",text:"做完十道综合练习题并整理错题"}]},
+    {id:"P3",cat:"专业",name:"从零做完一个小作品",tasks:[
+      {id:"P3-1",text:"确定作品的主题与功能清单"},
+      {id:"P3-2",text:"画出页面草图和数据结构"},
+      {id:"P3-3",text:"搭好项目目录并跑通最小版本"},
+      {id:"P3-4",text:"实现核心功能的第一个可用版本"},
+      {id:"P3-5",text:"补充错误处理并修正已发现的问题"},
+      {id:"P3-6",text:"写一页使用说明"},
+      {id:"P3-7",text:"发布到公开地址并请朋友试用"}]},
+    {id:"P4",cat:"专业",name:"学完一门在线课程",tasks:[
+      {id:"P4-1",text:"看完前三分之一的课程视频"},
+      {id:"P4-2",text:"完成前半部分的课后作业"},
+      {id:"P4-3",text:"看完全部视频并整理好笔记"},
+      {id:"P4-4",text:"提交结课项目并拿到证书"}]},
+    {id:"P5",cat:"专业",name:"常用工具与工程习惯",tasks:[
+      {id:"P5-1",text:"熟练使用版本控制的提交与分支"},
+      {id:"P5-2",text:"在终端里完成日常的文件操作"},
+      {id:"P5-3",text:"给自己的代码补上基本的测试"},
+      {id:"P5-4",text:"养成写提交说明和更新文档的习惯"}]},
+    {id:"P6",cat:"求职",name:"求职准备",tasks:[
+      {id:"P6-1",text:"整理一份一页纸的个人简历"},
+      {id:"P6-2",text:"列出二十家感兴趣的公司与岗位"},
+      {id:"P6-3",text:"准备五个常见行为面试问题的回答"},
+      {id:"P6-4",text:"找朋友扮演面试官练一整轮并复盘"},
+      {id:"P6-5",text:"每周固定投递并记录进展"}]},
+    {id:"P7",cat:"其他",name:"生活事务",tasks:[
+      {id:"P7-1",text:"办完一件拖延已久的生活手续"}]}],
+  lifts:[
+    {id:"bench",n:"卧推",unit:"kg",def:20,target:40,note:"按组记录最大完成重量，动作标准再加重"},
+    {id:"squat",n:"深蹲",unit:"kg",def:25,target:50,note:"蹲到大腿与地面平行，稳定后再逐步加重"},
+    {id:"dead",n:"硬拉",unit:"kg",def:50,target:100,note:"背部保持平直，每次只小幅增加重量"},
+    {id:"pull",n:"引体",unit:"kg",def:4,target:12,note:"记录每组附加的配重，徒手完成时记 0"}],
+  fitGoal:[2,4],
+  fitNote:"每周固定几个训练日，循序渐进地加重，睡眠和休息同样重要。"};
+const pObj=v=>!!v&&typeof v==="object"&&!Array.isArray(v),pStr=v=>typeof v==="string",pNum=v=>typeof v==="number"&&isFinite(v);
+/* 只信类型、返回新对象；任何一处不合格就返回 null（拒绝整份计划） */
+function normalizePlan(p){
+  if(!pObj(p)||!Array.isArray(p.groups)||!p.groups.length||!Array.isArray(p.lifts)||!pObj(p.presets))return null;
+  const gids=new Set(),tids=new Set(),groups=[],lifts=[],presets={};
+  for(const g of p.groups){
+    if(!pObj(g)||!pStr(g.id)||!GROUP_ID_RE.test(g.id)||gids.has(g.id)||!pStr(g.cat)||!CK[g.cat]||!pStr(g.name)||!Array.isArray(g.tasks))return null;
+    if(g.note!==undefined&&!pStr(g.note))return null;
+    gids.add(g.id);
+    const tasks=[];
+    for(const t of g.tasks){
+      if(!pObj(t)||!pStr(t.id)||!PLAN_TASK_ID_RE.test(t.id)||tids.has(t.id)||!pStr(t.text))return null;
+      if(t.archived!==undefined&&typeof t.archived!=="boolean")return null;
+      tids.add(t.id);
+      const o={id:t.id,text:t.text};if(t.archived!==undefined)o.archived=t.archived;tasks.push(o);
+    }
+    const o={id:g.id,cat:g.cat,name:g.name};if(g.note!==undefined)o.note=g.note;o.tasks=tasks;groups.push(o);
+  }
+  const lids=new Set();
+  for(const l of p.lifts){
+    if(!pObj(l)||!pStr(l.id)||!LIFT_ID_RE.test(l.id)||lids.has(l.id)||!pStr(l.n)||!pStr(l.unit)||!pNum(l.def)||!pNum(l.target)||l.target<=0)return null;
+    if(l.note!==undefined&&!pStr(l.note))return null;
+    lids.add(l.id);lifts.push({id:l.id,n:l.n,unit:l.unit,def:l.def,target:l.target,note:l.note===undefined?"":l.note});
+  }
+  const keys=CATS.map(c=>c.k);
+  for(const k of Object.keys(p.presets)){if(!keys.includes(k)||!Array.isArray(p.presets[k])||!p.presets[k].every(pStr))return null}
+  keys.forEach(k=>{presets[k]=(p.presets[k]||[]).slice()});
+  if(!Array.isArray(p.fitGoal)||p.fitGoal.length!==2||!p.fitGoal.every(pNum))return null;
+  if(p.fitNote!==undefined&&!pStr(p.fitNote))return null;
+  return {v:1,presets,groups,lifts,fitGoal:p.fitGoal.slice(),fitNote:p.fitNote===undefined?"":p.fitNote};
+}
+let plan,planTasks,planIds,planCat;
+/* 用 normalizePlan 校验；不合格就回落到 DEFAULT_PLAN；返回传入的计划是否被接受 */
+function usePlan(p){
+  let n=normalizePlan(p);const ok=!!n;if(!n)n=normalizePlan(DEFAULT_PLAN);
+  plan=n;planTasks=[];plan.groups.forEach(g=>g.tasks.forEach(t=>planTasks.push({id:t.id,group:g.id,text:t.text})));
+  planIds=new Set(planTasks.map(t=>t.id));planCat=Object.fromEntries(plan.groups.map(g=>[g.id,g.cat]));
+  return ok;
+}
+usePlan(DEFAULT_PLAN);
+
+let state={arrival:"",tasks:{},custom:[],logs:[],lifts:{},reviews:{},presets:{}};
+let store=null;
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse=s=>{const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c)};
+const today=()=>ymd(new Date());
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)};
+const monday=s=>{const d=parse(s);return addDays(s,-((d.getDay()+6)%7))};
+const md=s=>(+s.slice(5,7))+"月"+(+s.slice(8))+"日";
+const WD="日一二三四五六";
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let view=new Date();view.setDate(1);
+let sel=today(), wk=monday(today()), wsel=today(), filter="全部";
+const compCat={c:"语言",w:"语言"};
+
+function allTasks(){return planTasks.concat(state.custom||[])}
+function tstate(id){return state.tasks[id]||{}}
+function lift(id){const L=plan.lifts.find(x=>x.id===id);return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
+function normalize(s){
+  const o={arrival:typeof s.arrival==="string"?s.arrival:"",tasks:s.tasks&&typeof s.tasks==="object"?s.tasks:{},
+    custom:Array.isArray(s.custom)?s.custom:[],logs:Array.isArray(s.logs)?s.logs:[],
+    lifts:s.lifts&&typeof s.lifts==="object"?s.lifts:{},reviews:s.reviews&&typeof s.reviews==="object"?s.reviews:{},
+    presets:s.presets&&typeof s.presets==="object"?s.presets:{}};
+  o.logs.forEach(l=>{if(LEGACY[l.cat])l.cat=LEGACY[l.cat];if(!CK[l.cat])l.cat="其他"});
+  return o;
+}
+
+/* ---------- saving ---------- */
+let saveTimer=null,saving=false,dirty=false;
+function persist(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+async function flush(){
+  if(!store||saving||!dirty)return;saving=true;dirty=false;
+  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"))}
+  saving=false;if(dirty)flush();
+}
+function setStatus(t){$("status").textContent=t}
+function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
+  load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
+  save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
+/* ---------- config ---------- */
+function readConfig(){
+  try{const c=window.USJ_CONFIG;if(c&&typeof c==="object"&&c.backend!=null)return {backend:c.backend}}catch(e){}
+  return {backend:null};
+}
+const USJ=readConfig();
+async function init(){
+  renderAll();
+  if(USJ.backend!==null){setStatus("存储配置无效：这个版本还不支持所配置的后端，修改不会保存");return}
+  let db=null,user=null,id=null;
+  try{[db,user]=await Promise.all([window.claude?window.claude.use("db"):null,window.claude?window.claude.use("user"):null])}catch(e){}
+  if(db&&user){try{id=await user.id()}catch(e){}}
+  if(db&&id){const ref=db.doc("data/users/"+id+"/state");store={label:"已同步保存到你的账户",load:async()=>{const s=await ref.get();return s.exists?JSON.parse(JSON.stringify(s.data())):null},save:s=>ref.set(s)}}
+  else store=localStore();
+  try{const s=await store.load();if(s)state=normalize(s)}catch(e){store=localStore();const s=await store.load();if(s)state=normalize(s)}
+  setStatus(store.label);renderAll();
+  const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
+  if(dl){window.__dl=dl;$("exportCsv").classList.remove("hidden");$("exportJson").classList.remove("hidden")}
+}
+
+/* ---------- shared ---------- */
+function eventsOn(date){
+  const logs=state.logs.filter(l=>l.date===date);const due=[],done=[];
+  allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate===date)done.push(t);else if(!s.done&&s.due===date)due.push(t)});
+  return {logs,due,done};
+}
+function addLog(date,cat,text){state.logs.push({id:uid(),date,text,cat});persist();renderAll()}
+
+const compEdit={},compAdding={};
+function pstate(cat){const v=state.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
+function presetsFor(cat){const C=CATS.find(c=>c.n===cat),s=pstate(cat);return (plan.presets[C.k]||[]).filter(x=>!s.hide.includes(x)).concat(s.add)}
+const fills=x=>/[：:]$/.test(x);
+function presetsHTML(p,C){
+  const list=presetsFor(C.n),ed=!!compEdit[p];
+  return `<div class="presets k-${C.k}">${list.map(x=>`<span class="pchip ${ed?"editing":""}"><button type="button" data-preset="${p}|${esc(x)}" ${ed?'tabindex="-1"':""}>${esc(x)}</button>${ed?`<button type="button" class="pdel" data-pdel="${p}|${esc(x)}" aria-label="删除标签 ${esc(x)}">×</button>`:""}</span>`).join("")}
+    ${compAdding[p]?`<input class="padd" id="${p}-padd" placeholder="新标签，回车添加" maxlength="30" aria-label="新标签名称">`:`<button type="button" class="plus" data-padd="${p}">+ 添加标签</button>`}
+    ${list.length?`<button type="button" class="pedit" data-pedit="${p}">${ed?"完成":"编辑"}</button>`:""}
+    <span class="hint">${ed?"点 × 删除标签":list.length?"点一下直接记录；以“：”结尾的会先填进输入框，方便补充内容":"添加常做的事，以后点一下就能记录"}</span></div>`;
+}
+function composer(p,date){
+  const cat=compCat[p],C=CATS.find(c=>c.n===cat);
+  return `<div class="comp">
+    <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button class="k-${c.k}" aria-pressed="${c.n===cat}" data-ccat="${p}|${c.n}">${c.n}</button>`).join("")}</div>
+    ${presetsHTML(p,C)}
+    <textarea id="${p}-text" placeholder="写下做了什么，⌘/Ctrl + Enter 记录"></textarea>
+    <div class="row"><span class="when">记录到 ${md(date)} 周${WD[parse(date).getDay()]}</span><button class="primary" id="${p}-add" disabled>记录</button></div></div>`;
+}
+function bindComposer(root,p,getDate){
+  const ta=root.querySelector("#"+p+"-text"),btn=root.querySelector("#"+p+"-add");
+  ta.addEventListener("input",()=>btn.disabled=!ta.value.trim());
+  btn.addEventListener("click",()=>{const v=ta.value.trim();if(!v)return;addLog(getDate(),compCat[p],v);toast("已记录")});
+  ta.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))btn.click()});
+  const refresh=focusAdd=>{const keep=ta.value;rerenderComp(p);const t2=document.getElementById(p+"-text");t2.value=keep;t2.dispatchEvent(new Event("input"));
+    if(focusAdd){const a=document.getElementById(p+"-padd");if(a)a.focus()}};
+  const tagOf=b=>b.split("|").slice(1).join("|");
+  root.querySelectorAll("[data-ccat]").forEach(b=>b.addEventListener("click",()=>{const[q,n]=b.dataset.ccat.split("|");compCat[q]=n;compEdit[p]=false;compAdding[p]=false;refresh()}));
+  root.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click",()=>{
+    if(compEdit[p])return;const x=tagOf(b.dataset.preset),cat=compCat[p];
+    if(!fills(x)){addLog(getDate(),cat,x);toast("已记录："+x);return}
+    ta.value=ta.value?ta.value+"\n"+x:x;ta.focus();ta.dispatchEvent(new Event("input"))}));
+  root.querySelectorAll("[data-pedit]").forEach(b=>b.addEventListener("click",()=>{compEdit[p]=!compEdit[p];compAdding[p]=false;refresh()}));
+  root.querySelectorAll("[data-padd]").forEach(b=>b.addEventListener("click",()=>{compAdding[p]=true;compEdit[p]=false;refresh(true)}));
+  root.querySelectorAll("[data-pdel]").forEach(b=>b.addEventListener("click",()=>{
+    const x=tagOf(b.dataset.pdel),cat=compCat[p],before=JSON.stringify(state.presets[cat]||{}),s=pstate(cat);
+    if(s.add.includes(x))s.add=s.add.filter(y=>y!==x);else if(!s.hide.includes(x))s.hide=s.hide.concat([x]);
+    state.presets[cat]={add:s.add,hide:s.hide};persist();refresh();
+    toast("已删除标签："+x,{label:"撤销",fn:()=>{state.presets[cat]=JSON.parse(before);persist();renderAll()}})}));
+  const pa=root.querySelector("#"+p+"-padd");
+  if(pa){let done=false;const commit=()=>{if(done)return;done=true;const v=pa.value.trim();compAdding[p]=false;
+      if(v){const cat=compCat[p],s=pstate(cat);
+        if(presetsFor(cat).includes(v))toast("已经有这个标签了");
+        else{if(s.hide.includes(v))s.hide=s.hide.filter(y=>y!==v);else s.add=s.add.concat([v]);state.presets[cat]={add:s.add,hide:s.hide};persist();toast("已添加标签："+v)}}
+      refresh()};
+    pa.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();commit()}if(e.key==="Escape"){e.preventDefault();pa.value="";commit()}});
+    pa.addEventListener("blur",commit)}
+}
+function rerenderComp(p){if(p==="w")renderWkComp();else renderDay()}
+
+/* ---------- render ---------- */
+function renderAll(){renderHeader();renderWeek();renderCal();renderDay();renderGoals();renderTimeline()}
+function renderHeader(){
+  $("arrival").value=state.arrival||"";
+  const c=$("counter");
+  if(state.arrival){const days=Math.round((parse(today())-parse(state.arrival))/864e5)+1;
+    c.innerHTML=days>0?`<span class="lbl">来美国第</span><span class="n">${days}</span><span class="lbl">天</span>`:`<span class="lbl">还有</span><span class="n">${1-days}</span><span class="lbl">天出发</span>`;}
+  else c.innerHTML='<span class="lbl">先设置抵达日期</span>';
+}
+
+function renderWeek(){
+  const end=addDays(wk,6);
+  let title="这一周";
+  if(state.arrival&&wk>=monday(state.arrival))title=`来美国第 ${Math.round((parse(wk)-parse(monday(state.arrival)))/(7*864e5))+1} 周`;
+  else if(wk===monday(today()))title="本周";
+  $("wkTitle").textContent=title;
+  $("wkRange").textContent=md(wk)+" – "+(wk.slice(5,7)===end.slice(5,7)?(+end.slice(8))+"日":md(end));
+  const dates=[...Array(7)].map((_,i)=>addDays(wk,i));
+  const logs=state.logs.filter(l=>l.date>=wk&&l.date<=end);
+  const doneT=allTasks().filter(t=>{const s=tstate(t.id);return s.done&&s.doneDate>=wk&&s.doneDate<=end});
+  $("areas").innerHTML=CATS.map(C=>{
+    const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>planCat[t.group]===C.n).length;
+    let goal="";
+    if(C.n==="健身"){const d=new Set(logs.filter(l=>l.cat==="健身").map(l=>l.date)).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${plan.fitGoal[0]}～${plan.fitGoal[1]} 天</div>`}
+    else{const d=new Set(logs.filter(l=>l.cat===C.n).map(l=>l.date)).size;goal=`<div class="goal">${d} 天有记录</div>`}
+    return `<div class="area k-${C.k}"><div class="nm">${C.n}</div><div class="v">${n}<small>项</small></div>${goal}</div>`}).join("");
+  const t=today();
+  $("days").innerHTML=dates.map(d=>{
+    const e=eventsOn(d);
+    const ents=[...e.logs.map(l=>`<div class="ent k-${kOf(l.cat)}" data-edit="${l.id}" draggable="true" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span>${esc(l.text)}</span></div>`),
+      ...e.done.map(x=>`<div class="ent done k-${kOf(planCat[x.group])}" data-edittask="${x.id}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(x.text)}"><span>✓ ${esc(x.text)}</span></div>`)];
+    return `<div class="day ${d===t?"today":""} ${d===wsel?"sel":""}" data-wday="${d}" tabindex="0" role="button" aria-label="${md(d)}，${ents.length} 项，点击选为记录日期">
+      <div class="dh">周${WD[parse(d).getDay()]} <b>${+d.slice(8)}</b></div>${ents.join("")}</div>`}).join("");
+  const rv=$("review");if(document.activeElement!==rv)rv.value=state.reviews[wk]||"";
+  renderWkComp();
+}
+function renderWkComp(){
+  const box=$("wkComp");
+  box.innerHTML=`<h3>记一笔</h3><p class="sub">点某一天可以补记那天的事；点记录可以修改，拖到别的日子可以换日期</p>`+composer("w",wsel);
+  bindComposer(box,"w",()=>wsel);
+}
+
+function renderCal(){
+  $("monthTitle").textContent=view.getFullYear()+" 年 "+(view.getMonth()+1)+" 月";
+  $("dow").innerHTML=WD.split("").map(d=>`<div class="dow">${d}</div>`).join("");
+  const start=new Date(view);start.setDate(1-view.getDay());const t=today();let html="";
+  for(let i=0;i<42;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i);
+    if(i===35&&d.getMonth()!==view.getMonth())break;
+    const s=ymd(d),e=eventsOn(s);
+    const chips=[...e.logs.map(l=>`<span class="chip k-${kOf(l.cat)}">${esc(l.text)}</span>`),...e.due.map(x=>`<span class="chip due">${esc(x.text)}</span>`),...e.done.map(x=>`<span class="chip done">${esc(x.text)}</span>`)];
+    const cls=["cell",d.getMonth()!==view.getMonth()?"out":"",s===t?"today":"",s===sel?"sel":"",s===state.arrival?"arr":""].join(" ");
+    html+=`<button class="${cls}" data-date="${s}" aria-label="${md(s)}，${e.logs.length} 条记录，${e.due.length} 项到期，${e.done.length} 项完成"><span class="d">${d.getDate()}</span><span class="chips">${chips.slice(0,3).join("")}</span>${chips.length>3?`<span class="more">+${chips.length-3}</span>`:""}</button>`;
+  }
+  $("grid").innerHTML=html;
+}
+function renderDay(){
+  const d=parse(sel),e=eventsOn(sel);
+  let dayN=state.arrival&&sel>=state.arrival?`来美国第 ${Math.round((d-parse(state.arrival))/864e5)+1} 天`:d.getFullYear()+" 年";
+  const box=$("dayPanel");
+  box.innerHTML=`<h3>${md(sel)} 周${WD[d.getDay()]}</h3><p class="sub">${dayN}</p>${composer("c",sel)}
+    <div class="sect">做过的事</div>
+    ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${l.id}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${l.id}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
+    ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${t.id}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${t.group}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
+    ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${t.group}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
+  bindComposer(box,"c",()=>sel);
+}
+
+function renderGoals(){
+  const t=today();
+  const fit=`<div class="group k-fit"><div class="group-h"><span class="p">健身</span><h3>力量目标</h3></div>
+    <p class="note">${esc(plan.fitNote)}</p>
+    <div class="lifts">${plan.lifts.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
+      const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${x.v}`).join("，");
+      return `<div class="lift"><div class="ln">${L.n}</div><div class="lv">${s.cur}<small> / ${L.target} ${L.unit}</small></div>
+      <div class="lbar"><i style="width:${pct}%"></i></div>
+      <div class="upd"><label for="lf-${L.id}">当前</label><input type="number" id="lf-${L.id}" data-lift="${L.id}" step="${L.unit==="kg"?2.5:1}" min="0" value="${s.cur}"><span>${L.unit}</span><button type="button" class="ghost hidden" data-liftsave="${L.id}">保存</button></div>
+      <div class="hist">${h?"最近："+esc(h):L.note}</div></div>`}).join("")}</div></div>`;
+  $("goals").innerHTML=fit+plan.groups.map(g=>{
+    const ts=allTasks().filter(x=>x.group===g.id);const dn=ts.filter(x=>tstate(x.id).done).length;
+    return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${g.id}</span><h3>${g.name}</h3><span class="cnt">${dn}/${ts.length}</span></div>
+    ${g.note?`<p class="note">${g.note}</p>`:""}
+    <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
+    ${ts.map(x=>{const s=tstate(x.id),od=!s.done&&s.due&&s.due<t;const custom=!planIds.has(x.id);
+      return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${x.id}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
+      <span class="tt">${esc(x.text)}</span>
+      <span class="meta">${s.done?`完成于 ${md(s.doneDate)}`:`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${x.id}" value="${s.due||""}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${x.id}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${g.id}" aria-label="给${g.id}添加待办"><button class="ghost" data-addbtn="${g.id}">添加</button></div></div>`}).join("");
+}
+
+function renderTimeline(){
+  const opts=["全部",...CATS.map(c=>c.n),"完成的计划"];
+  $("filters").innerHTML=opts.map(o=>`<button aria-pressed="${o===filter}" data-filter="${o}">${o}</button>`).join("");
+  let items=[];
+  if(filter!=="完成的计划")state.logs.filter(l=>filter==="全部"||l.cat===filter).forEach(l=>items.push({date:l.date,text:l.text,tag:l.cat,k:kOf(l.cat),attr:`data-edit="${l.id}"`}));
+  if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:t.group,k:kOf(planCat[t.group]),attr:`data-edittask="${t.id}"`})});
+  items.sort((a,b)=>b.date.localeCompare(a.date));
+  if(!items.length){$("timeline").innerHTML='<p class="empty">还没有内容。在“本周”里写下今天做过的事。</p>';return}
+  let html="",m="";
+  items.forEach(it=>{const mm=it.date.slice(0,7);if(mm!==m){m=mm;html+=`<div class="tl-month">${mm.slice(0,4)} 年 ${+mm.slice(5)} 月</div>`}
+    html+=`<div class="tl-item k-${it.k} editable" ${it.attr} tabindex="0" role="button"><span class="tl-date">${+it.date.slice(5,7)}/${+it.date.slice(8)}</span><span class="tag">${esc(it.tag)}</span><span class="li-text">${esc(it.text)}</span></div>`});
+  $("timeline").innerHTML=html;
+}
+
+/* ---------- events ---------- */
+document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;
+  document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x===b));
+  ["wk","cal","goal","tl"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==b.dataset.tab))});
+$("arrival").addEventListener("change",e=>{state.arrival=e.target.value;persist();renderAll()});
+function deleteLog(id){const i=state.logs.findIndex(l=>l.id===id);if(i<0)return;const [gone]=state.logs.splice(i,1);persist();renderAll();
+  toast("已删除这条记录",{label:"撤销",fn:()=>{state.logs.splice(Math.min(i,state.logs.length),0,gone);persist();renderAll();toast("已恢复")}})}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-dellog]");if(!b)return;e.stopImmediatePropagation();e.preventDefault();deleteLog(b.dataset.dellog)},true);
+document.addEventListener("click",e=>{if(e.target.closest("dialog"))return;const a=e.target.closest("[data-edit]"),t=e.target.closest("[data-edittask]");
+  if(a){e.stopPropagation();openEditor(a.dataset.edit)}else if(t){e.stopPropagation();openTaskEditor(t.dataset.edittask)}},true);
+document.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;const el=e.target;if(!el.matches||!el.matches("[data-edit],[data-edittask]"))return;
+  e.preventDefault();e.stopPropagation();if(el.dataset.edit)openEditor(el.dataset.edit);else openTaskEditor(el.dataset.edittask)},true);
+
+/* ---------- editor ---------- */
+const dlg=$("editor"),form=$("ed-form");
+form.addEventListener("submit",e=>e.preventDefault());
+function openEditor(id){
+  const l=state.logs.find(x=>x.id===id);if(!l)return;let cat=l.cat;
+  const draw=()=>{form.innerHTML=`<div class="ed-h"><h3 id="ed-title">编辑记录</h3></div>
+    <div class="ed-grid">
+      <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button type="button" class="k-${c.k}" aria-pressed="${c.n===cat}" data-edcat="${c.n}">${c.n}</button>`).join("")}</div>
+      <label class="f">内容<textarea id="ed-text">${esc(form.dataset.keep!=null?form.dataset.keep:l.text)}</textarea></label>
+      <label class="f">日期<input type="date" id="ed-date" value="${form.dataset.kdate||l.date}"></label>
+    </div>
+    <div class="ed-foot"><button type="button" class="danger" id="ed-del">删除</button><span class="sp"></span><span class="hint">⌘/Ctrl + Enter 保存</span>
+      <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
+    form.querySelectorAll("[data-edcat]").forEach(b=>b.onclick=()=>{form.dataset.keep=$("ed-text").value;form.dataset.kdate=$("ed-date").value;cat=b.dataset.edcat;draw();$("ed-text").focus()});
+    $("ed-cancel").onclick=close;$("ed-del").onclick=()=>{close();deleteLog(id)};
+    $("ed-save").onclick=save;
+    $("ed-text").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();save()}});
+  };
+  const close=()=>{delete form.dataset.keep;delete form.dataset.kdate;dlg.close()};
+  const save=()=>{const v=$("ed-text").value.trim(),d=$("ed-date").value;
+    if(!v){$("ed-text").focus();toast("内容不能为空，想删掉请点“删除”");return}
+    const moved=d&&d!==l.date;Object.assign(l,{text:v,cat,date:d||l.date});close();persist();renderAll();
+    toast(moved?"已保存，移到 "+md(l.date):"已保存")};
+  delete form.dataset.keep;delete form.dataset.kdate;draw();dlg.showModal();
+  const ta=$("ed-text");ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
+}
+function openTaskEditor(id){
+  const t=allTasks().find(x=>x.id===id);if(!t)return;const s=tstate(id);
+  form.innerHTML=`<div class="ed-h"><h3 id="ed-title">完成的计划</h3></div>
+    <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${t.group}</span> ${esc(t.text)}</div>
+    <label class="f">完成日期<input type="date" id="ed-date" value="${s.doneDate||today()}"></label></div>
+    <div class="ed-foot"><button type="button" class="danger" id="ed-undone">标记为未完成</button><span class="sp"></span>
+      <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
+  $("ed-cancel").onclick=()=>dlg.close();
+  $("ed-undone").onclick=()=>{state.tasks[id]=Object.assign({},s,{done:false,doneDate:""});dlg.close();persist();renderAll();toast("已改回未完成")};
+  $("ed-save").onclick=()=>{const d=$("ed-date").value;if(d){state.tasks[id]=Object.assign({},s,{doneDate:d})}dlg.close();persist();renderAll();toast("已保存")};
+  dlg.showModal();
+}
+dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
+
+/* ---------- drag to another day ---------- */
+let dragId=null;
+$("days").addEventListener("dragstart",e=>{const el=e.target.closest&&e.target.closest("[data-edit]");if(!el)return;dragId=el.dataset.edit;el.classList.add("dragging");
+  try{e.dataTransfer.setData("text/plain",dragId);e.dataTransfer.effectAllowed="move"}catch(_){}});
+$("days").addEventListener("dragend",e=>{dragId=null;document.querySelectorAll(".dragging,.drop").forEach(x=>x.classList.remove("dragging","drop"))});
+$("days").addEventListener("dragover",e=>{if(!dragId)return;const d=e.target.closest("[data-wday]");if(!d)return;e.preventDefault();
+  document.querySelectorAll(".day.drop").forEach(x=>x!==d&&x.classList.remove("drop"));d.classList.add("drop")});
+$("days").addEventListener("drop",e=>{const d=e.target.closest("[data-wday]");if(!d||!dragId)return;e.preventDefault();
+  const l=state.logs.find(x=>x.id===dragId);dragId=null;if(!l||l.date===d.dataset.wday){renderWeek();return}
+  l.date=d.dataset.wday;persist();renderAll();toast("已移到 "+md(l.date))});
+// week
+$("wkPrev").onclick=()=>{wk=addDays(wk,-7);wsel=wk;renderWeek()};
+$("wkNext").onclick=()=>{wk=addDays(wk,7);wsel=wk;renderWeek()};
+$("wkNow").onclick=()=>{wk=monday(today());wsel=today();renderWeek()};
+function pickDay(el){if(!el)return;wsel=el.dataset.wday;renderWeek();if(innerWidth<=900)$("wkComp").scrollIntoView({behavior:"smooth",block:"start"})}
+$("days").addEventListener("click",e=>{if(e.target.closest(".x"))return;pickDay(e.target.closest("[data-wday]"))});
+$("days").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset.wday){e.preventDefault();pickDay(e.target)}});
+let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvT=setTimeout(()=>{if(v.trim())state.reviews[w]=v;else delete state.reviews[w];persist()},800)});
+// calendar
+$("prev").onclick=()=>{view.setMonth(view.getMonth()-1);renderCal()};
+$("next").onclick=()=>{view.setMonth(view.getMonth()+1);renderCal()};
+$("todayBtn").onclick=()=>{view=new Date();view.setDate(1);sel=today();renderCal();renderDay()};
+$("grid").addEventListener("click",e=>{const c=e.target.closest("[data-date]");if(!c)return;sel=c.dataset.date;
+  const d=parse(sel);if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d);view.setDate(1)}renderCal();renderDay()});
+// goals
+$("goals").addEventListener("change",e=>{
+  const c=e.target.dataset.task,du=e.target.dataset.due;
+  if(c){const s=Object.assign({},tstate(c));s.done=e.target.checked;s.doneDate=s.done?today():"";state.tasks[c]=s;persist();renderAll();if(s.done)toast("完成，已记到今天")}
+  if(du){const s=Object.assign({},tstate(du));s.due=e.target.value;state.tasks[du]=s;persist();renderAll()}
+});
+function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(inp.value);const L=plan.lifts.find(x=>x.id===lf);const s=lift(lf);
+  if(isNaN(v)||v<0){renderGoals();return}
+  if(v===s.cur){renderGoals();return}
+  s.cur=v;const h=s.hist.slice();if(h.length&&h[h.length-1].date===today())h[h.length-1]={date:today(),v};else h.push({date:today(),v});
+  s.hist=h.slice(-30);state.lifts[lf]=s;persist();renderGoals();toast(v>=L.target?`${L.n}达标了`:`${L.n}已更新为 ${v}${L.unit}`)}
+$("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
+  if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
+function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;state.custom.push({id:"c-"+uid(),group:g,text:v});persist();renderAll()}
+$("goals").addEventListener("click",e=>{const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
+  if(a)addTask(a);if(d){state.custom=state.custom.filter(t=>t.id!==d);delete state.tasks[d];persist();renderAll()}});
+$("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
+$("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
+
+/* ---------- export / import ---------- */
+function csvCell(s){s=String(s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+function usDate(s){return s.slice(5,7)+"/"+s.slice(8)+"/"+s.slice(0,4)}
+$("exportCsv").onclick=async()=>{
+  const rows=[["Subject","Start Date","All Day Event","Description"]];
+  state.logs.forEach(l=>rows.push(["["+l.cat+"] "+l.text.split("\n")[0].slice(0,80),usDate(l.date),"True",l.text]));
+  allTasks().forEach(t=>{const s=tstate(t.id);
+    if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",t.group+" 计划"]);
+    else if(s.due)rows.push(["截止："+t.text,usDate(s.due),"True",t.group+" 计划"])});
+  if(rows.length===1){toast("还没有可导出的日期");return}
+  await save("在美国的日子-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"));
+};
+$("exportJson").onclick=()=>save("在美国的日子-备份-"+today()+".json",JSON.stringify(state,null,2));
+async function save(filename,data){
+  try{await window.__dl.save({filename,data});toast("已导出")}
+  catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
+}
+$("importJson").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const s=normalize(JSON.parse(r.result));if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist();renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
+  r.readAsText(f)});
+
+let tt;function toast(m,act){const t=$("toast");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);
+  t.classList.toggle("act",!!act);
+  if(act){const b=document.createElement("button");b.type="button";b.textContent=act.label;b.onclick=()=>{clearTimeout(tt);t.classList.remove("on","act");act.fn()};t.appendChild(b)}
+  t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on","act"),act?5000:1800)}
+window.addEventListener("pagehide",flush);
+init();
+})();
+</script>
+</body>
+</html>

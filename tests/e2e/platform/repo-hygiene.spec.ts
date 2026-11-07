@@ -61,14 +61,16 @@ test('SAFE-03 .gitignore ignores test artifacts and backup-style JSON', async ()
     'x备份y.json',
     '在美国的日子-备份-2026-03-18.json',
     '在美国的日子-日历.csv',
-    'us-journey-tracker.html',
+    'private/plan-seed.json',
+    'private/us-journey-tracker.original.html',
+    'us-journey-tracker.original.html',
   ];
   for (const p of mustBeIgnored) {
     expect(isIgnored(p), `${p} 应该被 .gitignore 忽略`).toBe(true);
   }
 
-  // 对照：这两个路径不能被忽略，证明检查不是空转
-  for (const p of ['tests/e2e/smoke.spec.ts', 'tests/fixtures/local-seed.json']) {
+  // 对照：这些路径不能被忽略，证明检查不是空转（应用文件自 Phase 7 起在仓库里）
+  for (const p of ['tests/e2e/smoke.spec.ts', 'tests/fixtures/local-seed.json', 'us-journey-tracker.html']) {
     expect(isIgnored(p), `${p} 不应该被 .gitignore 忽略`).toBe(false);
   }
 });

@@ -2,12 +2,13 @@
 
 ## 1. 这是什么
 
-这里是对单文件网页应用 `us-journey-tracker.html` 的本地黑盒浏览器测试。测试用 Playwright Test 驱动本机 Edge，只使用合成数据，不修改应用源码，不连接任何线上服务。
+这里是对单文件网页应用 `us-journey-tracker.html` 的本地黑盒浏览器测试。测试用 Playwright Test 驱动本机 Edge，只使用合成数据，不连接任何线上服务。应用从 v2.0 起按阶段计划修改，每次修改都要同步更新 sha256 基线。
 
 ## 2. 准备
 
 - 需要 Node.js 20 或更高版本，以及系统自带的 Microsoft Edge。
-- 应用文件 `us-journey-tracker.html` 不在仓库里（里面写死了个人内容，见 `PRIVACY.md`）。需要把自己本地的副本放到仓库根目录。缺少时，`npm test` 会在启动阶段用中文提示你放好文件，而不是报出看不懂的错误。
+- 应用文件 `us-journey-tracker.html` 就在仓库根目录，里面只有合成的示例计划（见 `PRIVACY.md`），克隆后直接 `npm ci --ignore-scripts` 和 `npm test` 即可。缺少它说明检出不完整，`npm test` 会在启动阶段用中文提示你检查检出，而不是报出看不懂的错误。
+- 所有者另有本机的 `private/plan-seed.json`（原计划，不进仓库）。没有它时，不涉及应用文件的提交照常检查（规则 D 跳过）；提交或推送应用文件会被隐私检查以退出码 2 阻止。没有个人计划的人可以建一份空种子 `{"v":1,"plan":{}}` 选择加入（见 `PRIVACY.md` § 5）。
 - 克隆后先运行一次 `git config core.hooksPath .githooks`，启用隐私钩子，详见 `PRIVACY.md`。这条命令只影响本仓库。
 - 安装依赖用 `npm ci --ignore-scripts`。它只按 lockfile 安装项目内依赖，不运行安装脚本，不会下载浏览器。
 
@@ -32,9 +33,9 @@
 |------|--------|
 | `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
-| `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、运行时探针、已知 bug 登记护栏 |
-| `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts` |
-| `tests/e2e/data/` | 合成数据用例：完整 fixture、旧类别名、最小状态在三个视图里的呈现 |
+| `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、干净克隆（SEC-04）、运行时探针、已知 bug 登记护栏 |
+| `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts`，以及 USJ_CONFIG 配置缝 |
+| `tests/e2e/data/` | 合成数据用例：完整 fixture、旧类别名、最小状态在三个视图里的呈现，以及冻结 id 和旧备份映射、normalizePlan 单元用例 |
 | `tests/e2e/week/` | 本周视图：渲染、周导航、记一笔、预设标签、拖放、复盘，以及已知 bug 的成对用例 |
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
@@ -44,6 +45,7 @@
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
+| `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
 | `tests/PROBES.md` | 运行时探针的结论 |
 | `tests/KNOWN-BUGS.md` | 已知 bug 登记表：编号、出处、对照用例和标记用例的标题、期望行为和现状 |
 
@@ -75,7 +77,7 @@
 - **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。`preconnect` 这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
 - **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
 - **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
-- **应用完整性**（`tests/e2e/platform/app-integrity.spec.ts`）：测试记录了应用文件的 sha256 基线，应用文件被改动时用例变红；应用文件始终只读。
+- **应用完整性**（`tests/e2e/platform/app-integrity.spec.ts`）：测试记录了应用文件的 sha256 基线，基线随每次应用改动在同一次提交里有意识地更新；改了不更新时 SAFE-02 变红。
 - **合成标记**（`tests/e2e/platform/repo-hygiene.spec.ts`）：fixture 必须带 `_synthetic`，报告和截图目录必须被 git 忽略。
 
 ## 8. 浏览器出问题时
@@ -89,7 +91,7 @@
 本仓库会公开，所以：
 
 - 只用合成数据，fixture 必须带 `_synthetic` 标记。
-- 不复制应用里的个人计划文字到测试、fixture 或文档里。
+- 不复制个人计划文字到测试、fixture 或文档里。应用里只有合成的示例计划，所有者的原计划只在本机种子里。
 - 不提交报告、截图和 trace。
 - 不使用 `--no-verify` 跳过隐私钩子。
 - 详见 `PRIVACY.md`。
@@ -113,7 +115,7 @@ PROBE-1 到 PROBE-8 的结论、证据和采用的方案见 `tests/PROBES.md`；
 
 - **四个 fixture 的用途：** `full-state.json` 是 Phase 2 到 5 共用的完整状态（各类别的记录、任务状态、自定义待办、力量历史、复盘、预设标签增删）；`legacy-categories.json` 检查旧类别名迁移；`minimal-state.json` 是只有标记的最小状态，用来测空导出和空视图；`malformed-imports.ts` 是畸形导入内容，只是内存常量，不落盘，避免被误认成真实备份（D-11）。`local-seed.json` 是本地与账户模式冒烟用的小种子。
 - **读取和推导：** `loadFixture(name)` 与 `withoutSynthetic(state)` 在 `tests/support/fixture-files.ts`；应用的 normalize 会丢掉 `_synthetic`，所以导出的备份要和去掉它的 fixture 比较。`tests/support/expect-from-fixture.ts` 里是按规格独立写的推导函数。期望值一律从 fixture 推导，不在用例里抄数字（D-13）。
-- **位置 id：** `tests/support/task-ids.ts` 里的内置任务 id 是位置 id，会随应用源码里任务的顺序变化（D-05）；变了以后页面用例会提示更新这个文件。
+- **位置 id：** 内置任务 id 自 Phase 7 起冻结在示例计划里，不再随顺序变化（PLAN-05）；`tests/support/task-ids.ts` 里记录的就是这组冻结 id。
 - **内置任务文字：** 只在运行时从目标页的 aria-label 读取，放在单个用例的内存里，不写进任何文件、annotation 或报告（D-14）。
 - **导出用例：** 文件名和内容从 `app.backend.downloads` 读，只在内存里比较，不写文件、不附加到报告（D-16）；不使用 Playwright 的下载事件。日历 CSV 的期望由独立生成器 `expectedCalendarCsv` 算出，再用用例里手写的金标准行锚定转义规则、80 字符截断和日期格式（D-15）；金标准与应用不一致时先按规格核对金标准，不要把它改成应用的输出。
 - **合成文字的写法：** 以 `SYNTH-` 开头，中英混合，中文只用短词。
@@ -136,7 +138,7 @@ PROBE-1 到 PROBE-8 的结论、证据和采用的方案见 `tests/PROBES.md`；
 
 ## 14. 已知 bug
 
-应用保持只读，已知 bug 只在测试侧标记和登记（BUG-01）。
+已知 bug 在修复它的那个阶段之前保持现状，只在测试侧标记和登记（BUG-01）。
 
 - **一条或多条对照用例加一条 `test.fail`（D-11）：** 每个已知 bug 是同一个 `test.describe` 里的几条用例，多数是一条对照加一条标记，B4 有两条对照用例。对照用例不带标记，走完全相同的准备和触发，断言前提成立；标记用例第一句调用 `knownBug(id, summary, opts?)`（来自 `tests/support/test.ts`），只断言一条期望的正确行为。分成两条，是因为 `test.fail` 会把同一条用例里任何原因的失败都当成预期失败。
 - **`test.fail` 还是 `test.fixme`：** 默认 `test.fail`。只有无法稳定复现、或期望行为未定时才用 fixme（`{ fixme: '<原因>' }`），并在登记表的“现状”里写明原因。
