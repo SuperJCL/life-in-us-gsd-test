@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
+See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 7 — 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
+**Current focus:** Phase 6 — 采购与中美可达性实测（Procurement & Reachability Probe）
 
 ## Current Position
 
@@ -124,7 +124,8 @@ v2.0 路线图（2026-11-06）：
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
-- Phase 6：购买腾讯云 Lighthouse 香港（先买 1 个月）和 Porkbun `.com` 域名，配置 DNS，组织大陆三网和美国的晚高峰实测。
+- Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。还剩：组织大陆三网和美国的晚高峰实测。
+- Phase 7：去个人化的应用已在本机提交，推送到公开仓库前需要所有者确认。
 - Phase 8：批准下载 PocketBase 二进制（放临时目录，只用合成数据）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
@@ -138,7 +139,9 @@ v2.0 路线图（2026-11-06）：
   - 原 Artifact 仍然不访问、不修改。
   - 已定：新约束写进 PROJECT.md 的 Constraints，v2.0 需求和路线图都按它来。
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
-  - 已定：腾讯云 Lighthouse 香港加 Porkbun 域名，自托管 PocketBase；中美线路在 Phase 6 实测后再决定是否续费。
+  - 已定（2026-11-07 更新）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的腾讯云），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx（不换 Caddy）。PROJECT/REQUIREMENTS/ROADMAP 里的腾讯云、Caddy 写法留到 Phase 6 讨论时一起改。自托管 PocketBase 不变；中美线路在 Phase 6 实测后再决定是否续费。
+- [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
+- [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 
 ### Quick Tasks Completed
 
@@ -162,5 +165,6 @@ Resume file: None
 
 ## Operator Next Steps
 
-- 所有者审阅并批准 `.planning/ROADMAP.md` 里的 v2.0 路线图
-- 批准后：`/gsd-plan-phase --research-phase 6` 或 `/gsd-discuss-phase 6`；Phase 7 可以同时用 `/gsd-discuss-phase 7` 开始
+- 确认是否把 Phase 7 的本地提交推送到 GitHub（去个人化的应用第一次进入公开仓库）
+- 建议补跑 `/gsd-secure-phase 7`（Phase 7 的安全审计还没做，SECURITY.md 不存在）
+- 下一阶段：`/gsd-discuss-phase 6`（晚高峰实测，并把服务器改成阿里云、nginx 的写法），或先 `/gsd-discuss-phase 8`（PocketBase 规则与假服务器，不依赖 Phase 6）
