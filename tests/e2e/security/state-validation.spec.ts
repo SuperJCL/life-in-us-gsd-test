@@ -90,3 +90,178 @@ test('SEC-01 the import check rejects any malformed id or date and accepts well-
   expect(json.includes('bad-log-id'), '坏的 logs 原始值不应进入 state').toBe(false);
   expect(json.includes('bad-task-key'), '坏的 tasks 原始值不应进入 state').toBe(false);
 });
+
+// ---------- D-08：加载时的深度修正 ----------
+
+// 独立写出的格式（不抄应用的正则）
+const LOG_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const CUSTOM_ID = /^c-[A-Za-z0-9_-]{1,60}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+test('SEC-01 stored data with malformed ids, dates and values is repaired on load without losing any log text', async () => {
+  const { normalize, importProblem, today } = loadAppPure(['normalize', 'importProblem', 'today', 'DEFAULT_PLAN', 'usePlan']);
+  const norm = (s: unknown) => plain(normalize(s));
+
+  // 1. 对合格数据是恒等的、重复执行结果不变
+  for (const name of ['full-state.json', 'local-seed.json', 'minimal-state.json', 'legacy-positional-backup.json']) {
+    const original = loadFixture(name);
+    delete original._synthetic;
+    const once = norm(original);
+    // minimal-state.json 是 {}，v1 的 normalize 本来就会补齐七个顶层键的默认值；其余 fixture 本来就带齐七个键
+    const expected = { arrival: '', tasks: {}, custom: [], logs: [], lifts: {}, reviews: {}, presets: {}, ...original };
+    expect(once, `${name} 经 normalize 后应与原文（补齐默认顶层键）深度相等`).toEqual(expected);
+    expect(norm(once), `${name} 重复执行结果不变`).toEqual(once);
+  }
+
+  // 2. 记录：坏 id、坏日期、缺 id、数字文字、缺文字、字符串形式、数组形式、旧类别名
+  const logs: unknown[] = [
+    { id: 'SYNTH"quote', date: '2026-03-16', cat: '语言', text: 'SYNTH-L1 quoted id' },
+    { id: 'synth-l2', date: '2026-3-5', cat: '专业', text: 'SYNTH-L2 bad date' },
+    { date: '2026-03-17', cat: '专业', text: 'SYNTH-L3 missing id' },
+    { id: 'synth-l4', date: '2026-03-17', cat: '专业', text: 12345 },
+    { id: 'synth-l5', date: '2026-03-17', cat: '求职' },
+    'SYNTH-L6 string entry',
+    ['SYNTH-array-item'],
+    { id: 'bad id!', date: 'bad', text: 'SYNTH-L8 both bad' },
+    null,
+    true,
+    [],
+    { id: 'synth-l9', date: '2026-03-17', cat: '学习', text: 'SYNTH-L9 legacy category' },
+  ];
+  const discarded = 3; // null、true、[] 不带任何用户文字
+  const out = norm({ logs });
+  expect(out.logs.length, '带文字的记录一条不少').toBe(logs.length - discarded);
+  for (const l of out.logs) {
+    expect(LOG_ID.test(l.id), '记录 id 合格').toBe(true);
+    expect(DATE.test(l.date), '记录日期合格').toBe(true);
+    expect(typeof l.text).toBe('string');
+  }
+  const byText = (needle: string) => out.logs.find((l: any) => l.text.includes(needle));
+  expect(out.logs.map((l: any) => l.text)).toEqual([
+    'SYNTH-L1 quoted id',
+    'SYNTH-L2 bad date',
+    'SYNTH-L3 missing id',
+    '12345',
+    '',
+    'SYNTH-L6 string entry',
+    '["SYNTH-array-item"]',
+    'SYNTH-L8 both bad',
+    'SYNTH-L9 legacy category',
+  ]);
+  expect(byText('SYNTH-L1').id).not.toBe('SYNTH"quote');
+  expect(byText('SYNTH-L1').date).toBe('2026-03-16');
+  expect(byText('SYNTH-L2').date).toBe(today());
+  expect(byText('SYNTH-L2').id).toBe('synth-l2');
+  expect(byText('SYNTH-L3').date).toBe('2026-03-17');
+  expect(byText('SYNTH-L6').cat).toBe('其他');
+  expect(byText('SYNTH-L6').date).toBe(today());
+  expect(byText('SYNTH-array-item').cat).toBe('其他');
+  expect(byText('SYNTH-L8').cat).toBe('其他');
+  expect(byText('SYNTH-L8').id).not.toBe('bad id!');
+  expect(byText('SYNTH-L9').cat).toBe('专业');
+  expect(importProblem(out), '修正后的结果能通过导入检查').toBeNull();
+
+  // 3. 自定义待办：坏 id 换成 c- 开头的新 id，进度跟着搬；坏 group 落到“其他”组（P7）；孤儿进度键一律丢弃
+  const messy = {
+    custom: [
+      { id: 'bad id', group: 'P2', text: 'SYNTH-C1 bad id' },
+      { id: 'c-synth-ok', group: '<b>', text: 'SYNTH-C2 bad group' },
+      'SYNTH-C3 string entry',
+      ['SYNTH-C4'],
+      null,
+      false,
+    ],
+    tasks: {
+      'bad id': { done: true, doneDate: '2026-03-12' },
+      'c-synth-ok': { due: '2026-03-25' },
+      'P1-1': { done: true, doneDate: '2026-03-12' },
+      'P9-9': { done: true },
+      't-synth': { done: true },
+      'P1-2"x': { done: true },
+      'P1-2': { done: 1, doneDate: 'soon', due: 7 },
+      'P2-1': 'not-an-object',
+    },
+  };
+  const fixed = norm(messy);
+  expect(fixed.custom.length, '带文字的待办一条不少').toBe(4);
+  const c1 = fixed.custom.find((c: any) => c.text === 'SYNTH-C1 bad id');
+  expect(CUSTOM_ID.test(c1.id)).toBe(true);
+  expect(c1.id).not.toBe('bad id');
+  expect(c1.group).toBe('P2');
+  expect(fixed.custom.find((c: any) => c.text === 'SYNTH-C2 bad group').group).toBe('P7');
+  expect(fixed.custom.find((c: any) => c.text === 'SYNTH-C2 bad group').id).toBe('c-synth-ok');
+  expect(fixed.custom.find((c: any) => c.text === 'SYNTH-C3 string entry').group).toBe('P7');
+  expect(fixed.custom.find((c: any) => c.text.includes('SYNTH-C4')).group).toBe('P7');
+  for (const c of fixed.custom) expect(CUSTOM_ID.test(c.id), '待办 id 合格').toBe(true);
+  expect(Object.keys(fixed.tasks).sort()).toEqual([c1.id, 'c-synth-ok', 'P1-1', 'P1-2'].sort());
+  expect(fixed.tasks[c1.id]).toEqual({ done: true, doneDate: '2026-03-12' });
+  expect(fixed.tasks['c-synth-ok']).toEqual({ due: '2026-03-25' });
+  expect(fixed.tasks['P1-1']).toEqual({ done: true, doneDate: '2026-03-12' });
+  expect(fixed.tasks['P1-2'], '非布尔 done 转成布尔，不合格的日期变空串').toEqual({ done: true, doneDate: '', due: '' });
+  for (const orphan of ['P9-9', 't-synth', 'P1-2"x', 'bad id', 'P2-1']) {
+    expect(Object.keys(fixed.tasks).includes(orphan), `孤儿或坏进度键 ${orphan} 应当被丢弃`).toBe(false);
+  }
+
+  // 4. 力量、arrival、复盘、预设
+  const rest = norm({
+    arrival: 'soon',
+    lifts: {
+      bench: {
+        cur: 'abc',
+        hist: [{ date: '2026-03-02', v: 38 }, { date: 'bad', v: 40 }, { date: '2026-03-09', v: 'x' }, 'junk'],
+      },
+      Squat: { cur: 5 },
+      squat: { cur: 60, hist: 'oops' },
+      dead: 'str',
+    },
+    reviews: { '2026-03-16': 'SYNTH-R text', week: 42, x: { a: 1 }, y: null },
+    presets: { 语言: { add: ['SYNTH-a', 5, null], hide: 'x' }, 健身: 'bad' },
+  });
+  expect(rest.arrival).toBe('');
+  expect(Object.keys(rest.lifts).sort()).toEqual(['bench', 'squat']);
+  expect(rest.lifts.bench).toEqual({ hist: [{ date: '2026-03-02', v: 38 }] });
+  expect(rest.lifts.squat).toEqual({ cur: 60, hist: [] });
+  expect(rest.reviews).toEqual({ '2026-03-16': 'SYNTH-R text', week: '42' });
+  expect(rest.presets).toEqual({ 语言: { add: ['SYNTH-a'] } });
+
+  // 5. 重复执行结果不变（修正后的新 id 已合格）
+  const again = norm({ logs, custom: messy.custom, tasks: messy.tasks });
+  expect(norm(again)).toEqual(again);
+});
+
+test('PLAN-05 backups with g-, t- and l- prefixed ids pass the import check and survive normalize', async () => {
+  const { normalize, importProblem, DEFAULT_PLAN, usePlan } = loadAppPure([
+    'normalize',
+    'importProblem',
+    'DEFAULT_PLAN',
+    'usePlan',
+  ]);
+  const norm = (s: unknown) => plain(normalize(s));
+  const synthetic: any = JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  synthetic.groups.push({ id: 'g-synth1', cat: '语言', name: 'SYNTH group', tasks: [{ id: 't-synth1', text: 'SYNTH task' }] });
+  synthetic.lifts.push({ id: 'l-synth1', n: 'SYNTH lift', unit: 'kg', def: 1, target: 2 });
+  expect(usePlan(synthetic), '带前缀的合成计划应被接受').toBe(true);
+
+  const backup = () => ({
+    arrival: '2026-01-12',
+    logs: [],
+    custom: [{ id: 'c-synth-1', group: 'g-synth1', text: 'SYNTH custom in a new group' }],
+    tasks: {
+      't-synth1': { done: true, doneDate: '2026-03-12' },
+      'c-synth-1': { due: '2026-03-25' },
+      'P1-1': { done: true },
+    },
+    lifts: { 'l-synth1': { cur: 5, hist: [{ date: '2026-03-02', v: 5 }] } },
+    reviews: {},
+    presets: {},
+  });
+  expect(importProblem(backup()), '前缀 id 通过导入检查').toBeNull();
+  expect(norm(backup()), '计划里有这些项时原样保留').toEqual(backup());
+
+  // 换回 DEFAULT_PLAN：计划里没有 t-synth1，进度键被丢弃；g- 组和 l- 力量键格式合格，仍保留
+  expect(usePlan(DEFAULT_PLAN)).toBe(true);
+  const back = norm(backup());
+  expect(Object.keys(back.tasks).sort()).toEqual(['P1-1', 'c-synth-1']);
+  expect(back.custom[0].group).toBe('g-synth1');
+  expect(back.lifts['l-synth1']).toEqual({ cur: 5, hist: [{ date: '2026-03-02', v: 5 }] });
+});

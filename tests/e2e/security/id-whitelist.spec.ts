@@ -9,11 +9,12 @@ import { test, expect } from '../../support/test';
 import type { Page } from '../../support/test';
 import type { AppHarness } from '../../support/app';
 import { loadFixture } from '../../support/fixture-files';
-import { FROZEN_NOW } from '../../support/constants';
+import { FROZEN_NOW, FROZEN_TODAY } from '../../support/constants';
 import { chooseImportFile, jsonImportFile, recordDialogs } from '../../support/import-file';
 import { composer } from '../../support/composer';
 import { expectToast, expectToastGone } from '../../support/toast';
-import { TOAST_IMPORT_BAD_FORMAT } from '../../support/strings';
+import { TAB_LABELS, TOAST_IMPORT_BAD_FORMAT } from '../../support/strings';
+import { gotoTimeline } from '../../support/timeline';
 
 type Log = { id: string; text: string; cat: string; date: string };
 
@@ -79,4 +80,101 @@ test.describe('SEC-01 import rejection', () => {
     await expect(page.locator('#tab-wk [data-edit="synth-full-04"]')).toHaveCount(1);
     await expectOnlySentinelSaved(page, app, fixtureIds, writesBefore, 'SYNTH-SEC01 reject sentinel');
   });
+});
+
+// ---------- 加载修正 ----------
+
+test('SEC-01 loading stored data with malformed ids keeps every log text and saves only compliant ids', async ({
+  page,
+  app,
+}) => {
+  const SENTINEL = 'SYNTH-SEC01 load sentinel';
+  const TEXTS = {
+    a: 'SYNTH-LOAD-A quoted id',
+    b: 'SYNTH-LOAD-B bad date',
+    c: 'SYNTH-LOAD-C missing id',
+    d: 'SYNTH-LOAD-D string entry',
+    e: 'SYNTH-LOAD-E bad custom id',
+  };
+  const seed = {
+    _synthetic: 'SYNTH',
+    arrival: 'soon',
+    logs: [
+      { id: 'SYNTH"quote', date: '2026-03-16', cat: '语言', text: TEXTS.a },
+      { id: 'synth-load-b', date: '2026-3-5', cat: '专业', text: TEXTS.b },
+      { date: '2026-03-17', cat: '求职', text: TEXTS.c },
+      TEXTS.d,
+    ],
+    custom: [{ id: 'bad id!', group: 'P2', text: TEXTS.e }],
+    tasks: {
+      'bad id!': { done: true, doneDate: '2026-03-12' },
+      'P9-9': { done: true, doneDate: '2026-03-12' },
+      't-synth': { done: true, doneDate: '2026-03-12' },
+      'P1-1"x': { done: true, doneDate: '2026-03-12' },
+      'P1-1': { done: true, doneDate: '2026-03-12' },
+    },
+    lifts: {
+      bench: { cur: 'abc', hist: [{ date: '2026-03-02', v: 38 }, { date: 'bad', v: 40 }] },
+      Squat: { cur: 5 },
+    },
+    reviews: {},
+    presets: {},
+  };
+
+  await app.open({ mode: 'account', seed });
+  await app.expectAccountMode();
+  // 加载本身不保存：启动之后 mock 里没有任何写入
+  expect(app.backend.writes).toEqual([]);
+
+  // 时间线：每条种子文字恰好出现一次（在页面内读回条目文字，失败消息只写变体名）
+  await gotoTimeline(page);
+  const texts = Object.values(TEXTS);
+  await expect
+    .poll(
+      async () => {
+        const all = await page.evaluate(() =>
+          Array.from(document.querySelectorAll('#timeline .tl-item'))
+            .map((el) => el.textContent ?? '')
+            .join('\n'),
+        );
+        return texts.map((t) => all.split(t).length - 1);
+      },
+      { message: '时间线里每条种子文字应当恰好出现一次（内容已隐藏）' },
+    )
+    .toEqual(texts.map(() => 1));
+
+  // 记一条哨兵触发保存，保存的状态里只有合格的 id 和日期
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  const comp = composer(page, 'w');
+  await comp.type(SENTINEL);
+  await comp.submit();
+  await app.expectSaved((s) => s.logs.some((l: Log) => l.text === SENTINEL), '等待哨兵保存');
+  const saved = await app.saved();
+
+  for (const l of saved.logs as Log[]) {
+    expect(/^[A-Za-z0-9_-]{1,64}$/.test(l.id), '保存的记录 id 合格').toBe(true);
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(l.date), '保存的记录日期合格').toBe(true);
+  }
+  const savedTexts = saved.logs.map((l: Log) => l.text);
+  for (const t of [TEXTS.a, TEXTS.b, TEXTS.c, TEXTS.d, SENTINEL]) {
+    expect(savedTexts.filter((x: string) => x === t).length, '记录文字恰好一条').toBe(1);
+  }
+  expect(saved.logs.find((l: Log) => l.text === TEXTS.a).date).toBe('2026-03-16');
+  expect(saved.logs.find((l: Log) => l.text === TEXTS.b).date).toBe(FROZEN_TODAY);
+
+  // 自定义待办换了新 id，进度跟着搬；孤儿键和坏键都去掉；内置任务 P1-1 的进度还在
+  expect(saved.custom.length).toBe(1);
+  const newId: string = saved.custom[0].id;
+  expect(/^c-[A-Za-z0-9_-]{1,60}$/.test(newId)).toBe(true);
+  expect(newId).not.toBe('bad id!');
+  expect(saved.custom[0].text).toBe(TEXTS.e);
+  expect(Object.keys(saved.tasks).sort()).toEqual([newId, 'P1-1'].sort());
+  expect(saved.tasks[newId]).toEqual({ done: true, doneDate: '2026-03-12' });
+  expect(saved.tasks['P1-1']).toEqual({ done: true, doneDate: '2026-03-12' });
+
+  // 力量：大写键被丢弃，不是数字的 cur 被删掉，坏的历史项被去掉；arrival 变空串
+  expect(Object.keys(saved.lifts)).toEqual(['bench']);
+  expect(saved.lifts.bench.cur).toBeUndefined();
+  expect(saved.lifts.bench.hist).toEqual([{ date: '2026-03-02', v: 38 }]);
+  expect(saved.arrival).toBe('');
 });

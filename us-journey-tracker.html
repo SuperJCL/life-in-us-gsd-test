@@ -448,13 +448,55 @@ function importProblem(raw){
   if(typeof raw.arrival==="string"&&raw.arrival!==""&&!DATE_RE.test(raw.arrival))return "arrival";
   return null;
 }
+/* D-08：加载和导入共用的修正。只改不合格的字段，对合格数据是恒等的、重复执行结果不变；不删任何带文字的记录，不调用 persist。
+   进度键只在对应到当前计划任务（planIds）或修正后的自定义待办时保留，其余一律丢弃；planIds 由脚本求值时的 usePlan(DEFAULT_PLAN) 设好，早于加载和导入。 */
 function normalize(s){
-  const o={arrival:typeof s.arrival==="string"?s.arrival:"",tasks:s.tasks&&typeof s.tasks==="object"?s.tasks:{},
-    custom:Array.isArray(s.custom)?s.custom:[],logs:Array.isArray(s.logs)?s.logs:[],
-    lifts:s.lifts&&typeof s.lifts==="object"?s.lifts:{},reviews:s.reviews&&typeof s.reviews==="object"?s.reviews:{},
-    presets:s.presets&&typeof s.presets==="object"?s.presets:{}};
-  o.logs.forEach(l=>{if(LEGACY[l.cat])l.cat=LEGACY[l.cat];if(!CK[l.cat])l.cat="其他"});
-  return o;
+  const wordy=v=>typeof v==="string"||(typeof v==="number"&&isFinite(v));
+  const asText=v=>typeof v==="string"?v:typeof v==="number"||typeof v==="boolean"?String(v):v==null?"":JSON.stringify(v);
+  const entry=l=>isObj(l)?l:wordy(l)?{text:String(l)}:Array.isArray(l)&&l.some(wordy)?{text:JSON.stringify(l)}:null;
+  const okDate=v=>typeof v==="string"&&DATE_RE.test(v),fin=v=>typeof v==="number"&&isFinite(v);
+  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  const oth=(plan.groups.find(g=>g.cat==="其他")||plan.groups[plan.groups.length-1]).id;
+  const idMap=new Map();
+  const logs=(Array.isArray(s.logs)?s.logs:[]).map(entry).filter(Boolean).map(l=>{
+    const r={...l};
+    if(typeof r.id!=="string"||!LOG_ID_RE.test(r.id))r.id=uid();
+    if(!okDate(r.date))r.date=today();
+    r.text=asText(r.text);
+    if(typeof r.cat==="string"&&own(LEGACY,r.cat))r.cat=LEGACY[r.cat];
+    if(typeof r.cat!=="string"||!own(CK,r.cat))r.cat="其他";
+    return r;
+  });
+  const custom=(Array.isArray(s.custom)?s.custom:[]).map(entry).filter(Boolean).map(c=>{
+    const r={...c};
+    if(typeof r.id!=="string"||!CUSTOM_ID_RE.test(r.id)){
+      const old=r.id;r.id="c-"+uid();
+      if(typeof old==="string"&&!planIds.has(old)&&!idMap.has(old))idMap.set(old,r.id);
+    }
+    if(typeof r.group!=="string"||!GROUP_ID_RE.test(r.group))r.group=oth;
+    r.text=asText(r.text);
+    return r;
+  });
+  const cids=new Set(custom.map(c=>c.id));
+  const tasks=Object.fromEntries(Object.keys(isObj(s.tasks)?s.tasks:{}).map(k=>[idMap.has(k)?idMap.get(k):k,s.tasks[k]]).filter(([k,v])=>isObj(v)&&(planIds.has(k)||cids.has(k))).map(([k,v])=>{
+    const r={...v};
+    if(r.done!==undefined&&typeof r.done!=="boolean")r.done=!!r.done;
+    for(const f of ["doneDate","due"])if(r[f]!==undefined&&r[f]!==""&&!okDate(r[f]))r[f]="";
+    return [k,r];
+  }));
+  const lifts=Object.fromEntries(Object.keys(isObj(s.lifts)?s.lifts:{}).filter(k=>LIFT_ID_RE.test(k)&&isObj(s.lifts[k])).map(k=>{
+    const r={...s.lifts[k]};
+    if(r.cur!==undefined&&!fin(r.cur))delete r.cur;
+    if(r.hist!==undefined)r.hist=Array.isArray(r.hist)?r.hist.filter(x=>isObj(x)&&okDate(x.date)&&fin(x.v)):[];
+    return [k,r];
+  }));
+  const reviews=Object.fromEntries(Object.keys(isObj(s.reviews)?s.reviews:{}).filter(k=>wordy(s.reviews[k])).map(k=>[k,String(s.reviews[k])]));
+  const presets=Object.fromEntries(Object.keys(isObj(s.presets)?s.presets:{}).filter(k=>isObj(s.presets[k])).map(k=>{
+    const r={...s.presets[k]};
+    for(const f of ["add","hide"])if(r[f]!==undefined){if(Array.isArray(r[f]))r[f]=r[f].filter(x=>typeof x==="string");else delete r[f]}
+    return [k,r];
+  }));
+  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||DATE_RE.test(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets};
 }
 
 /* ---------- saving ---------- */
