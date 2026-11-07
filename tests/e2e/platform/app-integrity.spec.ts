@@ -14,8 +14,22 @@ test('SAFE-02 us-journey-tracker.html matches the recorded sha256 baseline', asy
   const digest = createHash('sha256').update(readFileSync(appFile)).digest('hex');
   expect(
     digest,
-    'us-journey-tracker.html 与 sha256 基线不一致：应用文件被改动过，本里程碑禁止修改应用',
+    '应用与基线不一致：确认改动是有意的之后，在同一次提交里更新 tests/support/constants.ts 的 APP_SHA256',
   ).toBe(APP_SHA256);
+});
+
+// 反向对照（TEST-01）：证明基线护栏不是空转。原样的哈希等于基线；
+// 内存里把最后一个字节异或 1 之后哈希就对不上，也就是改了应用却没更新基线时 SAFE-02 会失败。只在内存里做，不写盘。
+test('SAFE-02 a one-byte change to the app no longer matches the baseline', async () => {
+  const original = readFileSync(appFile);
+  expect(createHash('sha256').update(original).digest('hex'), '对照：原样的应用应当等于基线').toBe(APP_SHA256);
+
+  const changed = Buffer.from(original);
+  changed[changed.length - 1] ^= 1;
+  expect(createHash('sha256').update(changed).digest('hex'), '改一个字节之后哈希不应等于基线').not.toBe(APP_SHA256);
+
+  // 内存副本和磁盘文件互不影响：磁盘上的文件仍是原样
+  expect(createHash('sha256').update(readFileSync(appFile)).digest('hex')).toBe(APP_SHA256);
 });
 
 test('ENV-03 the static server serves only the app file', async ({ request }) => {
