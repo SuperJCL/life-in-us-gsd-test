@@ -412,6 +412,8 @@ const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,"0");
 const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const parse=s=>{const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c)};
+/* WR-06：格式合格还要是真实存在的日历日期（2026-02-31 经 parse 会变成 03-03，往返不相等） */
+const realDate=v=>typeof v==="string"&&DATE_RE.test(v)&&ymd(parse(v))===v;
 const today=()=>ymd(new Date());
 const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)};
 const monday=s=>{const d=parse(s);return addDays(s,-((d.getDay()+6)%7))};
@@ -433,7 +435,7 @@ function lift(id){const L=plan.lifts.find(x=>x.id===id);return Object.assign({cu
 function importProblem(raw){
   if(!isObj(raw))return null;
   const items=c=>Array.isArray(c)?c:isObj(c)?Object.values(c):[];
-  const okDate=v=>typeof v==="string"&&DATE_RE.test(v),optDate=v=>v===undefined||v===""||okDate(v);
+  const okDate=realDate,optDate=v=>v===undefined||v===""||okDate(v);
   for(const l of items(raw.logs))if(!isObj(l)||typeof l.id!=="string"||!LOG_ID_RE.test(l.id)||!okDate(l.date))return "log";
   for(const c of items(raw.custom))if(!isObj(c)||typeof c.id!=="string"||!CUSTOM_ID_RE.test(c.id)||typeof c.group!=="string"||!GROUP_ID_RE.test(c.group))return "custom";
   const t=raw.tasks;
@@ -445,8 +447,8 @@ function importProblem(raw){
     if(Array.isArray(h)||isObj(h))for(const x of items(h))if(!isObj(x)||!okDate(x.date))return "lift";
   }
   const R=raw.reviews;
-  if(R!==null&&typeof R==="object")for(const k of Object.keys(R))if(!DATE_RE.test(k))return "review";
-  if(typeof raw.arrival==="string"&&raw.arrival!==""&&!DATE_RE.test(raw.arrival))return "arrival";
+  if(R!==null&&typeof R==="object")for(const k of Object.keys(R))if(!realDate(k))return "review";
+  if(typeof raw.arrival==="string"&&raw.arrival!==""&&!realDate(raw.arrival))return "arrival";
   return null;
 }
 /* D-08：加载和导入共用的修正。只改不合格的字段，对合格数据是恒等的、重复执行结果不变；不删任何带文字的记录，不调用 persist。
@@ -455,7 +457,7 @@ function normalize(s){
   const wordy=v=>typeof v==="string"||(typeof v==="number"&&isFinite(v));
   const asText=v=>typeof v==="string"?v:typeof v==="number"||typeof v==="boolean"?String(v):v==null?"":JSON.stringify(v);
   const entry=l=>isObj(l)?l:wordy(l)?{text:String(l)}:Array.isArray(l)&&l.some(wordy)?{text:JSON.stringify(l)}:null;
-  const okDate=v=>typeof v==="string"&&DATE_RE.test(v),fin=v=>typeof v==="number"&&isFinite(v);
+  const okDate=realDate,fin=v=>typeof v==="number"&&isFinite(v);
   const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
   const oth=(plan.groups.find(g=>g.cat==="其他")||plan.groups[plan.groups.length-1]).id;
   const idMap=new Map();
@@ -497,7 +499,7 @@ function normalize(s){
     for(const f of ["add","hide"])if(r[f]!==undefined){if(Array.isArray(r[f]))r[f]=r[f].filter(x=>typeof x==="string");else delete r[f]}
     return [k,r];
   }));
-  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||DATE_RE.test(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets};
+  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets};
 }
 
 /* ---------- saving ---------- */

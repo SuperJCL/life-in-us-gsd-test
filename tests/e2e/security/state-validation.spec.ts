@@ -60,6 +60,14 @@ test('SEC-01 the import check rejects any malformed id or date and accepts well-
     'lift history date malformed': (s) => (s.lifts.bench.hist[0].date = '03/02/2026'),
     'review key week-1': (s) => (s.reviews['week-1'] = 'SYNTH-review'),
     'arrival soon': (s) => (s.arrival = 'soon'),
+    // WR-06：格式合格但日历上不存在的日期同样整份拒绝
+    'log date 2026-02-31': (s) => (s.logs[0].date = '2026-02-31'),
+    'log date 2026-02-29 in a non-leap year': (s) => (s.logs[0].date = '2026-02-29'),
+    'task due 2026-04-31': (s) => (s.tasks['P1-2'].due = '2026-04-31'),
+    'task doneDate 2026-02-30': (s) => (s.tasks['P1-1'].doneDate = '2026-02-30'),
+    'lift history date 2026-02-31': (s) => (s.lifts.bench.hist[0].date = '2026-02-31'),
+    'review key 2026-02-31': (s) => (s.reviews['2026-02-31'] = 'SYNTH-review'),
+    'arrival 2026-02-31': (s) => (s.arrival = '2026-02-31'),
     // 类型不对、但能识别出条目的容器同样检查
     'logs as a plain object with a bad id': (s) => (s.logs = { a: { id: 'SYNTH"bad', date: '2026-03-16', text: 'SYNTH' } }),
     'custom as a plain object with a bad id': (s) => (s.custom = { a: { id: 'x-synth', group: 'P1', text: 'SYNTH' } }),
@@ -160,6 +168,22 @@ test('SEC-01 stored data with malformed ids, dates and values is repaired on loa
   expect(byText('SYNTH-L8').id).not.toBe('bad id!');
   expect(byText('SYNTH-L9').cat).toBe('专业');
   expect(importProblem(out), '修正后的结果能通过导入检查').toBeNull();
+
+  // 2b. WR-06：格式合格但不存在的日期按坏日期修正（记录改成今天、任务日期清空、抵达日期清空），不删记录；闰日 2024-02-29 保留
+  const impossible = norm({
+    arrival: '2026-02-31',
+    logs: [
+      { id: 'synth-d1', date: '2026-02-31', cat: '语言', text: 'SYNTH-D1 impossible date' },
+      { id: 'synth-d2', date: '2024-02-29', cat: '语言', text: 'SYNTH-D2 leap day' },
+    ],
+    tasks: { 'P1-1': { done: true, doneDate: '2026-04-31', due: '2026-02-30' } },
+  });
+  expect(impossible.arrival, '不存在的抵达日期清空').toBe('');
+  expect(impossible.logs.map((l: any) => l.text), '带文字的记录一条不少').toEqual(['SYNTH-D1 impossible date', 'SYNTH-D2 leap day']);
+  expect(impossible.logs[0].date, '不存在的日期改成今天').toBe(today());
+  expect(impossible.logs[1].date, '真实存在的闰日保留').toBe('2024-02-29');
+  expect(impossible.tasks['P1-1'], '不存在的任务日期变空串').toEqual({ done: true, doneDate: '', due: '' });
+  expect(importProblem(impossible), '修正后的结果能通过导入检查').toBeNull();
 
   // 3. 自定义待办：坏 id 换成 c- 开头的新 id，进度跟着搬；坏 group 落到“其他”组（P7）；孤儿进度键一律丢弃
   const messy = {

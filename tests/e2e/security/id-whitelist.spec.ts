@@ -62,6 +62,8 @@ test.describe('SEC-01 import rejection', () => {
       'synth-bad-task-key.json': (s) => (s.tasks['P1-1"x'] = { done: true }),
       'synth-bad-custom-id.json': (s) => (s.custom[0].id = 'x-synth'),
       'synth-bad-review-key.json': (s) => (s.reviews['week-1'] = 'SYNTH-review'),
+      'synth-impossible-log-date.json': (s) => (s.logs[0].date = '2026-02-31'),
+      'synth-impossible-arrival.json': (s) => (s.arrival = '2026-02-31'),
     };
 
     const dialogs = recordDialogs(page);
