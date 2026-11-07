@@ -11,7 +11,7 @@
 //   A-forbidden-path  不允许进入仓库的文件路径
 //   B-abs-path        内容里的本机绝对路径（用户名）
 //   C-email           内容里的真实邮箱
-//   D-plan-term       个人计划词条（运行时从本地私有来源提取，只输出编号）
+//   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，只输出编号）
 //   E-author-email    提交的作者或提交者邮箱不是 GitHub noreply 地址
 //
 // 退出码：0 通过；1 发现问题；2 参数错误或内部错误（fail closed，同样会阻止提交）。
@@ -29,12 +29,17 @@ const MAX_BUFFER = 64 * 1024 * 1024;
 const NOREPLY_SUFFIX = '@users.noreply.github.com';
 const APP_FILE = 'us-journey-tracker.html';
 const DENYLIST_FILE = 'private/denylist.txt';
+const SEED_FILE = 'private/plan-seed.json';
+const ORIGINAL_COPY_FILE = 'private/us-journey-tracker.original.html';
 const TERM_BLOCK_NAMES = ['CATS', 'GROUPS', 'LIFTS'];
 const FILE_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico',
   'js', 'mjs', 'cjs', 'ts', 'json', 'md', 'css', 'html', 'htm',
 ]);
 const GENERIC_DIRS = /^(public|default( user)?|all users)([\\/]|$)/i;
+
+// 规则 D 的词条来源：本地种子和 denylist；不读应用文件（D-06）
+export const PLAN_TERM_SOURCES = [SEED_FILE, DENYLIST_FILE];
 
 export const RULES = {
   A: 'A-forbidden-path',
@@ -175,6 +180,7 @@ export function formatFinding(f) {
 
 // ---------- 纯函数：规则 D 的词条来源 ----------
 
+// 只给 --self-test 对照 private 原件副本用（D-06）
 function readBlock(html, name) {
   const m = new RegExp(`const\\s+${name}\\s*=\\s*\\[`).exec(html);
   if (!m) return [];
@@ -201,6 +207,16 @@ function readBlock(html, name) {
   return strings;
 }
 
+// 规则 D 的词条筛选：含汉字、至少 4 个字、去掉结尾冒号。
+// 与 tools/plan/extract-plan.mjs 的 planTerm 相同，改一处要改两处。
+export function planTerm(value) {
+  const v = String(value).trim().replace(/[：:]$/, '').trim();
+  if (!/\p{Script=Han}/u.test(v)) return null;
+  if ([...v].length < 4) return null;
+  return v;
+}
+
+// 只给 --self-test 对照 private 原件副本用，规则 D 不再用它读应用文件（D-06）
 export function extractPlanTerms(html) {
   const seen = new Set();
   const terms = [];
@@ -212,14 +228,37 @@ export function extractPlanTerms(html) {
       } catch {
         value = literal.slice(1, -1);
       }
-      value = String(value).trim().replace(/[：:]$/, '').trim();
-      if (!/\p{Script=Han}/u.test(value)) continue;
-      if ([...value].length < 4) continue;
-      if (seen.has(value)) continue;
-      seen.add(value);
-      terms.push(value);
+      const term = planTerm(value);
+      if (term === null || seen.has(term)) continue;
+      seen.add(term);
+      terms.push(term);
     }
   }
+  return terms;
+}
+
+// 从本地种子取词条：只遍历 plan 对象里的字符串，_seed 等其他字段不提取
+export function seedTerms(text) {
+  const data = JSON.parse(text);
+  if (data === null || typeof data !== 'object' || Array.isArray(data) || data.plan === null || typeof data.plan !== 'object' || Array.isArray(data.plan)) {
+    throw new Error('种子文件格式不对：缺少 plan 对象');
+  }
+  const seen = new Set();
+  const terms = [];
+  const walk = (v) => {
+    if (typeof v === 'string') {
+      const term = planTerm(v);
+      if (term !== null && !seen.has(term)) {
+        seen.add(term);
+        terms.push(term);
+      }
+    } else if (Array.isArray(v)) {
+      v.forEach(walk);
+    } else if (v && typeof v === 'object') {
+      Object.values(v).forEach(walk);
+    }
+  };
+  walk(data.plan);
   return terms;
 }
 
@@ -307,14 +346,15 @@ function loadPlanTerms() {
   const add = (list) => {
     for (const t of list) if (!terms.includes(t)) terms.push(t);
   };
-  const htmlPath = firstExisting(APP_FILE);
-  if (htmlPath) add(extractPlanTerms(readFileSync(htmlPath, 'utf8')));
+  // 种子存在但解析失败时让错误抛出，由 main 以退出码 2 阻止（fail closed）
+  const seedPath = firstExisting(SEED_FILE);
+  if (seedPath) add(seedTerms(readFileSync(seedPath, 'utf8')));
   const denyPath = firstExisting(DENYLIST_FILE);
   if (denyPath) add(parseDenylist(readFileSync(denyPath, 'utf8')));
   if (terms.length > 0) {
     process.stderr.write(`规则 D：已加载 ${terms.length} 个个人计划词条\n`);
   } else {
-    process.stderr.write(`规则 D 已跳过：未找到 ${APP_FILE} 或 ${DENYLIST_FILE}\n`);
+    process.stderr.write(`规则 D 已跳过：未找到 ${SEED_FILE} 或 ${DENYLIST_FILE}\n`);
   }
   return terms;
 }
@@ -539,6 +579,30 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
   expect('规则 D 命中并给出编号', dFind.length === 1 && dFind[0].message.endsWith('#2'));
   expect('规则 D 输出不含词条', !formatFinding(dFind[0] ?? { location: '', rule: '', message: '' }).includes('嵌套数组条目二'));
 
+  // 规则 D：种子词条（样本运行时构造，只用合成文字）
+  const synthSeed = JSON.stringify({
+    _seed: '合成种子标记四字以上',
+    v: 1,
+    plan: {
+      presets: { a: ['合成样例条目一：', 'only ascii words', '三个字'], b: ['合成样例条目一'] },
+      groups: [{ id: 'P1', name: '嵌套数组条目二', tasks: [{ id: 'P1-1', text: '全角冒号结尾条目：' }, { id: 'P1-2', text: '半角冒号结尾条目:' }] }],
+      fitGoal: [1, 2],
+    },
+  });
+  const seedWant = ['合成样例条目一', '嵌套数组条目二', '全角冒号结尾条目', '半角冒号结尾条目'];
+  expect('种子词条：内容和顺序，_seed 不提取', JSON.stringify(seedTerms(synthSeed)) === JSON.stringify(seedWant));
+  const seedThrows = (text) => {
+    try {
+      seedTerms(text);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+  expect('种子 JSON 坏掉时抛错', seedThrows('{not json'));
+  expect('种子缺 plan 时抛错', seedThrows('{"v":1}') && seedThrows('{"v":1,"plan":[]}') && seedThrows('[]') && seedThrows('null'));
+  expect('PLAN_TERM_SOURCES 不含应用文件', !PLAN_TERM_SOURCES.includes(APP_FILE) && PLAN_TERM_SOURCES.includes(SEED_FILE) && PLAN_TERM_SOURCES.includes(DENYLIST_FILE));
+
   // 规则 E
   expect('规则 E 放行 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX}`, '作者') === null);
   expect('规则 E 放行大写 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX.toUpperCase()}`, '作者') === null);
@@ -582,6 +646,19 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
     expect(`实时词条自检：共 ${live.length} 个，失败 ${liveBad} 个`, liveOk);
   } else {
     process.stderr.write('实时词条自检已跳过：没有可用的词条来源\n');
+  }
+
+  // 实时自检：对照私有原件副本，只输出计数
+  const copyPath = existsSync(ORIGINAL_COPY_FILE) ? ORIGINAL_COPY_FILE : null;
+  if (copyPath && live.length > 0) {
+    const copyText = readFileSync(copyPath, 'utf8');
+    const legacy = extractPlanTerms(copyText);
+    const liveSet = new Set(live);
+    expect(`实时自检：种子包含原件块内的全部词条（共 ${legacy.length} 个）`, legacy.length > 0 && legacy.every((t) => liveSet.has(t)));
+    const copyHits = scanText('f', copyText, live).filter((x) => x.rule === RULES.D).length;
+    expect(`实时自检：原件副本仍被规则 D 拦住（命中 ${copyHits} 行）`, copyHits >= 1);
+  } else {
+    process.stderr.write('实时自检已跳过：没有私有原件副本或没有可用的词条来源\n');
   }
 
   if (failures.length > 0) {
