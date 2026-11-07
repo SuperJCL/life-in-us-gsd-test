@@ -444,7 +444,7 @@ function runStaged(terms, seedFound) {
 // ---------- 模式：--all ----------
 
 function runAll(terms, seedFound) {
-  const head = gitPathList(['ls-tree', '-r', '-z', '--name-only', 'HEAD']);
+  // 没有任何提交时 HEAD 不存在，ls-tree 会以 128 退出：先判断 HEAD 是否存在，再读 HEAD 树（WR-05）
   const hasHead = (() => {
     try {
       git(['rev-parse', '--verify', '-q', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -453,7 +453,7 @@ function runAll(terms, seedFound) {
       return false;
     }
   })();
-  const headPaths = hasHead ? head : [];
+  const headPaths = hasHead ? gitPathList(['ls-tree', '-r', '-z', '--name-only', 'HEAD']) : [];
   const deleted = new Set(gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=D']));
   const staged = gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']);
   const stagedSet = new Set(staged);
