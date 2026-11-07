@@ -17,6 +17,11 @@ private/
 .claude/*
 !.claude/CLAUDE.md
 
+# --- 其他 AI 工具的安装文件（含本机绝对路径，不进仓库；GSD 安装文件同属此类）---
+.agents/
+.codex/
+AGENTS.md
+
 # --- 调研缓存 ---
 .planning/research/.cache/
 

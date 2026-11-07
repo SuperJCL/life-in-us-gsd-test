@@ -17,6 +17,7 @@
 | 真实备份 `*备份*.json`，以及应用导出的 `在美国的日子-*.json`、`在美国的日子-*.csv` | 含真实数据 |
 | `private/` 目录 | 本机私有内容，例如 `private/denylist.txt`、`private/plan-seed.json`（原计划种子）和 `private/us-journey-tracker.original.html`（原应用的副本） |
 | `.claude/settings.local.json` 和 GSD 安装文件 | 本机设置；`.claude/` 下只跟踪 `.claude/CLAUDE.md`（D-12） |
+| `.agents/`、`.codex/` 和根目录的 `AGENTS.md` | 其他 AI 工具的安装文件，里面有含本机用户名的绝对路径；`.gitignore` 忽略它们，规则 A 也会拦下强行暂存的这些路径 |
 | `.env*` | 环境变量和密钥 |
 | `test-results/`、`playwright-report/`、`blob-report/` | 截图和 trace 会拍到个人计划文字（D-02），失败证据只留在本地 |
 | 文件内容里的本机绝对路径、真实邮箱和个人计划文字 | 由检查器的规则 B、C、D 拦截 |

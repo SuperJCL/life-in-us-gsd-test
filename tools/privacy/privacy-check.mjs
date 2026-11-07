@@ -63,6 +63,8 @@ export function checkPath(path) {
     return '应用导出文件含真实数据，不能进入仓库';
   }
   if (segments.includes('private')) return 'private 目录只留在本机，不能进入仓库';
+  // 其他 AI 工具的安装文件含本机绝对路径（WR-07），与 .gitignore 保持一致
+  if (segments[0] === '.agents' || segments[0] === '.codex' || norm === 'AGENTS.md') return '其他 AI 工具的安装文件含本机路径，不能进入仓库';
   if (norm === '.claude/settings.local.json') return '本机 Claude 设置不能进入仓库';
   if (base.startsWith('.env')) return '环境变量文件不能进入仓库';
   return null;
@@ -591,11 +593,13 @@ function runSelfTest() {
     `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
     '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
     'us-journey-tracker.original.html', 'backup/us-journey-tracker.v1.html',
+    '.agents/skills/x/SKILL.md', '.codex/agents/x.toml', 'AGENTS.md',
   ];
   for (const p of pathPos) expect(`规则 A 正例 ${p}`, checkPath(p) !== null);
   const pathNeg = [
     'PRIVACY.md', 'tools/privacy/privacy-check.mjs', 'privateer.txt', 'docs/backup.md',
     'src/environment.ts', '.claude/CLAUDE.md', 'docs/us-journey-tracker.md', APP_FILE,
+    'docs/AGENTS.md', 'docs/.agents-notes.md', 'src/codex/x.ts',
   ];
   for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
 
