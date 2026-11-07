@@ -223,3 +223,6 @@ export const CONFIRM_IMPORT = '用备份文件替换当前所有内容？';
 // 文件不是备份（解析失败或 normalize 抛错）时的 toast（应用源码第 657 行逐字复制，逗号是全角，.json 前有一个空格）。
 // 接受导入后的 toast 复用上面的 TOAST_RESTORED（与撤销后的 toast 文字相同）
 export const TOAST_IMPORT_BAD_FORMAT = '文件格式不对，请选择导出的备份 .json';
+
+// USJ_CONFIG 配了不支持的后端时状态行的文案（应用源码逐字复制）；它出现说明应用停在加载之前、没有悄悄退回本地
+export const STATUS_BACKEND_UNSUPPORTED = '存储配置无效：这个版本还不支持所配置的后端，修改不会保存';
