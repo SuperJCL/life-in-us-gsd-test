@@ -125,7 +125,6 @@ v2.0 路线图（2026-11-06）：
 
 所有者操作（Claude 不代办）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。还剩：组织大陆三网和美国的晚高峰实测。
-- Phase 7：去个人化的应用已在本机提交，推送到公开仓库前需要所有者确认。
 - Phase 8：批准下载 PocketBase 二进制（放临时目录，只用合成数据）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
@@ -165,6 +164,5 @@ Resume file: None
 
 ## Operator Next Steps
 
-- 确认是否把 Phase 7 的本地提交推送到 GitHub（去个人化的应用第一次进入公开仓库）
-- 建议补跑 `/gsd-secure-phase 7`（Phase 7 的安全审计还没做，SECURITY.md 不存在）
+- Phase 7 已推送（所有者 2026-11-07 确认），安全审计 27/27 关闭（`07-SECURITY.md`）
 - 下一阶段：`/gsd-discuss-phase 6`（晚高峰实测，并把服务器改成阿里云、nginx 的写法），或先 `/gsd-discuss-phase 8`（PocketBase 规则与假服务器，不依赖 Phase 6）
