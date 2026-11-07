@@ -239,9 +239,21 @@ export function extractPlanTerms(html) {
   return terms;
 }
 
+// 种子是所有者的计划文字：JSON 解析失败时绝不透传 err.message（较新的 Node 会在消息里带出错位置附近的原文），
+// 只输出固定文案和位置数字（WR-03）。位置只取消息末尾 "at position N (line L column C)" 里的数字。
+export function parseSeedJson(text, label = 'private/plan-seed.json') {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    const m = /at position (d+)(?: (line (d+) column (d+)))?s*$/.exec(err instanceof Error ? String(err.message) : '');
+    const where = m ? `，位置 ${m[1]}${m[2] ? `（第 ${m[2]} 行第 ${m[3]} 列）` : ''}` : '';
+    throw new Error(`${label} JSON 解析失败（已隐去内容）${where}`);
+  }
+}
+
 // 从本地种子取词条：只遍历 plan 对象里的字符串，_seed 等其他字段不提取
 export function seedTerms(text) {
-  const data = JSON.parse(text);
+  const data = parseSeedJson(text);
   if (data === null || typeof data !== 'object' || Array.isArray(data) || data.plan === null || typeof data.plan !== 'object' || Array.isArray(data.plan)) {
     throw new Error('种子文件格式不对：缺少 plan 对象');
   }
@@ -631,6 +643,18 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
     }
   };
   expect('种子 JSON 坏掉时抛错', seedThrows('{not json'));
+  // WR-03：解析失败的报错只含固定文案和位置，不带种子里的文字（样本为合成文字，运行时拼接）
+  const leakMarker = '合成泄露标记' + '一二三四';
+  const leakTexts = [`{"plan":{"a":"${leakMarker}" x}}`, `{"plan":"${leakMarker}`, `${leakMarker}{`, `{"plan":{"a":"${leakMarker}"},}`];
+  const leakMessages = leakTexts.map((text) => {
+    try {
+      seedTerms(text);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  });
+  expect('种子 JSON 坏掉的报错：固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')));
   expect('种子缺 plan 时抛错', seedThrows('{"v":1}') && seedThrows('{"v":1,"plan":[]}') && seedThrows('[]') && seedThrows('null'));
   expect('PLAN_TERM_SOURCES 不含应用文件', !PLAN_TERM_SOURCES.includes(APP_FILE) && PLAN_TERM_SOURCES.includes(SEED_FILE) && PLAN_TERM_SOURCES.includes(DENYLIST_FILE));
 

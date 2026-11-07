@@ -64,6 +64,18 @@ export function evalSection(html, expr) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// 种子是所有者的计划文字：JSON 解析失败时绝不透传 err.message（较新的 Node 会在消息里带出错位置附近的原文），
+// 只输出固定文案和位置数字（WR-03）。位置只取消息末尾 "at position N (line L column C)" 里的数字。
+export function parseSeedJson(text, label = SEED_FILE) {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    const m = /at position (d+)(?: (line (d+) column (d+)))?s*$/.exec(err instanceof Error ? String(err.message) : '');
+    const where = m ? `，位置 ${m[1]}${m[2] ? `（第 ${m[2]} 行第 ${m[3]} 列）` : ''}` : '';
+    throw new Error(`${label} JSON 解析失败（已隐去内容）${where}`);
+  }
+}
+
 // 原件的常量 → plan 形状。内置任务 id 与原代码 BUILTIN 的规则逐字相同：P{n}-{i}，这就是冻结的 id。
 export function legacyPlan(html) {
   const src = evalSection(html, '({CATS,GROUPS,LIFTS,FIT_GOAL})');
@@ -346,7 +358,7 @@ function runCheck() {
     process.stderr.write(`找不到 ${APP_FILE}\n`);
     return 1;
   }
-  const seedData = JSON.parse(readFileSync(SEED_FILE, 'utf8'));
+  const seedData = parseSeedJson(readFileSync(SEED_FILE, 'utf8'));
   if (!seedData || typeof seedData.plan !== 'object' || seedData.plan === null) {
     process.stderr.write('种子文件格式不对：缺少 plan 对象\n');
     return 1;
@@ -432,6 +444,20 @@ function runSelfTest() {
   expect('planTerm：没有汉字', planTerm('only ascii words') === null && planTerm('abcd1234') === null);
   expect('planTerm：恰好 4 字', planTerm('四个汉字') === '四个汉字');
   expect('planTerms：去重并保持顺序', json(planTerms({ x: ['合成样例条目一：', '合成样例条目一', '三个字'], y: { z: '合成任务一二' } })) === json(['合成样例条目一', '合成任务一二']));
+
+  // parseSeedJson：解析失败的报错只含固定文案和位置，不带种子里的文字（样本为合成文字，运行时拼接）
+  const leakMarker = '合成泄露标记' + '一二三四';
+  const leakTexts = [`{"plan":{"a":"${leakMarker}" x}}`, `{"plan":"${leakMarker}`, `${leakMarker}{`, `{"plan":{"a":"${leakMarker}"},}`];
+  const leakMessages = leakTexts.map((text) => {
+    try {
+      parseSeedJson(text);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  });
+  expect('parseSeedJson：合法 JSON 原样解析', json(parseSeedJson('{"a":[1]}')) === json({ a: [1] }));
+  expect('parseSeedJson：报错是固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')));
 
   // compareShape
   const clone = () => JSON.parse(json(seed));
