@@ -6,10 +6,10 @@ current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
 status: planning
 stopped_at: Phase 7 context gathered
-last_updated: "2026-11-07T01:15:30.066Z"
+last_updated: "2026-11-07T01:30:48.266Z"
 last_activity: 2026-11-06
 last_activity_desc: v2.0 路线图已创建，36/36 条需求已映射到阶段
-state_head: b5f929819321005445adc01d011a3a449cead365
+state_head: e6c8c2c5039678c564a86a5265ec3d59b001c74e
 progress:
   total_phases: 8
   completed_phases: 0
@@ -124,6 +124,7 @@ v2.0 路线图（2026-11-06）：
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 1 | 把 .claude/CLAUDE.md 的 Project 段同步到 v2.0（只重新生成 Project 段，其余段落不变） | 2026-11-06 | e6c8c2c | — |
 
 ## Deferred Items
 
