@@ -60,12 +60,18 @@ git config core.hooksPath .githooks
 
 这条命令只影响本仓库，不要加 `--global`。钩子需要 Node.js；找不到 Node.js 时，钩子会阻止提交和推送，而不是放行。启用后可以运行 `node tools/privacy/privacy-check.mjs --self-test` 确认检查器工作正常。
 
-## 5. 本地 `private/` 目录和 `private/denylist.txt`
+## 5. 本地 `private/` 目录、本地种子和 `private/denylist.txt`
 
-- `private/` 和其中的 `private/denylist.txt` 都被 git 忽略，只存在于本机。
+- `private/` 和其中的文件（`private/denylist.txt`、`private/plan-seed.json`、`private/us-journey-tracker.original.html`）都被 git 忽略，只存在于本机。
 - denylist 每行一个词条，`#` 之后是注释，空行会被忽略。
-- 规则 D 的词条在运行时从本地应用文件的 CATS、GROUPS、LIFTS 中提取（含汉字、至少 4 个字），再加上 denylist 里的词条。仓库里不写死任何词条。
-- 两个来源都没有时，规则 D 会跳过并在 stderr 提示，不算失败。
+- 规则 D 的词条在运行时从本地种子文件 `private/plan-seed.json` 里提取（只看其中的 `plan` 对象，含汉字、至少 4 个字、去掉结尾冒号），再加上 `private/denylist.txt` 里的词条。仓库里不写死任何词条，也不设放行名单或豁免。
+- 种子由 `node tools/plan/extract-plan.mjs` 从 `private/us-journey-tracker.original.html` 生成。这份副本是改动应用之前另存的原应用文件（D-12），同样被 git 忽略。
+- 规则 D 不读应用文件（D-06），所以应用里的示例计划不会挡住应用文件自己的提交。
+- 示例计划与种子不能共享文字和数字：运行 `node tools/plan/extract-plan.mjs --check` 检查。它只输出字段路径、字符偏移、词条序号和行号，不输出计划文字；全部为 0 时输出 `CHECK OK`。
+- 种子闸门（fail closed）：检查范围里（暂存区、待推送的提交或 `--all` 的范围）有根目录的 `us-journey-tracker.html`，而本机没有 `private/plan-seed.json` 时，检查以退出码 2 阻止提交或推送，因为规则 D 此时无法确认应用里不含个人计划。种子文件损坏同样以退出码 2 阻止。
+- 没有个人计划的人可以手动建一份空种子 `{"v":1,"plan":{}}`，明确表示选择加入。空种子不加载任何词条，建了空种子的人自己负责应用里没有个人内容。
+- 不涉及应用文件的提交不受闸门影响。此时没有种子也没有 denylist，规则 D 会跳过并在 stderr 提示，不算失败。
+- 改了名的应用副本（`us-journey-tracker.*.html`）一律被规则 A 拦住，只能留在 `private/`。
 
 ## 6. 不要绕过检查
 

@@ -56,6 +56,7 @@ export function checkPath(path) {
   const segments = norm.split('/').filter((s) => s.length > 0);
   const base = segments.length > 0 ? segments[segments.length - 1] : '';
   if (base === APP_FILE) return '应用文件只能留在本机，不能进入仓库';
+  if (base.startsWith('us-journey-tracker') && base.endsWith('.html')) return '应用文件的副本只能留在 private/，不能进入仓库';
   if (base.includes('备份') && base.endsWith('.json')) return '真实备份文件不能进入仓库';
   if (base.startsWith('在美国的日子-') && (base.endsWith('.json') || base.endsWith('.csv'))) {
     return '应用导出文件含真实数据，不能进入仓库';
@@ -329,6 +330,22 @@ function mainWorktreeRoot() {
   }
 }
 
+// ---------- 规则 D：种子闸门（fail closed） ----------
+
+// 检查范围里有根目录的应用文件而本机没有种子时，规则 D 无法确认应用里不含个人计划，必须阻止。
+// 子目录里的同名文件归规则 A 管。返回 { code, message } 或 null。
+export function seedGate(paths, seedFound) {
+  if (seedFound) return null;
+  if (!paths.some((p) => String(p).replace(/\\/g, '/') === APP_FILE)) return null;
+  return {
+    code: 2,
+    message:
+      `本次检查的内容包含 ${APP_FILE}，但本机没有 ${SEED_FILE}，规则 D 无法确认应用里不含个人计划，已阻止。\n` +
+      '所有者请先运行 node tools/plan/extract-plan.mjs 生成种子；\n' +
+      '没有个人计划的人可以手动建一份空种子 {"v":1,"plan":{}}，明确表示选择加入（空种子不加载任何词条）。',
+  };
+}
+
 // ---------- 规则 D：加载词条 ----------
 
 function loadPlanTerms() {
@@ -351,22 +368,25 @@ function loadPlanTerms() {
   if (seedPath) add(seedTerms(readFileSync(seedPath, 'utf8')));
   const denyPath = firstExisting(DENYLIST_FILE);
   if (denyPath) add(parseDenylist(readFileSync(denyPath, 'utf8')));
-  if (terms.length > 0) {
+  if (seedPath || denyPath) {
     process.stderr.write(`规则 D：已加载 ${terms.length} 个个人计划词条\n`);
   } else {
     process.stderr.write(`规则 D 已跳过：未找到 ${SEED_FILE} 或 ${DENYLIST_FILE}\n`);
   }
-  return terms;
+  // seedFound：种子存在并解析成功（坏掉时上面已抛错）。空种子 {"v":1,"plan":{}} 也算找到，是明确的选择加入
+  return { terms, seedFound: seedPath !== null };
 }
 
 // ---------- 模式：--staged ----------
 
-function runStaged(terms) {
+function runStaged(terms, seedFound) {
   const paths = gitPathList(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']);
   if (paths.length === 0) {
     process.stderr.write('没有暂存文件，隐私检查已跳过\n');
     return { findings: [], count: 0 };
   }
+  const gate = seedGate(paths, seedFound);
+  if (gate) return { findings: [], count: paths.length, gate };
   const findings = [];
   for (const path of paths) {
     const reason = checkPath(path);
@@ -381,7 +401,7 @@ function runStaged(terms) {
 
 // ---------- 模式：--all ----------
 
-function runAll(terms) {
+function runAll(terms, seedFound) {
   const head = gitPathList(['ls-tree', '-r', '-z', '--name-only', 'HEAD']);
   const hasHead = (() => {
     try {
@@ -403,6 +423,8 @@ function runAll(terms) {
       all.push(p);
     }
   }
+  const gate = seedGate(all, seedFound);
+  if (gate) return { findings: [], count: all.length, gate };
   const findings = [];
   for (const path of all) {
     const reason = checkPath(path);
@@ -448,6 +470,18 @@ function commitsFor(entry) {
   }
 }
 
+// 一个提交改动的路径（有父提交时与第一父提交比较；根提交没有父提交，改用 --root）
+function commitPaths(sha) {
+  try {
+    return gitPathList(
+      ['diff-tree', '-r', '-z', '--name-only', '--diff-filter=ACMR', `${sha}^`, sha],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+  } catch {
+    return gitPathList(['diff-tree', '--root', '--no-commit-id', '-r', '-z', '--name-only', '--diff-filter=ACMR', sha]);
+  }
+}
+
 function checkCommit(sha, terms) {
   const short = sha.slice(0, 8);
   const findings = [];
@@ -460,16 +494,7 @@ function checkCommit(sha, terms) {
   const message = gitText(['log', '-1', '--format=%B', sha]);
   findings.push(...scanText(`${short}:提交说明`, message, terms));
 
-  let paths;
-  try {
-    // 有父提交时与第一父提交比较；根提交没有父提交，改用 --root（--no-commit-id 去掉输出开头的提交号）
-    paths = gitPathList(
-      ['diff-tree', '-r', '-z', '--name-only', '--diff-filter=ACMR', `${sha}^`, sha],
-      { stdio: ['ignore', 'pipe', 'ignore'] },
-    );
-  } catch {
-    paths = gitPathList(['diff-tree', '--root', '--no-commit-id', '-r', '-z', '--name-only', '--diff-filter=ACMR', sha]);
-  }
+  const paths = commitPaths(sha);
   for (const path of paths) {
     const reason = checkPath(path);
     if (reason) {
@@ -481,12 +506,16 @@ function checkCommit(sha, terms) {
   return findings;
 }
 
-async function runPush(terms) {
+async function runPush(terms, seedFound) {
   const entries = parsePushInput(await readStdin());
   const shas = [];
   for (const entry of entries) {
     for (const sha of commitsFor(entry)) if (!shas.includes(sha)) shas.push(sha);
   }
+  const allPaths = [];
+  for (const sha of shas) for (const p of commitPaths(sha)) if (!allPaths.includes(p)) allPaths.push(p);
+  const gate = seedGate(allPaths, seedFound);
+  if (gate) return { findings: [], count: shas.length, gate };
   const findings = [];
   for (const sha of shas) findings.push(...checkCommit(sha, terms));
   return { findings, count: shas.length };
@@ -519,11 +548,12 @@ function runSelfTest() {
   const pathPos = [
     APP_FILE, `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
     '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
+    'us-journey-tracker.original.html', 'backup/us-journey-tracker.v1.html',
   ];
   for (const p of pathPos) expect(`规则 A 正例 ${p}`, checkPath(p) !== null);
   const pathNeg = [
     'PRIVACY.md', 'tools/privacy/privacy-check.mjs', 'privateer.txt', 'docs/backup.md',
-    'src/environment.ts', '.claude/CLAUDE.md',
+    'src/environment.ts', '.claude/CLAUDE.md', 'docs/us-journey-tracker.md',
   ];
   for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
 
@@ -603,6 +633,14 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
   expect('种子缺 plan 时抛错', seedThrows('{"v":1}') && seedThrows('{"v":1,"plan":[]}') && seedThrows('[]') && seedThrows('null'));
   expect('PLAN_TERM_SOURCES 不含应用文件', !PLAN_TERM_SOURCES.includes(APP_FILE) && PLAN_TERM_SOURCES.includes(SEED_FILE) && PLAN_TERM_SOURCES.includes(DENYLIST_FILE));
 
+  // 规则 D：种子闸门（样本运行时构造，只用合成文字）
+  const gateNoSeed = seedGate(['README.md', APP_FILE], false);
+  expect('种子闸门：应用已暂存、没有种子 → 退出码 2', gateNoSeed !== null && gateNoSeed.code === 2 && gateNoSeed.message.includes('private/plan-seed.json'));
+  expect('种子闸门：应用已暂存、有种子 → 放行', seedGate([APP_FILE], true) === null);
+  const emptySeedTerms = seedTerms('{"v":1,"plan":{}}');
+  expect('种子闸门：空种子不加载任何词条，应用式文本没有规则 D 命中', emptySeedTerms.length === 0 && scanText('f', '合成应用式文本 合成样例条目一 <html>', emptySeedTerms).length === 0);
+  expect('种子闸门：应用未暂存、没有种子 → 不阻止', seedGate(['README.md', 'sub/' + APP_FILE], false) === null);
+
   // 规则 E
   expect('规则 E 放行 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX}`, '作者') === null);
   expect('规则 E 放行大写 noreply', checkIdentityEmail(`1+${name}${NOREPLY_SUFFIX.toUpperCase()}`, '作者') === null);
@@ -629,7 +667,7 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
   expect('push 范围：删除分支跳过', planRevListArgs({ localSha: zero, remoteSha: a }) === null);
 
   // 实时词条自检：不写盘、不打印词条
-  const live = loadPlanTerms();
+  const live = loadPlanTerms().terms;
   if (live.length > 0) {
     let liveOk = true;
     let liveBad = 0;
@@ -683,11 +721,16 @@ async function main() {
   process.chdir(repoRoot());
   if (mode === '--self-test') return runSelfTest();
 
-  const terms = loadPlanTerms();
+  const { terms, seedFound } = loadPlanTerms();
   let result;
-  if (mode === '--staged') result = runStaged(terms);
-  else if (mode === '--all') result = runAll(terms);
-  else result = await runPush(terms);
+  if (mode === '--staged') result = runStaged(terms, seedFound);
+  else if (mode === '--all') result = runAll(terms, seedFound);
+  else result = await runPush(terms, seedFound);
+
+  if (result.gate) {
+    process.stderr.write(`${result.gate.message}\n`);
+    return result.gate.code;
+  }
 
   if (result.findings.length > 0) {
     process.stdout.write(`${result.findings.map(formatFinding).join('\n')}\n`);
