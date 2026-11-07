@@ -297,7 +297,8 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 (function(){
 const CATS=[{n:"语言",k:"lang"},{n:"专业",k:"pro"},{n:"健身",k:"fit",direct:true},{n:"求职",k:"job"},{n:"其他",k:"oth"}];
 const CK=Object.fromEntries(CATS.map(c=>[c.n,c.k]));
-const kOf=n=>CK[n]||"oth";
+const hasCat=n=>Object.prototype.hasOwnProperty.call(CK,n);
+const kOf=n=>hasCat(n)?CK[n]:"oth";
 const LEGACY={"学习":"专业","活动社交":"求职","生活":"其他","里程碑":"其他"};
 /* PLAN-05：内置组和任务的 id 冻结为 DEFAULT_PLAN 里写明的值；以后新增的组、任务、力量项分别用 g-、t-、l- 加 uid()，不会撞上 P 开头的内置 id、c- 开头的自定义待办 id 和内置力量 id */
 const GROUP_ID_RE=/^(P\d{1,3}|g-[A-Za-z0-9_-]{1,40})$/,PLAN_TASK_ID_RE=/^(P\d{1,3}-\d{1,3}|t-[A-Za-z0-9_-]{1,40})$/,LIFT_ID_RE=/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/;
@@ -370,7 +371,7 @@ function normalizePlan(p){
   if(!pObj(p)||!Array.isArray(p.groups)||!p.groups.length||!Array.isArray(p.lifts)||!pObj(p.presets))return null;
   const gids=new Set(),tids=new Set(),groups=[],lifts=[],presets={};
   for(const g of p.groups){
-    if(!pObj(g)||!pStr(g.id)||!GROUP_ID_RE.test(g.id)||gids.has(g.id)||!pStr(g.cat)||!CK[g.cat]||!pStr(g.name)||!Array.isArray(g.tasks))return null;
+    if(!pObj(g)||!pStr(g.id)||!GROUP_ID_RE.test(g.id)||gids.has(g.id)||!pStr(g.cat)||!hasCat(g.cat)||!pStr(g.name)||!Array.isArray(g.tasks))return null;
     if(g.note!==undefined&&!pStr(g.note))return null;
     gids.add(g.id);
     const tasks=[];
@@ -464,7 +465,7 @@ function normalize(s){
     if(!okDate(r.date))r.date=today();
     r.text=asText(r.text);
     if(typeof r.cat==="string"&&own(LEGACY,r.cat))r.cat=LEGACY[r.cat];
-    if(typeof r.cat!=="string"||!own(CK,r.cat))r.cat="其他";
+    if(typeof r.cat!=="string"||!hasCat(r.cat))r.cat="其他";
     return r;
   });
   const custom=(Array.isArray(s.custom)?s.custom:[]).map(entry).filter(Boolean).map(c=>{
