@@ -82,13 +82,30 @@
   5. 去个人化的 `us-journey-tracker.html` 进入公开仓库：干净克隆后不配置任何服务器，`npm test` 能直接跑通，打开页面看到示例计划和空记录。`PRIVACY.md`、隐私钩子和缺文件提示同步更新。
 **Plans:** 7 plans
 Plans:
+**Wave 1**
 - [ ] 07-01-PLAN.md — 原件副本、本地种子和提取工具；隐私检查的规则 D 改读种子（D-06、D-10、D-12）
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 07-02-PLAN.md — 合成的 DEFAULT_PLAN 和 plan 对象、冻结 id、自定义待办查计划、旧备份映射用例（只跑目标 spec）
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 07-03-PLAN.md — USJ_CONFIG 配置缝（D-11）、SAFE-02 基线反向对照；完整套件 161 条，154 条 v1 用例照旧
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 07-04-PLAN.md — 所有者检查示例计划后，去个人化的应用连同护栏和文档一次提交（不推送）；钩子验收；干净克隆跑通全部用例
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 07-05-PLAN.md — 渲染防线：所有插值转义，绕过入口检查时恶意数据仍只是文字（D-09）
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 07-06-PLAN.md — 入口防线：导入坏 id 或日期整份拒绝、加载时自动修正不丢记录文字（D-07、D-08；只跑目标 spec）
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 07-07-PLAN.md — 两道防线合在一起的真实应用用例、测试说明；完整套件 173 条
+
+**Cross-cutting constraints:**
+- D-12：私有原件副本没有被改动，哈希仍是 v1 基线；应用文件在本计划结束时仍未被 git 跟踪（07-04 才进仓库）
+
 **UI hint**: no
 **Research:** 不需要（标准重构；门槛是 154 条用例全部通过）
 **Notes:**
