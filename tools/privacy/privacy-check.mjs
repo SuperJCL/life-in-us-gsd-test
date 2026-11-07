@@ -171,7 +171,36 @@ export function scanText(location, text, terms = []) {
   return findings;
 }
 
+// UTF-16 文本（WR-04）：Windows PowerShell 5 的 > 重定向默认写带 BOM 的 UTF-16LE，每隔一个字节是 NUL，
+// 不能因为含 NUL 就当二进制跳过。先认 BOM；没有 BOM 时按 NUL 的奇偶分布判断：
+// 一个奇偶位上有至少 4 个且占字符数 2% 以上的 NUL、另一个奇偶位上不到它的一半（汉字 U+xx00 的低字节也是 0，不能要求为 0；真二进制两个奇偶位大致相当），才算 UTF-16 的 ASCII 间隔分布（汉字为主的文本里 ASCII 占比低，所以阈值取得低）。真二进制两个奇偶位都有 NUL，仍然跳过。
+// 返回 'le' | 'be' | null
+export function utf16Kind(buffer) {
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) return 'le';
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) return 'be';
+  const end = Math.min(buffer.length, 8000) & ~1;
+  if (end < 4) return null;
+  let evenZero = 0;
+  let oddZero = 0;
+  for (let i = 0; i < end; i += 2) {
+    if (buffer[i] === 0) evenZero += 1;
+    if (buffer[i + 1] === 0) oddZero += 1;
+  }
+  const pairs = end / 2;
+  if (oddZero >= Math.max(4, pairs * 0.02) && evenZero <= oddZero * 0.5) return 'le';
+  if (evenZero >= Math.max(4, pairs * 0.02) && oddZero <= evenZero * 0.5) return 'be';
+  return null;
+}
+
+export function decodeUtf16(buffer, kind) {
+  const even = buffer.subarray(0, buffer.length & ~1);
+  const bytes = kind === 'be' ? Buffer.from(even).swap16() : even;
+  return bytes.toString('utf16le');
+}
+
 export function scanBuffer(location, buffer, terms = []) {
+  const kind = utf16Kind(buffer);
+  if (kind !== null) return scanText(location, decodeUtf16(buffer, kind), terms);
   if (isBinary(buffer)) return [];
   return scanText(location, buffer.toString('utf8'), terms);
 }
@@ -607,6 +636,24 @@ function runSelfTest() {
   expect('换行无关 LF/CRLF/CR 结果一致', keys[0] === keys[1] && keys[1] === keys[2] && keys[0].includes('f:2') && keys[0].includes('f:4'));
   expect('二进制内容跳过', scanBuffer('f', Buffer.from(`${winFwd}\0`)).length === 0);
   expect('文本内容不跳过', scanBuffer('f', Buffer.from(winFwd)).length === 1);
+
+  // WR-04：UTF-16 文本要解码后扫描，真二进制仍然跳过（样本运行时构造）
+  const le = (s, bom) => Buffer.concat([bom ? Buffer.from([0xff, 0xfe]) : Buffer.alloc(0), Buffer.from(s, 'utf16le')]);
+  const be = (s, bom) => Buffer.concat([bom ? Buffer.from([0xfe, 0xff]) : Buffer.alloc(0), Buffer.from(s, 'utf16le').swap16()]);
+  const termSample = '合成样例条目一';
+  const u16Body = ['普通一行', '前缀 ' + winFwd + ' 后缀', '联系 ' + company + ' 即可', termSample, ''].join('\r\n');
+  for (const [label, buf] of [['UTF-16LE 带 BOM', le(u16Body, true)], ['UTF-16BE 带 BOM', be(u16Body, true)], ['UTF-16LE 无 BOM', le(u16Body, false)], ['UTF-16BE 无 BOM', be(u16Body, false)]]) {
+    const f = scanBuffer('f', buf, [termSample]);
+    expect('UTF-16 解码后命中规则 B、C、D：' + label, ruleSet(f) === [RULES.B, RULES.C, RULES.D].join(',') && f.map((x) => x.location).join(',') === 'f:2,f:3,f:4');
+    expect('UTF-16 输出不含用户名和词条：' + label, !f.map(formatFinding).join('\n').includes(name) && !f.map(formatFinding).join('\n').includes(termSample));
+  }
+  expect('UTF-16 无命中的文本不报告', scanBuffer('f', le('普通一行\r\n又一行 ascii text\r\n', true), [termSample]).length === 0);
+  const fakeBinary = Buffer.alloc(4096);
+  for (let i = 0; i < fakeBinary.length; i += 1) fakeBinary[i] = (i * 31 + 7) % 251 === 0 ? 0 : (i * 17 + 3) % 256;
+  fakeBinary.write(winFwd, 100);
+  expect('真二进制仍然跳过', utf16Kind(fakeBinary) === null && scanBuffer('f', fakeBinary).length === 0);
+  const sparseNul = Buffer.concat([Buffer.from(winFwd + '\n'), Buffer.alloc(16), Buffer.from('tail\n')]);
+  expect('零星 NUL 的二进制仍然跳过', utf16Kind(sparseNul) === null && scanBuffer('f', sparseNul).length === 0);
 
   // 规则 D：词条提取
   const fixture = String.raw`var s="块外字符串前置不提取";
