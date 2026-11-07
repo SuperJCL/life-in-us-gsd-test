@@ -485,7 +485,7 @@ function presetsHTML(p,C){
 function composer(p,date){
   const cat=compCat[p],C=CATS.find(c=>c.n===cat);
   return `<div class="comp">
-    <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button class="k-${c.k}" aria-pressed="${c.n===cat}" data-ccat="${p}|${c.n}">${c.n}</button>`).join("")}</div>
+    <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button class="k-${c.k}" aria-pressed="${c.n===cat}" data-ccat="${p}|${esc(c.n)}">${esc(c.n)}</button>`).join("")}</div>
     ${presetsHTML(p,C)}
     <textarea id="${p}-text" placeholder="写下做了什么，⌘/Ctrl + Enter 记录"></textarea>
     <div class="row"><span class="when">记录到 ${md(date)} 周${WD[parse(date).getDay()]}</span><button class="primary" id="${p}-add" disabled>记录</button></div></div>`;
@@ -544,14 +544,14 @@ function renderWeek(){
   $("areas").innerHTML=CATS.map(C=>{
     const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>planCat[t.group]===C.n).length;
     let goal="";
-    if(C.n==="健身"){const d=new Set(logs.filter(l=>l.cat==="健身").map(l=>l.date)).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${plan.fitGoal[0]}～${plan.fitGoal[1]} 天</div>`}
+    if(C.n==="健身"){const d=new Set(logs.filter(l=>l.cat==="健身").map(l=>l.date)).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${esc(plan.fitGoal[0])}～${esc(plan.fitGoal[1])} 天</div>`}
     else{const d=new Set(logs.filter(l=>l.cat===C.n).map(l=>l.date)).size;goal=`<div class="goal">${d} 天有记录</div>`}
-    return `<div class="area k-${C.k}"><div class="nm">${C.n}</div><div class="v">${n}<small>项</small></div>${goal}</div>`}).join("");
+    return `<div class="area k-${C.k}"><div class="nm">${esc(C.n)}</div><div class="v">${n}<small>项</small></div>${goal}</div>`}).join("");
   const t=today();
   $("days").innerHTML=dates.map(d=>{
     const e=eventsOn(d);
-    const ents=[...e.logs.map(l=>`<div class="ent k-${kOf(l.cat)}" data-edit="${l.id}" draggable="true" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span>${esc(l.text)}</span></div>`),
-      ...e.done.map(x=>`<div class="ent done k-${kOf(planCat[x.group])}" data-edittask="${x.id}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(x.text)}"><span>✓ ${esc(x.text)}</span></div>`)];
+    const ents=[...e.logs.map(l=>`<div class="ent k-${kOf(l.cat)}" data-edit="${esc(l.id)}" draggable="true" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span>${esc(l.text)}</span></div>`),
+      ...e.done.map(x=>`<div class="ent done k-${kOf(planCat[x.group])}" data-edittask="${esc(x.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(x.text)}"><span>✓ ${esc(x.text)}</span></div>`)];
     return `<div class="day ${d===t?"today":""} ${d===wsel?"sel":""}" data-wday="${d}" tabindex="0" role="button" aria-label="${md(d)}，${ents.length} 项，点击选为记录日期">
       <div class="dh">周${WD[parse(d).getDay()]} <b>${+d.slice(8)}</b></div>${ents.join("")}</div>`}).join("");
   const rv=$("review");if(document.activeElement!==rv)rv.value=state.reviews[wk]||"";
@@ -583,9 +583,9 @@ function renderDay(){
   const box=$("dayPanel");
   box.innerHTML=`<h3>${md(sel)} 周${WD[d.getDay()]}</h3><p class="sub">${dayN}</p>${composer("c",sel)}
     <div class="sect">做过的事</div>
-    ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${l.id}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${l.id}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
-    ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${t.id}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${t.group}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
-    ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${t.group}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
+    ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${esc(l.id)}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${esc(l.id)}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
+    ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${esc(t.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
+    ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
   bindComposer(box,"c",()=>sel);
 }
 
@@ -594,33 +594,33 @@ function renderGoals(){
   const fit=`<div class="group k-fit"><div class="group-h"><span class="p">健身</span><h3>力量目标</h3></div>
     <p class="note">${esc(plan.fitNote)}</p>
     <div class="lifts">${plan.lifts.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
-      const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${x.v}`).join("，");
-      return `<div class="lift"><div class="ln">${L.n}</div><div class="lv">${s.cur}<small> / ${L.target} ${L.unit}</small></div>
+      const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${esc(x.v)}`).join("，");
+      return `<div class="lift"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
       <div class="lbar"><i style="width:${pct}%"></i></div>
-      <div class="upd"><label for="lf-${L.id}">当前</label><input type="number" id="lf-${L.id}" data-lift="${L.id}" step="${L.unit==="kg"?2.5:1}" min="0" value="${s.cur}"><span>${L.unit}</span><button type="button" class="ghost hidden" data-liftsave="${L.id}">保存</button></div>
-      <div class="hist">${h?"最近："+esc(h):L.note}</div></div>`}).join("")}</div></div>`;
+      <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
+      <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
   $("goals").innerHTML=fit+plan.groups.map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id);const dn=ts.filter(x=>tstate(x.id).done).length;
-    return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${g.id}</span><h3>${g.name}</h3><span class="cnt">${dn}/${ts.length}</span></div>
-    ${g.note?`<p class="note">${g.note}</p>`:""}
+    return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(g.id)}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
+    ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
     <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
     ${ts.map(x=>{const s=tstate(x.id),od=!s.done&&s.due&&s.due<t;const custom=!planIds.has(x.id);
-      return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${x.id}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
+      return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
-      <span class="meta">${s.done?`完成于 ${md(s.doneDate)}`:`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${x.id}" value="${s.due||""}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${x.id}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
-    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${g.id}" aria-label="给${g.id}添加待办"><button class="ghost" data-addbtn="${g.id}">添加</button></div></div>`}).join("");
+      <span class="meta">${s.done?`完成于 ${md(s.doneDate)}`:`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给${esc(g.id)}添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("");
 }
 
 function renderTimeline(){
   const opts=["全部",...CATS.map(c=>c.n),"完成的计划"];
-  $("filters").innerHTML=opts.map(o=>`<button aria-pressed="${o===filter}" data-filter="${o}">${o}</button>`).join("");
+  $("filters").innerHTML=opts.map(o=>`<button aria-pressed="${o===filter}" data-filter="${esc(o)}">${esc(o)}</button>`).join("");
   let items=[];
-  if(filter!=="完成的计划")state.logs.filter(l=>filter==="全部"||l.cat===filter).forEach(l=>items.push({date:l.date,text:l.text,tag:l.cat,k:kOf(l.cat),attr:`data-edit="${l.id}"`}));
-  if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:t.group,k:kOf(planCat[t.group]),attr:`data-edittask="${t.id}"`})});
+  if(filter!=="完成的计划")state.logs.filter(l=>filter==="全部"||l.cat===filter).forEach(l=>items.push({date:l.date,text:l.text,tag:l.cat,k:kOf(l.cat),attr:`data-edit="${esc(l.id)}"`}));
+  if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:t.group,k:kOf(planCat[t.group]),attr:`data-edittask="${esc(t.id)}"`})});
   items.sort((a,b)=>b.date.localeCompare(a.date));
   if(!items.length){$("timeline").innerHTML='<p class="empty">还没有内容。在“本周”里写下今天做过的事。</p>';return}
   let html="",m="";
-  items.forEach(it=>{const mm=it.date.slice(0,7);if(mm!==m){m=mm;html+=`<div class="tl-month">${mm.slice(0,4)} 年 ${+mm.slice(5)} 月</div>`}
+  items.forEach(it=>{const mm=it.date.slice(0,7);if(mm!==m){m=mm;html+=`<div class="tl-month">${esc(mm.slice(0,4))} 年 ${+mm.slice(5)} 月</div>`}
     html+=`<div class="tl-item k-${it.k} editable" ${it.attr} tabindex="0" role="button"><span class="tl-date">${+it.date.slice(5,7)}/${+it.date.slice(8)}</span><span class="tag">${esc(it.tag)}</span><span class="li-text">${esc(it.text)}</span></div>`});
   $("timeline").innerHTML=html;
 }
@@ -645,9 +645,9 @@ function openEditor(id){
   const l=state.logs.find(x=>x.id===id);if(!l)return;let cat=l.cat;
   const draw=()=>{form.innerHTML=`<div class="ed-h"><h3 id="ed-title">编辑记录</h3></div>
     <div class="ed-grid">
-      <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button type="button" class="k-${c.k}" aria-pressed="${c.n===cat}" data-edcat="${c.n}">${c.n}</button>`).join("")}</div>
+      <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button type="button" class="k-${c.k}" aria-pressed="${c.n===cat}" data-edcat="${esc(c.n)}">${esc(c.n)}</button>`).join("")}</div>
       <label class="f">内容<textarea id="ed-text">${esc(form.dataset.keep!=null?form.dataset.keep:l.text)}</textarea></label>
-      <label class="f">日期<input type="date" id="ed-date" value="${form.dataset.kdate||l.date}"></label>
+      <label class="f">日期<input type="date" id="ed-date" value="${esc(form.dataset.kdate||l.date)}"></label>
     </div>
     <div class="ed-foot"><button type="button" class="danger" id="ed-del">删除</button><span class="sp"></span><span class="hint">⌘/Ctrl + Enter 保存</span>
       <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
@@ -667,8 +667,8 @@ function openEditor(id){
 function openTaskEditor(id){
   const t=allTasks().find(x=>x.id===id);if(!t)return;const s=tstate(id);
   form.innerHTML=`<div class="ed-h"><h3 id="ed-title">完成的计划</h3></div>
-    <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${t.group}</span> ${esc(t.text)}</div>
-    <label class="f">完成日期<input type="date" id="ed-date" value="${s.doneDate||today()}"></label></div>
+    <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${esc(t.group)}</span> ${esc(t.text)}</div>
+    <label class="f">完成日期<input type="date" id="ed-date" value="${esc(s.doneDate||today())}"></label></div>
     <div class="ed-foot"><button type="button" class="danger" id="ed-undone">标记为未完成</button><span class="sp"></span>
       <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
   $("ed-cancel").onclick=()=>dlg.close();
@@ -712,7 +712,7 @@ function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(in
   if(isNaN(v)||v<0){renderGoals();return}
   if(v===s.cur){renderGoals();return}
   s.cur=v;const h=s.hist.slice();if(h.length&&h[h.length-1].date===today())h[h.length-1]={date:today(),v};else h.push({date:today(),v});
-  s.hist=h.slice(-30);state.lifts[lf]=s;persist();renderGoals();toast(v>=L.target?`${L.n}达标了`:`${L.n}已更新为 ${v}${L.unit}`)}
+  s.hist=h.slice(-30);state.lifts[lf]=s;persist();renderGoals();toast(v>=L.target?L.n+"达标了":L.n+"已更新为 "+v+L.unit)}
 $("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
   if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
 function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;state.custom.push({id:"c-"+uid(),group:g,text:v});persist();renderAll()}
