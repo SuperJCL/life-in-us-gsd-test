@@ -41,6 +41,7 @@
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
 | `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
 | `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 的已知 bug 用例；导出内容从 `app.backend.downloads` 读取 |
+| `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
@@ -133,6 +134,8 @@ PROBE-1 到 PROBE-8 的结论、证据和采用的方案见 `tests/PROBES.md`；
 - **`goals.ts`（目标视图读回和任务操作）：** `gotoGoals`、`readGroups`、`readLifts`、`liftHistoryEquals`、`checkTask`、`setDue`、`readTaskRow`。内置任务的复选框和截止日期只在页面内按位置 id 操作和读回（`checkTask`、`setDue`、`readTaskRow`），不做定位器动作、文字断言或可见性断言，因为它们的 aria-label 是任务原文，Playwright 的调用日志会打印；只有合成的自定义任务才用真实点击和填写。
 - **`timeline.ts`（时间线读回）：** `gotoTimeline`、`pickFilter`、`readTimeline`。一次 `page.evaluate` 读回筛选按钮状态、月份标题、条目的 id、日期、所属月份、记录的类别标签和固定文案；完成计划条目的文字是个人计划原文，不读，只读 id 和日期。
 - **`import-file.ts`（导入文件和确认框）：** `jsonImportFile`、`textImportFile`、`chooseImportFile`、`answerNextDialog`、`recordDialogs`。文件只存在于内存（`{ name, mimeType, buffer }`），文件名必须以 `synth-` 开头，helper 会检查；`answerNextDialog` 预先登记下一次对话框的处理并记录文案，`recordDialogs` 只记录、用来断言“没有弹对话框”。
+- **`app-source.ts`（`loadAppPure`，白盒）：** 在 Node 里用 `node:vm` 求值应用的纯函数段（第一个常量声明到 saving 横幅之间，只含常量和纯函数，不碰 DOM），返回需要的绑定，给 normalizePlan、normalize、导入检查这类分支多的单元用例用，不开浏览器。期望值仍在用例里独立写出，不读应用的实现；页面路径（加载、导入、渲染）仍由浏览器用例覆盖，两条路径不互相替代。
+- **`app-variant.ts`（`serveAppVariant`，白盒）：** 只在内存里提供改过的应用：读应用文件，把每处查找文字恰好替换一次，再用 `page.route` 只给这一个 page 提供改过的页面；磁盘上的应用文件和静态服务器不变，SAFE-02 照旧通过。用来分别证明两道防线：`BYPASS_NORMALIZE` 绕过入口检查才看得到渲染防线，`DISABLE_ESCAPING` 关掉转义证明检测器不是空转，`planValueEdit` 只在内存里改 DEFAULT_PLAN 来放计划值载荷。必须在 `app.open()` 之前调用；两道防线合在一起的用例不使用它。
 - **期望值从 fixture 推导（D-10）：** 本周的标题、范围、计数、7 列内容、时间线日期标签等都由 `expect-from-fixture.ts` 的函数独立算出（`weekCountsByCategory`、`weekDayColumns`、`mdLabel`、`timelineDateLabel`、`expectedTimeline`、`expectedNormalize` 等），缺的推导函数加在那里，用例里不抄数字。
 - **时间与保存：** 输入复盘之后，先 `expectSaved` 等保存完成再做别的操作，防止防抖期间的重绘把文本框还原（N2，D-03）。manual 时钟（`test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 加 `pauseAt`，再用 `runFor` 推进）现在有三类用途：(1) 证明“没有保存”（含力量输入框失焦、空白待办）：`runFor` 推过 600 ms 防抖后比较 `app.backend.writes.length`，再用一次哨兵写入证明这个窗口确实推进了防抖（D-05、D-15）；(2) 撤销窗口和 toast 过期：撤销用例的顺序是 install、open、`expectAccountMode`、`pauseAt`、动作、`runFor(1_000)` 推过防抖、再 undo；过期用例再推过 5 秒，看 `#toast` 的 `.on` 消失、`#toast.act button` 为 0 个；(3) 带计时器的刷新（B4）：暂停时钟后输入、不推进防抖就刷新。同一个用例里不混用 `setFixedTime`，不用固定睡眠。
 
@@ -155,4 +158,5 @@ B2 有两条对照用例（control 和 reset path，写法同 B4 的 reload path
 - **FileReader 是异步的：** confirm 在读完文件之后才弹出，要用 `expect.poll` 等，不能在 `setInputFiles` 返回后立刻断言。
 - **B2：** 取消导入后文件框没有清空；期望断言用 `#importJson` 的 value 为空，不断言“change 会再次触发”，原因见 PROBE-8（Playwright 每次都会自己派发 change）。
 - **N3：** 导入 `{}` 这类合法 JSON 会通过 normalize、确认后清空全部数据；期望断言是出现格式错误提示。`[]` 和字段类型错误的对象是同类输入，没有单独验证。
+- **导入白名单（SEC-01）：** 备份里有一项 id 或日期不合格，整份拒绝：显示同一条格式错误提示，不弹确认框、不保存、数据不变。容器里能识别出条目就检查，只剩两条豁免：顶层不是普通对象（`null`、`[]`），以及非字符串的 arrival。导入检查点名保持 v1 结果的输入：`{}`、`{ logs: [] }`、`null`、`[]` 和字段类型错误的 `synth-wrong-types.json`，与 N3 同类，行为改变推迟到 Phase 11 处理。加载已存数据时只修正、不拒绝：坏 id 换新 id 并迁移进度、坏日期回落、孤儿进度键丢弃，记录文字一条不删，加载本身不触发保存。
 - **窄屏只用 viewport：** 文件顶层 `test.use({ viewport: { width: 520, height: 900 } })`，不用设备描述符；断言经 `page.evaluate` 读计算样式和位置，不截图、不测拖拽，也不读日历 chip 或条目的文字。滚动用例先瞬时滚到确定的位置，点击后用 `expect.poll` 等平滑滚动结束，不用固定睡眠。
