@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-11-07T17:55:59.443Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-11-07T18:09:40.403Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 execution started
-state_head: 91c10a5b26055269903dc7d3484cbbd5a536aa22
+state_head: d075f3055f53a846f6e6d1e5a67d5bea64bb46e7
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 7
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 ## Current Position
 
 Phase: 7 (计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 7 execution started
 
@@ -84,6 +84,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P04 | 30 min | 2 tasks | 5 files |
 | Phase 05 P03 | 25min | 3 tasks | 3 files |
 | Phase 07 P01 | 45 min | 2 tasks | 3 files |
+| Phase 07 P02 | 10 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,8 @@ v2.0 路线图（2026-11-06）：
 - 需要阶段调研：Phase 6、8、10、13。需要 UI 设计契约：Phase 9（登录页和状态栏五种状态）、Phase 12（编辑计划页）。
 - [Phase 07]: 07-01: rule D term source is the local seed plus private/denylist.txt; filter unchanged, no allowlist (D-04, D-06)
 - [Phase 07]: 07-01: seedGate fails closed (exit 2) when the repo-root app file is in scope and no private/plan-seed.json exists; an empty seed is the explicit opt-in
+- [Phase 07]: plan 对象形状 {v, presets, groups, lifts, fitGoal, fitNote}；normalizePlan 任何一处不合格整份返回 null，usePlan 回落到 DEFAULT_PLAN
+- [Phase 07]: 自定义待办改为 planIds.has 判断；内置 id 冻结为显式字面量，新增项用 g-、t-、l- 前缀
 
 ### Pending Todos
 
@@ -139,8 +142,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T17:55:59.402Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-11-07T18:09:40.363Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
