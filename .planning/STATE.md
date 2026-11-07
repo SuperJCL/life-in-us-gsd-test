@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-11-07T18:18:23.074Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-11-07T18:41:05.609Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 execution started
-state_head: 211656938e190298559ffd6bba2360ba9fc7e6dc
+state_head: ad258c0c3ef53d0dd3e66acc85f0a3e01bb298ca
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 7
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 ## Current Position
 
 Phase: 7 (计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 7 execution started
 
@@ -86,6 +86,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P01 | 45 min | 2 tasks | 3 files |
 | Phase 07 P02 | 10 min | 2 tasks | 7 files |
 | Phase 07 P03 | 9 min | 2 tasks | 5 files |
+| Phase 07 P04 | 8 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ v2.0 路线图（2026-11-06）：
 - [Phase 07]: plan 对象形状 {v, presets, groups, lifts, fitGoal, fitNote}；normalizePlan 任何一处不合格整份返回 null，usePlan 回落到 DEFAULT_PLAN
 - [Phase 07]: 自定义待办改为 planIds.has 判断；内置 id 冻结为显式字面量，新增项用 g-、t-、l- 前缀
 - [Phase 07]: USJ_CONFIG 配置缝只读 backend 一个字段；backend 非 null 时 init 停在加载之前、store 保持 null，显示配置无效且不保存，不退回本地（Phase 9 在此接云端存储）
+- [Phase 07]: 07-04: 规则 A 放行根目录应用文件，子目录同名文件和改名副本仍禁止；应用与护栏在同一次本机提交（ad258c0）里第一次进入 git，未推送，等待所有者确认推送
+- [Phase 07]: 07-04: 所有者批准示例计划的条件是先改复盘占位提示和引体 note 两处文字；.githooks/* 不改（D-13），钩子验收靠一次性克隆里的 pre-commit 实跑
 
 ### Pending Todos
 
@@ -144,8 +147,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T18:18:23.031Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-11-07T18:41:05.566Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
