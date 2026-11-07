@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-11-07T18:41:05.609Z"
+stopped_at: Completed 07-05-PLAN.md
+last_updated: "2026-11-07T18:56:10.732Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 execution started
-state_head: ad258c0c3ef53d0dd3e66acc85f0a3e01bb298ca
+state_head: 844a45c3dddc2df6385855319c41893fa840f5f5
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 ## Current Position
 
 Phase: 7 (计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 7 execution started
 
@@ -87,6 +87,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P02 | 10 min | 2 tasks | 7 files |
 | Phase 07 P03 | 9 min | 2 tasks | 5 files |
 | Phase 07 P04 | 8 min | 3 tasks | 11 files |
+| Phase 07 P05 | 12 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ v2.0 路线图（2026-11-06）：
 - [Phase 07]: USJ_CONFIG 配置缝只读 backend 一个字段；backend 非 null 时 init 停在加载之前、store 保持 null，显示配置无效且不保存，不退回本地（Phase 9 在此接云端存储）
 - [Phase 07]: 07-04: 规则 A 放行根目录应用文件，子目录同名文件和改名副本仍禁止；应用与护栏在同一次本机提交（ad258c0）里第一次进入 git，未推送，等待所有者确认推送
 - [Phase 07]: 07-04: 所有者批准示例计划的条件是先改复盘占位提示和引体 note 两处文字；.githooks/* 不改（D-13），钩子验收靠一次性克隆里的 pre-commit 实跑
+- [Phase 07]: 07-05：转义只在渲染时做，恶意字符串原样保存和显示；力量历史逐项 esc(x.v)，saveLift 的 toast 用字符串拼接
+- [Phase 07]: 07-05：用只在内存里改应用的变体（page.route）分别证明渲染防线和检测器，源码门槛带去掉 esc 的对照
 
 ### Pending Todos
 
@@ -147,8 +150,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T18:41:05.566Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-11-07T18:56:10.687Z
+Stopped at: Completed 07-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
