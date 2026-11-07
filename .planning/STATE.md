@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
 status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-11-07T18:56:10.732Z"
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-11-07T19:06:29.640Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 execution started
-state_head: 844a45c3dddc2df6385855319c41893fa840f5f5
+state_head: 6af38c95b2fe21575a98779610151a7c11566add
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 ## Current Position
 
 Phase: 7 (计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 7 execution started
 
@@ -88,6 +88,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P03 | 9 min | 2 tasks | 5 files |
 | Phase 07 P04 | 8 min | 3 tasks | 11 files |
 | Phase 07 P05 | 12 min | 2 tasks | 5 files |
+| Phase 07 P06 | 25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,8 @@ v2.0 路线图（2026-11-06）：
 - [Phase 07]: 07-04: 所有者批准示例计划的条件是先改复盘占位提示和引体 note 两处文字；.githooks/* 不改（D-13），钩子验收靠一次性克隆里的 pre-commit 实跑
 - [Phase 07]: 07-05：转义只在渲染时做，恶意字符串原样保存和显示；力量历史逐项 esc(x.v)，saveLift 的 toast 用字符串拼接
 - [Phase 07]: 07-05：用只在内存里改应用的变体（page.route）分别证明渲染防线和检测器，源码门槛带去掉 esc 的对照
+- [Phase 07]: 07-06: import whitelist rejects whole backup (only exemptions: non-plain-object top level, non-string arrival); load repairs, orphan progress keys dropped (owner confirmed)
+- [Phase 07]: 07-06: orphan-key repair must run only after the account plan is known (Phase 9 hand-off note)
 
 ### Pending Todos
 
@@ -150,8 +153,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T18:56:10.687Z
-Stopped at: Completed 07-05-PLAN.md
+Last session: 2026-11-07T19:06:29.590Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -36,7 +36,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 - [ ] **PLAN-02**：用户可以在“编辑计划”页增删改目标组、任务、力量项、每周健身目标和基础预设标签，并调整顺序。
 - [ ] **PLAN-03**：删除已经有进度的目标组、任务或力量项时，改为归档，日历和时间线里已完成的记录不会消失。
 - [ ] **PLAN-04**：编辑计划用草稿方式，点保存才生效，可以取消；离开时如有未保存的修改会提示；保存后其他设备同步。
-- [ ] **PLAN-05**：现有任务 id 保持不变，旧备份导入后，任务进度仍然对应到正确的任务。
+- [x] **PLAN-05**：现有任务 id 保持不变，旧备份导入后，任务进度仍然对应到正确的任务。
 
 ### 导出、导入与迁移（IO，延续 v1.0 编号）
 
@@ -48,7 +48,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 安全与隐私（SEC）
 
-- [ ] **SEC-01**：用户输入的文字在页面上显示时都经过转义；导入文件里或同步过来的恶意脚本不会执行。
+- [x] **SEC-01**：用户输入的文字在页面上显示时都经过转义；导入文件里或同步过来的恶意脚本不会执行。
 - [ ] **SEC-02**：网站发出 CSP 和安全响应头；后台管理入口启用强密码、两步验证和登录限流。
 - [ ] **SEC-03**：公开仓库里不出现服务器地址、域名、密钥、后台密码、个人计划文字或真实数据；隐私检查为此新增对应规则。
 - [ ] **SEC-04**：去掉个人计划后的应用程序放进公开仓库。克隆后不配服务器也能跑测试和本地体验，看到的是示例计划和空记录。
@@ -62,7 +62,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 测试（TEST）
 
-- [ ] **TEST-01**：v1.0 的 154 条测试在新版应用上继续通过，走旧路径；应用 sha256 基线机制随应用改动更新。
+- [x] **TEST-01**：v1.0 的 154 条测试在新版应用上继续通过，走旧路径；应用 sha256 基线机制随应用改动更新。
 - [ ] **TEST-02**：新增基于模拟 PocketBase 的测试，覆盖登录、云端存取、离线、实时同步、导入导出和编辑计划；测试运行时不连接任何真实服务器。
 - [ ] **TEST-03**：N3 和 B2 的已知 bug 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
 - [ ] **TEST-04**：在一次性的本机 PocketBase 上，用合成账号验证账号隔离。下载 PocketBase 二进制需要用户批准，这项验证不进默认的 `npm test`。
@@ -117,13 +117,13 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | PLAN-02 | Phase 12 | Pending |
 | PLAN-03 | Phase 12 | Pending |
 | PLAN-04 | Phase 12 | Pending |
-| PLAN-05 | Phase 7 | Pending |
+| PLAN-05 | Phase 7 | Complete |
 | IO-06 | Phase 11 | Pending |
 | IO-07 | Phase 11 | Pending |
 | IO-08 | Phase 11 | Pending |
 | IO-09 | Phase 11 | Pending |
 | IO-10 | Phase 11 | Pending |
-| SEC-01 | Phase 7 | Pending |
+| SEC-01 | Phase 7 | Complete |
 | SEC-02 | Phase 13 | Pending |
 | SEC-03 | Phase 6 | Pending |
 | SEC-04 | Phase 7 | Pending |
@@ -131,7 +131,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | OPS-02 | Phase 13 | Pending |
 | OPS-03 | Phase 13 | Pending |
 | OPS-04 | Phase 13 | Pending |
-| TEST-01 | Phase 7 | Pending |
+| TEST-01 | Phase 7 | Complete |
 | TEST-02 | Phase 8 | Pending |
 | TEST-03 | Phase 11 | Pending |
 | TEST-04 | Phase 8 | Pending |
