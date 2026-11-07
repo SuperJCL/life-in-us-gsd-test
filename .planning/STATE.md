@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 7
 current_phase_name: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
-status: executing
-stopped_at: Completed 07-06-PLAN.md
-last_updated: "2026-11-07T19:06:29.640Z"
+status: verifying
+stopped_at: Completed 07-07-PLAN.md
+last_updated: "2026-11-07T19:22:20.089Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 execution started
-state_head: 6af38c95b2fe21575a98779610151a7c11566add
+state_head: 5977811d87102ba922d902bc65e5775b923229b2
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-05 after starting v2.0 milestone)
 
 Phase: 7 (计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-07 — Phase 7 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -89,6 +89,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P04 | 8 min | 3 tasks | 11 files |
 | Phase 07 P05 | 12 min | 2 tasks | 5 files |
 | Phase 07 P06 | 25min | 2 tasks | 4 files |
+| Phase 07 P07 | 20 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 07]: 07-05：用只在内存里改应用的变体（page.route）分别证明渲染防线和检测器，源码门槛带去掉 esc 的对照
 - [Phase 07]: 07-06: import whitelist rejects whole backup (only exemptions: non-plain-object top level, non-string arrival); load repairs, orphan progress keys dropped (owner confirmed)
 - [Phase 07]: 07-06: orphan-key repair must run only after the account plan is known (Phase 9 hand-off note)
+- [Phase 07]: 07-07: real-app case (no variant) proves both defenses together; plan values proven only by the 07-05 in-memory variant case; full suite 173 expected, 0 flaky; nothing pushed, awaiting owner confirmation
 
 ### Pending Todos
 
@@ -153,8 +155,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T19:06:29.590Z
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-11-07T19:22:20.041Z
+Stopped at: Completed 07-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
