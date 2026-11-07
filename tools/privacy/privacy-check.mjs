@@ -245,7 +245,7 @@ export function parseSeedJson(text, label = 'private/plan-seed.json') {
   try {
     return JSON.parse(text);
   } catch (err) {
-    const m = /at position (d+)(?: (line (d+) column (d+)))?s*$/.exec(err instanceof Error ? String(err.message) : '');
+    const m = /at position (\d+)(?: \(line (\d+) column (\d+)\))?\s*$/.exec(err instanceof Error ? String(err.message) : '');
     const where = m ? `，位置 ${m[1]}${m[2] ? `（第 ${m[2]} 行第 ${m[3]} 列）` : ''}` : '';
     throw new Error(`${label} JSON 解析失败（已隐去内容）${where}`);
   }
@@ -654,7 +654,7 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
       return err instanceof Error ? err.message : String(err);
     }
   });
-  expect('种子 JSON 坏掉的报错：固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')));
+  expect('种子 JSON 坏掉的报错：固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')) && /位置 [0-9]+/.test(leakMessages[0] ?? ''));
   expect('种子缺 plan 时抛错', seedThrows('{"v":1}') && seedThrows('{"v":1,"plan":[]}') && seedThrows('[]') && seedThrows('null'));
   expect('PLAN_TERM_SOURCES 不含应用文件', !PLAN_TERM_SOURCES.includes(APP_FILE) && PLAN_TERM_SOURCES.includes(SEED_FILE) && PLAN_TERM_SOURCES.includes(DENYLIST_FILE));
 

@@ -70,7 +70,7 @@ export function parseSeedJson(text, label = SEED_FILE) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    const m = /at position (d+)(?: (line (d+) column (d+)))?s*$/.exec(err instanceof Error ? String(err.message) : '');
+    const m = /at position (\d+)(?: \(line (\d+) column (\d+)\))?\s*$/.exec(err instanceof Error ? String(err.message) : '');
     const where = m ? `，位置 ${m[1]}${m[2] ? `（第 ${m[2]} 行第 ${m[3]} 列）` : ''}` : '';
     throw new Error(`${label} JSON 解析失败（已隐去内容）${where}`);
   }
@@ -457,7 +457,7 @@ function runSelfTest() {
     }
   });
   expect('parseSeedJson：合法 JSON 原样解析', json(parseSeedJson('{"a":[1]}')) === json({ a: [1] }));
-  expect('parseSeedJson：报错是固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')));
+  expect('parseSeedJson：报错是固定文案、不含种子文字', leakMessages.every((m) => m !== null && m.includes('JSON 解析失败') && !m.includes(leakMarker) && !m.includes('合成泄露')) && /位置 [0-9]+/.test(leakMessages[0] ?? ''));
 
   // compareShape
   const clone = () => JSON.parse(json(seed));
