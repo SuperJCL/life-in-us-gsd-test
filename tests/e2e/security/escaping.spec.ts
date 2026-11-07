@@ -7,6 +7,8 @@
 //  - SEC-01 malicious text in plan group names ...：入口检查照常，只在内存里把 DEFAULT_PLAN 的七个字段
 //    （组名、组说明、内置任务文字、力量名称和备注、基础预设、力量组说明）换成合成载荷，
 //    四个视图、composer 的预设标签、两个编辑弹窗里它们只是文字（计划值本阶段没有外部入口，D-11，所以由变体放进来）。
+//  - SEC-01 malicious text in every field ...：两道防线合在一起。不用任何变体，磁盘上的真实应用用合成恶意数据开局，
+//    四个视图和两个编辑弹窗都干净，恶意文字原样显示，坏 id 和日期已被入口修正，保存的数据只含合格的 id 和日期、记录文字都在。
 //  - SEC-01 the injection detector reports ...：反向对照。同样的恶意数据在关掉转义的变体上必须被检测到，
 //    证明上面“干净”的结论不是因为检测器看不见。
 //  - SEC-01 no state or plan value is interpolated ...：Node 侧的源码门槛，只防回归；转义是否生效由页面用例证明。
@@ -18,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '../../support/test';
 import { editor } from '../../support/editor';
+import { composer } from '../../support/composer';
 import { serveAppVariant, BYPASS_NORMALIZE, DISABLE_ESCAPING, planValueEdit } from '../../support/app-variant';
 import {
   CUR_PAYLOAD,
@@ -26,6 +29,8 @@ import {
   GROUP_PAYLOAD,
   HIST_PAYLOAD,
   ID_PAYLOAD,
+  SCRIPT_PAYLOAD,
+  DQ_PAYLOAD,
   TAG_PAYLOAD,
   maliciousPlanValues,
   maliciousState,
@@ -237,6 +242,122 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
   expect(dialogOk, '完成计划弹窗里没有字段 groups[0].tasks[0].text 的载荷文字').toBe(true);
   await page.keyboard.press('Escape');
   await ed.expectClosed();
+});
+
+// 两道防线合在一起：磁盘上的真实应用，没有任何内存变体。入口检查先修正坏 id 和坏日期，渲染转义再把恶意文字当纯文本显示。
+// 期望值都在本用例里独立写出（id 和日期的格式不从应用里取）。
+test('SEC-01 malicious text in every field renders as plain text in the four views and both editors', async ({
+  page,
+  app,
+}) => {
+  const bad = maliciousState();
+  await app.open({ mode: 'account', seed: bad });
+  await app.expectAccountMode();
+
+  // 本周：标签注入原样出现在条目文字里，复盘文本框的值原样往返，坏 id 已被修正
+  await expectClean(page, '本周');
+  const week = await page.evaluate(
+    (p) => ({
+      tagText: Array.from(document.querySelectorAll('#days .ent span')).some((e) => e.textContent === p.tag),
+      scriptText: Array.from(document.querySelectorAll('#days .ent span')).some((e) => e.textContent === p.script),
+      review: (document.getElementById('review') as HTMLTextAreaElement | null)?.value === p.tag,
+      badEditId: Array.from(document.querySelectorAll<HTMLElement>('[data-edit]')).some((e) => e.dataset.edit === p.id),
+    }),
+    { tag: TAG_PAYLOAD, script: SCRIPT_PAYLOAD, id: ID_PAYLOAD },
+  );
+  expect(week, '本周视图：恶意文字没有原样显示，或坏 id 还在页面上').toEqual({
+    tagText: true,
+    scriptText: true,
+    review: true,
+    badEditId: false,
+  });
+
+  // 日历：点开今天的日面板
+  await openTab(page, 'cal');
+  await page.locator(`#grid [data-date="${FROZEN_TODAY}"]`).click();
+  await expectClean(page, '日历');
+
+  // 目标：双引号载荷是那条待办的文字，坏的待办 id 已被修正
+  await openTab(page, 'goal');
+  await expectClean(page, '目标');
+  expect(await hasLeafText(page, '#goals', DQ_PAYLOAD), '目标视图里没有双引号载荷的待办文字').toBe(true);
+  expect(
+    await page.evaluate(
+      (cid) => Array.from(document.querySelectorAll<HTMLElement>('[data-task]')).some((e) => e.dataset.task === cid),
+      CUSTOM_ID_PAYLOAD,
+    ),
+    '目标视图：坏的待办 id 还在页面上',
+  ).toBe(false);
+
+  // 时间线
+  await openTab(page, 'tl');
+  await expectClean(page, '时间线');
+
+  // 回到本周：语言类别的预设标签里有标签注入载荷（用户预设原样往返）
+  await openTab(page, 'wk');
+  const picked = await page.evaluate((ccat) => {
+    const b = Array.from(document.querySelectorAll<HTMLElement>('#wkComp [data-ccat]')).find((x) => x.dataset.ccat === ccat);
+    if (!b) return false;
+    b.click();
+    return true;
+  }, `w|${CAT_LANGUAGE}`);
+  expect(picked, '没有找到语言类别按钮').toBe(true);
+  await expectClean(page, 'composer');
+  const presetOk = await page.evaluate(
+    (v) =>
+      Array.from(document.querySelectorAll<HTMLElement>('#wkComp button[data-preset]')).some(
+        (b) => b.textContent === v && (b.dataset.preset || '').split('|').slice(1).join('|') === v,
+      ),
+    TAG_PAYLOAD,
+  );
+  expect(presetOk, '语言类别的预设标签里没有标签注入载荷，或属性没有原样往返').toBe(true);
+
+  // 两个编辑弹窗：标签注入那条记录、今天完成的那条自定义待办
+  const ed = editor(page);
+  await clickByDataset(page, '#tab-wk', 'edit', 'synth-log-1');
+  await ed.expectOpen();
+  await expectClean(page, '记录编辑弹窗');
+  await page.keyboard.press('Escape');
+  await ed.expectClosed();
+
+  await clickByDataset(page, '#tab-wk', 'edittask', 'c-synth-3');
+  await ed.expectOpen();
+  await expectClean(page, '完成计划弹窗');
+  await page.keyboard.press('Escape');
+  await ed.expectClosed();
+
+  // 记一条哨兵触发保存：保存的记录 id 和日期全部合格，五条记录的文字都在，待办 id 都以 c- 开头
+  const SENTINEL = 'SYNTH combined defenses sentinel';
+  const comp = composer(page, 'w');
+  await comp.type(SENTINEL);
+  await comp.submit();
+  const expectedTexts = [
+    TAG_PAYLOAD,
+    SCRIPT_PAYLOAD,
+    'SYNTH log with an id payload',
+    'SYNTH log with a date attribute payload',
+    'SYNTH log with a date tag payload',
+  ];
+  await app.expectSaved((s) => s.logs.some((l: { text: string }) => l.text === SENTINEL));
+  const saved = await app.saved();
+  const logs: { id: string; date: string; text: string }[] = saved.logs;
+  const idOk = /^[A-Za-z0-9_-]{1,64}$/;
+  const dateOk = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  expect(
+    logs.every((l) => idOk.test(l.id) && dateOk.test(l.date)),
+    '保存的记录里还有不合格的 id 或日期',
+  ).toBe(true);
+  expect(
+    expectedTexts.every((t) => logs.some((l) => l.text === t)),
+    '保存的记录里少了合成记录的文字',
+  ).toBe(true);
+  expect(logs.length, '保存的记录条数').toBe(expectedTexts.length + 1);
+  expect(
+    saved.custom.every((c: { id: string }) => /^c-[A-Za-z0-9_-]{1,60}$/.test(c.id)),
+    '保存的待办里还有不以 c- 开头的 id',
+  ).toBe(true);
+  expect(saved.custom.length, '保存的待办条数').toBe(bad.custom.length);
+  await expectClean(page, '保存之后');
 });
 
 test('SEC-01 the injection detector reports elements injected by a variant without escaping', async ({ page, app }) => {
