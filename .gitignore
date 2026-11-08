@@ -33,3 +33,25 @@ blob-report/
 
 # --- 环境变量与密钥 ---
 .env*
+
+# --- PocketBase 数据目录、数据库、备份压缩包和程序文件（详见 PRIVACY.md § 2）---
+pb_data/
+pb_backups/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.zip
+*.tar
+*.tgz
+*.gz
+*.7z
+*.rar
+/pocketbase
+pocketbase.exe
+pocketbase_*.zip
+
+# --- 探针页的凭据文件由服务器脚本生成，仓库里只放 config.example.js ---
+tools/probe/page/config.js

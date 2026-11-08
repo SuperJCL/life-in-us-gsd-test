@@ -19,6 +19,8 @@
 | `.claude/settings.local.json` 和 GSD 安装文件 | 本机设置；`.claude/` 下只跟踪 `.claude/CLAUDE.md`（D-12） |
 | `.agents/`、`.codex/` 和根目录的 `AGENTS.md` | 其他 AI 工具的安装文件，里面有含本机用户名的绝对路径；`.gitignore` 忽略它们，规则 A 也会拦下强行暂存的这些路径 |
 | `.env*` | 环境变量和密钥 |
+| PocketBase 数据目录 `pb_data/`、`pb_backups/`、数据库文件（`*.db`、`*.db-wal`、`*.db-shm`、`*.sqlite`）、压缩包和 PocketBase 程序文件 | 含真实数据或备份；程序文件不该进仓库（规则 A 和 `.gitignore` 双重拦截） |
+| 探针页的 `tools/probe/page/config.js` | 由服务器脚本生成，含探针账号凭据；仓库里只放占位的 `config.example.js` |
 | `test-results/`、`playwright-report/`、`blob-report/` | 截图和 trace 会拍到个人计划文字（D-02），失败证据只留在本地 |
 | 文件内容里的本机绝对路径、真实邮箱和个人计划文字 | 由检查器的规则 B、C、D 拦截 |
 
@@ -31,8 +33,12 @@
 - 规则 A（`A-forbidden-path`）：文件路径属于上表中不能提交的类型。根目录的应用文件放行（它已去个人化，个人内容由规则 D 挡住），子目录里的同名文件和改名副本一律禁止。
 - 规则 B（`B-abs-path`）：内容里出现 Windows、macOS 或 Linux 的本机用户目录路径。`<用户名>`、`...`、`$USER` 这类占位写法不算。
 - 规则 C（`C-email`）：内容里出现真实邮箱。GitHub noreply 地址、example.com 系列地址和 `@2x.png` 这类文件名不算。
-- 规则 D（`D-plan-term`）：内容里出现个人计划词条。词条只在运行时读取，仓库里不保存。
+- 规则 A 的扩展：路径里有 `pb_data` 或 `pb_backups` 目录、文件是数据库（`.db`、`.db-wal`、`.db-shm`、`.db-journal`、`.sqlite`、`.sqlite3`）、压缩包（`.zip`、`.tar`、`.tgz`、`.gz`、`.bz2`、`.xz`、`.7z`、`.rar`），或文件名正好是 `pocketbase`、`pocketbase.exe` 时一律禁止。不按 “backup” 这个词拦（`tests/fixtures/legacy-positional-backup.json` 是合成夹具），`pb_migrations/`、`pb_hooks/`、`pb_public/` 照常放行。
+- 规则 D（`D-plan-term`）：内容里出现个人计划词条，不区分大小写。词条只在运行时读取，仓库里不保存。服务器的 IP 和域名也记在本机 `private/denylist.txt`，由这条规则拦截，提交说明里写了也会被推送检查挡住。
 - 规则 E（`E-author-email`）：提交的作者或提交者邮箱不是 GitHub noreply 地址。只在推送时检查。
+- 规则 F（`F-token-shape`）：内容里出现令牌形状：三段 base64url、前两段以 `eyJ` 开头、每段至少 10 位（PocketBase 的登录令牌就是这个形状）。没有签名段、只有两段和 `eyJ...` 这类省略写法不报。
+- 规则 G（`G-secret-assign`）：密码类键名后面写着真实值。键名词表是 `password`、`passwd`、`pwd`、`secret`、`encryption_key`、`api_key`、`apikey`、`private_key`、`access_key`；覆盖引号字面量、`export` 和 systemd `Environment=` 的环境变量、ini 或 yaml 的裸值、`superuser create|upsert|update` 命令里的口令参数和私钥头 `BEGIN … PRIVATE KEY`。占位写法放行：少于 6 个字符、`<…>`、全星号、全 `x`、`...`、以 `$` 开头的变量、`{{…}}`、`%NAME%`、`__NAME__`、含 `change_me`、`placeholder`、`redacted`、`dummy`、`your-` 的值、`null`、`true`、`false`、`process.env`、`os.environ`；ini 或 yaml 的裸值还放行 `a.b.c` 这类属性访问。反引号不当引号，所以 markdown 行内代码不会误报。
+- 规则 H（`H-public-ipv4`）：内容里出现公网 IPv4 形状。放行的保留段是 `0.`、`10.`、`127.`、`255.`、`169.254.`、`172.16.`–`172.31.`、`192.168.`、文档段 `192.0.2.`、`198.51.100.`、`203.0.113.`，以及 `N.0.0.0`（浏览器版本串）。五段版本号和某段超过 255 的也不算。
 
 钩子：
 
@@ -46,11 +52,14 @@
 
 - 规则 D 只输出“个人计划词条 #N”。
 - 规则 B 的用户名显示为 `<用户名>`，规则 C 和 E 的邮箱只保留首字母。
+- 规则 F、G、H 只输出位置、规则名和固定文案，不输出令牌、口令、键名或地址。
 
 手动检查：
 
 - 全量检查：`node tools/privacy/privacy-check.mjs --all`
 - 自检：`node tools/privacy/privacy-check.mjs --self-test`
+- 钩子演练：`node tools/privacy/hook-drill.mjs` 在 `os.tmpdir()` 下的一次性仓库里真跑 pre-commit 和 pre-push，确认令牌、口令、数据库、压缩包、域名和 IP 都会被拦下，干净的提交和推送照常通过，最后一行是 `HOOK DRILL OK`。演练的样本全部运行时拼接，不打印；违规历史在启用钩子之前提交，演练不绕过任何钩子，结束后删除临时目录。
+- 输出过滤：`tools/privacy/redact.mjs` 把服务器步骤的输出、探针结果和要提交的文档里的域名、服务器 IP 和令牌替换成占位，`--check` 只报告是否还有敏感值（详见该文件的文件头）。
 
 ## 4. 克隆后怎么启用
 
@@ -82,6 +91,17 @@ git config core.hooksPath .githooks
 ## 7. 局限
 
 钩子在客户端运行，仍然可能被跳过或没有启用。建议在 GitHub 账号设置里打开 “Keep my email addresses private” 和 “Block command line pushes that expose my email”，让服务器端再挡一道。
+
+规则 D 是子串匹配：把域名或地址拆开写、带前导零写，或者写成十六进制的地址，都拦不住。IPv6 地址也不会自动识别：服务器的 nginx 监听了 IPv6，所有者要手动把服务器的 IPv6 地址加进 `private/denylist.txt`。真正的保护是不把这些值写进任何被跟踪的文件，检查器只是最后一道防线。
+
+## 9. 夹具里怎么写假令牌和假口令
+
+新规则上线后，测试夹具、假服务器和文档里不能出现完整的令牌或口令字面量，否则检查器会拦下自己的提交：
+
+- JWT 形状的样本在运行时用 base64url 拼接：头和载荷用 `Buffer.from(JSON.stringify(...)).toString('base64url')` 生成，签名段留空或运行时生成。
+- 测试口令写成 `<…>` 占位，或者在运行时用数组 `join` 拼接。
+- 地址用 TEST-NET 保留段（`192.0.2.x`、`198.51.100.x`、`203.0.113.x`），域名用 `.example`。
+- 需要“公网形状”的样本时，运行时拼接，不要把完整地址写进源码。
 
 ## 8. 后续计划
 

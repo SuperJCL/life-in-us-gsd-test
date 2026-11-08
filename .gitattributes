@@ -2,3 +2,9 @@
 .githooks/** text eol=lf
 # SAFE-02 按字节算 sha256，系统级 core.autocrlf=true 会在克隆检出时把应用文件转成 CRLF，所以固定为 LF
 us-journey-tracker.html text eol=lf
+# shell 脚本在 Linux 上执行，CRLF 会让 bash 报回车符错误
+*.sh text eol=lf
+# 服务器脚本、unit、nginx 配置和迁移经 ssh 在 Linux 上使用，固定为 LF
+tools/probe/** text eol=lf
+# SDK 文件按字节固定 sha256，不做换行转换；必须写在 tools/probe/** 之后才能覆盖它
+tools/probe/page/vendor/** -text
