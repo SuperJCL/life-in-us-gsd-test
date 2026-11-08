@@ -5,11 +5,11 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (owner multi-evening tests)
-last_updated: "2026-11-08T17:30:40.089Z"
+stopped_at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (revised: owner runs one itdog baseline)
+last_updated: "2026-11-08T17:43:01.035Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: 211ae76fa5d3f9578ff00ee2a43299e7461009c9
+state_head: cae2c049f580782d35786218b6e056dd75c59d32
 progress:
   total_phases: 8
   completed_phases: 1
@@ -143,6 +143,9 @@ v2.0 路线图（2026-11-06）：
 - [Phase 6]: 06-09: batch B executed exactly as approved (3 sha256 checks passed); 00-status.sh settings read fixed (read-only, not in any approval batch)
 - [Phase 6]: 06-10 导出批准（D-17）：所有者回复“批准”；sha256 行 9f9b63cefb2d5274e497593a3a9b492eea02a60a5e2228cdaec1c434a0b2b8d9 *tools/probe/server/export-results.py；命令为 set -o pipefail 后的 sha256sum -c --strict 核对链加 ssh -o BatchMode=yes usj 'sudo -n python3 -I -' < tools/probe/server/export-results.py > private/probe-results/<YYYYMMDD-HHMM>.json；输出位置 private/probe-results/（被 git 忽略）；共覆盖 2 次导出，第 1 次已用（文件 20261108-0929.json），第 2 次留给 Task 4；其他服务器到本机传输需另行批准
 - [Phase 6]: 06-10 Task 2 完成：导出 #1 共 2 条（1 条 smoke，1 条所有者短测 dur_s=90、login_ok 为真、打点 2/2），summarize 三个标题齐全，短测和 smoke 都计为无效；不写 06-10-SUMMARY，计划保持打开
+- [Phase 6]: D-10 修订（2026-11-08，所有者）：不做多晚实测；浏览器实测只算所有者在美国的那次 90 秒短测，另由所有者自己跑一次 itdog（HTTP 测速和 tcping 443）作为国内三网的基线；结论写明样本不足（国内没有真实浏览器数据），D-08 不变。详见 06-CONTEXT.md 的 D-10 修订
+- [Phase 6]: 已知限制候选：所有者短测的浏览器上报 tz_offset_min=0，而所有者电脑设的是美国太平洋时间，所以 summarize 的时段判断会把美国晚高峰记成其他时段；结果文档写进已知限制
+- [Phase 6]: 推送检查加窄例外清单 tools/privacy/push-exceptions.txt（cae2c04）。只按「提交号+文件+行号」放行规则 H，只放行 08eb8dc 和 cd645d6 里 06-RESEARCH.md:767 那个已在 0fa5cea 改掉的示例地址；所有者选了这个办法，没有改写历史
 
 ### Pending Todos
 
@@ -168,13 +171,14 @@ v2.0 路线图（2026-11-06）：
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
-- waiting on 06-10 Task 3 (owner multi-evening tests, 3+ nights, then reply 实测完成); mid-way export needs separate owner approval
+- waiting on 06-10 Task 3 (revised per D-10 amendment: owner runs one itdog baseline, HTTP + tcping 443, and replies with per-carrier numbers); export #2 for Task 4 is still covered by the approval; any extra export needs separate owner approval
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | 把 .claude/CLAUDE.md 的 Project 段同步到 v2.0（只重新生成 Project 段，其余段落不变） | 2026-11-06 | e6c8c2c | — |
+| 2 | privacy-check --push 加窄例外清单，放行已在 0fa5cea 修正的示例地址（2 处，规则 H），自检 193 项通过 | 2026-11-08 | cae2c04 | — |
 
 ## Deferred Items
 
@@ -187,7 +191,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-08T17:30:39.625Z
-Stopped at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (owner multi-evening tests)
+Stopped at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (revised: owner runs one itdog baseline)
 Resume file: None
 
 ## Operator Next Steps
