@@ -19,6 +19,8 @@
 
 - `npm run test:cloud`：跑 `tests/cloud/` 下的 cloud 用例（真实 PocketBase SDK 对 Node 侧的假 PocketBase），同样低优先级、1 个 worker。它和 `npm test` 共用 4789 端口，所以不能同时跑（本来也不应并发）；只在阶段收尾和发布前手动跑，日常不需要。
 
+- `npm run pb:isolation`：手动运行的账号隔离脚本。需要先按 `tools/pb/PB-LOCAL.md` 完成所有者批准的下载；它在一次性本机 PocketBase 上用合成账号逐条断言账号隔离（注册关闭、只能读写自己的数据、实时事件不外泄、令牌和改密码），输出只有 PASS/FAIL 和规则名，最后一行 `ISOLATION OK N/N`；`node tools/pb/isolation-check.mjs --self-test` 不需要程序。它不在 `npm test` 和 `npm run test:cloud` 里。
+
 只跑部分用例时，把参数接在 `--` 后面，例如 `npm test -- -g "IO-01"`。
 
 需要机器判定“没有失败、没有 flaky、指定的用例都实际运行”时，用 `PW_JSON_REPORT=test-results/<名字>.json` 前缀运行（同时加 `--workers=1` 最省资源），再用 `node tools/test-report/check-report.mjs <报告> "<标题>" …` 检查，通过时输出 `REPORT OK`；报告里任何不带 known-bug 注解的 skipped 用例、没有 test 的 spec、同标题一过一败都会判为失败；全量回归再加 `--min-expected N`（至少跑了 N 条），否则被过滤或被中断的部分运行也会得到 `REPORT OK`；`node tools/test-report/check-report.mjs --self-test` 是它的反向对照，证明脚本在该失败时会失败。原因：配置里 `retries: 1`，单看退出码分不出“重试后才通过”的用例，也看不出用例是不是被过滤掉没跑。报告只放在已被 git 忽略的 `test-results/` 下，只在本机读，只打印计数和标题。

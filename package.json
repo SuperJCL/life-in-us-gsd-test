@@ -6,7 +6,8 @@
   "scripts": {
     "test": "playwright test",
     "test:cloud": "playwright test --config=playwright.cloud.config.ts --workers=1",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "pb:isolation": "node tools/pb/isolation-check.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"
