@@ -9,8 +9,8 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 服务器与可达性（INFRA）
 
-- [ ] **INFRA-01**：所有者在腾讯云 Lighthouse 香港开出服务器、在 Porkbun 买好域名后，网址能通过 HTTPS 打开，证书自动申请、自动续期。
-- [ ] **INFRA-02**：在晚高峰（20:00–23:00）分别从中国大陆电信、联通、移动和美国网络实测打开页面、登录和实时同步，结果记录下来，作为是否续费或换商家的依据。
+- [ ] **INFRA-01**：所有者在阿里云轻量应用服务器香港开出服务器、在 Porkbun 买好 `.vip` 域名后，网址能通过 HTTPS 打开，证书自动申请、自动续期（服务器上已有 nginx 和 certbot）。
+- [ ] **INFRA-02**：在晚高峰（20:00–23:00）分别从中国大陆电信、联通、移动和美国网络实测打开页面、登录和实时同步，结果记录下来，作为 Phase 10 和 Phase 13 的输入（不论结果都继续用阿里云香港）。
 - [ ] **INFRA-03**：页面不加载中国大陆可能打不开的外部资源：去掉 Google 字体，PocketBase SDK 与页面同源托管、固定版本。
 
 ### 账号与登录（ACCT）
@@ -143,4 +143,4 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ---
 *Requirements defined: 2026-11-06*
-*Last updated: 2026-11-06 after v2.0 roadmap creation (Phases 6–13)*
+*Last updated: 2026-11-08 after Phase 6 D-01 (provider, domain suffix and web server wording)*
