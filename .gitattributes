@@ -8,3 +8,5 @@ us-journey-tracker.html text eol=lf
 tools/probe/** text eol=lf
 # SDK 文件按字节固定 sha256，不做换行转换；必须写在 tools/probe/** 之后才能覆盖它
 tools/probe/page/vendor/** -text
+# 迁移在 Phase 13 复制到 Linux 服务器使用，固定为 LF
+pb/** text eol=lf

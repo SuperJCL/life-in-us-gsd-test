@@ -21,7 +21,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
-import { diffSnapshots, snapshotFromSaved } from './lib/rules-snapshot.mjs';
+import { diffSnapshots, snapshotFromSaved, stable } from './lib/rules-snapshot.mjs';
 
 const DEFAULT_MIGRATIONS = fileURLToPath(new URL('../../pb/pb_migrations/', import.meta.url));
 const DEFAULT_EXPECTED = fileURLToPath(new URL('../../pb/rules.expected.json', import.meta.url));
@@ -118,12 +118,60 @@ export function execMigrations(sources) {
 
 // ---------- 检查 ----------
 
-// 返回问题行数组（空数组表示通过）
+const OWN = '@request.auth.id';
+const LOGGED_IN = '@request.auth.id != ""';
+
+// 不依赖快照文件的不变量：返回不成立的键（空数组表示全部成立）。输入是 snapshotFromSaved 的结果
+export function checkInvariants(snap) {
+  const out = [];
+  const u = snap.collections.users;
+  const j = snap.collections.journey_docs;
+  const has = (r, text) => typeof r === 'string' && r.includes(text);
+  const bad = (key, cond) => {
+    if (!cond) out.push(key);
+  };
+  if (!u) out.push('users.*');
+  else {
+    bad('users.createRule', u.createRule === null);
+    bad('users.deleteRule', u.deleteRule === null);
+    bad('users.manageRule', u.manageRule === null);
+    bad('users.listRule', u.listRule === `id = ${OWN}`);
+    bad('users.viewRule', u.viewRule === `id = ${OWN}`);
+    bad('users.updateRule', has(u.updateRule, `id = ${OWN}`) && has(u.updateRule, '@request.body.verified:isset = false'));
+    const d = u.authToken.duration;
+    bad('users.authToken.duration', d >= 7776000 && d <= 94670856);
+    bad('users.oauth2.enabled', u.oauth2.enabled === false);
+    bad('users.otp.enabled', u.otp.enabled === false);
+    bad('users.mfa.enabled', u.mfa.enabled === false);
+    bad('users.authAlert.enabled', u.authAlert.enabled === false);
+    bad('users.passwordAuth.enabled', u.passwordAuth.enabled === true);
+    bad('users.passwordAuth.identityFields', stable(u.passwordAuth.identityFields) === '["email"]');
+    for (const name of ['name', 'avatar']) bad(`users.${name}`, !u.fields.some((f) => f.name === name));
+  }
+  if (!j) out.push('journey_docs.*');
+  else {
+    bad('journey_docs.deleteRule', j.deleteRule === null);
+    for (const r of ['listRule', 'viewRule', 'updateRule']) bad(`journey_docs.${r}`, has(j[r], `owner = ${OWN}`) && has(j[r], LOGGED_IN));
+    bad('journey_docs.createRule', has(j.createRule, `@request.body.owner = ${OWN}`) && has(j.createRule, LOGGED_IN));
+    bad('journey_docs.updateRule', has(j.updateRule, '@request.body.owner:isset = false') && has(j.updateRule, '@request.body.kind:isset = false'));
+    const field = (name) => j.fields.find((f) => f.name === name) ?? {};
+    bad('journey_docs.data', field('data').maxSize === 4194304);
+    bad('journey_docs.writer', field('writer').max === 40);
+    bad('journey_docs.kind', stable(field('kind').values) === '["state","plan"]');
+    const unique = j.indexes.filter((i) => /UNIQUE/i.test(i) && i.includes('`owner`') && i.includes('`kind`'));
+    bad('journey_docs.indexes', unique.length === 1);
+  }
+  return out;
+}
+
+// 返回问题行数组（空数组表示通过）：沙箱错误、不变量、快照差异
 export function checkSources(sources, expected) {
   const { saved, errors } = execMigrations(sources);
+  const snap = snapshotFromSaved(saved);
   const problems = [];
   for (const e of [...new Set(errors)]) problems.push(`MIGRATIONS INVARIANT ${e}`);
-  for (const d of diffSnapshots(expected, snapshotFromSaved(saved))) problems.push(`MIGRATIONS MISMATCH ${d}`);
+  for (const k of checkInvariants(snap)) problems.push(`MIGRATIONS INVARIANT ${k}`);
+  for (const d of diffSnapshots(expected, snap)) problems.push(`MIGRATIONS MISMATCH ${d}`);
   return problems;
 }
 
@@ -173,13 +221,82 @@ function runCheck(opts) {
   return 0;
 }
 
+// ---------- 自检 ----------
+
+// 读真实的两个迁移源码，在内存里逐一篡改，同一个检查函数必须报出；另有一条未篡改的正向对照
+function selfTest() {
+  let sources;
+  let expected;
+  try {
+    sources = readSources(DEFAULT_MIGRATIONS);
+    expected = JSON.parse(readFileSync(DEFAULT_EXPECTED, 'utf8'));
+  } catch (e) {
+    console.error(`${USAGE} (cannot read the migrations directory or the expected snapshot)`);
+    return 2;
+  }
+  if (sources.length !== 2) {
+    console.error(`${USAGE} (expected exactly two migration files)`);
+    return 2;
+  }
+  const IDX = 'CREATE UNIQUE INDEX `idx_journey_docs_owner_kind` ON `journey_docs` (`owner`, `kind`)';
+  const OWNED = String.raw`"@request.auth.id != \"\" && owner = @request.auth.id"`;
+  const LOGGED = String.raw`"@request.auth.id != \"\""`;
+  // [名字, 迁移序号, 目标文本, 替换文本, 结果里必须含有的片段]
+  const cases = [
+    ['开放注册（createRule 改为空字符串）', 0, 'users.createRule = null', 'users.createRule = ""', 'users.createRule'],
+    ['删掉 deleteRule 那一行', 0, '  users.deleteRule = null\n', '', 'users.deleteRule'],
+    ['放开 manageRule', 0, 'users.manageRule = null', 'users.manageRule = "id = @request.auth.id"', 'users.manageRule'],
+    ['令牌改成 5 天', 0, 'users.authToken.duration = 7776000', 'users.authToken.duration = 432000', 'users.authToken.duration'],
+    ['开 OAuth2', 0, 'users.oauth2.enabled = false', 'users.oauth2.enabled = true', 'users.oauth2.enabled'],
+    ['开 OTP', 0, 'users.otp.enabled = false', 'users.otp.enabled = true', 'users.otp.enabled'],
+    ['开 MFA', 0, 'users.mfa.enabled = false', 'users.mfa.enabled = true', 'users.mfa.enabled'],
+    ['开 authAlert', 0, 'users.authAlert.enabled = false', 'users.authAlert.enabled = true', 'users.authAlert.enabled'],
+    ['updateRule 去掉 verified 那一段', 0, ' && @request.body.verified:isset = false', '', 'users.updateRule'],
+    ['不再删 name 字段', 0, '  users.fields.removeByName("name")\n', '', 'users.name'],
+    ['不再删 avatar 字段', 0, '  users.fields.removeByName("avatar")\n', '', 'users.avatar'],
+    ['journey_docs 的 listRule 去掉 owner 条件', 1, `listRule: ${OWNED},`, `listRule: ${LOGGED},`, 'journey_docs.listRule'],
+    ['journey_docs 的 updateRule 去掉 kind 的 isset 条件', 1, ' && @request.body.kind:isset = false', '', 'journey_docs.updateRule'],
+    ['journey_docs 的 deleteRule 改为空字符串', 1, 'deleteRule: null,', 'deleteRule: "",', 'journey_docs.deleteRule'],
+    ['data 的 maxSize 改为 1 MiB', 1, 'maxSize: 4194304', 'maxSize: 1048576', 'journey_docs.data'],
+    ['去掉唯一索引', 1, `indexes: ["${IDX}"],`, 'indexes: [],', 'journey_docs.indexes'],
+    ['users 迁移里保存一条记录', 0, '  app.save(users)\n}, (app) => {', '  app.save(users)\n  app.save(new Record())\n}, (app) => {', 'data-in-migration'],
+    ['迁移里改应用设置', 0, '  app.save(users)\n}, (app) => {', '  app.settings().logs.maxDays = 1\n  app.save(users)\n}, (app) => {', 'migration-error'],
+  ];
+  const fails = [];
+  let passed = 0;
+  const report = (ok, n, name) => {
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${n} ${name}`);
+    if (ok) passed += 1;
+    else fails.push(n);
+  };
+  report(checkSources(sources, expected).length === 0, 0, '正向对照：未篡改的迁移没有问题');
+  cases.forEach(([name, which, from, to, needle], i) => {
+    const n = i + 1;
+    // 源码在 Windows 上可能是 CRLF，统一成 LF 再替换
+    const lf = sources.map((s) => s.replace(/\r\n/g, '\n'));
+    if (lf[which].split(from).length !== 2) {
+      report(false, n, `${name}（目标文本不是恰好出现一次）`);
+      return;
+    }
+    const tampered = lf.map((src, k) => (k === which ? src.replace(from, () => to) : src));
+    const problems = checkSources(tampered, expected);
+    report(problems.length > 0 && problems.some((p) => p.includes(needle)), n, name);
+  });
+  if (fails.length > 0) {
+    console.log('MIGRATION SELF-TEST FAIL');
+    return 1;
+  }
+  console.log(`MIGRATION SELF-TEST OK ${passed}`);
+  return 0;
+}
+
 export function main(argv) {
   const opts = parseArgs(argv);
   if (!opts) {
     console.error(USAGE);
     return 2;
   }
-  return runCheck(opts);
+  return opts.selfTest ? selfTest() : runCheck(opts);
 }
 
 // 只在直接运行时执行入口，被 import 时不执行
