@@ -151,7 +151,24 @@ Plans:
   3. `PB-CONTRACT.md` 写明“服务器 0.41.1 配 SDK 0.28.2”，并收录从本机真实实例录下的协议样本：登录、刷新令牌、读取、创建、更新、唯一索引冲突、401 和实时事件。契约自测证明，Node 侧假服务器对同一组请求的回应与样本一致。
   4. `AppHarness` 新增 cloud 模式：真实的 PocketBase SDK（同源提供、固定版本、记录 sha256）在浏览器里连到假服务器，能完成登录、读写和订阅，实时连接由页面侧的假 `EventSource` 承接。请求假服务器以外的任何地址都会让用例失败，这道护栏有故意违规的自检。`context.setOffline` 是否派发 `online`/`offline` 事件，由探针确认并写进 `tests/PROBES.md`。
   5. v1 的 154 条用例照旧通过；cloud 用例有单独的入口（如 `npm run test:cloud`），同样低优先级、1 个 worker 运行。
-**Plans:** TBD
+**Plans:** 7 plans
+Plans:
+**Wave 1**
+- [ ] 08-01-PLAN.md — users 加固和 journey_docs 的迁移（只有结构）、node:vm 静态检查与规则快照、篡改自检；先修正 ROADMAP 和研究文档的过时内容（D-02、D-04、D-05、D-06）
+- [ ] 08-02-PLAN.md — test:cloud 入口、同源 SDK 加哈希护栏、AppHarness cloud 模式、FakePbServer（REST 加实时）和页面侧假 EventSource
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 08-03-PLAN.md — 护栏 cloud 策略和故意违规自检、PROBE-9（setOffline）、README 和 PROBES.md、补上 v1 的 WR-05，默认完整套件一次
+- [ ] 08-04-PLAN.md — 所有者批准下载 PocketBase 0.41.1 Windows 版（blocking-human）、核对留存、一次性实例库和真实实例 smoke（D-02、D-03、D-17）
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 08-05-PLAN.md — 隔离脚本：47 个编号的断言矩阵（注册关闭、跨账号读写、防改写、4 MiB、唯一、journey_docs 和 users 的实时订阅、D-05 自改密码、令牌失效）、反向对照、新实例重放对比
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 08-06-PLAN.md — 协议样本录制与归一化（28 个场景，三道自检）、隐私检查器可被 import、PB-CONTRACT.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 08-07-PLAN.md — 契约自测：假服务器逐场景对齐真实样本；阶段收尾的完整 test:cloud（默认 npm test 由阶段回归门运行）
 **UI hint**: no
 **Research:** 需要（`/gsd-plan-phase --research-phase 8`）— 要在真实实例上确认几个 MEDIUM 项：`:isset` 组合规则、订阅的 `fields` 是否裁剪载荷、新建 `users` 的默认规则、令牌有效期的设置方法。
 **Notes:**
