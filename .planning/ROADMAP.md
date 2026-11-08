@@ -61,7 +61,32 @@
   2. 服务器和域名由所有者本人购买（腾讯云 Lighthouse 香港先买 1 个月，Porkbun `.com`），Claude 不注册、不付款、不输入密码。按所有者批准的步骤装好固定版本、核对过校验和的 PocketBase 和 Caddy 后，用域名能通过 HTTPS 打开探针页，证书由 Caddy 自动申请、自动续期。
   3. 在 20:00–23:00 晚高峰，分别用中国大陆电信、联通、移动和美国网络打开探针页，用合成探针账号登录，并保持实时连接一段时间。每次的首屏时间、登录结果、实时连接是否中断都记录在阶段目录里，记录中不含服务器地址和域名。
   4. 根据实测写下结论（继续用香港、改东京，或换商家），作为 Phase 13 部署的输入。探针站点上只有合成探针账号，没有任何真实数据。
-**Plans:** TBD
+**Plans:** 10 plans
+Plans:
+**Wave 1**
+- [ ] 06-01-PLAN.md — 隐私检查新规则：令牌形状、口令赋值、公网 IPv4、数据目录和备份路径；规则 D 不区分大小写并有确定性自检（D-11、D-12、D-18）
+- [ ] 06-02-PLAN.md — 规划文档改成阿里云香港、`.vip`、nginx 加 certbot，结论交给 Phase 10/13；STATE 记 SDK 版本待办（D-01、D-02、D-08、D-13、D-15）
+- [ ] 06-03-PLAN.md — 汇总脚本 summarize.mjs：判定、2/3 分级、时段、有效性过滤，带边界自检（D-06、D-07、D-18）
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 06-04-PLAN.md — 真实钩子演练 pre-commit 和 pre-push 都会失败；.gitignore、.gitattributes、PRIVACY.md 同步；输出过滤器 redact.mjs
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 06-05-PLAN.md — 探针页（D-09）和所有者批准后下载的 SDK 0.28.1（D-15、D-17）
+- [ ] 06-06-PLAN.md — 只读状态脚本跑通 ssh 通道（D-04a）；批次 A 脚本（swap、安装 PocketBase、迁移和探针账号）；所有者批准（D-04）
+- [ ] 06-07-PLAN.md — 外部检查 verify-site；批次 B 脚本（nginx 片段与挂载、systemd unit、启动、探针页安装）
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 06-08-PLAN.md — 执行批次 A；所有者在网页终端建超级用户（D-05）；所有者批准批次 B
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 06-09-PLAN.md — 执行批次 B，外部 14 项检查；所有者确认控制台防火墙并用 ?dur=90 自测
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 06-10-PLAN.md — 只读导出和汇总链路；所有者组织至少 3 个晚上的实测；结果文档和 D-08 三部分结论
+
+**Cross-cutting constraints:**
+- 服务器 IP、域名、令牌、口令只在本机被忽略的 private/；服务器输出一律经 redact.mjs 过滤；每个改服务器的脚本先给所有者看全文、批准后才执行（D-04），执行前核对批准时的 sha256；不推送
 **UI hint**: no
 **Research:** 需要（`/gsd-plan-phase --research-phase 6`）— 大陆线路只有二手资料，测法要先定好：工具、时段、指标，以及怎样判断 SSE 被中途断开。
 **Notes:**
@@ -237,7 +262,7 @@ Plans:
 | 3. 记一笔、编辑弹窗与本周视图 | v1.0 | 4/4 | Complete | 2026-11-03 |
 | 4. 日历与目标视图 | v1.0 | 3/3 | Complete | 2026-11-03 |
 | 5. 时间线、导入与窄屏 | v1.0 | 4/4 | Complete | 2026-11-05 |
-| 6. 采购与中美可达性实测 | v2.0 | 0/TBD | Not started | - |
+| 6. 采购与中美可达性实测 | v2.0 | 0/10 | Planned | - |
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 0/TBD | Not started | - |
 | 9. 登录与云端存储 | v2.0 | 0/TBD | Not started | - |
