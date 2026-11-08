@@ -14,6 +14,8 @@
 //   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，只输出编号）
 //   E-author-email    提交的作者或提交者邮箱不是 GitHub noreply 地址
 //   F-token-shape     PocketBase/JWT 令牌形状（三段 base64url、前两段以 eyJ 开头），只输出位置
+//   G-secret-assign   密码类键名后面写着真实值（引号字面量、环境变量、ini/yaml 裸值、superuser 口令参数、私钥头），占位写法放行，只输出位置
+//   H-public-ipv4     公网 IPv4 形状（回环、私网、文档保留段和 N.0.0.0 放行），只输出位置
 //
 // 退出码：0 通过；1 发现问题；2 参数错误或内部错误（fail closed，同样会阻止提交）。
 //
@@ -49,6 +51,8 @@ export const RULES = {
   D: 'D-plan-term',
   E: 'E-author-email',
   F: 'F-token-shape',
+  G: 'G-secret-assign',
+  H: 'H-public-ipv4',
 };
 
 // ---------- 纯函数：规则 A（路径） ----------
@@ -139,6 +143,85 @@ export function findTokenShapes(line) {
   return hits;
 }
 
+// ---------- 纯函数：规则 G（写着真实值的密码类配置） ----------
+
+const CRED_WORDS = 'password|passwd|pwd|secret|encryption_key|api_key|apikey|private_key|access_key';
+// （a）引号字面量：键名后跟冒号或等号，值在成对的双引号或单引号里；不把反引号当引号（markdown 行内代码不误报）
+const SECRET_QUOTED_RE = new RegExp(`(?:${CRED_WORDS})[\\w.-]*["']?\\]?\\s*[:=]\\s*(?:"([^"]*)"|'([^']*)')`, 'gi');
+// （b）环境变量和 systemd：行首可带 export 或 Environment=，键名全大写且含上述词，等号后是裸值
+const SECRET_ENV_RE = new RegExp(`^\\s*(?:export\\s+)?(?:Environment=)?["']?[A-Z][A-Z0-9_]*(?:${CRED_WORDS.toUpperCase()})[A-Z0-9_]*=\\s*["']?([^\\s"'\`]+)`);
+// （c）ini 和 yaml：行首键名含上述词，冒号或等号后是不含空白、引号、逗号的裸值并独占行尾
+const SECRET_BARE_RE = new RegExp(`^\\s*(?:-\\s+)?["']?[\\w.-]*(?:${CRED_WORDS})[\\w.-]*["']?\\s*[:=]\\s*([^\\s"',\`]+)\\s*$`, 'i');
+// （d）PocketBase 命令行：两个参数各是不含空白、引号和反引号的记号（可被成对引号包住）
+const SECRET_SUPERUSER_RE = /superuser\s+(?:create|upsert|update)\s+["']?[^\s"'`]+["']?\s+["']?([^\s"'`]+)["']?/i;
+// （e）私钥头
+const SECRET_PEM_RE = /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/;
+
+// 占位写法放行：返回布尔（风格照 isAllowedEmail）。bare 为真时，形如属性访问的代码表达式也算占位
+export function isPlaceholder(value, { bare = false } = {}) {
+  const v = String(value).trim().replace(/^["'`]+/, '').replace(/[\s"'`;,)]+$/, '');
+  if (v.length < 6) return true;
+  if (/^<.*>$/.test(v)) return true;
+  if (/^\*+$/.test(v) || /^x+$/i.test(v)) return true;
+  if (v === '...' || v === '…') return true;
+  if (v.startsWith('$')) return true;
+  if (/^\{\{.*\}\}$/.test(v) || /%[A-Za-z_][A-Za-z0-9_]*%/.test(v)) return true;
+  if (/^__[A-Z0-9_]+__$/.test(v)) return true;
+  if (/change_me|changeme|placeholder|redacted|dummy|your[-_]/i.test(v)) return true;
+  if (/^(null|undefined|true|false|none)$/i.test(v)) return true;
+  if (/process\.env|os\.environ|getenv/.test(v)) return true;
+  if (bare && /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?$/.test(v)) return true;
+  return false;
+}
+
+// 返回命中数组，元素只写固定的 '<口令>'，不放原文、不放键名
+export function findSecretAssign(line) {
+  const hits = [];
+  SECRET_QUOTED_RE.lastIndex = 0;
+  let m;
+  while ((m = SECRET_QUOTED_RE.exec(line)) !== null) {
+    if (!isPlaceholder(m[1] ?? m[2] ?? '')) hits.push('<口令>');
+  }
+  for (const re of [SECRET_ENV_RE, SECRET_BARE_RE]) {
+    const bm = re.exec(line);
+    if (bm && !isPlaceholder(bm[1], { bare: true })) hits.push('<口令>');
+  }
+  const sm = SECRET_SUPERUSER_RE.exec(line);
+  if (sm && !isPlaceholder(sm[1])) hits.push('<口令>');
+  if (SECRET_PEM_RE.test(line)) hits.push('<口令>');
+  return hits;
+}
+
+// ---------- 纯函数：规则 H（公网 IPv4 形状） ----------
+
+const IPV4_RE = /(?<![A-Za-z0-9.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![A-Za-z0-9])(?!\.\d)/g;
+
+// 非回环、非私网、非文档保留段、不是 N.0.0.0（浏览器版本串）的点分十进制地址才算公网形状
+function isReservedIpv4(a, b, c, d) {
+  if (a === 0 || a === 10 || a === 127 || a === 255) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 192 && b === 0 && c === 2) return true;
+  if (a === 198 && b === 51 && c === 100) return true;
+  if (a === 203 && b === 0 && c === 113) return true;
+  return b === 0 && c === 0 && d === 0;
+}
+
+// 返回命中数组，元素只写固定的 '<地址>'，不放原文
+export function findPublicIpv4(line) {
+  const hits = [];
+  IPV4_RE.lastIndex = 0;
+  let m;
+  while ((m = IPV4_RE.exec(line)) !== null) {
+    const n = m.slice(1, 5).map(Number);
+    if (n.some((x) => x > 255)) continue;
+    if (isReservedIpv4(...n)) continue;
+    hits.push('<地址>');
+  }
+  return hits;
+}
+
 // ---------- 纯函数：规则 E（作者和提交者邮箱） ----------
 
 export function checkIdentityEmail(email, role) {
@@ -180,6 +263,12 @@ export function scanText(location, text, terms = []) {
     }
     if (findTokenShapes(line).length > 0) {
       findings.push({ location: where, rule: RULES.F, message: '疑似令牌（JWT 形状）' });
+    }
+    if (findSecretAssign(line).length > 0) {
+      findings.push({ location: where, rule: RULES.G, message: '疑似写死的口令或密钥' });
+    }
+    if (findPublicIpv4(line).length > 0) {
+      findings.push({ location: where, rule: RULES.H, message: '公网 IPv4 形状' });
     }
     for (let t = 0; t < terms.length; t += 1) {
       if (line.includes(terms[t])) {
@@ -676,6 +765,67 @@ function runSelfTest() {
   ];
   for (const [label, sample] of fNeg) expect(`规则 F 反例 ${label}`, findTokenShapes(`x ${sample} y`).length === 0 && scanText('f', sample).length === 0);
 
+  // 规则 G：口令、密钥值和私钥头都在运行时拼接，源码里没有完整的命中字面量
+  const pw = ['Sy', 'nth', 'Pass', '9817'].join('');
+  const encKey = 'q7'.repeat(16);
+  const pemHead = ['-----BEGIN', 'RSA', 'PRIVATE', 'KEY-----'].join(' ');
+  const gPos = [
+    ['JSON 的 adminPassword 字段', `{"adminPassword": "${pw}"}`],
+    ['JS 对象的 password 字段', `const o = { password: "${pw}" };`],
+    ['单引号的 password 赋值', `password='${pw}'`],
+    ['PB_ENCRYPTION_KEY 加 32 位值', `PB_ENCRYPTION_KEY=${encKey}`],
+    ['export ADMIN_PASSWORD', `export ADMIN_PASSWORD=${pw}`],
+    ['systemd Environment', `Environment="PB_ENCRYPTION_KEY=${encKey}"`],
+    ['yaml 的 db_password 裸值', `db_password: ${pw}`],
+    ['superuser upsert 加真实形状口令', `pocketbase superuser upsert me@example.com ${pw}`],
+    ['PEM 私钥头', pemHead],
+  ];
+  for (const [label, sample] of gPos) {
+    const f = scanText('f', sample);
+    expect(`规则 G 正例 ${label}`, ruleSet(f) === RULES.G && f[0].location === 'f:1');
+    const text = f.map(formatFinding).join('\n');
+    expect(`规则 G 输出不含口令 ${label}`, f.length > 0 && !text.includes(pw) && !text.includes(encKey) && !text.includes('RSA'));
+  }
+  const gNeg = [
+    ['<值> 占位', 'password: "<password-value>"'],
+    ['星号', 'password="******"'],
+    ['CHANGE_ME', 'password = "CHANGE_ME"'],
+    ['$变量', 'ADMIN_PASSWORD=$ADMIN_PASSWORD_VALUE'],
+    ['superuser 第二个参数是 "$PW"', 'pocketbase superuser upsert me@example.com "$PW"'],
+    ['${X} 引用', 'export X_SECRET=${SECRET_VALUE}'],
+    ['process.env 引用', 'password: process.env.DB_PASSWORD_X'],
+    ['input.value 属性访问', 'password = input.value'],
+    ['markdown 行内代码里的 PB_ENCRYPTION_KEY=', '运行前设置 `PB_ENCRYPTION_KEY=` 环境变量'],
+    ['__PROBE_PASSWORD__ 占位（引号）', 'password: "__PROBE_PASSWORD__"'],
+    ['__PROBE_PASSWORD__ 占位（裸值）', 'PROBE_PASSWORD=__PROBE_PASSWORD__'],
+    ['password 后面没有赋值的普通句子', '请输入 password 后点击登录，the password is required'],
+    ['比较而不是赋值', 'if (password === "abc") return'],
+  ];
+  for (const [label, sample] of gNeg) expect(`规则 G 反例 ${label}`, scanText('f', sample).length === 0);
+  expect('占位判断：真实形状口令不是占位', !isPlaceholder(pw) && !isPlaceholder(encKey) && !isPlaceholder(pw, { bare: true }));
+  expect('占位判断：属性访问只对裸值放行', isPlaceholder('a.b.cdefg', { bare: true }) && !isPlaceholder('a.b.cdefg'));
+
+  // 规则 H：地址用数组 join 拼接
+  const ip = (...n) => n.join('.');
+  const hPos = [
+    ['公网地址一', ip(8, 8, 4, 4)],
+    ['公网地址二', ip(44, 55, 66, 77)],
+    ['公网地址三', ip(93, 184, 216, 34)],
+  ];
+  for (const [label, addr] of hPos) {
+    const f = scanText('f', `ssh ${addr} uptime`);
+    expect(`规则 H 正例 ${label}`, ruleSet(f) === RULES.H && f[0].location === 'f:1');
+    expect(`规则 H 输出不含地址 ${label}`, f.length > 0 && !f.map(formatFinding).join('\n').includes(addr));
+  }
+  const hNeg = [
+    ['回环', ip(127, 0, 0, 1)], ['any', ip(0, 0, 0, 0)], ['10 段', ip(10, 1, 2, 3)],
+    ['172.20 私网', ip(172, 20, 1, 1)], ['192.168 私网', ip(192, 168, 1, 1)],
+    ['TEST-NET-3', ip(203, 0, 113, 9)], ['TEST-NET-2', ip(198, 51, 100, 7)],
+    ['浏览器版本串 N.0.0.0', `Chrome/${ip(156, 0, 0, 0)} Safari`],
+    ['五段版本号', ip(1, 2, 3, 4, 5)], ['某段超过 255', ip(300, 1, 1, 1)],
+  ];
+  for (const [label, sample] of hNeg) expect(`规则 H 反例 ${label}`, scanText('f', `地址 ${sample} 结束`).length === 0);
+
   // 换行无关与二进制
   const body = ['第一行', `路径 ${winFwd}`, '第三行', `邮箱 ${company}`];
   const variants = [body.join('\n'), body.join('\r\n'), body.join('\r')];
@@ -793,7 +943,8 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
     for (let i = 0; i < live.length; i += 1) {
       const line = `前缀 ${live[i]} 后缀`;
       const expectedIdx = live.findIndex((t) => line.includes(t)) + 1;
-      const f = scanText('f', line, live);
+      // 只看规则 D：词条本身可能同时命中别的规则（例如 denylist 里的地址会被规则 H 命中）
+      const f = scanText('f', line, live).filter((x) => x.rule === RULES.D);
       const ok = f.length === 1 && f[0].rule === RULES.D && f[0].message.endsWith(`#${expectedIdx}`) && !formatFinding(f[0]).includes(live[i]);
       if (!ok) {
         liveOk = false;
