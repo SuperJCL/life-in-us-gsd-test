@@ -17,6 +17,8 @@
 - `npm test`：无界面跑完全部用例。
 - `npm run test:ui`：Playwright UI 模式，可以逐步回放每个用例的动作和页面快照。它会打开一个使用本机 Edge 或 Chrome 的窗口。如果提示需要安装浏览器，不要安装，按第 8 节“浏览器出问题时”处理。
 
+- `npm run test:cloud`：跑 `tests/cloud/` 下的 cloud 用例（真实 PocketBase SDK 对 Node 侧的假 PocketBase），同样低优先级、1 个 worker。它和 `npm test` 共用 4789 端口，所以不能同时跑（本来也不应并发）；只在阶段收尾和发布前手动跑，日常不需要。
+
 只跑部分用例时，把参数接在 `--` 后面，例如 `npm test -- -g "IO-01"`。
 
 需要机器判定“没有失败、没有 flaky、指定的用例都实际运行”时，用 `PW_JSON_REPORT=test-results/<名字>.json` 前缀运行（同时加 `--workers=1` 最省资源），再用 `node tools/test-report/check-report.mjs <报告> "<标题>" …` 检查，通过时输出 `REPORT OK`；报告里任何不带 known-bug 注解的 skipped 用例、没有 test 的 spec、同标题一过一败都会判为失败；全量回归再加 `--min-expected N`（至少跑了 N 条），否则被过滤或被中断的部分运行也会得到 `REPORT OK`；`node tools/test-report/check-report.mjs --self-test` 是它的反向对照，证明脚本在该失败时会失败。原因：配置里 `retries: 1`，单看退出码分不出“重试后才通过”的用例，也看不出用例是不是被过滤掉没跑。报告只放在已被 git 忽略的 `test-results/` 下，只在本机读，只打印计数和标题。
@@ -44,7 +46,8 @@
 | `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
-| `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md` |
+| `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -59,6 +62,8 @@
 - 种子数据用“没有才写”的 init 函数写入 localStorage，防止 `reload` 时覆盖刚保存的新数据。
 - 持久化断言按固定顺序：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。不要用固定睡眠。
 - 护栏自检只用 `guard.remove(kind, match)` 删掉自己制造的那一条违规，删除前先断言该类记录恰好是预期的那几条；不提供清空全部记录的方法。
+- cloud 配置（`playwright.cloud.config.ts`）把 `USJ_TEST_MODE` 设为 `cloud`，护栏随之换成 cloud 策略：应用来源下只放行页面、应用文件和同源的 SDK（`/vendor/pocketbase.iife.js`），假服务器没接住的 `/api/*` 和所有其他来源都记为违规。默认 `npm test` 用 v1 策略：应用来源下只放行 `/` 和 `/us-journey-tracker.html`。
+- `USJ_TEST_MODE=cloud` 时 AppHarness 把 `account` 模式映射成 `cloud`（Phase 9 应用接上云端后才对 v1 的账户用例生效）；默认配置下 `account` 和 `local` 不变。
 - 用例不稳定（flaky）就是缺陷。配置里 `retries` 是 1，但一次重试通过也要查明原因，不能靠重试掩盖。
 
 ## 7. 护栏
@@ -75,6 +80,7 @@
   - 代理层已证明：`.invalid` 地址和 WebSocket 都只到达代理，页面请求以 `ERR_PROXY_CONNECTION_FAILED` 失败。
   - `preconnect` 本身没有被直接观察到：探针运行时无界面 Edge 没有发出任何 `preconnect`。所以“`preconnect` 到不了字体主机”是由已证明的两层（解析规则加死代理）推断出来的，不是直接观察到的事实。
   - 探针里观察到 Edge 自己的后台流量（`bing.com`、`edge.microsoft.com`）也只到达了本机的录制代理，没有到达任何真实主机。
+- **两档策略**（`tests/support/test.ts` 的 `classifyRequest`、`guardPolicy`、`attachGuard`）：v1 策略（默认 `npm test`）在应用来源下只放行 `/` 和 `/us-journey-tracker.html`，其他路径（例如 `/package.json`）记为违规；cloud 策略（`npm run test:cloud`）在应用来源下只放行 `/`、`/us-journey-tracker.html` 和 `/vendor/pocketbase.iife.js`。两档都有故意违规的自检（v1 在 `guardrails.spec.ts`，cloud 在 `tests/cloud/guard-cloud.spec.ts`）。第二台“设备”（第二个 context）用 `attachGuard` 复用同一套策略。
 - **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。`preconnect` 这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
 - **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
 - **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
@@ -99,7 +105,7 @@
 
 ## 10. 探针结论
 
-PROBE-1 到 PROBE-8 的结论、证据和采用的方案见 `tests/PROBES.md`；其中 PROBE-8 是 B2（取消导入后再选同一个文件）的 spike。它们每次 `npm test` 都会重新运行，假设不成立时用例会变红。
+PROBE-1 到 PROBE-9 的结论、证据和采用的方案见 `tests/PROBES.md`；其中 PROBE-8 是 B2（取消导入后再选同一个文件）的 spike。PROBE-1 到 PROBE-8 每次 `npm test` 都会重新运行，PROBE-9 起在 `npm run test:cloud` 里运行，假设不成立时用例会变红。
 
 ## 11. 账户模式
 

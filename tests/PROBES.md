@@ -1,12 +1,12 @@
-# 运行时探针结论（PROBE-1 到 PROBE-8）
+# 运行时探针结论（PROBE-1 到 PROBE-9）
 
-这些探针验证后续阶段依赖的运行时假设。每一项都对应 `tests/e2e/platform/probes.spec.ts` 里以 `PROBE-n` 开头的用例，每次 `npm test` 都会运行；假设哪天不成立，用例会变红。
+这些探针验证后续阶段依赖的运行时假设。PROBE-1 到 PROBE-8 对应 `tests/e2e/platform/probes.spec.ts`，每次 `npm test` 都会运行；PROBE-9 起对应 `tests/cloud/probes-cloud.spec.ts`，在 `npm run test:cloud` 里运行。假设哪天不成立，用例会变红。
 
 ## 运行环境
 
 | 项目 | 值 |
 |------|----|
-| 记录日期 | 2026-11-02 |
+| 记录日期 | 2026-11-02（PROBE-9 于 2026-11-08 记录，浏览器和 Playwright 版本不变） |
 | @playwright/test | 1.64.1（精确锁定） |
 | `browser.version()` | 156.0.4314.58（本机 Edge，`channel: 'msedge'`，无界面） |
 | Node 主版本 | 24 |
@@ -28,6 +28,9 @@
 | PROBE-6 | `clock.install` 加 `pauseAt` 后的稳定性检查 | `PROBE-6 clock.install with pauseAt keeps actionability checks working` | 通过 | 暂停后点击标签、记一笔、toast 出现，`runFor(1800)` 后消失，保存落盘 | install、open、pauseAt、runFor 的顺序可用 |
 | PROBE-7 | `exposeBinding` 在页面脚本运行前可调用 | `PROBE-7 exposeBinding is callable from an init script before any page script runs` | 通过 | init 阶段 `typeof` 为 `function`，init 阶段调用返回 `pong`；账户 tracer 里应用调用 `get()` 时 binding 也可用 | 采用 `exposeBinding`，不启用 `sessionStorage` 退路 |
 | PROBE-8 | 取消导入确认后，`setInputFiles` 再选同一个文件 | `PROBE-8 re-selecting the same file with setInputFiles after a cancelled import` | 通过 | 取消后 change 计数 1，`#importJson` 的 value 仍是浏览器的 fakepath 形式加合成文件名；再选同一个文件后 change 计数 2、确认框再次出现 | Playwright 复现不了“再选同一个文件没有反应”，B2 的期望断言改用确定性的 value 为空字符串 |
+| PROBE-9a | `context.setOffline` 对 `navigator.onLine` 和 online、offline 事件的影响 | `PROBE-9a what context.setOffline does to navigator.onLine and the online and offline events` | 通过 | 初始 onLine 为 true、两个计数 0；`setOffline(true)` 之后 onLine 为 false、offline 计数 1、online 计数 0；`setOffline(false)` 之后 onLine 为 true、online 计数 1、offline 计数 1 | 离线状态下 `navigator.onLine` 和两个事件都由 Playwright 真实改变和派发，应用的断网分支可以直接用 `setOffline` 触发 |
+| PROBE-9b | route 接住的同源 fetch 在离线时是否成功 | `PROBE-9b whether a route-fulfilled same-origin fetch still succeeds while the context is offline` | 通过（离线不影响 route） | 离线时对 `/api/collections/journey_docs/records` 的 fetch 为 `resolved:200`，假服务器收到了这条请求，没有 console.error 也没有违规记录 | 不能靠 `setOffline` 让假服务器的请求失败；网络失败要由假服务器自己的开关制造 |
+| PROBE-9c | 假 EventSource 在离线时是否仍然投递 | `PROBE-9c whether the fake EventSource still delivers while the context is offline` | 通过（离线不影响投递） | 离线时 Node 侧用第 0 个账号更新自己的文档，页面订阅回调收到恰好 1 条 `update`，投递错误为空 | 假 EventSource 由 Node 经 `page.evaluate` 投递，不走浏览器网络栈；SSE 断开必须由假服务器显式触发
 
 ## PROBE-1：Edge 无界面启动
 
@@ -122,6 +125,16 @@
 - **观察到什么：** 取消后 change 计数为 1；`#importJson` 的 value 没有被清空，形式是浏览器的 fakepath 形式加合成文件名（文档里不照抄带盘符的字符串）。第二次选同一个文件时 change 计数变成 2，确认框再次出现。
 - **断言是写死的：** 四条断言的期望值固定（第一次计数 1、value 为 fakepath 形式加合成文件名、第二次确认框出现、第二次计数 2），先记 annotations 和终端输出，再断言，不随观察值改写；应用以后若在取消路径上清空 input，这条探针会变红，提醒 B2 已修好。
 - **对 B2 的结论：** 应用的取消路径在 `e.target.value=""` 之前就 `return`，value 确实没有清空（这是 B2 的确定性证据）。但 Playwright 的 `setInputFiles` 每次都自己派发 input 和 change，不依赖 value 是否变化，所以用户在真实浏览器里遇到的“再选同一个文件没有反应”在这里复现不了。因此 B2 的期望断言不写“change 会再次触发”，只断言取消后 `#importJson` 的 value 为空字符串（见 `tests/e2e/io/known-bugs.spec.ts`）。
+
+## PROBE-9：`context.setOffline` 与假服务器、假 EventSource
+
+- **怎么测的：** 三条用例都在 `tests/cloud/probes-cloud.spec.ts`，用 cloud 模式打开应用（真实 SDK 加 Node 侧假服务器）。9a 在页面脚本运行前注入 online、offline 计数器，读 `setOffline(true)` 和 `setOffline(false)` 前后的 `navigator.onLine` 与计数；9b 在离线时对假服务器已实现的列表路径发一次同源 fetch；9c 订阅后离线，在 Node 侧更新这个账号自己的文档，读页面收到的事件。观察值先记进 `probe` annotation 和终端，看清之后把断言写死，再连跑两次确认稳定。
+- **观察到什么：** 见上表。`setOffline` 会真实改 `navigator.onLine` 并各派发一次 offline、online 事件；但被 `context.route` 接住并 fulfill 的请求、以及由 Node 经 `page.evaluate` 投递的假 EventSource 事件，都不受它影响。
+- **给 Phase 10 的结论：**
+  - 9b 证明 route 接住的请求不受 `setOffline` 影响，所以“请求失败、5xx、超时”这类网络故障要由假服务器自己的开关来模拟（例如让某类请求 `route.abort()` 或返回 5xx），不能指望 `setOffline`。
+  - 9a 证明 `setOffline` 能让应用看到真实的 `offline`、`online` 事件和 `navigator.onLine` 的变化，所以应用里“网络断开后的提示、恢复后重连”这类依赖浏览器在线状态的分支，可以用 `setOffline` 加假服务器的开关组合起来测；但这两者要分别触发，才能说清是哪一个导致的行为。
+  - 9c 证明假 EventSource 不受影响，所以 SSE 断开和重连必须由假服务器显式触发（`app.fake` 上的开关），`setOffline` 不会让它断开。
+- **边界：** 结论只对本机 Edge 156 和 Playwright 1.64.1 成立；版本变化要重跑 PROBE-9。在 Phase 8 的其他用例里没有使用 `setOffline`，只有这三条探针用了。
 
 ## 未覆盖的事项
 
