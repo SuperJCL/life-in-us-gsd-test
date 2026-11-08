@@ -8,10 +8,10 @@
 //   --self-test  内置正例和反例自检，不依赖 git 状态
 //
 // 规则：
-//   A-forbidden-path  不允许进入仓库的文件路径（应用文件只放行仓库根目录那一份，子目录同名文件和改名副本禁止）
+//   A-forbidden-path  不允许进入仓库的文件路径（应用文件只放行仓库根目录那一份，子目录同名文件和改名副本禁止；PocketBase 数据目录 pb_data/pb_backups、数据库文件、压缩包、PocketBase 程序文件也禁止）
 //   B-abs-path        内容里的本机绝对路径（用户名）
 //   C-email           内容里的真实邮箱
-//   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，只输出编号）
+//   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，不区分大小写，只输出编号）
 //   E-author-email    提交的作者或提交者邮箱不是 GitHub noreply 地址
 //   F-token-shape     PocketBase/JWT 令牌形状（三段 base64url、前两段以 eyJ 开头），只输出位置
 //   G-secret-assign   密码类键名后面写着真实值（引号字面量、环境变量、ini/yaml 裸值、superuser 口令参数、私钥头），占位写法放行，只输出位置
@@ -23,7 +23,8 @@
 // 所有会命中规则 B、C 的样本都在运行时拼接，源码里不出现完整的命中字面量。
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 // ---------- 常量 ----------
@@ -57,6 +58,9 @@ export const RULES = {
 
 // ---------- 纯函数：规则 A（路径） ----------
 
+const DB_EXT_RE = /\.(db|db-wal|db-shm|db-journal|sqlite|sqlite3)$/i;
+const ARCHIVE_EXT_RE = /\.(zip|tar|tgz|gz|bz2|xz|7z|rar)$/i;
+
 export function checkPath(path) {
   const norm = String(path).replace(/\\/g, '/');
   const segments = norm.split('/').filter((s) => s.length > 0);
@@ -72,6 +76,11 @@ export function checkPath(path) {
   // 其他 AI 工具的安装文件含本机绝对路径（WR-07），与 .gitignore 保持一致
   if (segments[0] === '.agents' || segments[0] === '.codex' || norm === 'AGENTS.md') return '其他 AI 工具的安装文件含本机路径，不能进入仓库';
   if (norm === '.claude/settings.local.json') return '本机 Claude 设置不能进入仓库';
+  // PocketBase 的数据、备份和程序文件（不按 backup 这个词拦；pb_migrations、pb_hooks、pb_public 照常放行）
+  if (segments.includes('pb_data') || segments.includes('pb_backups')) return 'PocketBase 数据目录和备份不能进入仓库';
+  if (DB_EXT_RE.test(base)) return '数据库文件不能进入仓库';
+  if (ARCHIVE_EXT_RE.test(base)) return '压缩包可能是备份，不能进入仓库';
+  if (base === 'pocketbase' || base === 'pocketbase.exe') return 'PocketBase 程序文件不能进入仓库';
   if (base.startsWith('.env')) return '环境变量文件不能进入仓库';
   return null;
 }
@@ -245,10 +254,16 @@ export function splitLines(text) {
   return String(text).replace(/^\uFEFF/, '').split(/\r\n|\r|\n/);
 }
 
+// 规则 D 的比较不区分大小写（D-18）：词条和行都先折叠再比较，对中文词条无影响
+export function foldCase(s) {
+  return String(s).toLowerCase();
+}
+
 // 返回 [{ location, rule, message }]；location 形如 "文件:行号"
 export function scanText(location, text, terms = []) {
   const findings = [];
   const lines = splitLines(text);
+  const folded = terms.map(foldCase);
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (line.length === 0) continue;
@@ -270,8 +285,9 @@ export function scanText(location, text, terms = []) {
     if (findPublicIpv4(line).length > 0) {
       findings.push({ location: where, rule: RULES.H, message: '公网 IPv4 形状' });
     }
-    for (let t = 0; t < terms.length; t += 1) {
-      if (line.includes(terms[t])) {
+    const lower = foldCase(line);
+    for (let t = 0; t < folded.length; t += 1) {
+      if (lower.includes(folded[t])) {
         findings.push({ location: where, rule: RULES.D, message: `个人计划词条 #${t + 1}` });
         break;
       }
@@ -499,10 +515,15 @@ export function seedGate(paths, seedFound) {
 
 // ---------- 规则 D：加载词条 ----------
 
-function loadPlanTerms() {
+function defaultRoots() {
   const roots = [process.cwd()];
   const main = mainWorktreeRoot();
   if (main && !roots.includes(main)) roots.push(main);
+  return roots;
+}
+
+// roots 可由调用方指定（自检用临时目录）；quiet 为真时不写 stderr
+function loadPlanTerms(roots = defaultRoots(), { quiet = false } = {}) {
   const firstExisting = (rel) => {
     for (const root of roots) {
       const p = join(root, rel);
@@ -519,7 +540,9 @@ function loadPlanTerms() {
   if (seedPath) add(seedTerms(readFileSync(seedPath, 'utf8')));
   const denyPath = firstExisting(DENYLIST_FILE);
   if (denyPath) add(parseDenylist(readFileSync(denyPath, 'utf8')));
-  if (seedPath || denyPath) {
+  if (quiet) {
+    // 自检传入的临时目录：不写 stderr
+  } else if (seedPath || denyPath) {
     process.stderr.write(`规则 D：已加载 ${terms.length} 个个人计划词条\n`);
   } else {
     process.stderr.write(`规则 D 已跳过：未找到 ${SEED_FILE} 或 ${DENYLIST_FILE}\n`);
@@ -677,9 +700,11 @@ async function runPush(terms, seedFound) {
 function runSelfTest() {
   const failures = [];
   let total = 0;
+  const listPassed = process.env.PRIVACY_SELF_TEST_LIST === '1';
   const expect = (name, ok) => {
     total += 1;
     if (!ok) failures.push(name);
+    else if (listPassed) process.stdout.write(`通过：${name}\n`);
   };
   const ruleSet = (findings) => findings.map((f) => f.rule).join(',');
 
@@ -701,12 +726,16 @@ function runSelfTest() {
     '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
     'us-journey-tracker.original.html', 'backup/us-journey-tracker.v1.html',
     '.agents/skills/x/SKILL.md', '.codex/agents/x.toml', 'AGENTS.md',
+    'pb_data/data.db', 'x/pb_data/logs.txt', 'pb_backups/a.json', 'data.db', 'data.db-wal', 'data.db-shm',
+    'x.sqlite', 'backup-2026.tar.gz', 'x.7z', 'pocketbase', 'bin/pocketbase.exe',
   ];
   for (const p of pathPos) expect(`规则 A 正例 ${p}`, checkPath(p) !== null);
   const pathNeg = [
     'PRIVACY.md', 'tools/privacy/privacy-check.mjs', 'privateer.txt', 'docs/backup.md',
     'src/environment.ts', '.claude/CLAUDE.md', 'docs/us-journey-tracker.md', APP_FILE,
     'docs/AGENTS.md', 'docs/.agents-notes.md', 'src/codex/x.ts',
+    'tests/fixtures/legacy-positional-backup.json', 'pb_migrations/1_init.js', 'pb_hooks/main.pb.js', 'pb_public/index.html',
+    'tools/probe/server/pocketbase.service', 'tools/probe/page/vendor/pocketbase.iife.js', 'docs/database.md',
   ];
   for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
 
@@ -866,6 +895,29 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
   expect('规则 D 命中并给出编号', dFind.length === 1 && dFind[0].message.endsWith('#2'));
   expect('规则 D 输出不含词条', !formatFinding(dFind[0] ?? { location: '', rule: '', message: '' }).includes('嵌套数组条目二'));
 
+  // 规则 D：确定性自检（D-11，不依赖本机 private/）：TEST-NET-3 地址和 .example 合成域名都在运行时拼接
+  const synthIp = [203, 0, 113, 77].join('.');
+  const synthDomain = ['probe-synth', 'example'].join('.');
+  const synthDeny = ['# 注释', `${synthIp} # 服务器`, synthDomain, ''].join('\n');
+  const synthTerms = parseDenylist(synthDeny);
+  expect('规则 D：denylist 解析出 2 个合成词条', synthTerms.length === 2);
+  const dIp = scanText('f', `ssh ${synthIp} uptime`, synthTerms);
+  expect('规则 D：合成地址命中 #1 且输出不含地址', dIp.length === 1 && dIp[0].rule === RULES.D && dIp[0].message.endsWith('#1') && !formatFinding(dIp[0]).includes(synthIp));
+  const dDomain = scanText('提交说明', `https://${synthDomain}/probe/`, synthTerms);
+  expect('规则 D：提交说明里的合成域名命中 #2 且输出不含域名', dDomain.length === 1 && dDomain[0].rule === RULES.D && dDomain[0].message.endsWith('#2') && !formatFinding(dDomain[0]).includes(synthDomain));
+  const dUpper = scanText('f', `${'https'.toUpperCase()}://${synthDomain.toUpperCase()}/`, synthTerms);
+  expect('规则 D：大写域名变体命中 #2', dUpper.length === 1 && dUpper[0].rule === RULES.D && dUpper[0].message.endsWith('#2') && !formatFinding(dUpper[0]).toLowerCase().includes(synthDomain));
+  expect('规则 D：不相关的保留地址没有任何命中', scanText('f', `ssh ${[198, 51, 100, 7].join('.')} uptime`, synthTerms).length === 0);
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'privacy-d-'));
+  try {
+    mkdirSync(join(tmpRoot, 'private'));
+    writeFileSync(join(tmpRoot, DENYLIST_FILE), synthDeny);
+    const loaded = loadPlanTerms([tmpRoot], { quiet: true });
+    expect('规则 D：loadPlanTerms 从指定 roots 的 denylist 加载 2 个词条且没有种子', loaded.terms.length === 2 && loaded.seedFound === false && loaded.terms[1] === synthDomain);
+  } finally {
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+
   // 规则 D：种子词条（样本运行时构造，只用合成文字）
   const synthSeed = JSON.stringify({
     _seed: '合成种子标记四字以上',
@@ -942,7 +994,7 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
     let liveBad = 0;
     for (let i = 0; i < live.length; i += 1) {
       const line = `前缀 ${live[i]} 后缀`;
-      const expectedIdx = live.findIndex((t) => line.includes(t)) + 1;
+      const expectedIdx = live.findIndex((t) => foldCase(line).includes(foldCase(t))) + 1;
       // 只看规则 D：词条本身可能同时命中别的规则（例如 denylist 里的地址会被规则 H 命中）
       const f = scanText('f', line, live).filter((x) => x.rule === RULES.D);
       const ok = f.length === 1 && f[0].rule === RULES.D && f[0].message.endsWith(`#${expectedIdx}`) && !formatFinding(f[0]).includes(live[i]);
