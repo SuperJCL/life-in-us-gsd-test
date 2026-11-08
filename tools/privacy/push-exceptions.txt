@@ -1,0 +1,6 @@
+# 推送例外清单：只供 tools/privacy/privacy-check.mjs --push 使用，只能放行规则 H-public-ipv4。
+# 每行：<40 位提交号> <路径>:<行号> H-public-ipv4 # <原因>
+# 只用来放行「已在后续提交里改掉、但仍留在未推送历史里」的无害示例地址。
+# 新内容被拦时应当修改内容，不要往这里加；服务器地址、域名、邮箱和口令永远不能放行。
+08eb8dcf31756985f61362468177f4b41547ce3a .planning/phases/06-procurement-reachability-probe/06-RESEARCH.md:767 H-public-ipv4 # 研究文档里随手写的示例地址，与本项目服务器无关；0fa5cea 已改成文档保留地址（所有者 2026-11-08 批准放行）
+cd645d6501b4340af9d5d16db94ae4ac2b7313cd .planning/phases/06-procurement-reachability-probe/06-RESEARCH.md:767 H-public-ipv4 # 同上一行，同一个示例地址在修订提交里仍在原位（所有者 2026-11-08 批准放行）

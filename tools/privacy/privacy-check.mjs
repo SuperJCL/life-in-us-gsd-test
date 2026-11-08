@@ -5,6 +5,8 @@
 //   --staged     检查暂存区（pre-commit 使用）
 //   --all        检查 HEAD 树加暂存区（手动全量检查）
 //   --push       从 stdin 读取 pre-push 的引用列表，检查即将推送的每个提交
+//                （tools/privacy/push-exceptions.txt 可按「提交号 + 文件 + 行号」放行规则 H 的已知无害命中，
+//                 只用于已在后续提交里改掉、但仍留在未推送历史里的内容；别的规则不能放行）
 //   --self-test  内置正例和反例自检，不依赖 git 状态
 //
 // 规则：
@@ -470,6 +472,40 @@ export function planRevListArgs(entry) {
   };
 }
 
+// ---------- 纯函数：推送例外清单（只用于 --push） ----------
+
+// 每行：<40 位提交号> <路径>:<行号> H-public-ipv4 # <原因>；空行和 # 开头的行忽略。
+// 只接受规则 H，且必须写原因；格式不对一律报错（fail closed）。
+const PUSH_EXCEPTIONS_FILE = 'tools/privacy/push-exceptions.txt';
+const EXCEPTION_RE = /^([0-9a-f]{40}) (\S+):([1-9][0-9]*) (\S+)\s+#\s*(\S.*)$/;
+
+export function parsePushExceptions(text) {
+  const entries = [];
+  const lines = String(text).split(/\r\n|\r|\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (line.length === 0 || line.startsWith('#')) continue;
+    const m = EXCEPTION_RE.exec(line);
+    if (!m) throw new Error(`例外清单第 ${i + 1} 行格式错误，已阻止推送`);
+    if (m[4] !== RULES.H) throw new Error(`例外清单第 ${i + 1} 行：只允许放行规则 ${RULES.H}，已阻止推送`);
+    entries.push({ sha: m[1], path: m[2], line: Number(m[3]), rule: m[4] });
+  }
+  return entries;
+}
+
+// 只放行提交号完全相同、位置（短提交号:路径:行号）和规则都相同的命中
+export function applyPushExceptions(findings, sha, entries) {
+  const kept = [];
+  let exempted = 0;
+  const short = sha.slice(0, 8);
+  for (const f of findings) {
+    const hit = entries.some((e) => e.sha === sha && f.rule === e.rule && f.location === `${short}:${e.path}:${e.line}`);
+    if (hit) exempted += 1;
+    else kept.push(f);
+  }
+  return { kept, exempted };
+}
+
 // ---------- git 辅助 ----------
 
 function git(args, opts = {}) {
@@ -690,9 +726,15 @@ async function runPush(terms, seedFound) {
   for (const sha of shas) for (const p of commitPaths(sha)) if (!allPaths.includes(p)) allPaths.push(p);
   const gate = seedGate(allPaths, seedFound);
   if (gate) return { findings: [], count: shas.length, gate };
+  const exceptions = existsSync(PUSH_EXCEPTIONS_FILE) ? parsePushExceptions(readFileSync(PUSH_EXCEPTIONS_FILE, 'utf8')) : [];
   const findings = [];
-  for (const sha of shas) findings.push(...checkCommit(sha, terms));
-  return { findings, count: shas.length };
+  let exempted = 0;
+  for (const sha of shas) {
+    const r = applyPushExceptions(checkCommit(sha, terms), sha, exceptions);
+    findings.push(...r.kept);
+    exempted += r.exempted;
+  }
+  return { findings, count: shas.length, exempted };
 }
 
 // ---------- 模式：--self-test ----------
@@ -987,6 +1029,49 @@ const LIFTS=[ "半角冒号结尾条目:", 'single "quoted" 不提取的单引�
   expect('push 范围：更新', updateRange !== null && updateRange.primary[0] === `${a}..${b}`);
   expect('push 范围：删除分支跳过', planRevListArgs({ localSha: zero, remoteSha: a }) === null);
 
+  // 推送例外清单（只用于 --push，只能放行规则 H）
+  const exSha = 'a'.repeat(40);
+  const exOther = 'b'.repeat(40);
+  let exEntries = null;
+  try {
+    exEntries = parsePushExceptions(`# 注释\n\n${exSha} docs/x.md:7 ${RULES.H} # 示例地址，已在后续提交改掉\n`);
+  } catch {
+    exEntries = null;
+  }
+  expect('例外清单：合法行被解析', Array.isArray(exEntries) && exEntries.length === 1 && exEntries[0].path === 'docs/x.md' && exEntries[0].line === 7);
+  const exRejects = [
+    ['缺原因', `${exSha} docs/x.md:7 ${RULES.H}`],
+    ['只许规则 H', `${exSha} docs/x.md:7 ${RULES.C} # 原因`],
+    ['提交号不足 40 位', `${exSha.slice(0, 8)} docs/x.md:7 ${RULES.H} # 原因`],
+    ['缺行号', `${exSha} docs/x.md ${RULES.H} # 原因`],
+  ];
+  for (const [label, text] of exRejects) {
+    let threw = false;
+    try {
+      parsePushExceptions(text);
+    } catch {
+      threw = true;
+    }
+    expect(`例外清单拒绝：${label}`, threw);
+  }
+  if (Array.isArray(exEntries)) {
+    const exLoc = (sha, line) => `${sha.slice(0, 8)}:docs/x.md:${line}`;
+    const exHit = { location: exLoc(exSha, 7), rule: RULES.H, message: '公网 IPv4 形状' };
+    expect('例外清单放行：同一提交、同一行、规则 H', applyPushExceptions([exHit], exSha, exEntries).exempted === 1);
+    expect('例外清单不放行：别的提交', applyPushExceptions([{ ...exHit, location: exLoc(exOther, 7) }], exOther, exEntries).kept.length === 1);
+    expect('例外清单不放行：别的行', applyPushExceptions([{ ...exHit, location: exLoc(exSha, 8) }], exSha, exEntries).kept.length === 1);
+    expect('例外清单不放行：同一行的别的规则', applyPushExceptions([{ ...exHit, rule: RULES.C }], exSha, exEntries).kept.length === 1);
+  }
+  if (existsSync(PUSH_EXCEPTIONS_FILE)) {
+    let fileOk = true;
+    try {
+      parsePushExceptions(readFileSync(PUSH_EXCEPTIONS_FILE, 'utf8'));
+    } catch {
+      fileOk = false;
+    }
+    expect('例外清单文件格式正确', fileOk);
+  }
+
   // 实时词条自检：不写盘、不打印词条
   const live = loadPlanTerms().terms;
   if (live.length > 0) {
@@ -1054,6 +1139,7 @@ async function main() {
     return result.gate.code;
   }
 
+  if (result.exempted > 0) process.stderr.write(`已按例外清单放行 ${result.exempted} 处（${PUSH_EXCEPTIONS_FILE}）\n`);
   if (result.findings.length > 0) {
     process.stdout.write(`${result.findings.map(formatFinding).join('\n')}\n`);
     process.stderr.write(`隐私检查未通过：共 ${result.findings.length} 处问题。请修改后再提交，不要用 --no-verify 绕过。\n`);
