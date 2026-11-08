@@ -17,6 +17,16 @@ test('TEST-02 classifyRequest allows only the app page, the app file and the SDK
   expect(classifyRequest('http://localhost:4789/', 'cloud')).toBe('violation');
   expect(classifyRequest('not a url', 'cloud')).toBe('violation');
 
+  // v1 策略（默认 npm test）：页面和应用文件放行；其他路径包括 SDK 和 /api 都是违规（v1 页面不加载 SDK）
+  for (const path of ['/', '/us-journey-tracker.html']) {
+    expect(classifyRequest(APP_ORIGIN + path, 'v1'), path).toBe('allow');
+  }
+  for (const path of ['/package.json', PB_SDK_PATH, '/api/collections/journey_docs/records']) {
+    expect(classifyRequest(APP_ORIGIN + path, 'v1'), path).toBe('violation');
+  }
+  expect(classifyRequest('https://fonts.gstatic.com/s/x.woff2', 'v1')).toBe('font');
+  expect(classifyRequest('https://example.com/', 'v1')).toBe('violation');
+
   expect(guardPolicy('cloud')).toBe('cloud');
   expect(guardPolicy(undefined)).toBe('v1');
   expect(guardPolicy('account')).toBe('v1');

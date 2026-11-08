@@ -1,5 +1,5 @@
 import { test, expect, guardViolations } from '../../support/test';
-import { FONT_HOSTS } from '../../support/constants';
+import { APP_ORIGIN, FONT_HOSTS } from '../../support/constants';
 import { STATUS_LOCAL } from '../../support/strings';
 
 // 这些用例证明护栏会在该失败的时候失败：故意制造违规，断言 guardViolations 报出来。
@@ -37,6 +37,33 @@ test('SAFE-01 a page fetch to example.com is blocked and reported as a guard vio
   // 被 route abort 的 fetch，Chromium 还会为它写一条 console.error（不含 URL，来源不是字体主机，
   // 过滤规则不会吞掉它）。这是同一次故意违规的副产物。以前一次清空全部记录时它被悄悄抹掉，
   // 现在同样按条处理：先等到它恰好出现一条，核对内容，再按内容删除
+  await expect.poll(() => guard.state.consoleErrors.length).toBe(1);
+  expect(guard.state.consoleErrors[0]).toContain('ERR_BLOCKED_BY_CLIENT');
+  expect(guard.remove('consoleErrors', 'ERR_BLOCKED_BY_CLIENT')).toBe(1);
+});
+
+// WR-05：v1 策略下应用来源也只放行页面和应用文件。/package.json 在静态服务器上本来就是 404，
+// 这里证明的是护栏在请求发出前就把它记为违规（而不是依赖静态服务器的 404）。
+test('SAFE-01 a fetch to a non-allowlisted path on the app origin is reported as a guard violation', async ({
+  page,
+  guard,
+}) => {
+  await page.goto('/');
+  await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  const result = await page.evaluate(() =>
+    fetch('/package.json').then(
+      (res) => 'resolved:' + res.status,
+      (err) => 'rejected:' + String(err),
+    ),
+  );
+  expect(result).not.toMatch(/^resolved/);
+
+  const target = APP_ORIGIN + '/package.json';
+  await expect.poll(() => guard.state.unexpectedRequests).toEqual([target]);
+  expect(guard.remove('unexpectedRequests', target)).toBe(1);
+
+  // 被 abort 的请求，Chromium 另写一条 console.error：先等到恰好一条，核对内容，再按内容删除
   await expect.poll(() => guard.state.consoleErrors.length).toBe(1);
   expect(guard.state.consoleErrors[0]).toContain('ERR_BLOCKED_BY_CLIENT');
   expect(guard.remove('consoleErrors', 'ERR_BLOCKED_BY_CLIENT')).toBe(1);

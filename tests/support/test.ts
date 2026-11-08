@@ -70,9 +70,9 @@ export function classifyRequest(url: string, policy: GuardPolicy): 'allow' | 'fo
     return 'violation';
   }
   if (parsed.origin === APP_ORIGIN) {
-    // WR-05 缺口：v1 策略本任务仍一律放行应用来源，Task 3 收紧
-    if (policy === 'v1') return 'allow';
-    return CLOUD_APP_PATHS.includes(parsed.pathname) ? 'allow' : 'violation';
+    // WR-05 的缺口已补：两档策略都只放行各自白名单里的路径，应用来源下的其他路径同样记为违规
+    const allowed = policy === 'cloud' ? CLOUD_APP_PATHS : V1_APP_PATHS;
+    return allowed.includes(parsed.pathname) ? 'allow' : 'violation';
   }
   return FONT_HOSTS.includes(parsed.hostname) ? 'font' : 'violation';
 }
