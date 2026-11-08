@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 6
-current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
-status: verifying
-stopped_at: Completed 06-10-PLAN.md (Phase 6 at 10/10 plans; review and verification pending)
-last_updated: "2026-11-08T18:04:43.828Z"
-last_activity: 2026-11-07
-last_activity_desc: Phase 6 execution started
-state_head: ccc7326a18a1cbec0f4ce3fcf361f8f0268a0f3d
+current_phase: 8
+current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
+status: planning
+stopped_at: Phase 06 complete, ready to plan Phase 8
+last_updated: "2026-11-08T18:24:41.893Z"
+last_activity: 2026-11-08
+last_activity_desc: Phase 06 complete, transitioned to Phase 8
+state_head: ae0d8d3efcc912dc8ebd133cf316d984eb69b206
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 17
   completed_plans: 17
-  percent: 13
+  percent: 25
 ---
 
 # Project State
@@ -29,18 +29,18 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 
 ## Current Position
 
-Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
-Plan: 10 of 10
-Status: Phase complete — ready for verification
-Last activity: 2026-11-07 — Phase 6 execution started
+Phase: 8 — PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-08 — Phase 06 complete, transitioned to Phase 8
 
-Progress: [█░░░░░░░░░] 13%
+Progress: [███░░░░░░░] 25%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27
+- Total plans completed: 37
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 13%
 | 4 | 3 | - | - |
 | 5 | 4 | - | - |
 | 7 | 7 | - | - |
+| 06 | 10 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -145,7 +146,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 6]: 06-10 导出批准（D-17）：所有者回复“批准”；sha256 行 9f9b63cefb2d5274e497593a3a9b492eea02a60a5e2228cdaec1c434a0b2b8d9 *tools/probe/server/export-results.py；命令为 set -o pipefail 后的 sha256sum -c --strict 核对链加 ssh -o BatchMode=yes usj 'sudo -n python3 -I -' < tools/probe/server/export-results.py > private/probe-results/<YYYYMMDD-HHMM>.json；输出位置 private/probe-results/（被 git 忽略）；共覆盖 2 次导出，第 1 次已用（文件 20261108-0929.json），第 2 次留给 Task 4；其他服务器到本机传输需另行批准
 - [Phase 6]: 06-10 Task 2 完成：导出 #1 共 2 条（1 条 smoke，1 条所有者短测 dur_s=90、login_ok 为真、打点 2/2），summarize 三个标题齐全，短测和 smoke 都计为无效；不写 06-10-SUMMARY，计划保持打开
 - [Phase 6]: D-10 修订（2026-11-08，所有者）：不做多晚实测；浏览器实测只算所有者在美国的那次 90 秒短测，另由所有者自己跑一次 itdog（HTTP 测速和 tcping 443）作为国内三网的基线；结论写明样本不足（国内没有真实浏览器数据），D-08 不变。详见 06-CONTEXT.md 的 D-10 修订
-- [Phase 6]: 已知限制候选：所有者短测的浏览器上报 tz_offset_min=0，而所有者电脑设的是美国太平洋时间，所以 summarize 的时段判断会把美国晚高峰记成其他时段；结果文档写进已知限制
+- [Phase 6]: 已知限制：所有者短测上传的 tz_offset_min 是 0。原因是探针页 bug（06-REVIEW CR-01：num() 把数字截成不小于 0），与浏览器设置无关；summarize 因此会把美国晚高峰记成其他时段。结果文档已写进已知限制和 Phase 13 修复项
 - [Phase 6]: 推送检查加窄例外清单 tools/privacy/push-exceptions.txt（cae2c04）。只按「提交号+文件+行号」放行规则 H，只放行 08eb8dc 和 cd645d6 里 06-RESEARCH.md:767 那个已在 0fa5cea 改掉的示例地址；所有者选了这个办法，没有改写历史
 - [Phase 6]: 06-10: INFRA-02 completed under the owner's D-10 revision (US 90 s short test, invalid; mainland carriers only an off-peak boce.com baseline, no browser data); D-08 stays on Alibaba Cloud HK; Phase 10 polling set to the conservative 60 s
 
@@ -193,7 +194,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-08T18:04:43.343Z
-Stopped at: Completed 06-10-PLAN.md (Phase 6 at 10/10 plans; review and verification pending)
+Stopped at: Phase 06 complete, ready to plan Phase 8
 Resume file: None
 
 ## Operator Next Steps
