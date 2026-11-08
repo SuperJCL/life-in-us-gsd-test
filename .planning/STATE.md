@@ -5,7 +5,7 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-04-PLAN.md (server.env pending owner)
+stopped_at: Completed 06-04-PLAN.md
 last_updated: "2026-11-08T06:15:29.651Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
@@ -154,7 +154,7 @@ v2.0 路线图（2026-11-06）：
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
-- 06-04: private/server.env missing — denylist has no .vip domain entry, --init-env refused to guess; owner must create two lines USJ_DOMAIN and USJ_IP then run redact --verify-env (needed from 06-06)
+- ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 
 ### Quick Tasks Completed
 
@@ -173,7 +173,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-08T06:15:29.227Z
-Stopped at: Completed 06-04-PLAN.md (server.env pending owner)
+Stopped at: Completed 06-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
