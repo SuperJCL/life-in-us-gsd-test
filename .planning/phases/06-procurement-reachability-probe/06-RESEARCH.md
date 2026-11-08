@@ -904,27 +904,38 @@ const ARCHIVE_EXT = /\.(zip|tar|tgz|gz|bz2|xz|7z|rar)$/i;
 | A16 | 阿里云控制台防火墙 ICMP 默认状态未知 | 基线 | 若 ICMP 被挡，ping 基线全丢包；用 tcping 替代 |
 | A17 | 钩子演练脚本复杂度可接受 | 钩子证据 | 可只保留 `--self-test` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> 下面每个问题都已在 06-CONTEXT.md 的决定里解决（2026-11-07，调研之后由所有者确认）；原来的分析保留，解决方式写在每题末尾的 **RESOLVED** 一行。和原建议不同的，以 CONTEXT 的决定为准。
 
 1. **后台 `/_/` 对公网 404、所有者走 SSH 隧道，还是像 ROADMAP Notes 那样公网可达 + 强密码？**
    - What we know: 公网可达的超级用户登录页会被扫描；探针期间站点上只有合成数据，ROADMAP Notes 已接受这个风险；404 方案多一条隧道命令，没有额外风险。
    - What's unclear: 所有者是否愿意每次看结果时开隧道（`ssh -L 8090:127.0.0.1:8090 usj`）。
    - Recommendation: 默认 404 + 隧道（本文设计的就是这个）；所有者嫌麻烦就删掉 snippet 里 `/_/` 那一行，其余不变。
+   - **RESOLVED（D-13，覆盖上面的建议）：** 探针阶段 `/_/` 对公网开放，靠所有者设置的强密码保护，后台只放合成数据，打开 PocketBase 自带限流；两步验证和 IP 白名单留到 Phase 13。本文 Pattern 1 里返回 404 的设计不再采用：06-07 的 nginx 片段把 `/_/` 反代给 PocketBase，verify-site 的 F-07 期望 200、F-14 期望限流返回 429。
 2. **“大多数次数达到”要不要定成 2/3？**
    - Recommendation: 用 2/3 合格、1/2 到 2/3 临界；请所有者确认或改数。
+   - **RESOLVED（D-18）：** 按每家运营商至少三分之二的有效运行达到 D-06 计；06-03 的 summarize.mjs 用 ≥ 2/3 合格、> 1/2 临界、其余不合格，边界有自检。
 3. **美国测试的“晚高峰”按美国本地时间还是北京时间？**
    - Recommendation: 以美国本地 20:00–23:00 为主，北京晚高峰时段补测。
+   - **RESOLVED（D-18）：** 美国侧以美国本地 20:00–23:00 为主，北京晚高峰时段再补测几次；summarize.mjs 按 tz_offset_min 区分时段。
 4. **SDK 的 `SUS` 判定放行？**
    - Recommendation: 在取得 SDK 文件之前加 `checkpoint:human-verify`，所有者核对哈希和维护者（见 § 包合法性审计）。
+   - **RESOLVED（D-15、D-17）：** 不用被标为可疑的 0.28.2，改用上一个稳定版 0.28.1，固定文件哈希、与页面同源托管；下载放在所有者批准之后（06-05 Task 2 的包合法性检查点，gate="blocking-human"），下载后先比对 registry 的完整性值再解压。
 5. **0.41.1 单来源校验和是否可接受，还是直接用有双来源的 0.40.6？**
    - Recommendation: D-03 已选 0.41.1；脚本钉哈希；不安心就回退 0.40.6。
+   - **RESOLVED（D-16）：** 仍用 0.41.1，把本文核对过的 SHA-256 钉死在安装脚本里，并与同站 checksums.txt 交叉核对，不一致就中止；0.40.6 作备选（两个来源可互相核对），只有所有者另行批准才换。
 6. **是否加规则 H（公网 IPv4 形状）和把规则 D 改成大小写不敏感？**
    - What we know: 两者今天都是 0 误报；规则 D 改大小写是对全部词条的行为变更（只会更严）。
    - Recommendation: 都做；规则 D 的大小写改动在自检里固定下来。
+   - **RESOLVED（D-18）：** 两项都做：规则 D 的 denylist 匹配改为不区分大小写，新增公网 IPv4 形状的规则 H；06-01 实现并各带故意违规的自检。
 7. **“拦所有压缩包”是否太严？**
    - Recommendation: 今天零误伤；将来需要提交压缩包时通过显式修改规则（带自检）处理。
+   - **RESOLVED（D-12；正则写法属于 Claude's Discretion）：** D-12 要求拦备份压缩包；规划采纳本文建议，06-01 Task 3 按扩展名拦全部压缩包（不按 backup 这个词拦），将来需要提交压缩包时显式改规则并补自检。
 8. **要不要建 swap？** Recommendation：建（1 GiB，不改 `swappiness`），所有者可拒绝。
+   - **RESOLVED（D-14）：** 建 1 GB swap 文件，作为单独一个脚本（06-06 的 01-swap.sh）经所有者批准后执行；PocketBase 同时用 `GOMEMLIMIT` 和 systemd 内存上限控制内存。
 9. **Phase 13 是否沿用本阶段的 nginx 参数？** 以本阶段 `verify.sh` 通过的参数为准写进 `deploy/` 模板。
+   - **RESOLVED（D-02、D-08）：** 继续用服务器上已有的 nginx 和 certbot；本阶段验证过的实时连接参数作为 Phase 13 的输入：06-02 把 ROADMAP Phase 13 的 Notes 改成以 Phase 6 验证过的 nginx 参数为准，06-10 在结果文档的“给 Phase 13 的输入”里写明（本文的 `verify.sh` 在规划中落为 tools/probe/verify-site.mjs）。
 
 ## Environment Availability
 
