@@ -5,6 +5,7 @@
   "description": "Playwright browser tests for a local single-file journey tracker app, using synthetic data only.",
   "scripts": {
     "test": "playwright test",
+    "test:cloud": "playwright test --config=playwright.cloud.config.ts --workers=1",
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {

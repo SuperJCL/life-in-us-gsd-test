@@ -1,12 +1,21 @@
-// 零依赖静态服务器：只在 127.0.0.1 提供一个文件（D-14）。
+// 零依赖静态服务器：只在 127.0.0.1 提供应用文件和固定版本的 SDK 两个文件（D-14、08-02）。
 // 白名单之外的路径一律 404，避免把仓库里的其他文件暴露出去。
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 // 应用文件固定在仓库根目录，每次请求都重新读取，不缓存
 const APP_FILE = path.resolve(__dirname, '..', '..', 'us-journey-tracker.html');
 const PORT = Number(process.env.PORT || 4789);
+
+// 同源提供的真实 PocketBase SDK：直接读 tools/probe/page/vendor/ 里那一份，不复制第二份，
+// 所以 sha256 的钉子只有一个（SHA256SUMS）。
+const SDK_PATH = '/vendor/pocketbase.iife.js';
+const SDK_NAME = 'pocketbase.iife.js';
+const SDK_DIR = path.resolve(__dirname, '..', '..', 'tools', 'probe', 'page', 'vendor');
+const SDK_FILE = path.join(SDK_DIR, SDK_NAME);
+const SDK_SUMS = path.join(SDK_DIR, 'SHA256SUMS');
 
 // 应用文件随仓库提供（Phase 7 起），缺少它说明工作区不完整。缺少时在 listen 之前就失败，
 // 给出清楚的中文提示。提示里只用仓库相对的说法，不打印解析后的绝对路径。
@@ -15,6 +24,31 @@ const MISSING_APP_MESSAGE =
 
 if (!fs.existsSync(APP_FILE)) {
   process.stderr.write(MISSING_APP_MESSAGE + '\n');
+  process.exit(1);
+}
+
+// 启动时核对 SDK 的 sha256：钉死值来自 SHA256SUMS（必须恰好一行）。
+// 文件缺失、行数不对或哈希不一致都在 listen 之前失败，提示里只用仓库相对的说法，不打印绝对路径。
+const SDK_REFUSE_MESSAGE =
+  '同源 SDK 文件与 tools/probe/page/vendor/SHA256SUMS 的钉死值不一致，已拒绝启动；不要修改这个文件，换版本要重新走所有者批准。';
+const SDK_MISSING_MESSAGE =
+  '找不到 tools/probe/page/vendor/ 下的 SDK 文件或 SHA256SUMS，已拒绝启动；请检查检出是否完整，恢复这两个文件后再运行测试。';
+
+function verifySdk() {
+  if (!fs.existsSync(SDK_FILE) || !fs.existsSync(SDK_SUMS)) return SDK_MISSING_MESSAGE;
+  const lines = fs
+    .readFileSync(SDK_SUMS, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.match(/^([0-9a-f]{64})[ \t]+\*?(\S+)[ \t]*$/))
+    .filter((m) => m && m[2] === SDK_NAME);
+  if (lines.length !== 1) return SDK_REFUSE_MESSAGE;
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(SDK_FILE)).digest('hex');
+  return digest === lines[0][1] ? null : SDK_REFUSE_MESSAGE;
+}
+
+const sdkProblem = verifySdk();
+if (sdkProblem) {
+  process.stderr.write(sdkProblem + '\n');
   process.exit(1);
 }
 
@@ -45,20 +79,29 @@ const server = http.createServer((req, res) => {
     pathname = '';
   }
 
-  if (pathname !== '/' && pathname !== '/us-journey-tracker.html') {
+  let file = '';
+  let headers = null;
+  if (pathname === '/' || pathname === '/us-journey-tracker.html') {
+    file = APP_FILE;
+    headers = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' };
+  } else if (pathname === SDK_PATH) {
+    file = SDK_FILE;
+    headers = {
+      'content-type': 'text/javascript; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    };
+  } else {
     res.writeHead(404);
     res.end();
     return;
   }
 
-  const stream = fs.createReadStream(APP_FILE);
+  const stream = fs.createReadStream(file);
   // 客户端中途断开时立即销毁文件流，不等 GC 释放文件描述符（IN-04）
   res.on('close', () => stream.destroy());
   stream.on('open', () => {
-    res.writeHead(200, {
-      'content-type': 'text/html; charset=utf-8',
-      'cache-control': 'no-store',
-    });
+    res.writeHead(200, headers);
     stream.pipe(res);
   });
   stream.on('error', () => {

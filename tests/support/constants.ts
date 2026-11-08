@@ -60,3 +60,27 @@ export const ARRIVAL_DATE_FIXTURE = '2026-01-12';
 
 // mock 和 tests/mocks/CONTRACT.md 对齐的 Claude Artifact 运行时契约版本（MOCK-06）；契约升级时和 CONTRACT.md 一起改
 export const CLAUDE_CONTRACT_VERSION = '0.2.96';
+
+// 同源提供真实 PocketBase SDK 的路径：静态服务器从 tools/probe/page/vendor/ 读原文件，不复制第二份（08-02）
+export const PB_SDK_PATH = '/vendor/pocketbase.iife.js';
+
+// 页面里运行的 SDK 版本，和 tools/probe/page/vendor/README.md 一致
+export const PB_SDK_VERSION = '0.28.1';
+
+// SDK 文件的 sha256 钉死值，和 tools/probe/page/vendor/SHA256SUMS 一致；静态服务器启动时核对
+export const PB_SDK_SHA256 = '94c1e032b783952f6989ff74256ec97440d0ecf0c24edb9575f8c8716cb04a9f';
+
+// 假服务器所复述的 PocketBase 服务端版本
+export const PB_SERVER_VERSION = '0.41.1';
+
+// 页面侧假 EventSource 经 context.exposeBinding 往返 Node 的 binding 名
+export const PB_ES_BINDING_NAME = '__pbFakeEventSource';
+
+// 用户令牌有效期（秒）：90 天，和 users 迁移里的 authToken.duration 一致
+export const PB_TOKEN_DURATION_S = 7776000;
+
+// journey_docs.data 的上限（字节）：和 journey_docs 迁移里的 maxSize 一致
+export const PB_DOC_MAX_BYTES = 4194304;
+
+// users 认证集合的固定 id，令牌载荷里的 collectionId 用它
+export const PB_USERS_COLLECTION_ID = '_pb_users_auth_';

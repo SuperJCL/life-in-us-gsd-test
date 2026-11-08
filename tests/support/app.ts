@@ -3,7 +3,8 @@
 import { expect, type Page } from '@playwright/test';
 import { installClaudeMock } from '../mocks/claude-runtime';
 import { MockBackend } from '../mocks/claude-backend';
-import { ACCOUNT_DOC_PATH, ACCOUNT_USER_ID, MOCK_BINDING_NAME, STATE_KEY } from './constants';
+import { FakePbServer } from '../mocks/pb-server';
+import { ACCOUNT_DOC_PATH, ACCOUNT_USER_ID, MOCK_BINDING_NAME, PB_SDK_PATH, STATE_KEY } from './constants';
 import { STATUS_ACCOUNT, STATUS_LOCAL } from './strings';
 
 // 预置种子：只有 localStorage 里没有这个键时才写入。
@@ -21,16 +22,20 @@ export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
   } catch (e) {}
 }
 
-// 两种存储模式（D-09）：
+// 三种存储模式（D-09、08-02）：
 //  - local（默认）：页面没有 window.claude，数据存在 localStorage，Phase 1 的用例都走这条；
 //  - account：页面装 window.claude mock，数据存在 Node 侧的 MockBackend（app.backend），
-//    种子写进 MockBackend 而不写 localStorage。
+//    种子写进 MockBackend 而不写 localStorage；
+//  - cloud：页面里是真实的 PocketBase SDK（同源提供），REST 由 Node 侧的 FakePbServer（app.fake）接应，
+//    数据在 FakePbServer 里。Phase 8 的应用还没有云端路径，所以 cloud 只验证测试设施本身。
 export class AppHarness {
   // Node 侧的 mock 后端：用例通过它直接读 reads、writes、downloads、lastState()，不用 page.evaluate
   readonly backend = new MockBackend();
+  // Node 侧的假 PocketBase：cloud 模式下用例通过它读 reads、writes、lastState()、requests，不用 page.evaluate
+  readonly fake = new FakePbServer();
 
   // 当前期望应用走哪种存储，决定 ready() 的就绪条件
-  private store: 'local' | 'account' = 'local';
+  private store: 'local' | 'account' | 'cloud' = 'local';
   // 同一个 page 只能注册一次 binding
   private bindingExposed = false;
   // open() 每个 AppHarness 只能调用一次：init script 和 binding 都会在同一个 page 上累积（WR-04）
@@ -43,12 +48,15 @@ export class AppHarness {
   // 打开应用并等到就绪。
   // mode 缺省为 local；account 模式下 userId 缺省为 ACCOUNT_USER_ID，显式传 null 表示没有身份。
   // expectStore 只给 D-07 的反向对照用：账户 mock 已装但应用预期退回本地，就绪条件按本地算。
+  // cloud 模式：users 是合成账号个数（默认 1），seed 写给第 0 个账号的 state 文档，plan 写给它的 plan 文档。
   async open(
     opts: {
-      mode?: 'local' | 'account';
+      mode?: 'local' | 'account' | 'cloud';
       seed?: unknown;
       userId?: string | null;
       expectStore?: 'local' | 'account';
+      users?: number;
+      plan?: unknown;
     } = {},
   ) {
     // 账户 mock 用 Object.defineProperty 装 window.claude（不可配置），第二个 init script 会抛
@@ -59,7 +67,14 @@ export class AppHarness {
     }
     this.opened = true;
     const mode = opts.mode ?? 'local';
-    if (mode === 'account') {
+    if (mode === 'cloud') {
+      for (let i = 0; i < (opts.users ?? 1); i++) this.fake.addUser();
+      if (opts.seed !== undefined) {
+        this.fake.seed(opts.seed, { plan: opts.plan });
+      }
+      await this.fake.attach(this.page.context());
+      this.store = 'cloud';
+    } else if (mode === 'account') {
       if (!this.bindingExposed) {
         await this.page.exposeBinding(MOCK_BINDING_NAME, (_source, op: string, json: string) =>
           this.backend.handle(op, json),
@@ -92,8 +107,15 @@ export class AppHarness {
   // local：状态行显示本地模式文案，说明 store 已就位。
   // account（D-08）：状态行显示账户文案，并且两个导出按钮都可见。
   // 只看状态栏会抢跑：应用在 setStatus 之后还要再 await use("downloads") 才显示导出按钮。
+  // cloud：Phase 8 的应用仍走本地路径，所以状态栏是本地文案；再同源加载真实 SDK，等到页面里有 PocketBase。
+  // Phase 9 应用接上云端后要改这里的就绪条件（等应用的云端状态文案）。
+  // 不要给页面设置 USJ_CONFIG.backend：Phase 7 的决定是它非 null 时应用停在加载之前并显示“存储配置无效”。
   async ready() {
-    if (this.store === 'account') {
+    if (this.store === 'cloud') {
+      await expect(this.page.locator('#status')).toHaveText(STATUS_LOCAL);
+      await this.page.addScriptTag({ url: PB_SDK_PATH });
+      await this.page.waitForFunction(() => typeof (window as any).PocketBase === 'function');
+    } else if (this.store === 'account') {
       await expect(this.page.locator('#status')).toHaveText(STATUS_ACCOUNT);
       await expect(this.page.locator('#exportCsv')).toBeVisible();
       await expect(this.page.locator('#exportJson')).toBeVisible();
