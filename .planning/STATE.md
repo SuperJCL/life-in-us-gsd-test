@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-11-08T05:50:26.137Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-11-08T05:54:53.765Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: a0367a6f067f59037d22733542221814547eec91
+state_head: 761b803731289129d1f5aec38239f12d7bcd5799
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 17
-  completed_plans: 8
+  completed_plans: 9
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 ## Current Position
 
 Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 6 execution started
 
@@ -92,6 +92,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 07 P06 | 25min | 2 tasks | 4 files |
 | Phase 07 P07 | 20 min | 2 tasks | 2 files |
 | Phase 06 P01 | 7 min | 3 tasks | 2 files |
+| Phase 06 P02 | 2 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 07]: 07-07: real-app case (no variant) proves both defenses together; plan values proven only by the 07-05 in-memory variant case; full suite 173 expected, 0 flaky; nothing pushed, awaiting owner confirmation
 - [Phase 06]: 06-01: privacy rule G variable names must not look like secret keys assigned a string; renamed checker word list to CRED_WORDS instead of adding an exemption
 - [Phase 06]: 06-01: live term self-test counts rule D findings only, since a denylist term can also trip rule H
+- [Phase 06]: 06-02: 不论实测结果都继续用阿里云香港（D-08），Web 服务用已有 nginx 加 certbot（D-02）；SDK 0.28.1 改动只记待办（D-15）
 
 ### Pending Todos
 
@@ -164,8 +166,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T05:50:25.743Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-11-08T05:54:53.370Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
