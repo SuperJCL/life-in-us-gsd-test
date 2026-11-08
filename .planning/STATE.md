@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-08-PLAN.md
-last_updated: "2026-11-08T07:13:03.615Z"
+stopped_at: Completed 06-09-PLAN.md
+last_updated: "2026-11-08T17:24:42.374Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: e0905f95e6f014195e17a7596acc75264ec06566
+state_head: e3ba17cef7cb70f9b0b54a7499188df3b95a47ed
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 ## Current Position
 
 Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 6 execution started
 
@@ -99,6 +99,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 06 P06 | 20min | 3 tasks | 6 files |
 | Phase 06 P07 | 25 min | 3 tasks | 7 files |
 | Phase 06 P08 | multi-session | 3 tasks | 0 files |
+| Phase 6 P09 | multi-session | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 06]: 06-07: nginx 片段按 D-13 反代 /_/（不是 404），不在 server 层加指令，每个位置自带 add_header 和 access_log off
 - [Phase 06]: 06-07: 批次 B 必须按 04、05、06 顺序执行，06 最后删除上传目录；04 的超级用户只读查询用 pocketbase 用户运行
 - [Phase 06]: 06-08：批次 A 已执行，PocketBase 0.41.1 装好未启动，所有者自己建了超级用户（个数 1）；批次 B 的 10 个文件由所有者 approve-all 批准，执行在 06-09
+- [Phase 6]: 06-09: batch B executed exactly as approved (3 sha256 checks passed); 00-status.sh settings read fixed (read-only, not in any approval batch)
 
 ### Pending Todos
 
@@ -181,8 +183,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T07:13:03.150Z
-Stopped at: Completed 06-08-PLAN.md
+Last session: 2026-11-08T17:24:41.919Z
+Stopped at: Completed 06-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
