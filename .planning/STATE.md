@@ -129,6 +129,7 @@ v2.0 路线图（2026-11-06）：
 所有者操作（Claude 不代办）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。还剩：组织大陆三网和美国的晚高峰实测。
 - Phase 8：批准下载 PocketBase 二进制（放临时目录，只用合成数据）。
+- Phase 8、9（来自 Phase 6 D-15）：前端 SDK 不用 0.28.2，改用 0.28.1（探针页已用 0.28.1 并固定文件哈希，见 tools/probe/page/vendor/README.md）；Phase 8 规划时把 ROADMAP 共同约束、Phase 8 成功标准 3 和 .planning/research/STACK.md 里的 0.28.2 一起改。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
 
@@ -143,7 +144,7 @@ v2.0 路线图（2026-11-06）：
   - 原 Artifact 仍然不访问、不修改。
   - 已定：新约束写进 PROJECT.md 的 Constraints，v2.0 需求和路线图都按它来。
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
-  - 已定（2026-11-07 更新）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的腾讯云），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx（不换 Caddy）。PROJECT/REQUIREMENTS/ROADMAP 里的腾讯云、Caddy 写法留到 Phase 6 讨论时一起改。自托管 PocketBase 不变；中美线路在 Phase 6 实测后再决定是否续费。
+  - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 

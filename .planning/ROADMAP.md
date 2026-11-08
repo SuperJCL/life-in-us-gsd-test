@@ -53,14 +53,14 @@
 
 ### Phase 6: 采购与中美可达性实测（Procurement & Reachability Probe）
 
-**Goal:** 所有者买好香港服务器和域名后，一个只有 PocketBase 和探针页的最小站点能用域名通过 HTTPS 打开。晚高峰从中国大陆三网和美国实测过打开、登录和实时连接，结论写下来，在 1 个月试用期内决定续费还是换商家。服务器地址、域名和凭据从出现那一刻起，就被隐私检查挡在公开仓库之外。
+**Goal:** 所有者买好香港服务器和域名后，一个只有 PocketBase 和探针页的最小站点能用域名通过 HTTPS 打开。晚高峰从中国大陆三网和美国实测过打开、登录和实时连接，结论写成实测结果、已知限制和做过的调整，作为 Phase 10 和 Phase 13 的输入（不论结果都继续用阿里云香港）。服务器地址、域名和凭据从出现那一刻起，就被隐私检查挡在公开仓库之外。
 **Depends on:** Nothing（v2.0 第一个阶段；所有者并行轨道，代码部分做完后只等采购和实测）
 **Requirements:** INFRA-01, INFRA-02, SEC-03
 **Success Criteria** (what must be TRUE):
   1. 域名和服务器地址出现之前，隐私检查已经能拦住它们：提交含真实域名、服务器 IP、PocketBase 令牌形状的字符串、后台密码、`pb_data` 目录或真实备份的改动时，pre-commit 和 pre-push 都会失败。真实值只记在被 git 忽略的本机清单里，每条新规则都有一条故意违规的自检。
-  2. 服务器和域名由所有者本人购买（腾讯云 Lighthouse 香港先买 1 个月，Porkbun `.com`），Claude 不注册、不付款、不输入密码。按所有者批准的步骤装好固定版本、核对过校验和的 PocketBase 和 Caddy 后，用域名能通过 HTTPS 打开探针页，证书由 Caddy 自动申请、自动续期。
+  2. 服务器和域名由所有者本人购买（阿里云轻量应用服务器香港，Porkbun 托管的 `.vip` 域名），Claude 不注册、不付款、不输入密码。按所有者批准的步骤装好固定版本、核对过校验和的 PocketBase，由服务器上已有的 nginx 反向代理（实时连接关闭代理缓冲、用 HTTP/1.1、读超时足够长）后，用域名能通过 HTTPS 打开探针页；证书由已有的 certbot 自动续期，改过 nginx 之后 `certbot renew --dry-run` 仍然通过。
   3. 在 20:00–23:00 晚高峰，分别用中国大陆电信、联通、移动和美国网络打开探针页，用合成探针账号登录，并保持实时连接一段时间。每次的首屏时间、登录结果、实时连接是否中断都记录在阶段目录里，记录中不含服务器地址和域名。
-  4. 根据实测写下结论（继续用香港、改东京，或换商家），作为 Phase 13 部署的输入。探针站点上只有合成探针账号，没有任何真实数据。
+  4. 根据实测写下结论，分实测结果、已知限制、做过的调整三部分（不论结果都继续用阿里云香港，不更换服务商），作为 Phase 10（重连后补拉、兜底轮询间隔）和 Phase 13 部署的输入。探针站点上只有合成探针账号，没有任何真实数据。
 **Plans:** 1/10 plans executed
 Plans:
 **Wave 1**
@@ -93,7 +93,7 @@ Plans:
 **Research:** 需要（`/gsd-plan-phase --research-phase 6`）— 大陆线路只有二手资料，测法要先定好：工具、时段、指标，以及怎样判断 SSE 被中途断开。
 **Notes:**
 - 所有者操作：购买服务器和域名、配置 DNS、在服务器上设置超级用户密码。Claude 只写步骤和脚本，脚本在服务器上执行前要所有者批准。
-- 探针站点只用于实测，Phase 13 正式部署时可以重装。正式加固之前，它的 `/_/` 后台只放合成数据，超级用户用强密码。
+- 探针站点只用于实测，Phase 13 正式部署时可以重装。正式加固之前，`/_/` 后台对公网开放，只放合成数据，超级用户用强密码，打开 PocketBase 自带的限流；两步验证和超级用户 IP 白名单留到 Phase 13。
 - 本阶段不阻塞 Phase 7、8：等待采购和实测期间，可以先规划和执行后面的阶段。
 
 ### Phase 7: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）
@@ -246,9 +246,9 @@ Plans:
   5. 两台真实设备分别在中国大陆和美国网络下验收：记一笔几秒内同步到同账号的另一台设备，断网时能记录，联网后自动上传。所有者把自己从原 Artifact 导出的旧备份和种子计划导入自己的账号，数据对应正确。最后 `npm test` 和 `npm run test:cloud` 全量通过。
 **Plans:** TBD
 **UI hint**: no
-**Research:** 需要（`/gsd-plan-phase --research-phase 13`）— CSP 能否用哈希兼容单文件里的内联脚本、Caddy 对 SSE 的实际表现（`stream_close_delay`、不缓冲）、CORS 的默认行为、Service Worker 的缓存更新策略。
+**Research:** 需要（`/gsd-plan-phase --research-phase 13`）— CSP 能否用哈希兼容单文件里的内联脚本、nginx 反代 SSE 的长期表现（以 Phase 6 验证过的参数为起点）、CORS 的默认行为、Service Worker 的缓存更新策略。
 **Notes:**
-- Caddy 用 `protocols h1 h2`、`encode zstd gzip`、`stream_close_delay 5m`；PocketBase 只监听 127.0.0.1，由 systemd 以非 root 用户运行（`Restart=always`、`GOMEMLIMIT`）；DNS 只做解析；页面加 `noindex`。
+- nginx（certbot 管证书）按 Phase 6 验证过的参数反代 PocketBase：实时连接的位置关闭代理缓冲、HTTP/1.1、长读超时；PocketBase 只监听 127.0.0.1，由 systemd 以非 root 用户运行（`Restart=always`、`GOMEMLIMIT`、内存上限）；DNS 只做解析；页面加 `noindex`。
 - 冷启动离线的用例要单独放开 Playwright 的 `serviceWorkers: 'block'`。
 - 所有者操作：在服务器上输入凭据、开 R2 存储桶和密钥、用真实设备验收、从原 Artifact 导出自己的备份。Claude 不接触真实数据，验收只记结论。
 
