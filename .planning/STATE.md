@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
-status: executing
-stopped_at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (revised: owner runs one itdog baseline)
-last_updated: "2026-11-08T17:43:01.035Z"
+status: verifying
+stopped_at: Completed 06-10-PLAN.md (Phase 6 at 10/10 plans; review and verification pending)
+last_updated: "2026-11-08T18:04:43.828Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: cae2c049f580782d35786218b6e056dd75c59d32
+state_head: ccc7326a18a1cbec0f4ce3fcf361f8f0268a0f3d
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
   percent: 13
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 
 Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-07 — Phase 6 execution started
 
 Progress: [█░░░░░░░░░] 13%
@@ -100,6 +100,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 06 P07 | 25 min | 3 tasks | 7 files |
 | Phase 06 P08 | multi-session | 3 tasks | 0 files |
 | Phase 6 P09 | multi-session | 2 tasks | 1 files |
+| Phase 6 P10 | multi-session | 4 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -146,11 +147,12 @@ v2.0 路线图（2026-11-06）：
 - [Phase 6]: D-10 修订（2026-11-08，所有者）：不做多晚实测；浏览器实测只算所有者在美国的那次 90 秒短测，另由所有者自己跑一次 itdog（HTTP 测速和 tcping 443）作为国内三网的基线；结论写明样本不足（国内没有真实浏览器数据），D-08 不变。详见 06-CONTEXT.md 的 D-10 修订
 - [Phase 6]: 已知限制候选：所有者短测的浏览器上报 tz_offset_min=0，而所有者电脑设的是美国太平洋时间，所以 summarize 的时段判断会把美国晚高峰记成其他时段；结果文档写进已知限制
 - [Phase 6]: 推送检查加窄例外清单 tools/privacy/push-exceptions.txt（cae2c04）。只按「提交号+文件+行号」放行规则 H，只放行 08eb8dc 和 cd645d6 里 06-RESEARCH.md:767 那个已在 0fa5cea 改掉的示例地址；所有者选了这个办法，没有改写历史
+- [Phase 6]: 06-10: INFRA-02 completed under the owner's D-10 revision (US 90 s short test, invalid; mainland carriers only an off-peak boce.com baseline, no browser data); D-08 stays on Alibaba Cloud HK; Phase 10 polling set to the conservative 60 s
 
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
-- Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。还剩：组织大陆三网和美国的晚高峰实测。
+- Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
 - Phase 8：批准下载 PocketBase 二进制（放临时目录，只用合成数据）。
 - Phase 8、9（来自 Phase 6 D-15）：前端 SDK 不用 0.28.2，改用 0.28.1（探针页已用 0.28.1 并固定文件哈希，见 tools/probe/page/vendor/README.md）；Phase 8 规划时把 ROADMAP 共同约束、Phase 8 成功标准 3 和 .planning/research/STACK.md 里的 0.28.2 一起改。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
@@ -171,7 +173,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
-- waiting on 06-10 Task 3 (revised per D-10 amendment: owner runs one itdog baseline, HTTP + tcping 443, and replies with per-carrier numbers); export #2 for Task 4 is still covered by the approval; any extra export needs separate owner approval
+- ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
 
 ### Quick Tasks Completed
 
@@ -190,8 +192,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T17:30:39.625Z
-Stopped at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (revised: owner runs one itdog baseline)
+Last session: 2026-11-08T18:04:43.343Z
+Stopped at: Completed 06-10-PLAN.md (Phase 6 at 10/10 plans; review and verification pending)
 Resume file: None
 
 ## Operator Next Steps

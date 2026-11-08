@@ -10,7 +10,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 ### 服务器与可达性（INFRA）
 
 - [x] **INFRA-01**：所有者在阿里云轻量应用服务器香港开出服务器、在 Porkbun 买好 `.vip` 域名后，网址能通过 HTTPS 打开，证书自动申请、自动续期（服务器上已有 nginx 和 certbot）。
-- [ ] **INFRA-02**：在晚高峰（20:00–23:00）分别从中国大陆电信、联通、移动和美国网络实测打开页面、登录和实时同步，结果记录下来，作为 Phase 10 和 Phase 13 的输入（不论结果都继续用阿里云香港）。
+- [x] **INFRA-02**：在晚高峰（20:00–23:00）分别从中国大陆电信、联通、移动和美国网络实测打开页面、登录和实时同步，结果记录下来，作为 Phase 10 和 Phase 13 的输入（不论结果都继续用阿里云香港）。（范围按所有者 2026-11-08 的 D-10 修订缩减：美国 1 次短测 + 国内三网拨测基线（非晚高峰），没有国内浏览器实测，详见 06-PROBE-RESULTS.md）
 - [ ] **INFRA-03**：页面不加载中国大陆可能打不开的外部资源：去掉 Google 字体，PocketBase SDK 与页面同源托管、固定版本。
 
 ### 账号与登录（ACCT）
@@ -100,7 +100,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INFRA-01 | Phase 6 | Complete |
-| INFRA-02 | Phase 6 | Pending |
+| INFRA-02 | Phase 6 | Complete |
 | INFRA-03 | Phase 9 | Pending |
 | ACCT-01 | Phase 9 | Pending |
 | ACCT-02 | Phase 9 | Pending |
