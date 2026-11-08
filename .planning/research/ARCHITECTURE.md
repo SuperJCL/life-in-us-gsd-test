@@ -48,13 +48,13 @@
 │                  │ 配置缝：USJ_CONFIG.backend（有 → cloud；无 → 旧路径）│
 │   旧路径（保留）：localStore() / window.claude db                     │
 ├──────────────────┼───────────────────────────────────────────────────┤
-│  pocketbase.umd.js（同源固定版本）   REST + SSE(/api/realtime)        │
+│  pocketbase.iife.js（同源固定版本）  REST + SSE(/api/realtime)        │
 └──────────────────┼───────────────────────────────────────────────────┘
                    │ HTTPS
 ┌──────────────────▼───────────────────────────────────────────────────┐
 │  VPS（香港 / 东京）                                                   │
 │  Caddy :443 ──► PocketBase 127.0.0.1:8090（systemd）                  │
-│                   ├─ pb_public/   index.html、pocketbase.umd.js、sw.js │
+│                   ├─ pb_public/  index.html、pocketbase.iife.js、sw.js │
 │                   ├─ pb_migrations/  集合与规则（进 git）              │
 │                   └─ pb_data/     SQLite + 备份（定时备份 → 异地）     │
 └──────────────────────────────────────────────────────────────────────┘
@@ -76,7 +76,7 @@
 | `normalize()` | **改** | 拆出 `normalizeState`；对 id、group、date 做格式校验（见 Q4） | HTML |
 | 导出 / 导入 | **改** | 没有 `window.claude` 时用 Blob + `<a download>`；导入前自动保留旧版本快照 | HTML |
 | 四个视图的模板、composer、editor 弹窗 | 基本不动 | 仅把常量引用换成 `plan.*`；`/^P\d-\d+$/` 自定义任务判断改为按 `state.custom` 成员判断 | HTML |
-| PocketBase 集合、规则、迁移 | **新** | 服务器侧隔离与存储 | `pocketbase/pb_migrations/` |
+| PocketBase 集合、规则、迁移 | **新** | 服务器侧隔离与存储 | `pb/pb_migrations/`（根目录同名的 PocketBase 目录被 .gitignore 第 52 行忽略） |
 | Caddy、systemd、备份、部署脚本 | **新** | 运维 | `deploy/` |
 | `tests/mocks/pb-*`、`AppHarness` 的 `cloud` 模式 | **新 / 改** | 见 Q7 | `tests/` |
 | v1 的 `window.claude` mock、`MockBackend` | 保留 | 让 v1 用例原样通过 | `tests/mocks/` |
@@ -85,9 +85,9 @@
 
 ```
 us-journey-tracker.html            # 修改（仍不进 git，见“隐私”一节）
-vendor/pocketbase.umd.js           # 固定版本的 SDK（MIT），进 git，同源提供，不走 CDN
+vendor/pocketbase.iife.js          # 固定版本的 SDK（MIT），进 git，同源提供，不走 CDN
 sw.js                              # 可选：只缓存应用外壳，解决冷启动离线
-pocketbase/
+pb/
   pb_migrations/                   # 集合、规则、索引，用 JS 迁移保存，进 git（不含数据）
   pb_hooks/                        # 可选：注册后自动建两条空记录
 deploy/
@@ -126,7 +126,7 @@ tests/
 | `deleteRule` | `null` | 只有管理员能删账号 |
 | 认证方式 | 只开密码；关 OAuth2、OTP、MFA | 3 个账号由管理员开，不需要别的入口 |
 | 标识字段 | 保持 `email`（任意格式正确的地址即可，不需要真实邮箱） | 用 `username` 也行，但需要唯一索引（HIGH，官方认证文档）；3 个人没必要多一步 |
-| token 有效期 | 显式设成 30–90 天 | 默认值未在官方文档中找到（LOW，14 天只见于第三方 wiki）；有效期显式设置后，每次启动 `authRefresh` 会续期 |
+| token 有效期 | 90 天（7776000 秒，D-06 和 Phase 8 SC2）；普通用户的令牌 SDK 不会自动续期，应用在每次联网启动时调用 authRefresh（交给 Phase 9） | 默认值未在官方文档中找到（LOW，14 天只见于第三方 wiki）；有效期显式设置后，每次启动 `authRefresh` 会续期 |
 
 **`journey_docs`（base 集合）**
 
@@ -401,7 +401,7 @@ boot()
 - **刷新：** PocketBase token 无状态，没有服务器端登出接口，登出就是丢弃 token（HIGH，官方认证文档）。每次启动、之后每隔约 12 小时调用 `pb.collection('users').authRefresh()`；成功会拿到新的 `exp` 和最新用户资料，**不会让旧 token 失效**。
 - **过期会话：**
   - `authRefresh` 返回 401/403/404（token 失效或账号被删）→ `authStore.clear()`，显示登录页和横幅，**不清本机缓存、不清 `dirty`**，文案写明“本机还有 N 条未上传的更改，登录后会自动上传”；
-  - **离线时 token 已过期不能锁死应用**：只要存在 `lastUser` 的缓存，就允许从缓存打开并本机记录，恢复联网后上传若返回 401 再弹登录；
+  - **离线时 token 已过期不能锁死应用**：只要存在 `lastUser` 的缓存，就允许从缓存打开并本机记录，恢复联网后上传若返回 401 再弹登录。注意（Phase 8 调研，Pitfall 1）：记录接口对过期或无效令牌按未登录处理，返回空列表、404 或 400，只有 auth-refresh 返回 401；判断登录过期要看 authRefresh 的结果或本地 exp；
   - 不要因为 `authStore.isValid === false` 就丢缓存，它只检查 token 的本地 `exp`。
 - **登出：** 顺序是 ① `await pb.realtime.unsubscribe()`（订阅清空后 SDK 会关掉 SSE，源码 `sendSubscriptions` 里 `!hasSubscriptionListeners → disconnect()`），② 清该用户缓存（有 `dirty` 先确认），③ `pb.authStore.clear()`，④ 显示登录页。**顺序不能反：** 实时连接在第一次订阅时绑定了身份，换账号后在旧连接上提交订阅会得到 403。
 - **共用设备：** 3 个互相信任的使用者可以接受；缓存按用户分键，登出清理，不做更多。
@@ -442,7 +442,7 @@ boot()
 
 至少做一次“从备份恢复到新机器”的演练再宣布可用。`pb_data` 很小，官方文档提到的“5GB 以上换策略”在这里不适用。
 
-**升级：** PocketBase 还没有 1.0，次版本升级可能有不兼容变化（官方变更记录里 v0.40.0 就有控制台命令退出码和 JSON 解析实现的警告）。不自动更新；升级前先手动触发备份，读变更记录，再用 `pocketbase update`。JS SDK 与服务器版本要配套（SDK 0.22 起只支持服务器 0.23+；0.28.x 的新接口面向 0.40+），所以 `vendor/pocketbase.umd.js` 固定版本，并在 `deploy/` 记录“服务器 X ↔ SDK Y”。
+**升级：** PocketBase 还没有 1.0，次版本升级可能有不兼容变化（官方变更记录里 v0.40.0 就有控制台命令退出码和 JSON 解析实现的警告）。不自动更新；升级前先手动触发备份，读变更记录，再用 `pocketbase update`。JS SDK 与服务器版本要配套（SDK 0.22 起只支持服务器 0.23+；0.28.x 的新接口面向 0.40+），所以 `vendor/pocketbase.iife.js` 固定版本，并在 `deploy/` 记录“服务器 X ↔ SDK Y”。
 
 **版本现状（需要在部署时用 `--version` 复核）：** GitHub Releases 最新为 v0.40.6（2026-10-23）；官方文档站页眉显示 v0.41.1，两者不一致；npm 上 `pocketbase` SDK 最新为 0.28.2。**以部署时下载到的二进制为准，并把确切版本写进 `PB-CONTRACT.md`。**
 
@@ -451,7 +451,7 @@ boot()
 - 配置缝 `window.USJ_CONFIG`：`{ backend: string | null }`。
   - 有 `backend` → cloud 路径；
   - `backend: null` → 旧路径（localStorage / `window.claude`），v1 全部用例走这里；
-  - 生产里 HTML 的 `<meta name="usj-backend" content="same-origin">`，等价于 `location.origin`；本地开发时在 `pocketbase/` 里用本机 PocketBase 的 `pb_public`（链接到仓库根）就是同源，不需要改文件。
+  - 生产里 HTML 的 `<meta name="usj-backend" content="same-origin">`，等价于 `location.origin`；本地开发时在 `pb/` 里用本机 PocketBase 的 `pb_public`（链接到仓库根）就是同源，不需要改文件。
 - 测试里 `AppHarness` 总是**显式**写 `USJ_CONFIG`（init script），所以 spec 文件和默认行为都不依赖环境。
 - 隔离验证需要一个本机临时 PocketBase 二进制（下载 = 安装，**需要用户批准**，不进默认 `npm test`）。
 
@@ -466,7 +466,7 @@ boot()
 
 ### 选择：“假服务器、真 SDK”
 
-在页面里替换 `window.fetch`（只拦截发往 `USJ_CONFIG.backend` 的请求）和 `window.EventSource`，由 Node 侧的 `FakePbServer` 通过 `exposeBinding` 保存状态（与 v1 的 `MockBackend` 同构：刷新后数据仍在、用例直接读 Node 内存、不走网络）。真实的 `pocketbase.umd.js` 照常运行。
+REST 用 context.route 接 /api/，真实 SDK 的 fetch 原样运行；只有 SSE 用页面侧假 EventSource（Phase 8 定稿）。由 Node 侧的 `FakePbServer` 保存状态（与 v1 的 `MockBackend` 同构：刷新后数据仍在、用例直接读 Node 内存、不走网络）。真实的 `pocketbase.iife.js` 照常运行。
 
 | 方案 | 结论 | 理由 |
 |------|------|------|
@@ -487,7 +487,7 @@ boot()
 | `GET /api/realtime` | 假 `EventSource`：先发 `PB_CONNECT`（`lastEventId` 为 clientId），再按订阅推 `{action, record}` |
 | `POST /api/realtime` | 记录订阅主题；认证不一致返回 403；`clientId` 无效返回 404 |
 
-可注入的行为（对应 v1 登记的 ERR-01..04）：网络失败（`status 0`）、401、慢响应、断开并重连 SSE、同一时刻第二台设备写入。**多设备**：同一个 `FakePbServer` 挂两个 page，写入时向另一个 page 的假 `EventSource` 推事件，就能不靠真实网络测实时同步和回声抑制。
+可注入的行为（对应 v1 登记的 ERR-01..04）：网络失败（`status 0`）、401、慢响应、断开并重连 SSE、同一时刻第二台设备写入。**多设备**：两台设备用两个 browser context（同一个 context 的两个 page 共用 localStorage，不算两台设备），写入时向另一个 context 的假 `EventSource` 推事件，就能不靠真实网络测实时同步和回声抑制。
 
 **护栏联动：** v1 的网络护栏（route、解析规则、死代理）不用改，因为假服务器不产生网络请求。新增一条：任何发往 `/api/` 的真实请求都让用例失败，证明假服务器覆盖了应用发出的全部调用。固定时钟和 `manual` 时钟继续用于推进去抖、重试退避和 token 刷新计时。
 
@@ -639,7 +639,7 @@ save 抛错 → 保持 dirty → 状态栏“离线…” → 退避重试
 |---|------|-------------|------|----------|
 | 0 | **可达性探针（并行轨道）**：最小 PocketBase + 一个静态页部署到候选 VPS，中国和美国的使用者实测访问和 SSE 稳定性；顺带决定服务器商和域名 | 新：`deploy/` 雏形 | 用户购买服务器和域名（需用户本人完成） | 需要实测；这是最大的未知项 |
 | 1 | **计划外置与稳定 id**（无后端）：`plan` 全局对象、`normalizePlan`、`DEFAULT_PLAN`（合成、与原计划同形状）、`P<n>-<i>` 初始 id、自定义待办判断改法、id 白名单校验、配置缝 `USJ_CONFIG`；旧路径作为后备 | 改：渲染函数、`normalize`、`presetsFor`、`allTasks`、`lift`；新：计划模型 | 无 | 标准重构；**门槛是 v1 全套 154 条通过** |
-| 2 | **PocketBase 模式与规则 + 隔离脚本**：`users` 与 `journey_docs`、迁移文件、`maxSize`、索引、规则、`tools/pb-rules-check`；本机临时 PocketBase | 新：`pocketbase/`、`tools/pb-rules-check/` | 可与阶段 1 并行；下载二进制需用户批准 | 需要核实：`users` 默认 `createRule`、`updateRule` 的 `:isset` 组合、实时 `fields` 是否生效 |
+| 2 | **PocketBase 模式与规则 + 隔离脚本**：`users` 与 `journey_docs`、迁移文件、`maxSize`、索引、规则、`tools/pb-rules-check`；本机临时 PocketBase | 新：`pb/`、`tools/pb-rules-check/` | 可与阶段 1 并行；下载二进制需用户批准 | 需要核实：`users` 默认 `createRule`、`updateRule` 的 `:isset` 组合、实时 `fields` 是否生效 |
 | 3 | **假 PocketBase 服务器与 cloud harness**：`FakePbServer`、`pb-runtime`、`AppHarness` 的 `cloud` 模式、`PB-CONTRACT.md`、新护栏 | 新：`tests/mocks/pb-*`；改：`tests/support/app.ts`、`app-integrity` | 阶段 1（计划形状）；阶段 2 提供协议样本 | 低；v1 已有同构经验 |
 | 4 | **登录与 cloud 存储（在线路径）**：登录页、`boot()`、`makeDocStore`、对账表前四行、首次创建、`authRefresh`、登出、`writer` 字段；同时修好首屏加载门控 | 新：Auth、`pbStore`、缓存；改：`init`、`persist`/`flush` | 阶段 1、2、3 | 标准；对账表需要逐行用例 |
 | 5 | **离线优先**：`dirty` 位、退避重试、`online`/`visibilitychange`/`PB_CONNECT` 触发、真冲突快照、配额错误显示、`pagehide` | 改：`flush`、状态栏；新：重试与冲突模块 | 阶段 4 | 中等：要用 `manual` 时钟覆盖退避与去抖 |
@@ -707,7 +707,7 @@ save 抛错 → 保持 dirty → 状态栏“离线…” → 退避重试
 - JS SDK 变更记录（0.22 起要求服务器 0.23+、实时选项 0.20+、跨标签同步 0.17）：https://github.com/pocketbase/js-sdk/blob/master/CHANGELOG.md — HIGH
 - JS SDK 实时源码（重连间隔、`PB_CONNECT`、无订阅即断开）：https://github.com/pocketbase/js-sdk/blob/master/src/services/RealtimeService.ts — HIGH
 - Caddy `reverse_proxy`（`text/event-stream` 自动刷新、`stream_close_delay`、默认无超时）：https://caddyserver.com/docs/caddyfile/directives/reverse_proxy — HIGH
-- npm `pocketbase` 最新版本 0.28.2；0.28.1 的 `dist/pocketbase.umd.js` 约 40 KB — HIGH（直接读取）
+- npm `pocketbase` 最新版本 0.28.2；0.28.1 的 `dist/pocketbase.iife.js` 约 40 KB — HIGH（直接读取）；实际批准并固定的是 0.28.1 的 iife 文件（06 D-15）
 - 项目内部：`.planning/PROJECT.md`、`.planning/codebase/ARCHITECTURE.md`、`INTEGRATIONS.md`、`CONCERNS.md`、`TESTING.md`、`tests/README.md`、`tests/mocks/CONTRACT.md` — HIGH
 
 ---

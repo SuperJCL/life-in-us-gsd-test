@@ -24,7 +24,7 @@
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
 | PocketBase | **0.41.1**（2026-10-28）linux_amd64 预编译包，约 12 MB | 后端：SQLite、账号认证、记录接口、实时订阅（SSE）、管理后台、静态文件托管、定时备份 | 一个二进制就覆盖全部需求：超级用户后台开 3 个账号、API 规则做账号隔离、`subscribe` 做多设备实时同步、内置备份可写 S3。3 个用户的负载对它几乎为零。仍是 0.x，没有向后兼容承诺，所以要固定版本，升级前先备份（见“升级路径”） |
-| PocketBase JS SDK | **0.28.2**（2026-11-01，MIT）；用 `dist/pocketbase.iife.js`，40.5 KB，gzip 约 11 KB | 浏览器里的登录、认证状态、记录读写、实时订阅与自动重连 | 官方 SDK 直接处理两件麻烦事：SSE 握手（先拿 `PB_CONNECT` 的 clientId，再 POST 订阅列表）和断线重连（`maxReconnectAttempts` 为无限）。iife 文件定义全局 `PocketBase` 类，不需要模块系统，能直接放进现有单文件页面的 `<script>` |
+| PocketBase JS SDK | **0.28.1**（MIT；06 D-15：所有者批准的是 0.28.1，文件 pocketbase.iife.js，40539 字节，sha256 见 tools/probe/page/vendor/SHA256SUMS）；用 `dist/pocketbase.iife.js`，40.5 KB，gzip 约 11 KB | 浏览器里的登录、认证状态、记录读写、实时订阅与自动重连 | 官方 SDK 直接处理两件麻烦事：SSE 握手（先拿 `PB_CONNECT` 的 clientId，再 POST 订阅列表）和断线重连（`maxReconnectAttempts` 为无限）。iife 文件定义全局 `PocketBase` 类，不需要模块系统，能直接放进现有单文件页面的 `<script>` |
 | Caddy | **2.11.9**（2026-11-05） | 反向代理、自动 HTTPS（Let's Encrypt，ZeroSSL 兜底）、压缩 | 见第四节。四行配置，证书自动申请和续期，可以关掉 HTTP/3，让 PocketBase 只监听 127.0.0.1、不用 root |
 | 一台 1 GB 内存的 Linux VPS | Ubuntu 24.04 或 22.04 LTS | 运行 PocketBase + Caddy | PocketBase 官方没有写最低配置；官方基准仓库显示 512 MB 能跑、256 MB 要配 swap。App 没有文件上传，不会触发缩略图那类内存峰值。留 1 GB 是给系统、Caddy 和备份压缩留余量 [二手+推断]。选哪家见第七节 |
 | 域名 | .com 一个 | 指向服务器，Caddy 据此申请证书 | 见第八节 |
@@ -54,6 +54,8 @@
 ## 三、PocketBase 怎么满足每条需求
 
 ### 数据模型（建议）
+
+> 已过时（Phase 8）：本节的单条双字段集合、所有者在后台建空记录和 `:changed` 写法已被 SUMMARY 的分歧表和 `pb/pb_migrations/` 里的迁移取代，以迁移为准。
 
 - **`users`**（内置认证集合）：
   - `createRule` 设为 null，`deleteRule` 设为 null；`listRule`、`viewRule`、`updateRule` 保留默认的 `id = @request.auth.id`，这样用户能改自己的密码。
@@ -277,7 +279,7 @@ unzip pocketbase_${PB_VERSION}_linux_amd64.zip -d /opt/pb
 前端（本机，一次性，把 SDK 放进应用目录并固定版本）：
 
 ```bash
-# 下载 pocketbase@0.28.2 的 dist/pocketbase.iife.js 到 pb_public/，记录其 sha256
+# 下载 pocketbase@0.28.1 的 dist/pocketbase.iife.js 到 pb_public/，记录其 sha256（已由 06-05 下载并固定，后续阶段复用，不再下载）
 # 不用 npm install：SDK 只作为静态文件托管，不进 package.json
 ```
 
@@ -321,7 +323,7 @@ unzip pocketbase_${PB_VERSION}_linux_amd64.zip -d /opt/pb
 
 | Package A | Compatible With | Notes |
 |-----------|-----------------|-------|
-| PocketBase 0.41.1 | JS SDK 0.28.2 | SDK 0.28.0 起对应 PocketBase 0.40 的日志接口；SDK 没有公布显式兼容表，两者在 2026-10 到 11 月相继发布，按“最新对最新”使用 [MEDIUM] |
+| PocketBase 0.41.1 | JS SDK 0.28.1 | SDK 0.28.0 起对应 PocketBase 0.40 的日志接口；SDK 没有公布显式兼容表，两者在 2026-10 到 11 月相继发布，按“最新对最新”使用 [MEDIUM]；Phase 8 用真实实例样本和契约自测确认 |
 | PocketBase 0.41.1 | Caddy 2.11.9 | 无特殊要求；Caddy 示例来自 PocketBase 官方文档 |
 | PocketBase 0.41.x | 旧版 `./pocketbase update` | 从 v0.40.6 起该命令改为从新站拉取；v0.40.6 之前的二进制会去 GitHub 找新版而找不到 |
 | `@playwright/test` 1.64.1 | Edge 156（`channel: 'msedge'`） | v1.0 已验证；不升级 |

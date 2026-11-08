@@ -40,8 +40,8 @@
 | 首次创建记录 | **STACK：** 所有者建账号时在后台同时建空记录，客户端只读。**ARCHITECTURE：** 客户端首次创建，加唯一索引；可选用 `pb_hooks` 自动建 | **默认由客户端首次创建，加唯一索引；遇到冲突（400）就重新读取再更新**。`pb_hooks` 自动建作为可选加固，由所有者在需求阶段决定 | 客户端创建路径能被假服务器测到；hook 是服务器侧代码，mock 测不到。两种做法都要求 `deleteRule = null` |
 | 冲突粒度 | **PITFALLS：** 应落在条目粒度，logs 按 id 取并集加墓碑。**FEATURES 与 ARCHITECTURE：** 整份 LWW 加保护，并集留作后续。**所有者已定：** 离线优先，最后写入为准 | **v2.0 做整份文档 LWW，必须带三项保护**：联网时对账完成前禁止编辑（最多约 3 秒）；上传前比对基线 `updated`；真冲突时把被覆盖的服务器版本在本机留一份、给出提示并可下载。schema 里 logs 已有稳定 id，以后做并集不受阻 | 这符合所有者的决定。最常见的丢数据路径是在过期缓存上直接记录，"对账门控"把它消掉了；剩下的真冲突在 3 人规模下很少见。并集合并没有墓碑，删掉的记录会复活，也改变了"最后写入为准"的字面含义，应由所有者明确选择（见下文"待决策"） |
 | PocketBase 版本 | **STACK：** 新站 v0.41.1（2026-10-28）；GitHub 只到 v0.40.6，仓库已归档。**ARCHITECTURE 和 PITFALLS：** 两边不一致，需核实 | **采用 STACK 的结论：固定 0.41.1**，从维护者新站下载，核对 `checksums.txt`，部署时用 `--version` 复核。GitHub 上的 v0.40.6 留作回退，确认可用的 zip 在服务器之外另存一份 | STACK 直接读了发布说明、官方文档页眉和新站发布接口，证据最强；ARCHITECTURE 和 PITFALLS 是较早的核对。新站由一人维护，所以要固定版本、核对校验和，禁止在生产机上随手 `pocketbase update` |
-| SDK 版本与文件 | **STACK：** 0.28.2，`dist/pocketbase.iife.js`。**ARCHITECTURE：** 0.28.1 的 `pocketbase.umd.js` | **采用 0.28.2，以 vendoring 时实际存在的 dist 文件为准**（STACK 读过 iife，全局名 `PocketBase`）。记录 sha256，不走 npm，也不走 CDN | 文件名不同只是核对时间不同；本质要求一样：同源、固定版本、不进 package.json |
-| SDK 与服务器配套 | **STACK：** 没有公布兼容表，按"最新对最新"，MEDIUM | 在 `PB-CONTRACT.md` 里写明"服务器 0.41.1 配 SDK 0.28.2"，用本机真实实例上的隔离脚本和同步冒烟确认 | 防止 mock 漂移（PITFALLS 20） |
+| SDK 版本与文件 | **STACK（修正前）：** 0.28.2，`dist/pocketbase.iife.js`。**ARCHITECTURE（修正前）：** 0.28.1 的 `pocketbase.umd.js` | **采用 0.28.1（06 D-15，所有者批准），文件 pocketbase.iife.js**（全局名 `PocketBase`），记录 sha256，不走 npm，也不走 CDN | 文件名不同只是核对时间不同；本质要求一样：同源、固定版本、不进 package.json |
+| SDK 与服务器配套 | **STACK：** 没有公布兼容表，按"最新对最新"，MEDIUM | 在 `PB-CONTRACT.md` 里写明"服务器 0.41.1 配 SDK 0.28.1"，用本机真实实例上的隔离脚本和同步冒烟确认 | 防止 mock 漂移（PITFALLS 20） |
 | `users` 默认规则 | **STACK：** 读了源码，`CreateRule = ""`（任何人可注册），`DeleteRule` 允许删除自己。**ARCHITECTURE：** 默认值 MEDIUM，需断言 | **按 STACK 的结论视为已确认**。迁移里显式把 `createRule`、`deleteRule` 设为 null，隔离脚本断言匿名创建被拒 | 源码证据比文档推断强；断言照样保留 |
 | token 有效期 | **STACK：** 源码默认 5 天。**ARCHITECTURE：** LOW，只见到 14 天的第三方说法。**FEATURES：** 没找到 | **以源码的 5 天为准，显式设成 90 天以上**；每次联网启动时调用 `authRefresh()` | 5 天不够"离线很久后再联网上传"，过期后上传会 401。显式设置后，默认值的争议就无关紧要了 |
 | 示例计划形状 | **ARCHITECTURE：** 与原计划同形状（组数、每组任务数、力量项、预设数），v1 用例几乎不用改。**FEATURES：** 新账号给小示例（约 2 组，每组 3 个任务，2 个力量项） | **应用内置的合成 `DEFAULT_PLAN` 用同形状**，只含通用占位文字，以保住 154 条用例。新账号是否另给一份更小的示例，由所有者作为产品决定 | 计划改由服务器提供后，cloud 模式的测试可以用假服务器注入计划；只有旧路径回退和 v1 用例依赖内置默认。同形状成本最低 |
@@ -57,7 +57,7 @@
 ### Recommended Stack
 
 推荐的组合：
-- **服务器软件：** PocketBase 0.41.1（linux_amd64 预编译包）、官方 JS SDK 0.28.2（iife，同源托管，约 40 KB）、Caddy 2.11.9。
+- **服务器软件：** PocketBase 0.41.1（linux_amd64 预编译包）、官方 JS SDK 0.28.1（iife，同源托管，约 40 KB）、Caddy 2.11.9。
 - **机器和域名：** 一台 1 GB 内存的 Ubuntu LTS VPS，一个 `.com` 域名。
 - **备份：** PocketBase 内置 cron（`0 3 * * *`，保留 7 份），再加一个 S3 兼容的异地桶。首选 Cloudflare R2，免费额度内不收费；Backblaze B2 作备选。
 - **集合和规则：** 写成 `pb_migrations/*.js` 进 git，只含结构，不含数据。
@@ -66,7 +66,7 @@
 
 **Core technologies:**
 - **PocketBase 0.41.1：** 负责认证、规则、记录、SSE、后台、静态托管和备份。单个二进制就覆盖全部需求。0.x 版本不承诺兼容，必须固定版本，升级前先备份。
-- **PocketBase JS SDK 0.28.2：** 负责登录、令牌、记录读写、订阅与自动重连。同源自托管，关闭 `autoCancellation`。
+- **PocketBase JS SDK 0.28.1：** 负责登录、令牌、记录读写、订阅与自动重连。同源自托管，关闭 `autoCancellation`。
 - **Caddy：** 负责自动 HTTPS、压缩和反向代理。PocketBase 只监听 127.0.0.1；关闭 HTTP/3；DNS 只做解析，不开 Cloudflare 橙云。
 - **systemd：** 负责开机自启和崩溃重启。配置 `Restart=always`、`LimitNOFILE=4096`、`GOMEMLIMIT`，用非 root 用户运行。
 - **`pb_migrations`：** 规则即代码，可以评审、可以重放，也能被隔离脚本反复验证。
