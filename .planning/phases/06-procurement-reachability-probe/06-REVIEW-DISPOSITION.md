@@ -33,7 +33,7 @@ findings:
     title: "schema-check 不验证迁移里最关键的安全设置，“SCHEMA MATCH”会给出虚假的放心"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "redact.mjs 在 private 文件存在但没有任何值时放行原文（fail open）"
   - id: WR-07
     severity: warning
@@ -99,7 +99,7 @@ findings:
     severity: info
     disposition: open
     title: "privacy-check 静默忽略不以 -- 开头的多余参数"
-open: 24
+open: 23
 total: 24
 recorded: 2026-11-08T18:15:37.821Z
 ---
@@ -115,7 +115,7 @@ recorded: 2026-11-08T18:15:37.821Z
 | WR-03 | warning | open | - |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
+| WR-06 | warning | fixed | dcfc987 |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
 | WR-09 | warning | open | - |

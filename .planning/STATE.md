@@ -6,10 +6,10 @@ current_phase: 8
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: planning
 stopped_at: Phase 06 complete, ready to plan Phase 8
-last_updated: "2026-11-08T18:24:41.893Z"
+last_updated: "2026-11-08T19:02:18.639Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 06 complete, transitioned to Phase 8
-state_head: ae0d8d3efcc912dc8ebd133cf316d984eb69b206
+state_head: dcfc987aa5f902c7c1834c75798010a4fdeaff4d
 progress:
   total_phases: 8
   completed_phases: 2
@@ -174,7 +174,7 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
   - 已定：新约束写进 PROJECT.md 的 Constraints，v2.0 需求和路线图都按它来。
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
-- [Phase 6 审查]: 24 条发现全部未处理（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
+- [Phase 6 审查]: 24 条发现中 23 条未处理，WR-06 已在 dcfc987 修复（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
 - [Phase 6 安全]: `workflow.security_enforcement` 为开，`06-SECURITY.md` 还不存在，`/gsd-secure-phase 6` 待做。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
@@ -188,6 +188,7 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 |---|-------------|------|--------|-----------|
 | 1 | 把 .claude/CLAUDE.md 的 Project 段同步到 v2.0（只重新生成 Project 段，其余段落不变） | 2026-11-06 | e6c8c2c | — |
 | 2 | privacy-check --push 加窄例外清单，放行已在 0fa5cea 修正的示例地址（2 处，规则 H），自检 193 项通过 | 2026-11-08 | cae2c04 | — |
+| 3 | redact.mjs 私有文件存在但没有值时也拒绝输出（06-REVIEW WR-06），自检 33 项 | 2026-11-08 | dcfc987 | — |
 
 ## Deferred Items
 
