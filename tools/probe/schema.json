@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "collections": {
+    "probe_results": {
+      "type": "base",
+      "rules": {
+        "listRule": null,
+        "viewRule": null,
+        "createRule": "@request.auth.id != \"\"",
+        "updateRule": null,
+        "deleteRule": null
+      },
+      "fields": [
+        { "type": "text", "name": "run_id", "required": true, "max": 40 },
+        { "type": "select", "name": "carrier", "required": true, "maxSelect": 1, "values": ["telecom", "unicom", "mobile", "us"] },
+        { "type": "select", "name": "net", "required": true, "maxSelect": 1, "values": ["cell4g", "home", "other"] },
+        { "type": "select", "name": "browser", "maxSelect": 1, "values": ["chrome", "safari", "edge", "firefox", "wechat", "other"] },
+        { "type": "text", "name": "started_at", "max": 40 },
+        { "type": "number", "name": "tz_offset_min", "min": -840, "max": 840 },
+        { "type": "number", "name": "dur_s", "min": 0, "max": 3600 },
+        { "type": "text", "name": "nav_type", "max": 20 },
+        { "type": "text", "name": "fs_src", "max": 20 },
+        { "type": "number", "name": "first_screen_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "ttfb_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "load_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "dns_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "connect_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "tls_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "sdk_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "api_rtt_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "login_ms", "min": 0, "max": 600000 },
+        { "type": "bool", "name": "login_ok" },
+        { "type": "number", "name": "rt_connect_ms", "min": 0, "max": 600000 },
+        { "type": "number", "name": "hidden_ms", "min": 0, "max": 3600000 },
+        { "type": "number", "name": "drops", "min": 0, "max": 1000 },
+        { "type": "number", "name": "max_reconnect_ms", "min": 0, "max": 3600000 },
+        { "type": "number", "name": "pings_ok", "min": 0, "max": 100 },
+        { "type": "number", "name": "pings_total", "min": 0, "max": 100 },
+        { "type": "json", "name": "push_ms", "maxSize": 4000 },
+        { "type": "json", "name": "events", "maxSize": 20000 },
+        { "type": "autodate", "name": "created", "onCreate": true, "onUpdate": false }
+      ]
+    },
+    "probe_pings": {
+      "type": "base",
+      "rules": {
+        "listRule": "@request.auth.id != \"\"",
+        "viewRule": "@request.auth.id != \"\"",
+        "createRule": "@request.auth.id != \"\"",
+        "updateRule": null,
+        "deleteRule": null
+      },
+      "fields": [
+        { "type": "text", "name": "run", "required": true, "max": 40 },
+        { "type": "number", "name": "seq", "min": 0, "max": 100 },
+        { "type": "autodate", "name": "created", "onCreate": true, "onUpdate": false }
+      ]
+    }
+  }
+}
