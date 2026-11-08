@@ -33,7 +33,7 @@ Phase 8 交付三样东西：
 
 ### 前提确认：后端继续用 PocketBase
 
-- **D-01：** 所有者在讨论中问过，为什么不用 PostgreSQL 这类数据库服务。看过对比后，所有者确认继续用 PocketBase。对比的要点：
+- **D-01:** 所有者在讨论中问过，为什么不用 PostgreSQL 这类数据库服务。看过对比后，所有者确认继续用 PocketBase。对比的要点：
   - PocketBase 内部用的是 SQLite 数据库，并且自带登录、权限和实时同步；
   - 它已经装在香港服务器上，现在只占约 30 MB 内存；
   - 换 PostgreSQL 要另写后端，要么改用 Supabase，可自托管版这台 894 MB 内存的服务器带不动；
@@ -42,20 +42,21 @@ Phase 8 交付三样东西：
 
 ### 本机测试替身（PocketBase Windows 版）
 
-- **D-02：** 本机验证用 PocketBase 0.41.1 的 Windows 版 zip。具体做法：
+- **D-02:** 本机验证用 PocketBase 0.41.1 的 Windows 版 zip。具体做法：
   - 所有者**批准一次**下载，核对指纹后，存进**项目内被 git 忽略的目录**。具体目录由规划决定，必须同时被 `.gitignore` 和隐私检查规则 A 挡住；现有的 `pocketbase.exe`、`pocketbase_*.zip` 规则已经覆盖。
   - 指纹（sha256）写进仓库里的说明文件。**每次运行前先核对**，对不上就不运行、停下报告。
   - Phase 9–13 重跑隔离脚本或重录协议样本时，指纹对得上就沿用，不用重新批准。换版本要重新批准下载。
   - 数据目录（`pb_data`）每次放系统临时目录，跑完就删。
   - D-17 仍然适用：这次下载本身必须先经所有者批准，批准时贴出来源、文件名、大小和 sha256。
   - ROADMAP SC1、SC2 里“下载到临时目录”“用完删除临时实例”的写法，规划时按本条改清楚：临时的只有实例和数据，程序本身留存。
-- **D-03：** Windows 包的指纹以维护者发布页的 `checksums.txt` 为准，下载后对不上就中止。所有者对这一点没有偏好，所以 Claude 酌定加一步：GitHub 发布页如果提供文件指纹，就顺带交叉核对。0.41.1 只有 linux_amd64 包的指纹之前在 `tools/probe/server/02-install-pocketbase.sh` 里钉死过，Windows 包是第一次核对。
+- **D-03:** Windows 包的指纹以维护者发布页的 `checksums.txt` 为准，下载后对不上就中止。所有者对这一点没有偏好，所以 Claude 酌定加一步：GitHub 发布页如果提供文件指纹，就顺带交叉核对。0.41.1 只有 linux_amd64 包的指纹之前在 `tools/probe/server/02-install-pocketbase.sh` 里钉死过，Windows 包是第一次核对。
 
 ### 登录与账号自助
 
-- **D-04：** 登录标识用**邮箱形式**，也就是 PocketBase 默认的 identity 字段。地址不必真实存在，也不发任何邮件。合成测试账号的邮箱必须是保留域名或明显的合成写法，不能被隐私检查规则 C 当成真实邮箱。
+- **D-04:** 登录标识用**邮箱形式**，也就是 PocketBase 默认的 identity 字段。地址不必真实存在，也不发任何邮件。合成测试账号的邮箱必须是保留域名或明显的合成写法，不能被隐私检查规则 C 当成真实邮箱。
   - **Reversibility:** costly — 以后要改成用户名，迁移、`auth-with-password` 协议样本、假服务器和隔离断言都要跟着改。
-- **D-05：** 所有者选择允许普通账号**自己修改密码和登录邮箱**。这改变了此前的设想：调研和探针站点的先例都是 `users` 的写规则全设为 null。
+- **D-05:** （2026-11-08 调研后修订）最终决定是普通账号**只能自己改密码**（要输入正确的旧密码），**登录邮箱只能由所有者在后台改**。原因：调研确认，PocketBase 0.41.1 里普通用户经普通更新接口改 `email` 会被拒（`validation_values_mismatch`）；官方的发邮件确认流程，在地址不真实时走不通；唯一不用邮件的办法是放宽 `manageRule`，但那样被盗的令牌不用旧密码就能改掉邮箱、把本人锁在外面。所有者看过这三种做法后，选了“只让改密码”。下面的原始记录保留作参考，凡是涉及“改邮箱”的内容都以本段为准。
+  - D-05 的原始记录（讨论时，仅供参考）：所有者选择允许普通账号**自己修改密码和登录邮箱**。这改变了此前的设想：调研和探针站点的先例都是 `users` 的写规则全设为 null。
   - `users.updateRule` 只允许本人改本人。注册（createRule）和自删除（deleteRule）仍然显式关闭；`list`、`view` 只能看自己。
   - 改密码要输入旧密码：PocketBase 对普通用户的默认行为是要求 `oldPassword`，调研要在 0.41.1 上实测确认。
   - 本人能改的只有密码和邮箱。`verified` 等其他系统字段不能自改。
@@ -63,8 +64,10 @@ Phase 8 交付三样东西：
   - 隔离脚本补几条相关断言：A 改不了 B 的账号记录；旧密码不对或缺失时改密码被拒；本人不能改 `verified` 这类字段。如果改邮箱可行，再加一条“改邮箱后用新邮箱能登录、旧邮箱不能登录”。
   - 不冲突的部分：REQUIREMENTS 的 Out of Scope 写“密码由所有者在后台重置”，这一条仍然成立；所有者照样可以在后台重置，自改只是多出来的能力。
   - **Reversibility:** reversible — 只是规则里的一行，加一条迁移就能收回；目前也没有用到它的界面。
-- **D-06：** 令牌有效期（authToken duration）设为 **90 天**，满足 ROADMAP SC2 的“90 天以上”。常用时客户端会自动续期。调研核实一点：所有者在后台改某人的密码后，那个人所有设备上的旧令牌是否立即失效（PocketBase 的 tokenKey 机制）。
-- **D-07：** 本里程碑不做改密码、改邮箱的界面。D-05 只放开规则，界面记进 Deferred。
+- **D-06:** 令牌有效期（authToken duration）设为 **90 天**（7,776,000 秒），满足 ROADMAP SC2 的“90 天以上”。
+  - 调研已确认：改密码或改邮箱会轮换 `tokenKey`，那个人所有旧令牌立即失效；所有者在后台重置密码也一样。
+  - 更正：SDK 0.28.1 不会给普通用户自动续期。要续期，得由应用自己调用 `authRefresh`，这一点交给 Phase 9。
+- **D-07:** 本里程碑不做改密码、改邮箱的界面。D-05 只放开规则，界面记进 Deferred。
 
 ### Claude's Discretion
 
@@ -112,7 +115,7 @@ Phase 8 交付三样东西：
 7. **护栏要收紧：** `tests/support/test.ts` 现在放行应用来源下的所有请求。cloud 模式要收紧到“只许假服务器”，可以顺带补上 v1 的 WR-05 缺口（PITFALLS 19）。
 8. **调研开关：** `.planning/config.json` 里 `workflow.research` 是 false，但 ROADMAP 要求 Phase 8 先调研。规划前必须显式运行 `/gsd-plan-phase --research-phase 8`，或者用 `--research` 强制调研。
 9. **错误路径的范围：** v1 定的“mock 只做正常路径”只适用于 Claude mock。Phase 8 SC3 要 401 和唯一冲突的样本，Phase 10 要服务器错误和登录过期。TEST-F1 只剩下各阶段 SC 都没要求的项，例如限流、断网中途重置。
-10. **过时的地图：** `.planning/codebase/TESTING.md` 和 `INTEGRATIONS.md` 写于 v1 之前，测试现状以 `tests/README.md` 为准。
+10. **过时的地图：** `.planning/codebase/TESTING.md` 和 `INTEGRATIONS.md` 写于 v1 之前，测试现状以 `tests/README.md` 为准。**本阶段的计划不处理这一条，延后**，以后用 `/gsd-map-codebase` 统一刷新代码地图。所有者在 2026-11-08 计划检查第 3 轮时接受了这个处理。
 
 </decisions>
 
