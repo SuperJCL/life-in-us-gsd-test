@@ -28,6 +28,17 @@ export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
 //    种子写进 MockBackend 而不写 localStorage；
 //  - cloud：页面里是真实的 PocketBase SDK（同源提供），REST 由 Node 侧的 FakePbServer（app.fake）接应，
 //    数据在 FakePbServer 里。Phase 8 的应用还没有云端路径，所以 cloud 只验证测试设施本身。
+// 环境变量映射：只有 USJ_TEST_MODE 为 cloud 时才把 account 换算成 cloud；默认 npm test 下 account 和 local 不变。
+// 映射要到 Phase 9 应用接上云端之后才对 v1 的账户用例有意义，Phase 8 只落地这个换算。
+// playwright.cloud.config.ts 顶部设置 USJ_TEST_MODE，worker 继承环境变量；env 不设默认值，由调用方显式传入，
+// 否则在 cloud 配置下传 undefined 会被默认值顶替成 cloud，纯函数的用例就测不出“没设置时不映射”。
+export function resolveHarnessMode(
+  mode: 'local' | 'account' | 'cloud',
+  env: string | undefined,
+): 'local' | 'account' | 'cloud' {
+  return mode === 'account' && env === 'cloud' ? 'cloud' : mode;
+}
+
 export class AppHarness {
   // Node 侧的 mock 后端：用例通过它直接读 reads、writes、downloads、lastState()，不用 page.evaluate
   readonly backend = new MockBackend();
@@ -66,7 +77,7 @@ export class AppHarness {
       throw new Error('AppHarness.open 每个用例只能调用一次；要换配置请新开一个 page（reload 用 app.reload()）');
     }
     this.opened = true;
-    const mode = opts.mode ?? 'local';
+    const mode = resolveHarnessMode(opts.mode ?? 'local', process.env.USJ_TEST_MODE);
     if (mode === 'cloud') {
       for (let i = 0; i < (opts.users ?? 1); i++) this.fake.addUser();
       if (opts.seed !== undefined) {
@@ -132,6 +143,9 @@ export class AppHarness {
   // 读取落盘的状态；没有数据时返回 null。
   // account 模式读 MockBackend 里账户文档的当前内容，local 模式读 localStorage。
   async persisted(): Promise<any> {
+    if (this.store === 'cloud') {
+      return this.fake.lastState();
+    }
     if (this.store === 'account') {
       return this.backend.lastState();
     }
@@ -146,6 +160,9 @@ export class AppHarness {
   // reads 检查放最前面还有一个原因：应用静默退回本地时 reads 是空的，这条同步检查立刻失败，不用等 expect 超时。
   // timeout 只用于状态栏那一项：反向对照里需要它快速失败，不用等满默认的 5 秒
   async expectAccountMode(opts: { reads?: number; timeout?: number } = {}) {
+    if (this.store === 'cloud') {
+      throw new Error('expectAccountMode 只适用于 account 模式');
+    }
     const count = opts.reads ?? 1;
     expect(
       this.backend.reads,
@@ -176,6 +193,10 @@ export class AppHarness {
   //    依据：本地种子由 init 脚本写进同一个键，所有 fixture 都带 _synthetic，而应用的 normalize
   //    会丢掉它，所以应用写回的内容不可能与种子原文相同。
   async saved(): Promise<any> {
+    if (this.store === 'cloud') {
+      const writes = this.fake.writes.filter((w) => w.path === 'journey_docs:state');
+      return writes.length === 0 ? null : JSON.parse(JSON.stringify(writes[writes.length - 1].data));
+    }
     if (this.store === 'account') {
       const writes = this.backend.writes;
       return writes.length === 0 ? null : JSON.parse(JSON.stringify(writes[writes.length - 1].data));

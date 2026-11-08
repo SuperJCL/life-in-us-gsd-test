@@ -1,14 +1,18 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
-import { APP_FILE_NAME, APP_SHA256, PORT } from '../../support/constants';
+import { APP_FILE_NAME, APP_SHA256, PB_SDK_PATH, PB_SDK_SHA256, PORT } from '../../support/constants';
 
 // 应用文件固定在仓库根目录；只读，绝不写入
-const appFile = path.resolve(__dirname, '..', '..', '..', APP_FILE_NAME);
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const appFile = path.resolve(repoRoot, APP_FILE_NAME);
+// 同源提供的 SDK 和它的钉死哈希清单：只读，绝不写入
+const sdkDir = path.resolve(repoRoot, 'tools', 'probe', 'page', 'vendor');
 
 test('SAFE-02 us-journey-tracker.html matches the recorded sha256 baseline', async () => {
   const digest = createHash('sha256').update(readFileSync(appFile)).digest('hex');
@@ -32,7 +36,7 @@ test('SAFE-02 a one-byte change to the app no longer matches the baseline', asyn
   expect(createHash('sha256').update(readFileSync(appFile)).digest('hex')).toBe(APP_SHA256);
 });
 
-test('ENV-03 the static server serves only the app file', async ({ request }) => {
+test('ENV-03 the static server serves only the app file and the pinned SDK', async ({ request }) => {
   // request 是 Node 侧请求，目标只有 127.0.0.1，不经过浏览器的 guard
   for (const route of ['/', '/us-journey-tracker.html']) {
     const res = await request.get(route);
@@ -41,6 +45,17 @@ test('ENV-03 the static server serves only the app file', async ({ request }) =>
     expect(res.headers()['cache-control'], route).toContain('no-store');
     expect(await res.text(), route).toContain('id="status"');
   }
+
+  // 固定版本的 SDK：类型、nosniff、no-store，正文的 sha256 等于常量，也等于 SHA256SUMS 里的值
+  const sdk = await request.get(PB_SDK_PATH);
+  expect(sdk.status(), PB_SDK_PATH).toBe(200);
+  expect(sdk.headers()['content-type'], PB_SDK_PATH).toContain('javascript');
+  expect(sdk.headers()['x-content-type-options'], PB_SDK_PATH).toBe('nosniff');
+  expect(sdk.headers()['cache-control'], PB_SDK_PATH).toContain('no-store');
+  const served = createHash('sha256').update(await sdk.body()).digest('hex');
+  expect(served, 'SDK 正文的哈希应当等于 PB_SDK_SHA256').toBe(PB_SDK_SHA256);
+  const sums = readFileSync(path.join(sdkDir, 'SHA256SUMS'), 'utf8');
+  expect(sums, 'SHA256SUMS 里应当有同一个哈希').toContain(PB_SDK_SHA256 + '  pocketbase.iife.js');
 
   // 白名单之外的路径一律 404，包括编码后的 ..（原始路径是否到达服务器见下一个用例）
   for (const route of [
@@ -167,4 +182,95 @@ test('ENV-03 the static server listens on 127.0.0.1 only', async ({}, testInfo) 
   // IPv6 回环同样不应连通（服务器只绑定 IPv4 的 127.0.0.1）。
   // 这是弱断言：本机禁用了 IPv6 时“连不上”不能证明服务器没监听 ::1，只能说明没有回归到监听 IPv6
   expect(await canConnect('::1')).toBe(false);
+});
+
+// 空闲端口：先绑定 127.0.0.1:0 取得端口再关掉，交给临时副本的静态服务器用
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address() as net.AddressInfo;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+// 在临时目录里按仓库的相对结构搭一份静态服务器、应用文件、SHA256SUMS 和 SDK；
+// flipSdk 为真时把 SDK 的最后一个字节异或 1。仓库里的文件一个字节都不改。
+function buildCopy(flipSdk: boolean): { dir: string; serverFile: string } {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'usj-static-'));
+  const serverDir = path.join(dir, 'tests', 'support');
+  const vendorDir = path.join(dir, 'tools', 'probe', 'page', 'vendor');
+  mkdirSync(serverDir, { recursive: true });
+  mkdirSync(vendorDir, { recursive: true });
+  cpSync(path.join(repoRoot, 'tests', 'support', 'static-server.cjs'), path.join(serverDir, 'static-server.cjs'));
+  cpSync(appFile, path.join(dir, APP_FILE_NAME));
+  cpSync(path.join(sdkDir, 'SHA256SUMS'), path.join(vendorDir, 'SHA256SUMS'));
+  const sdkBytes = Buffer.from(readFileSync(path.join(sdkDir, 'pocketbase.iife.js')));
+  if (flipSdk) sdkBytes[sdkBytes.length - 1] ^= 1;
+  writeFileSync(path.join(vendorDir, 'pocketbase.iife.js'), sdkBytes);
+  return { dir, serverFile: path.join(serverDir, 'static-server.cjs') };
+}
+
+// 反向对照（T-08-06）：SDK 被改一个字节时，静态服务器在 listen 之前退出 1，提示是中文、只用仓库相对的说法。
+// 同一个用例里先让未改动的副本正常启动，证明拒绝是哈希不一致造成的，而不是副本本身搭坏了。
+test('ENV-03 the static server refuses to start when the SDK bytes differ from SHA256SUMS', async () => {
+  const dirs: string[] = [];
+  try {
+    // 对照：未改动的副本能启动并提供 SDK
+    const good = buildCopy(false);
+    dirs.push(good.dir);
+    const goodPort = await freePort();
+    const goodChild = spawn(process.execPath, [good.serverFile], {
+      env: { ...process.env, PORT: String(goodPort) },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    try {
+      await expect
+        .poll(
+          () =>
+            new Promise<number | undefined>((resolve) => {
+              http
+                .get({ host: '127.0.0.1', port: goodPort, path: PB_SDK_PATH }, (res) => {
+                  res.resume();
+                  resolve(res.statusCode);
+                })
+                .on('error', () => resolve(undefined));
+            }),
+          { message: '未改动的副本应当能启动并提供 SDK' },
+        )
+        .toBe(200);
+    } finally {
+      goodChild.kill();
+    }
+
+    // 改过一个字节的副本：必须退出 1
+    const bad = buildCopy(true);
+    dirs.push(bad.dir);
+    const badChild = spawn(process.execPath, [bad.serverFile], {
+      env: { ...process.env, PORT: String(await freePort()) },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    badChild.stderr.setEncoding('utf8');
+    badChild.stderr.on('data', (chunk) => (stderr += chunk));
+    const exitCode = await new Promise<number | null>((resolve) => {
+      // 服务器如果没有拒绝启动就不会退出：超时后杀掉，退出码为 null，下面的断言会失败
+      const timer = setTimeout(() => {
+        badChild.kill();
+        resolve(null);
+      }, 8000);
+      badChild.on('exit', (code) => {
+        clearTimeout(timer);
+        resolve(code);
+      });
+    });
+    expect(exitCode, '改过一个字节的 SDK 应当让静态服务器退出 1').toBe(1);
+    expect(stderr).toContain('SHA256SUMS');
+    expect(stderr, '提示里不应出现临时目录的绝对路径').not.toContain(bad.dir);
+    expect(stderr, '提示里不应出现仓库的绝对路径').not.toContain(repoRoot);
+  } finally {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  }
 });

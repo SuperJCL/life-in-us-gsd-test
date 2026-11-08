@@ -11,7 +11,13 @@
 //    页面的 Date.now() 被固定在 FROZEN_NOW，两边的时间对不上会让令牌过期判断取决于运行日期。
 import { randomBytes } from 'node:crypto';
 import type { BrowserContext } from '@playwright/test';
-import { APP_ORIGIN, FROZEN_NOW, PB_TOKEN_DURATION_S, PB_USERS_COLLECTION_ID } from '../support/constants';
+import {
+  APP_ORIGIN,
+  FROZEN_NOW,
+  PB_DOC_MAX_BYTES,
+  PB_TOKEN_DURATION_S,
+  PB_USERS_COLLECTION_ID,
+} from '../support/constants';
 
 // handle() 的入参：只含协议层信息，不含 Playwright 对象
 export type PbRequest = {
@@ -123,6 +129,22 @@ export class FakePbServer {
   handle(req: PbRequest): PbResponse | null {
     const res = this.route(req);
     if (res) this.requests.push({ method: req.method, path: req.path, status: res.status });
+    return res;
+  }
+
+  // Node 侧取某个账号的令牌（测试直接以它的身份发请求用）
+  login(userIndex: number): string {
+    const user = this.users[userIndex];
+    if (!user) throw new Error('FakePbServer.login：没有这个序号的账号');
+    return this.issueToken(user.id);
+  }
+
+  // Node 侧发一个请求：身份可以是账号序号，也可以是令牌字符串（比如篡改过的令牌）。
+  // 和页面里的请求走同一个 handle()；未实现的路径直接抛错，让用例立即失败。
+  async request(who: number | string, method: string, path: string, body: unknown = null): Promise<PbResponse> {
+    const authorization = typeof who === 'number' ? this.login(who) : who;
+    const res = this.handle({ method, path, query: {}, authorization, body });
+    if (res === null) throw new Error(`FakePbServer.request：没有实现 ${method} ${path}`);
     return res;
   }
 
@@ -294,6 +316,97 @@ export class FakePbServer {
       });
     }
 
+    // 刷新令牌：只有这个接口对无效或过期令牌返回 401（记录接口一律按未登录处理，不是 401）
+    if (req.method === 'POST' && req.path === '/api/collections/users/auth-refresh') {
+      const identity = this.identityOf(req.authorization);
+      const user = identity ? this.users.find((u) => u.id === identity) : undefined;
+      if (!user) {
+        return this.respond(401, {
+          status: 401,
+          message: 'The request requires valid record authorization token.',
+          data: {},
+        });
+      }
+      return this.respond(200, { record: this.userRecord(user), token: this.issueToken(user.id) });
+    }
+
+    // 创建：createRule 是 登录 且 body.owner 等于自己；不满足是 400（不是 403、404）。
+    // 通过规则之后字段校验的错误一起返回，每个出错字段是 { code, message }。
+    if (req.method === 'POST' && req.path === '/api/collections/journey_docs/records') {
+      const identity = this.identityOf(req.authorization);
+      const body = (req.body ?? {}) as { owner?: unknown; kind?: unknown; data?: unknown; writer?: unknown };
+      if (!identity || body.owner !== identity) {
+        return this.respond(400, { status: 400, message: 'Failed to create record.', data: {} });
+      }
+      const errors: Record<string, { code: string; message: string }> = {};
+      const kindValid = body.kind === 'state' || body.kind === 'plan';
+      // select 字段的值不在 values 里
+      if (!kindValid) errors.kind = { code: 'validation_invalid_value', message: 'Invalid value ' + String(body.kind) + '.' };
+      this.checkWriterAndData(body, errors);
+      // (owner, kind) 唯一索引：两个字段都报 validation_not_unique
+      if (kindValid && this.docs.some((d) => d.owner === identity && d.kind === body.kind)) {
+        errors.owner = { code: 'validation_not_unique', message: 'Value must be unique.' };
+        errors.kind = { code: 'validation_not_unique', message: 'Value must be unique.' };
+      }
+      if (Object.keys(errors).length > 0) {
+        return this.respond(400, { status: 400, message: 'Failed to create record.', data: errors });
+      }
+      const doc = this.putDoc(identity, body.kind as string, body.data ?? null);
+      if (typeof body.writer === 'string') doc.writer = body.writer;
+      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
+      return this.respond(200, clone(doc));
+    }
+
+    // 删除：deleteRule 为 null（锁定），对非超级用户一律 403，连记录存不存在都不看
+    if (req.method === 'DELETE' && /^\/api\/collections\/journey_docs\/records\/[^/]+$/.test(req.path)) {
+      return this.respond(403, { status: 403, message: 'Only superusers can perform this action.', data: {} });
+    }
+
+    // 查看和更新：路径里带记录 id
+    const one = req.path.match(/^\/api\/collections\/journey_docs\/records\/([^/]+)$/);
+    if (one && (req.method === 'GET' || req.method === 'PATCH')) {
+      const identity = this.identityOf(req.authorization);
+      const doc = this.docs.find((d) => d.id === one[1]);
+      // viewRule、updateRule 不满足（未登录、别人的、不存在）都是 404，不泄露记录是否存在
+      const notFound = this.respond(404, { status: 404, message: "The requested resource wasn't found.", data: {} });
+      if (!identity || !doc || doc.owner !== identity) return notFound;
+
+      if (req.method === 'GET') {
+        this.reads.push(`journey_docs:${doc.kind}`);
+        return this.respond(200, clone(doc));
+      }
+
+      // updateRule 里 owner、kind 的 :isset = false：请求体里出现这两个键（值相同也算）规则就不满足，404
+      const body = (req.body ?? {}) as { data?: unknown; writer?: unknown };
+      if ('owner' in body || 'kind' in body) return notFound;
+      const errors: Record<string, { code: string; message: string }> = {};
+      this.checkWriterAndData(body, errors);
+      if (Object.keys(errors).length > 0) {
+        return this.respond(400, { status: 400, message: 'Failed to update record.', data: errors });
+      }
+      if ('data' in body) doc.data = clone(body.data ?? null);
+      if (typeof body.writer === 'string') doc.writer = body.writer;
+      doc.updated = this.stamp();
+      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
+      return this.respond(200, clone(doc));
+    }
+
     return null;
+  }
+
+  // writer 最多 40 个字符，data 序列化后不超过 PB_DOC_MAX_BYTES；创建和更新共用
+  private checkWriterAndData(
+    body: { data?: unknown; writer?: unknown },
+    errors: Record<string, { code: string; message: string }>,
+  ): void {
+    if (typeof body.writer === 'string' && Array.from(body.writer).length > 40) {
+      errors.writer = { code: 'validation_max_text_constraint', message: 'Must be less than 40 character(s).' };
+    }
+    if ('data' in body && Buffer.byteLength(JSON.stringify(body.data ?? null)) > PB_DOC_MAX_BYTES) {
+      errors.data = {
+        code: 'validation_json_size_limit',
+        message: `The maximum allowed JSON size is ${PB_DOC_MAX_BYTES} bytes.`,
+      };
+    }
   }
 }
