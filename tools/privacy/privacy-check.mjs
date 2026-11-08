@@ -13,6 +13,7 @@
 //   C-email           内容里的真实邮箱
 //   D-plan-term       个人计划词条（运行时从本地种子 private/plan-seed.json 和 private/denylist.txt 读取，只输出编号）
 //   E-author-email    提交的作者或提交者邮箱不是 GitHub noreply 地址
+//   F-token-shape     PocketBase/JWT 令牌形状（三段 base64url、前两段以 eyJ 开头），只输出位置
 //
 // 退出码：0 通过；1 发现问题；2 参数错误或内部错误（fail closed，同样会阻止提交）。
 //
@@ -47,6 +48,7 @@ export const RULES = {
   C: 'C-email',
   D: 'D-plan-term',
   E: 'E-author-email',
+  F: 'F-token-shape',
 };
 
 // ---------- 纯函数：规则 A（路径） ----------
@@ -124,6 +126,19 @@ export function findEmails(line) {
   return hits;
 }
 
+// ---------- 纯函数：规则 F（令牌形状） ----------
+
+// 三段 base64url，前两段以 eyJ 开头（即 {" 的 base64），每段不少于 10 位；没有签名段、两段式和省略写法不报
+const JWT_RE = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])/g;
+
+// 返回命中数组，元素只写固定的 '<令牌>'，不放原文
+export function findTokenShapes(line) {
+  const hits = [];
+  JWT_RE.lastIndex = 0;
+  while (JWT_RE.exec(line) !== null) hits.push('<令牌>');
+  return hits;
+}
+
 // ---------- 纯函数：规则 E（作者和提交者邮箱） ----------
 
 export function checkIdentityEmail(email, role) {
@@ -162,6 +177,9 @@ export function scanText(location, text, terms = []) {
     const emails = findEmails(line);
     if (emails.length > 0) {
       findings.push({ location: where, rule: RULES.C, message: `疑似真实邮箱 ${emails[0]}` });
+    }
+    if (findTokenShapes(line).length > 0) {
+      findings.push({ location: where, rule: RULES.F, message: '疑似令牌（JWT 形状）' });
     }
     for (let t = 0; t < terms.length; t += 1) {
       if (line.includes(terms[t])) {
@@ -632,6 +650,31 @@ function runSelfTest() {
     'a@example.org', 'icon@2x.png', '<ID>+<用户名>@users.noreply.github.com',
   ];
   for (const sample of cNeg) expect(`规则 C 反例 ${sample}`, scanText('f', sample).length === 0);
+
+  // 规则 F：样本三段都在运行时编码或重复生成，源码里没有完整的令牌字面量
+  const b64u = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const jwtHead = b64u({ alg: 'HS256', typ: 'JWT' });
+  const jwtBody = b64u({ id: 'synthetic', exp: 1 });
+  const jwtSig = 's'.repeat(43);
+  const jwt = [jwtHead, jwtBody, jwtSig].join('.');
+  const fPos = [
+    ['JSON 字段值', `{"token":"${jwt}"}`],
+    ['Bearer 头', `Authorization: Bearer ${jwt}`],
+    ['查询串', `https://x.test/cb?token=${jwt}&a=1`],
+  ];
+  for (const [label, sample] of fPos) {
+    const f = scanText('f', sample);
+    expect(`规则 F 正例 ${label}`, ruleSet(f) === RULES.F && f[0].location === 'f:1');
+    const text = f.map(formatFinding).join('\n');
+    expect(`规则 F 输出不含令牌 ${label}`, f.length > 0 && !text.includes(jwtHead) && !text.includes(jwtBody) && !text.includes(jwtSig));
+  }
+  const fNeg = [
+    ['签名段为空', `${jwtHead}.${jwtBody}.`],
+    ['只有两段', `${jwtHead}.${jwtBody}`],
+    ['省略写法', 'eyJ...'],
+    ['各段都短于 10 位', ['eyJabc', 'eyJdef', 'ghi'].join('.')],
+  ];
+  for (const [label, sample] of fNeg) expect(`规则 F 反例 ${label}`, findTokenShapes(`x ${sample} y`).length === 0 && scanText('f', sample).length === 0);
 
   // 换行无关与二进制
   const body = ['第一行', `路径 ${winFwd}`, '第三行', `邮箱 ${company}`];
