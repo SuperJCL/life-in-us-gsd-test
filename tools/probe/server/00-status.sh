@@ -184,12 +184,22 @@ except Exception:
     out("DB_USERS_RULES_LOCKED", "n/a")
 
 settings = None
-try:
-    row = con.execute("select value from _params where key = 'settings'").fetchone()
-    if row is not None:
-        settings = json.loads(row[0])
-except Exception:
-    settings = None
+for column in ("id", "key"):
+    try:
+        row = con.execute("select value from _params where %s = 'settings'" % column).fetchone()
+        if row is not None:
+            settings = json.loads(row[0])
+            break
+    except Exception:
+        settings = None
+
+
+def boolean(v):
+    if v is True:
+        return "true"
+    if v is False:
+        return "false"
+    return "n/a"
 
 
 def pick(path):
@@ -203,10 +213,10 @@ def pick(path):
 
 max_days = pick(["logs", "maxDays"])
 out("DB_SETTINGS_LOGS_MAXDAYS", max_days if isinstance(max_days, int) and not isinstance(max_days, bool) else "n/a")
-out("DB_SETTINGS_LOGIP", flag(pick(["logs", "logIP"])))
+out("DB_SETTINGS_LOGIP", boolean(pick(["logs", "logIP"])))
 headers = pick(["trustedProxy", "headers"])
 out("DB_SETTINGS_TRUSTED_PROXY_XREALIP", flag("X-Real-IP" in headers) if isinstance(headers, list) else "n/a")
-out("DB_SETTINGS_RATELIMITS", flag(pick(["rateLimits", "enabled"])))
+out("DB_SETTINGS_RATELIMITS", boolean(pick(["rateLimits", "enabled"])))
 
 
 def count(table):
