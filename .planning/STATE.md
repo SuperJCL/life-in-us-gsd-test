@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-11-08T06:15:29.651Z"
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-11-08T06:27:45.038Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: a16d16ef3931963f925d4efcfedc881fbfe01f2b
+state_head: e35a38abb00fcae190604dcb759e7141e5436d04
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 17
-  completed_plans: 11
+  completed_plans: 12
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 ## Current Position
 
 Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 6 execution started
 
@@ -95,6 +95,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 06 P02 | 2 min | 2 tasks | 5 files |
 | Phase 06 P03 | 8 min | 3 tasks | 3 files |
 | Phase 06 P04 | 25min | 3 tasks | 5 files |
+| Phase 06 P05 | 8 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 06]: 06-03: tz_offset_min = local minus UTC (Beijing 480); probe page must upload -getTimezoneOffset(); started_at accepts only ISO with timezone — Deterministic local time and slot labels regardless of the machine running summarize.mjs
 - [Phase 06]: 06-03: idle-disconnect flag baselines on the last delivered ping (lost pings excluded, else t=0), window 295-320 s, annotation only — A literal reading never fires with pings every <=180 s; lost pings are the only way idle disconnects show up
 - [Phase 06]: 06-04: --check and default mode of redact.mjs both exit 2 when private/server.env and denylist are missing; IPv6 redaction needs a 2xxx/3xxx first group plus :: or 8 groups
+- [Phase 06]: 06-05：探针页登录成功后才建立实时连接；打点照常发出，丢失记 null；结束时 authStore.clear()；SDK 固定 0.28.1（所有者批准，sha512/sha1 核对一致）
 
 ### Pending Todos
 
@@ -172,8 +174,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T06:15:29.227Z
-Stopped at: Completed 06-04-PLAN.md
+Last session: 2026-11-08T06:27:44.610Z
+Stopped at: Completed 06-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
