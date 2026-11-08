@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
-status: planning
+status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-11-07T22:42:16.384Z"
+last_updated: "2026-11-08T05:38:54.486Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 7 complete, transitioned to Phase 6
-state_head: ed00a77191252ba83811beb6d9f235a4ac8cbb8e
+state_head: f21e3eb8e0c37671d0fe2455a4c5b1527cde43dd
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 7
+  total_plans: 17
   completed_plans: 7
   percent: 13
 ---
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 
 ## Current Position
 
-Phase: 6 — 采购与中美可达性实测（Procurement & Reachability Probe）
+Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — READY TO EXECUTE
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-11-07 — Phase 7 complete, transitioned to Phase 6
 
 Progress: [█░░░░░░░░░] 13%
@@ -130,6 +130,8 @@ v2.0 路线图（2026-11-06）：
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
 
 ### Blockers/Concerns
+
+- [Phase 6 执行时注意，来自规划]: 本机 Git Bash 的 `sha256sum` 输出 `<hash> *<file>`（路径前是星号，不是两个空格）。06-06、06-08 的批准清单按两个空格匹配，执行到那里会安全地停下（不会执行未批准的脚本）。派执行代理时要让它同时接受两种分隔（例如匹配 `[ *]`，或生成清单时用 `sha256sum --text`），这算阻塞问题的就地修正，不改批准流程。
 
 没有阻塞项。v1.0 的遗留项（INFO、Phase 1 未做安全审计、IN-10）记在 `.planning/MILESTONES.md`。
 
