@@ -50,7 +50,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 - [x] **SEC-01**：用户输入的文字在页面上显示时都经过转义；导入文件里或同步过来的恶意脚本不会执行。
 - [ ] **SEC-02**：网站发出 CSP 和安全响应头；后台管理入口启用强密码、两步验证和登录限流。
-- [ ] **SEC-03**：公开仓库里不出现服务器地址、域名、密钥、后台密码、个人计划文字或真实数据；隐私检查为此新增对应规则。
+- [x] **SEC-03**：公开仓库里不出现服务器地址、域名、密钥、后台密码、个人计划文字或真实数据；隐私检查为此新增对应规则。
 - [x] **SEC-04**：去掉个人计划后的应用程序放进公开仓库。克隆后不配服务器也能跑测试和本地体验，看到的是示例计划和空记录。
 
 ### 运维（OPS）
@@ -125,7 +125,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | IO-10 | Phase 11 | Pending |
 | SEC-01 | Phase 7 | Complete |
 | SEC-02 | Phase 13 | Pending |
-| SEC-03 | Phase 6 | Pending |
+| SEC-03 | Phase 6 | Complete |
 | SEC-04 | Phase 7 | Complete |
 | OPS-01 | Phase 13 | Pending |
 | OPS-02 | Phase 13 | Pending |

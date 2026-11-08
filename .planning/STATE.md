@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-11-08T06:06:11.709Z"
+stopped_at: Completed 06-04-PLAN.md (server.env pending owner)
+last_updated: "2026-11-08T06:15:29.651Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: aebfc96f270d98bd518ec7766ca613245e3b1ad8
+state_head: a16d16ef3931963f925d4efcfedc881fbfe01f2b
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 17
-  completed_plans: 10
+  completed_plans: 11
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
 ## Current Position
 
 Phase: 6 (采购与中美可达性实测（Procurement & Reachability Probe）) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 6 execution started
 
@@ -94,6 +94,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 06 P01 | 7 min | 3 tasks | 2 files |
 | Phase 06 P02 | 2 min | 2 tasks | 5 files |
 | Phase 06 P03 | 8 min | 3 tasks | 3 files |
+| Phase 06 P04 | 25min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 06]: 06-02: 不论实测结果都继续用阿里云香港（D-08），Web 服务用已有 nginx 加 certbot（D-02）；SDK 0.28.1 改动只记待办（D-15）
 - [Phase 06]: 06-03: tz_offset_min = local minus UTC (Beijing 480); probe page must upload -getTimezoneOffset(); started_at accepts only ISO with timezone — Deterministic local time and slot labels regardless of the machine running summarize.mjs
 - [Phase 06]: 06-03: idle-disconnect flag baselines on the last delivered ping (lost pings excluded, else t=0), window 295-320 s, annotation only — A literal reading never fires with pings every <=180 s; lost pings are the only way idle disconnects show up
+- [Phase 06]: 06-04: --check and default mode of redact.mjs both exit 2 when private/server.env and denylist are missing; IPv6 redaction needs a 2xxx/3xxx first group plus :: or 8 groups
 
 ### Pending Todos
 
@@ -152,6 +154,7 @@ v2.0 路线图（2026-11-06）：
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
+- 06-04: private/server.env missing — denylist has no .vip domain entry, --init-env refused to guess; owner must create two lines USJ_DOMAIN and USJ_IP then run redact --verify-env (needed from 06-06)
 
 ### Quick Tasks Completed
 
@@ -169,8 +172,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T06:06:11.289Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-11-08T06:15:29.227Z
+Stopped at: Completed 06-04-PLAN.md (server.env pending owner)
 Resume file: None
 
 ## Operator Next Steps
