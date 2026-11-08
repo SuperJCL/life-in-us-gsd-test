@@ -52,6 +52,8 @@ pb_backups/
 /pocketbase
 pocketbase.exe
 pocketbase_*.zip
+# 本机测试用的 Windows 版程序留存在这里（Phase 8 D-02）
+/tools/pb/bin/
 
 # --- 探针页的凭据文件由服务器脚本生成，仓库里只放 config.example.js ---
 tools/probe/page/config.js
