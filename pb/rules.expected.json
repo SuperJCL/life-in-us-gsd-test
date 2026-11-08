@@ -1,0 +1,108 @@
+{
+  "collections": {
+    "journey_docs": {
+      "createRule": "@request.auth.id != \"\" && @request.body.owner = @request.auth.id",
+      "deleteRule": null,
+      "fields": [
+        {
+          "name": "created",
+          "onCreate": true,
+          "onUpdate": false,
+          "required": false,
+          "type": "autodate"
+        },
+        {
+          "maxSize": 4194304,
+          "name": "data",
+          "required": false,
+          "type": "json"
+        },
+        {
+          "maxSelect": 1,
+          "name": "kind",
+          "required": true,
+          "type": "select",
+          "values": [
+            "state",
+            "plan"
+          ]
+        },
+        {
+          "cascadeDelete": true,
+          "collectionId": "<users>",
+          "maxSelect": 1,
+          "name": "owner",
+          "required": true,
+          "type": "relation"
+        },
+        {
+          "name": "updated",
+          "onCreate": true,
+          "onUpdate": true,
+          "required": false,
+          "type": "autodate"
+        },
+        {
+          "max": 40,
+          "name": "writer",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_journey_docs_owner_kind` ON `journey_docs` (`owner`, `kind`)"
+      ],
+      "listRule": "@request.auth.id != \"\" && owner = @request.auth.id",
+      "type": "base",
+      "updateRule": "@request.auth.id != \"\" && owner = @request.auth.id && @request.body.owner:isset = false && @request.body.kind:isset = false",
+      "viewRule": "@request.auth.id != \"\" && owner = @request.auth.id"
+    },
+    "users": {
+      "authAlert": {
+        "enabled": false
+      },
+      "authRule": "",
+      "authToken": {
+        "duration": 7776000
+      },
+      "createRule": null,
+      "deleteRule": null,
+      "fields": [
+        {
+          "name": "created",
+          "onCreate": true,
+          "onUpdate": false,
+          "required": false,
+          "type": "autodate"
+        },
+        {
+          "name": "updated",
+          "onCreate": true,
+          "onUpdate": true,
+          "required": false,
+          "type": "autodate"
+        }
+      ],
+      "listRule": "id = @request.auth.id",
+      "manageRule": null,
+      "mfa": {
+        "enabled": false
+      },
+      "oauth2": {
+        "enabled": false
+      },
+      "otp": {
+        "enabled": false
+      },
+      "passwordAuth": {
+        "enabled": true,
+        "identityFields": [
+          "email"
+        ]
+      },
+      "type": "auth",
+      "updateRule": "id = @request.auth.id && @request.body.verified:isset = false && @request.body.emailVisibility:isset = false",
+      "viewRule": "id = @request.auth.id"
+    }
+  }
+}
