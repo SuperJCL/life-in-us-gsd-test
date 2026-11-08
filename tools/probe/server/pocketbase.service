@@ -1,0 +1,49 @@
+# pocketbase.service —— 探针站点的 PocketBase systemd unit（Phase 6，06-07，D-03、D-14）
+#
+# 装到 /etc/systemd/system/pocketbase.service（04-start-pocketbase.sh 负责）。
+# 以 pocketbase 用户运行，只监听 127.0.0.1:8090，外部只能经 nginx 访问；不使用 PM2。
+# 二进制放在 /opt/pocketbase（root 所有，对 pocketbase 用户只读），数据放在 /var/lib/pocketbase。
+# --dir 一定要显式写：漏写时 PocketBase 会去二进制旁边找 pb_data，那里对它只读，会直接报错而不是悄悄建出另一份库（Pitfall 12）。
+#
+# 内存：服务器只有约 0.9 GB 内存，D-14 另加了 1 GB swap 文件。GOMEMLIMIT 是软上限（让 GC 更积极），
+# MemoryHigh 和 MemoryMax 是 cgroup 上限，OOMScoreAdjust 让内存紧张时先杀它（systemd 会重启它），
+# 而不是拖垮 nginx 和 sshd。
+#
+# 没有加 SystemCallFilter 和 MemoryDenyWriteExecute：没有在这台机器上验证它们不会让 Go 运行时出问题。
+# 其余沙箱项都是 systemd 的通用加固；启动失败时 04-start-pocketbase.sh 会停掉服务。
+#
+# 回滚：systemctl disable --now pocketbase，然后删除这个 unit 文件并 systemctl daemon-reload。
+
+[Unit]
+Description=PocketBase (probe site)
+After=network.target
+
+[Service]
+Type=simple
+User=pocketbase
+Group=pocketbase
+WorkingDirectory=/var/lib/pocketbase
+ExecStart=/opt/pocketbase/pocketbase serve --http=127.0.0.1:8090 --dir=/var/lib/pocketbase/pb_data --publicDir=/var/lib/pocketbase/pb_public --indexFallback=false --hooksWatch=false
+Environment=GOMEMLIMIT=256MiB
+Restart=always
+RestartSec=5s
+LimitNOFILE=4096
+MemoryHigh=320M
+MemoryMax=400M
+OOMScoreAdjust=300
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pocketbase
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
