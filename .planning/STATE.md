@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-07 after Phase 7)
+See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 6 — 采购与中美可达性实测（Procurement & Reachability Probe）
+**Current focus:** Phase 8 — PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 
 ## Current Position
 
@@ -150,6 +150,11 @@ v2.0 路线图（2026-11-06）：
 - [Phase 6]: 推送检查加窄例外清单 tools/privacy/push-exceptions.txt（cae2c04）。只按「提交号+文件+行号」放行规则 H，只放行 08eb8dc 和 cd645d6 里 06-RESEARCH.md:767 那个已在 0fa5cea 改掉的示例地址；所有者选了这个办法，没有改写历史
 - [Phase 6]: 06-10: INFRA-02 completed under the owner's D-10 revision (US 90 s short test, invalid; mainland carriers only an off-peak boce.com baseline, no browser data); D-08 stays on Alibaba Cloud HK; Phase 10 polling set to the conservative 60 s
 
+Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
+- PocketBase 0.41.1 在 systemd 下以非 root 用户运行，只监听 127.0.0.1，由已有 nginx 和 certbot 反代；服务器脚本先经所有者批准 sha256 清单。
+- D-10 修订缩减实测范围，D-08 不变（继续用阿里云香港）；国内三网只有非高峰测速基线，没有浏览器数据。
+- Phase 10 采用保守设置：页面可见时每 60 秒轮询，重连后整份重拉，请求合并。
+
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
@@ -161,8 +166,6 @@ v2.0 路线图（2026-11-06）：
 
 ### Blockers/Concerns
 
-- [Phase 6 执行时注意，来自规划]: 本机 Git Bash 的 `sha256sum` 输出 `<hash> *<file>`（路径前是星号，不是两个空格）。06-06、06-08 的批准清单按两个空格匹配，执行到那里会安全地停下（不会执行未批准的脚本）。派执行代理时要让它同时接受两种分隔（例如匹配 `[ *]`，或生成清单时用 `sha256sum --text`），这算阻塞问题的就地修正，不改批准流程。
-
 没有阻塞项。v1.0 的遗留项（INFO、Phase 1 未做安全审计、IN-10）记在 `.planning/MILESTONES.md`。
 
 - [方向变化，非阻塞]: 用户在 2026-11-05 决定下一个里程碑做多账号云端版。几个约束需要在新里程碑里重新讨论：
@@ -171,6 +174,9 @@ v2.0 路线图（2026-11-06）：
   - 已定：新约束写进 PROJECT.md 的 Constraints，v2.0 需求和路线图都按它来。
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
+- [Phase 6 审查]: 24 条发现全部未处理（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
+- [Phase 6 安全]: `workflow.security_enforcement` 为开，`06-SECURITY.md` 还不存在，`/gsd-secure-phase 6` 待做。
+- [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
@@ -193,11 +199,11 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T18:04:43.343Z
-Stopped at: Phase 06 complete, ready to plan Phase 8
+Last session: 2026-11-08
+Stopped at: Phase 6 complete, ready to plan Phase 8
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 7 已推送（所有者 2026-11-07 确认），安全审计 27/27 关闭（`07-SECURITY.md`）
-- 下一阶段：`/gsd-discuss-phase 6`（晚高峰实测，并把服务器改成阿里云、nginx 的写法），或先 `/gsd-discuss-phase 8`（PocketBase 规则与假服务器，不依赖 Phase 6）
+- Phase 6 已完成并转场（2026-11-08）；`/gsd-secure-phase 6` 待做（`06-SECURITY.md` 还不存在）
+- 下一阶段：`/gsd-discuss-phase 8`（PocketBase 规则、隔离与假服务器；需要所有者批准下载 PocketBase 二进制，前端 SDK 改用 0.28.1）
