@@ -5,11 +5,11 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 8
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: planning
-stopped_at: Phase 06 complete, ready to plan Phase 8
-last_updated: "2026-11-08T19:02:18.639Z"
+stopped_at: Phase 8 context gathered
+last_updated: "2026-11-08T20:55:42.000Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 06 complete, transitioned to Phase 8
-state_head: dcfc987aa5f902c7c1834c75798010a4fdeaff4d
+state_head: 9ebb4542b4fa47fa5f1694738beee1138643bbca
 progress:
   total_phases: 8
   completed_phases: 2
@@ -175,7 +175,7 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
 - [Phase 6 审查]: 24 条发现中 23 条未处理，WR-06 已在 dcfc987 修复（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
-- [Phase 6 安全]: `workflow.security_enforcement` 为开，`06-SECURITY.md` 还不存在，`/gsd-secure-phase 6` 待做。
+- [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
@@ -200,11 +200,11 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08
-Stopped at: Phase 6 complete, ready to plan Phase 8
-Resume file: None
+Last session: 2026-11-08T20:55:40.656Z
+Stopped at: Phase 8 context gathered
+Resume file: .planning/phases/08-pocketbase-rules-isolation-fake-server/08-CONTEXT.md
 
 ## Operator Next Steps
 
-- Phase 6 已完成并转场（2026-11-08）；`/gsd-secure-phase 6` 待做（`06-SECURITY.md` 还不存在）
+- Phase 6 已完成并转场（2026-11-08），安全审查已通过（`06-SECURITY.md`）；Phase 8 讨论已完成（`08-CONTEXT.md`），下一步 `/gsd-plan-phase --research-phase 8` 先调研再规划
 - 下一阶段：`/gsd-discuss-phase 8`（PocketBase 规则、隔离与假服务器；需要所有者批准下载 PocketBase 二进制，前端 SDK 改用 0.28.1）
