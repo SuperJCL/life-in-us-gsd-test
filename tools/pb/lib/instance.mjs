@@ -29,8 +29,8 @@ const REPO = path.resolve(HERE, '..', '..', '..');
 // 留存的程序（被 git 忽略）。只在内存里使用，不打印。
 export const PB_EXE_PATH = path.join(REPO, 'tools', 'pb', 'bin', 'pocketbase.exe');
 
-// 已批准下载的 exe 的 sha256。Task 3 在所有者批准的下载完成后写入；为空时一律拒绝运行。
-export const PB_EXE_SHA256 = '';
+// 已批准下载的 exe 的 sha256（08-04 Task 3 在所有者批准的下载完成后写入，2026-11-08）；为空时一律拒绝运行。
+export const PB_EXE_SHA256 = 'f44191176f90382d5a03290496b23b333cf64cf6cb2024893cb39f3c10e46f7e';
 
 const MIGRATIONS_DIR = path.join(REPO, 'pb', 'pb_migrations');
 const EXPECTED_FILE = path.join(REPO, 'pb', 'rules.expected.json');
