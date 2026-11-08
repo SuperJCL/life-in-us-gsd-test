@@ -1,7 +1,7 @@
 // cloud 专属用例：只在 npm run test:cloud 里运行（默认的 npm test 的 testDir 是 ./tests/e2e，收不到这里）。
 // 真实的 PocketBase SDK 0.28.1 在浏览器里同源加载，REST 由 Node 侧的 FakePbServer 接应；
 // 页面里的断言一律由 page.evaluate 返回可序列化的结果，断言在 Node 侧做。
-import { test, expect, type GuardHandle } from '../support/test';
+import { test, expect, type GuardHandle, type Page } from '../support/test';
 import { APP_ORIGIN, PB_DOC_MAX_BYTES } from '../support/constants';
 import { resolveHarnessMode } from '../support/app';
 
@@ -285,4 +285,95 @@ test('TEST-02 the harness maps account mode to cloud only when USJ_TEST_MODE is 
   expect(resolveHarnessMode('account', undefined)).toBe('account');
   expect(resolveHarnessMode('local', 'cloud')).toBe('local');
   expect(resolveHarnessMode('cloud', undefined)).toBe('cloud');
+});
+
+// 页面里登录并订阅 journey_docs 的 *：事件推进 window.__events，pb 存在 window.__pb 上供后续 evaluate 使用
+async function signInAndSubscribe(
+  page: Page,
+  creds: { email: string; password: string },
+): Promise<string> {
+  return page.evaluate(
+    async ({ origin, email, password }) => {
+      const w = window as any;
+      const pb = new w.PocketBase(origin);
+      pb.autoCancellation(false);
+      w.__pb = pb;
+      w.__events = [];
+      await pb.collection('users').authWithPassword(email, password);
+      const [own] = await pb.collection('journey_docs').getFullList();
+      await pb.collection('journey_docs').subscribe(
+        '*',
+        (e: any) => w.__events.push({ action: e.action as string, keys: Object.keys(e.record).sort(), id: e.record.id as string }),
+        { fields: 'id,kind,writer,updated' },
+      );
+      return own.id as string;
+    },
+    { origin: APP_ORIGIN, ...creds },
+  );
+}
+
+type PageEvent = { action: string; keys: string[]; id: string };
+const readEvents = (page: Page) =>
+  page.evaluate(() => (window as any).__events as PageEvent[]);
+const updateOwn = (page: Page, id: string, label: string) =>
+  page.evaluate(
+    ([docId, text]) => (window as any).__pb.collection('journey_docs').update(docId, { writer: text }).then(() => null),
+    [id, label],
+  );
+
+test("TEST-02 a subscription gets its own account's changes with the requested fields and nothing from another account", async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', users: 2 });
+  app.fake.seed(syntheticState('a'), { userIndex: 0 });
+  app.fake.seed(syntheticState('b'), { userIndex: 1 });
+  const [userA, userB] = app.fake.users;
+  const listedB = await app.fake.request(1, 'GET', '/api/collections/journey_docs/records');
+  const otherDocId = (listedB.body as { items: Array<{ id: string }> }).items[0].id;
+
+  const ownId = await signInAndSubscribe(page, userA);
+  expect(app.fake.connectionCount()).toBe(1);
+
+  // 自己更新自己的 state：回调恰好收到 1 条 update，record 的键恰好是请求的 4 个
+  await updateOwn(page, ownId, 'device-a-1');
+  await expect.poll(() => readEvents(page)).toHaveLength(1);
+  expect((await readEvents(page))[0]).toEqual({
+    action: 'update',
+    keys: ['id', 'kind', 'updated', 'writer'],
+    id: ownId,
+  });
+
+  // Node 侧以第 1 个账号的身份更新它自己的文档：第 0 个账号的订阅不应收到
+  await app.fake.request(1, 'PATCH', '/api/collections/journey_docs/records/' + otherDocId, { writer: 'device-b' });
+  // 正向对照：第 0 个账号随后的又一次更新照常到达。“收不到”的断言放在它之后，顺序是确定的
+  await updateOwn(page, ownId, 'device-a-2');
+  await expect.poll(() => readEvents(page)).toHaveLength(2);
+  expect((await readEvents(page)).map((e) => e.id)).toEqual([ownId, ownId]);
+
+  // 显式 emit：owner 为第 1 个账号的记录收不到，owner 为第 0 个账号的记录收得到
+  await app.fake.emit(1, 'update', { id: otherDocId, kind: 'state', writer: 'emit-b', updated: 'x' });
+  await app.fake.emit(0, 'create', { id: 'emitted00000001', kind: 'plan', writer: 'emit-a', updated: 'y', data: {} });
+  await expect.poll(() => readEvents(page)).toHaveLength(3);
+  const events = await readEvents(page);
+  expect(events[2]).toEqual({ action: 'create', keys: ['id', 'kind', 'updated', 'writer'], id: 'emitted00000001' });
+  expect(events.map((e) => e.id)).not.toContain(otherDocId);
+  expect(userB.id).not.toBe(userA.id);
+  expect(app.fake.deliveryErrors).toEqual([]);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('TEST-02 the page EventSource is the fake one and closing it unregisters the client', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  const [user] = app.fake.users;
+  expect(await page.evaluate(() => (window as any).EventSource.name)).toBe('FakeEventSource');
+  expect(app.fake.connectionCount()).toBe(0);
+
+  await signInAndSubscribe(page, user);
+  expect(app.fake.connectionCount()).toBe(1);
+
+  // 取消全部订阅之后 SDK 关闭连接，Node 侧这个连接被注销
+  await page.evaluate(() => (window as any).__pb.collection('journey_docs').unsubscribe());
+  await expect.poll(() => app.fake.connectionCount()).toBe(0);
+  expect(app.fake.deliveryErrors).toEqual([]);
 });

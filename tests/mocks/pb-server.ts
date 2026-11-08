@@ -10,14 +10,16 @@
 //  - 假时钟从 FROZEN_NOW 起，每次写入前进 1 毫秒，不读 Node 的真实时间：
 //    页面的 Date.now() 被固定在 FROZEN_NOW，两边的时间对不上会让令牌过期判断取决于运行日期。
 import { randomBytes } from 'node:crypto';
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import {
   APP_ORIGIN,
   FROZEN_NOW,
   PB_DOC_MAX_BYTES,
+  PB_ES_BINDING_NAME,
   PB_TOKEN_DURATION_S,
   PB_USERS_COLLECTION_ID,
 } from '../support/constants';
+import { installFakeEventSource } from './pb-runtime';
 
 // handle() 的入参：只含协议层信息，不含 Playwright 对象
 export type PbRequest = {
@@ -48,6 +50,16 @@ type PbDoc = {
 };
 
 const JOURNEY_DOCS_ID = 'pbc_1000000001';
+
+// 一条页面里的实时连接：clientId 是 SDK 在 POST /api/realtime 里带的身份；
+// authUserId 为 undefined 表示还没提交过订阅，null 表示以匿名身份提交过
+type PbConnection = {
+  id: string;
+  clientId: string;
+  page: Page;
+  authUserId: string | null | undefined;
+  subscriptions: string[];
+};
 
 // 深拷贝：状态进出都经过它，之后改传入的对象不影响假服务器
 function clone<T>(value: T): T {
@@ -91,6 +103,10 @@ export class FakePbServer {
   private tokens = new Map<string, { userId: string; exp: number }>();
   private clock = FROZEN_NOW;
   private docCounter = 0;
+  private connections = new Map<string, PbConnection>();
+  private connectionCounter = 0;
+  private attachedContexts = new WeakSet<BrowserContext>();
+  private watchedPages = new WeakSet<Page>();
 
   // 添加第 n 个合成账号：邮箱 user-a@example.com、user-b@example.com……
   addUser(): PbUser {
@@ -145,12 +161,74 @@ export class FakePbServer {
     const authorization = typeof who === 'number' ? this.login(who) : who;
     const res = this.handle({ method, path, query: {}, authorization, body });
     if (res === null) throw new Error(`FakePbServer.request：没有实现 ${method} ${path}`);
+    await this.deliver(res.deliveries);
     return res;
+  }
+
+  // 显式推送：测试调用，不靠计时器。和写入走同一套订阅者判定和 fields 裁剪。
+  // who 是文档所有者（账号序号或用户 id）；record 缺的 owner、collectionId、collectionName 会补上。
+  async emit(who: number | string, action: 'create' | 'update' | 'delete', record: Record<string, unknown>) {
+    const owner = typeof who === 'number' ? this.users[who]?.id : who;
+    if (!owner) throw new Error('FakePbServer.emit：没有这个序号的账号');
+    const full = { collectionId: JOURNEY_DOCS_ID, collectionName: 'journey_docs', ...clone(record), owner };
+    await this.deliver(this.deliveriesFor(full, action));
+  }
+
+  // 登记一条页面里的实时连接（假 EventSource 握手时调用），返回连接 id 和 clientId
+  openConnection(page: Page): { connectionId: string; clientId: string } {
+    const n = ++this.connectionCounter;
+    const connection: PbConnection = {
+      id: 'conn' + n,
+      clientId: makeId('k', n),
+      page,
+      authUserId: undefined,
+      subscriptions: [],
+    };
+    this.connections.set(connection.id, connection);
+    // 页面关闭或整页导航（刷新）之后，页面里的假 EventSource 已经不存在，连接要一并注销
+    if (!this.watchedPages.has(page)) {
+      this.watchedPages.add(page);
+      const dropPageConnections = () => {
+        for (const [id, c] of this.connections) if (c.page === page) this.connections.delete(id);
+      };
+      page.on('close', dropPageConnections);
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) dropPageConnections();
+      });
+    }
+    return { connectionId: connection.id, clientId: connection.clientId };
+  }
+
+  closeConnection(connectionId: string): void {
+    this.connections.delete(connectionId);
+  }
+
+  // 当前登记的实时连接数
+  connectionCount(): number {
+    return this.connections.size;
   }
 
   // 接管应用来源下的 /api/。护栏的 **/* route 在 fixture 里先注册，这里后注册所以先匹配；
   // 未实现的路径经 route.fallback() 回到护栏，在 cloud 策略下记为违规（08-03 收紧）。
   async attach(context: BrowserContext): Promise<void> {
+    // 每个 context 只能接一次：binding 和 init script 都会累积
+    if (this.attachedContexts.has(context)) {
+      throw new Error('FakePbServer.attach 每个 context 只能调用一次');
+    }
+    this.attachedContexts.add(context);
+
+    // 页面侧假 EventSource 经 context.exposeBinding 往返 Node：source.page 区分是哪个页面调用的
+    await context.exposeBinding(PB_ES_BINDING_NAME, (source, op: string, json: string) => {
+      const arg = JSON.parse(json);
+      if (op === 'es.open') return JSON.stringify(this.openConnection(source.page));
+      if (op === 'es.close') {
+        this.closeConnection(arg.connectionId);
+        return 'null';
+      }
+      throw new Error('FakePbServer: unknown op ' + op);
+    });
+    await context.addInitScript(installFakeEventSource, { binding: PB_ES_BINDING_NAME });
+
     await context.route(
       (url) => url.origin === APP_ORIGIN && url.pathname.startsWith('/api/'),
       async (route) => {
@@ -192,11 +270,64 @@ export class FakePbServer {
         } catch (e) {
           this.fulfillErrors.push({ path: url.pathname, message: String(e) });
         }
+        // 响应 fulfill 之后才推送给订阅者：确定性的顺序，不靠计时器
+        await this.deliver(res.deliveries);
       },
     );
   }
 
   // ---------- 内部 ----------
+
+  // 逐条推给页面里的假 EventSource；页面已关闭等异常记进 deliveryErrors，不吞掉
+  private async deliver(deliveries: PbDelivery[]): Promise<void> {
+    for (const d of deliveries) {
+      const connection = this.connections.get(d.connectionId);
+      if (!connection) {
+        this.deliveryErrors.push('连接 ' + d.connectionId + ' 已注销，事件没有送达');
+        continue;
+      }
+      try {
+        const delivered = await connection.page.evaluate(
+          ([c, n, data, last]) => (window as any).__pbEsDeliver(c, n, data, last) as boolean,
+          [d.connectionId, d.name, d.data, d.lastEventId],
+        );
+        if (!delivered) this.deliveryErrors.push('连接 ' + d.connectionId + ' 在页面里不存在');
+      } catch (e) {
+        this.deliveryErrors.push(String(e));
+      }
+    }
+  }
+
+  // 一次写入产生的推送：对每个连接的每个订阅串判定订阅者当时的身份。
+  // journey_docs/* 按 listRule、journey_docs/<id> 按 viewRule，两条规则都是“已登录且 owner 等于自己”；
+  // 订阅串里 options.query.fields 有值时只保留这些键；事件名就是订阅串原样。
+  private deliveriesFor(record: { id?: unknown; owner?: unknown } & Record<string, unknown>, action: string): PbDelivery[] {
+    const out: PbDelivery[] = [];
+    for (const connection of this.connections.values()) {
+      if (!connection.authUserId || connection.authUserId !== record.owner) continue;
+      for (const sub of connection.subscriptions) {
+        const [topic, rawQuery = ''] = sub.split('?');
+        const matches = topic === 'journey_docs/*' || topic === 'journey_docs/' + String(record.id);
+        if (!matches) continue;
+        let payload: Record<string, unknown> = record;
+        const rawOptions = new URLSearchParams(rawQuery).get('options');
+        const fields = rawOptions ? (JSON.parse(rawOptions)?.query?.fields as string | undefined) : undefined;
+        if (fields) {
+          const keep = fields.split(',').map((f) => f.trim());
+          if (!keep.includes('*')) {
+            payload = Object.fromEntries(Object.entries(record).filter(([key]) => keep.includes(key)));
+          }
+        }
+        out.push({
+          connectionId: connection.id,
+          name: sub,
+          data: JSON.stringify({ action, record: payload }),
+          lastEventId: connection.clientId,
+        });
+      }
+    }
+    return out;
+  }
 
   private now(): number {
     return this.clock;
@@ -316,6 +447,28 @@ export class FakePbServer {
       });
     }
 
+    // 实时订阅登记：clientId 不存在 404；同一连接换了身份 403；成功 204 空正文
+    if (req.method === 'POST' && req.path === '/api/realtime') {
+      const body = (req.body ?? {}) as { clientId?: unknown; subscriptions?: unknown };
+      const connection = [...this.connections.values()].find((c) => c.clientId === body.clientId);
+      if (!connection) {
+        return this.respond(404, { status: 404, message: 'Missing or invalid client id.', data: {} });
+      }
+      const identity = this.identityOf(req.authorization);
+      if (connection.authUserId !== undefined && connection.authUserId !== identity) {
+        return this.respond(403, {
+          status: 403,
+          message: "The current and the previous request authorization don't match.",
+          data: {},
+        });
+      }
+      connection.authUserId = identity;
+      connection.subscriptions = Array.isArray(body.subscriptions)
+        ? body.subscriptions.filter((x): x is string => typeof x === 'string')
+        : [];
+      return this.respond(204, null);
+    }
+
     // 刷新令牌：只有这个接口对无效或过期令牌返回 401（记录接口一律按未登录处理，不是 401）
     if (req.method === 'POST' && req.path === '/api/collections/users/auth-refresh') {
       const identity = this.identityOf(req.authorization);
@@ -354,7 +507,7 @@ export class FakePbServer {
       const doc = this.putDoc(identity, body.kind as string, body.data ?? null);
       if (typeof body.writer === 'string') doc.writer = body.writer;
       this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
-      return this.respond(200, clone(doc));
+      return { ...this.respond(200, clone(doc)), deliveries: this.deliveriesFor(doc, 'create') };
     }
 
     // 删除：deleteRule 为 null（锁定），对非超级用户一律 403，连记录存不存在都不看
@@ -388,7 +541,7 @@ export class FakePbServer {
       if (typeof body.writer === 'string') doc.writer = body.writer;
       doc.updated = this.stamp();
       this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
-      return this.respond(200, clone(doc));
+      return { ...this.respond(200, clone(doc)), deliveries: this.deliveriesFor(doc, 'update') };
     }
 
     return null;
