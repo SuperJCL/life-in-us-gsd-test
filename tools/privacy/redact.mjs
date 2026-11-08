@@ -32,7 +32,8 @@
 // 隐私约定：任何模式都不打印 private/ 下的值，只输出计数、固定文案和占位。
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -194,21 +195,22 @@ function privateRoot() {
   }
 }
 
-// 返回 { found, domain, ip, terms }；两份文件都没有时 found 为 false
+// 返回 { found, domain, ip, terms }；没有任何可替换的值时 found 为 false。
+// 只看文件在不在是不够的：文件存在但为空、写坏或只有注释时也必须拒绝输出（06-REVIEW WR-06）。
 export function loadValues(root) {
   const envPath = join(root, ENV_FILE);
   const denyPath = join(root, DENYLIST_FILE);
   const env = existsSync(envPath) ? parseServerEnv(readFileSync(envPath, 'utf8')) : { domain: null, ip: null };
   const terms = existsSync(denyPath) ? parseDenylist(readFileSync(denyPath, 'utf8')) : [];
   return {
-    found: existsSync(envPath) || existsSync(denyPath),
+    found: Boolean(env.domain || env.ip || terms.length > 0),
     domain: env.domain,
     ip: env.ip,
     terms,
   };
 }
 
-const NO_VALUES_MESSAGE = '找不到 private/server.env 和 private/denylist.txt：没有可替换的值，拒绝输出（fail closed）。请在仓库根目录运行，或先建好这两个文件之一。';
+const NO_VALUES_MESSAGE = 'private/server.env 和 private/denylist.txt 里都没有可替换的值（文件不存在、为空或只有注释），拒绝输出（fail closed）。请在仓库根目录运行，并确认这两个文件至少有一个写了值。';
 
 // ---------- 模式 ----------
 
@@ -365,6 +367,27 @@ function runSelfTest() {
 
   // fail closed：没有 private 文件的目录里 found 为 false
   expect('没有 private 文件时 found 为 false', loadValues(join(process.cwd(), '__no_such_dir__')).found === false);
+
+  // fail closed（WR-06）：文件存在但没有值时 found 也必须为 false；临时目录用完即删
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'redact-selftest-'));
+  try {
+    mkdirSync(join(tmpRoot, 'private'));
+    const envFile = join(tmpRoot, ENV_FILE);
+    const denyFile = join(tmpRoot, DENYLIST_FILE);
+    writeFileSync(envFile, '');
+    expect('server.env 为空时 found 为 false', loadValues(tmpRoot).found === false);
+    writeFileSync(envFile, 'USJ_DOMAIN=\nUSJ_IP=\n');
+    writeFileSync(denyFile, '# 只有注释\n\n');
+    expect('server.env 缺值、denylist 只有注释时 found 为 false', loadValues(tmpRoot).found === false);
+    writeFileSync(denyFile, 'sample-term\n');
+    expect('denylist 有词条时 found 为 true', loadValues(tmpRoot).found === true);
+    writeFileSync(denyFile, '');
+    writeFileSync(envFile, `USJ_DOMAIN=${domain}\n`);
+    expect('server.env 有域名时 found 为 true', loadValues(tmpRoot).found === true);
+  } finally {
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+  expect('自检临时目录已删除', !existsSync(tmpRoot));
 
   if (failures.length > 0) {
     for (const f of failures) process.stdout.write(`SELF-TEST FAIL: ${f}\n`);
