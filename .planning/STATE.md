@@ -5,11 +5,11 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 6
 current_phase_name: 采购与中美可达性实测（Procurement & Reachability Probe）
 status: executing
-stopped_at: Completed 06-09-PLAN.md
-last_updated: "2026-11-08T17:24:42.374Z"
+stopped_at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (owner multi-evening tests)
+last_updated: "2026-11-08T17:30:40.089Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 execution started
-state_head: e3ba17cef7cb70f9b0b54a7499188df3b95a47ed
+state_head: 211ae76fa5d3f9578ff00ee2a43299e7461009c9
 progress:
   total_phases: 8
   completed_phases: 1
@@ -141,6 +141,8 @@ v2.0 路线图（2026-11-06）：
 - [Phase 06]: 06-07: 批次 B 必须按 04、05、06 顺序执行，06 最后删除上传目录；04 的超级用户只读查询用 pocketbase 用户运行
 - [Phase 06]: 06-08：批次 A 已执行，PocketBase 0.41.1 装好未启动，所有者自己建了超级用户（个数 1）；批次 B 的 10 个文件由所有者 approve-all 批准，执行在 06-09
 - [Phase 6]: 06-09: batch B executed exactly as approved (3 sha256 checks passed); 00-status.sh settings read fixed (read-only, not in any approval batch)
+- [Phase 6]: 06-10 导出批准（D-17）：所有者回复“批准”；sha256 行 9f9b63cefb2d5274e497593a3a9b492eea02a60a5e2228cdaec1c434a0b2b8d9 *tools/probe/server/export-results.py；命令为 set -o pipefail 后的 sha256sum -c --strict 核对链加 ssh -o BatchMode=yes usj 'sudo -n python3 -I -' < tools/probe/server/export-results.py > private/probe-results/<YYYYMMDD-HHMM>.json；输出位置 private/probe-results/（被 git 忽略）；共覆盖 2 次导出，第 1 次已用（文件 20261108-0929.json），第 2 次留给 Task 4；其他服务器到本机传输需另行批准
+- [Phase 6]: 06-10 Task 2 完成：导出 #1 共 2 条（1 条 smoke，1 条所有者短测 dur_s=90、login_ok 为真、打点 2/2），summarize 三个标题齐全，短测和 smoke 都计为无效；不写 06-10-SUMMARY，计划保持打开
 
 ### Pending Todos
 
@@ -166,6 +168,7 @@ v2.0 路线图（2026-11-06）：
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
+- waiting on 06-10 Task 3 (owner multi-evening tests, 3+ nights, then reply 实测完成); mid-way export needs separate owner approval
 
 ### Quick Tasks Completed
 
@@ -183,8 +186,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T17:24:41.919Z
-Stopped at: Completed 06-09-PLAN.md
+Last session: 2026-11-08T17:30:39.625Z
+Stopped at: 06-10 Task 2 done (export 1 of 2 used); waiting on 06-10 Task 3 (owner multi-evening tests)
 Resume file: None
 
 ## Operator Next Steps
