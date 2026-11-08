@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 08
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-11-08T23:10:31.016Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-11-08T23:18:41.597Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 08 execution started
-state_head: b5f79bcbcf630a12e58c1ad359324c0e12d389a2
+state_head: 68c7e7652288dcfc2fcf190f5125cd46b3670afa
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 24
-  completed_plans: 17
+  completed_plans: 18
   percent: 25
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
 ## Current Position
 
 Phase: 08 (PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 08
+Plan: 2 of 7
+Status: Ready to execute
 Last activity: 2026-11-08 — Phase 08 execution started
 
 Progress: [███░░░░░░░] 25%
@@ -102,6 +102,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 06 P08 | multi-session | 3 tasks | 0 files |
 | Phase 6 P09 | multi-session | 2 tasks | 1 files |
 | Phase 6 P10 | multi-session | 4 tasks | 2 files |
+| Phase 08 P01 | 25min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,7 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - PocketBase 0.41.1 在 systemd 下以非 root 用户运行，只监听 127.0.0.1，由已有 nginx 和 certbot 反代；服务器脚本先经所有者批准 sha256 清单。
 - D-10 修订缩减实测范围，D-08 不变（继续用阿里云香港）；国内三网只有非高峰测速基线，没有浏览器数据。
 - Phase 10 采用保守设置：页面可见时每 60 秒轮询，重连后整份重拉，请求合并。
+- [Phase 08]: 08-01: migrations live in pb/pb_migrations/ (root pocketbase dir is gitignored); structure only, no app.settings, checked by node:vm sandbox snapshot
 
 ### Pending Todos
 
@@ -200,9 +202,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T20:55:40.656Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-pocketbase-rules-isolation-fake-server/08-CONTEXT.md
+Last session: 2026-11-08T23:18:30.688Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
