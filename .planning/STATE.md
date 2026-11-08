@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 08
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-11-08T23:33:21.382Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-11-08T23:44:33.293Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 08 execution started
-state_head: 9af9121c2710a4ee725dad691bfe81fad075615a
+state_head: 8cce44c5e560b9289eb4f0c5af2343aff4f60d71
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 24
-  completed_plans: 19
+  completed_plans: 20
   percent: 25
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
 ## Current Position
 
 Phase: 08 (PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 08 execution started
 
@@ -104,6 +104,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 6 P10 | multi-session | 4 tasks | 2 files |
 | Phase 08 P01 | 25min | 3 tasks | 10 files |
 | Phase 08 P02 | 60min | 3 tasks | 9 files |
+| Phase 08 P03 | 45min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -159,6 +160,8 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 08]: 08-01: migrations live in pb/pb_migrations/ (root pocketbase dir is gitignored); structure only, no app.settings, checked by node:vm sandbox snapshot
 - [Phase 08]: 08-02: resolveHarnessMode 的 env 不设默认值，由 open() 显式传入，否则 cloud 配置下 undefined 会被默认值顶替
 - [Phase 08]: 08-02: 故意制造的 4xx 在用例里先断言恰好的 console.error 条数再 guard.remove，不改护栏；08-03 收紧 cloud 策略
+- [Phase 08]: 08-03: guardPolicy uses a rest parameter so explicit undefined means unset; no BROWSER_AUTO_PATHS needed (no favicon violation observed)
+- [Phase 08]: 08-03: PROBE-9 shows setOffline changes navigator.onLine and fires events but does not affect route-fulfilled fetches or the fake EventSource; network faults must come from fake server switches
 
 ### Pending Todos
 
@@ -205,8 +208,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T23:33:20.387Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-11-08T23:44:32.237Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
