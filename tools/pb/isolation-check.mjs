@@ -35,14 +35,21 @@ try {
 
 // ---------- 编号表 ----------
 
-export const EXPECTED_IDS = ['ACCT03-1', 'ACCT03-2', 'ACCT03-3', 'ACCT03-4', 'ACCT03-5'];
+export const EXPECTED_IDS = [
+  'ACCT03-1', 'ACCT03-2', 'ACCT03-3', 'ACCT03-4', 'ACCT03-5',
+  'ACCT04-1', 'ACCT04-2', 'ACCT04-3', 'ACCT04-4', 'ACCT04-5', 'ACCT04-6', 'ACCT04-7', 'ACCT04-8', 'ACCT04-9', 'ACCT04-10',
+  'ACCT04-11', 'ACCT04-12', 'ACCT04-13', 'ACCT04-14', 'ACCT04-15', 'ACCT04-16', 'ACCT04-17', 'ACCT04-18', 'ACCT04-19', 'ACCT04-20',
+  'ACCT04-21', 'ACCT04-22', 'ACCT04-23', 'ACCT04-24', 'ACCT04-25', 'ACCT04-26',
+  'TOK-1', 'TOK-2', 'D5-1', 'D5-2', 'D5-3', 'D5-4', 'D5-5',
+  'NEG-1',
+];
 
 // ---------- 输出格式（不含令牌、邮箱、请求体） ----------
 
 // 结果对象可能带有别的属性（令牌、邮箱、请求体……），格式化函数只取编号、名字、状态码和错误码。
 export function formatLine(r) {
   const id = String(r.id).replace(/[^A-Za-z0-9-]/g, '?');
-  const name = String(r.name).replace(/[^A-Za-z0-9 _\-一-鿿　-〿＀-￯()+,./]/g, '?');
+  const name = String(r.name).replace(/[^A-Za-z0-9 _\-一-鿿　-〿＀-￯()+,.=/]/g, '?');
   if (r.pass === true) return `PASS ${id} ${name}`;
   const status = Number.isInteger(r.status) ? String(r.status) : '-';
   const code = typeof r.code === 'string' && /^[a-z0-9_]{1,64}$/.test(r.code) ? r.code : '-';
@@ -54,7 +61,7 @@ export function formatObserve(r) {
   const id = String(r.id).replace(/[^A-Za-z0-9-]/g, '?');
   const status = Number.isInteger(r.status) ? String(r.status) : '-';
   const code = typeof r.code === 'string' && /^[a-z0-9_]{1,64}$/.test(r.code) ? r.code : '-';
-  const detail = typeof r.detail === 'string' && /^[0-9a-z_,:|+\- ]{0,200}$/.test(r.detail) ? r.detail : '';
+  const detail = typeof r.detail === 'string' && /^[0-9A-Za-z_,:|+\- ]{0,200}$/.test(r.detail) ? r.detail : '';
   return `OBS ${id} status=${status} code=${code}${detail ? ` detail=${detail}` : ''}`;
 }
 
@@ -215,6 +222,122 @@ async function usersOpenCount(c) {
   return r.status === 200 ? r.json.totalItems : -1;
 }
 
+// ---------- REST 断言的共享实现（真实集合和泄漏集合共用，只换目标） ----------
+
+const q = encodeURIComponent;
+
+async function suCount(c, coll, filter) {
+  const r = await c.su('GET', `/api/collections/${coll}/records?perPage=1${filter ? `&filter=${q(filter)}` : ''}`);
+  return r.status === 200 ? r.json.totalItems : -1;
+}
+
+// 真实集合的目标描述；NEG-1 用同样结构的泄漏集合描述
+const realTarget = (c) => ({ coll: 'journey_docs', a: c.docs.a, b: c.docs.b, aTok: c.A.token, bTok: c.B.token, aId: c.A.id, bId: c.B.id });
+
+// 清空某账号的某个 kind 槽位（超级用户删除），返回恢复函数；用来让“创建被拒”不被唯一索引掩盖
+async function freeSlot(c, who, kind) {
+  const id = c.docs[who][kind];
+  const del = await c.su('DELETE', recPath('journey_docs', id));
+  if (del.status !== 204) throw new Error('准备失败：清空槽位');
+  return async () => {
+    c.docs[who][kind] = await makeDoc(c, 'journey_docs', who === 'a' ? c.A.id : c.B.id, kind);
+  };
+}
+
+const BYTES_39_MIB = Math.floor(3.9 * 1048576);
+const LIMIT = 4194304;
+
+// 运行时生成、序列化后恰好 bytes 个字符的 data 对象
+function dataOfSize(bytes) {
+  const base = JSON.stringify({ _synthetic: true, pad: '' }).length;
+  return { _synthetic: true, pad: 'x'.repeat(bytes - base) };
+}
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+// 改动签名段最后一个字符，并保证改动落在有效位上（base64url 末位有填充位，只改低两位会解出同样的字节）
+function tamperToken(tok) {
+  const parts = tok.split('.');
+  const s = parts[2];
+  const last = s[s.length - 1];
+  parts[2] = s.slice(0, -1) + B64[(B64.indexOf(last) + 4) % 64];
+  return parts.join('.');
+}
+
+function tokenExp(tok) {
+  return JSON.parse(Buffer.from(tok.split('.')[1], 'base64url').toString('utf8')).exp;
+}
+
+const loginStatus = async (c, coll, identity, password) => (await c.api('POST', `/api/collections/${coll}/auth-with-password`, { body: { identity, password } })).status;
+
+function restProbeDefs(getT) {
+  return {
+    // A 列表：恰好是自己的 2 条，没有 B 的 id；超级用户确认 B 的文档确实存在
+    'ACCT04-1': {
+      fn: async (c) => {
+        const t = getT(c);
+        const r = await c.api('GET', `/api/collections/${t.coll}/records?perPage=100`, { token: t.aTok });
+        const items = (r.json && r.json.items) || [];
+        const ids = items.map((i) => i.id).sort();
+        const want = [t.a.state, t.a.plan].sort();
+        const bIds = [t.b.state, t.b.plan];
+        const hidden = (await suCount(c, t.coll, `owner="${t.bId}"`)) >= 1;
+        return out(r.status === 200 && stable(ids) === stable(want) && !items.some((i) => bIds.includes(i.id)) && hidden, r);
+      },
+    },
+    // A 查看 B 的文档：404
+    'ACCT04-3': {
+      fn: async (c) => {
+        const t = getT(c);
+        const r = await c.api('GET', recPath(t.coll, t.b.state), { token: t.aTok });
+        const exists = (await suRecord(c, t.coll, t.b.state)).id === t.b.state;
+        return out(r.status === 404 && exists, r);
+      },
+    },
+    // A 更新 B 的文档：404，B 的文档不变
+    'ACCT04-4': {
+      write: true,
+      readback: (c) => suRecord(c, getT(c).coll, getT(c).b.state),
+      fn: async (c) => {
+        const t = getT(c);
+        const r = await c.api('PATCH', recPath(t.coll, t.b.state), { token: t.aTok, body: { data: { _synthetic: true, hijack: true } } });
+        return out(r.status === 404, r);
+      },
+    },
+    // A 删除 B 的文档：403，B 的文档还在
+    'ACCT04-5': {
+      write: true,
+      readback: (c) => suRecord(c, getT(c).coll, getT(c).b.plan),
+      fn: async (c) => {
+        const t = getT(c);
+        const r = await c.api('DELETE', recPath(t.coll, t.b.plan), { token: t.aTok });
+        return out(r.status === 403, r);
+      },
+    },
+  };
+}
+
+// 未登录或令牌无效时对某个文档的读写：空列表、404、404、403、400，都不是 401；返回 {pass, detail}
+async function anonProbe(c, token, victimId) {
+  const list = await c.api('GET', '/api/collections/journey_docs/records?perPage=100', { token });
+  const view = await c.api('GET', recPath('journey_docs', victimId), { token });
+  const upd = await c.api('PATCH', recPath('journey_docs', victimId), { token, body: { data: { _synthetic: true, hijack: true } } });
+  const del = await c.api('DELETE', recPath('journey_docs', victimId), { token });
+  const restore = await freeSlot(c, 'a', 'plan');
+  let cre;
+  let slotCount;
+  try {
+    cre = await c.api('POST', '/api/collections/journey_docs/records', { token, body: { owner: c.A.id, kind: 'plan', data: { _synthetic: true } } });
+    slotCount = await suCount(c, 'journey_docs', `owner="${c.A.id}" && kind="plan"`);
+  } finally {
+    await restore();
+  }
+  const emptyList = list.status === 200 && list.json && Array.isArray(list.json.items) && list.json.items.length === 0;
+  const pass = emptyList && view.status === 404 && upd.status === 404 && del.status === 403 && cre.status === 400 && slotCount === 0;
+  return { pass, res: view, detail: `list:${list.status},view:${view.status},upd:${upd.status},del:${del.status},create:${cre.status}` };
+}
+
+const docsAndVictim = (victim) => async (c) => ({ v: await suRecord(c, 'journey_docs', victim(c)), n: await suCount(c, 'journey_docs', '') });
+
 // ---------- 断言登记 ----------
 
 export function registerAll(reg) {
@@ -276,6 +399,381 @@ export function registerAll(reg) {
     },
     { write: true, readback: usersOpenCount, expect: (before, after) => after === before + 1 },
   );
+
+  // ----- ACCT-04：journey_docs 的跨账号读写 -----
+  const real = restProbeDefs(realTarget);
+  const checkFrom = (id, name, def) => check(id, name, def.fn, { write: def.write, readback: def.readback, expect: def.expect });
+  const dr = (c, id) => suRecord(c, 'journey_docs', id);
+  const patchDoc = (c, token, id, body) => c.api('PATCH', recPath('journey_docs', id), { token, body });
+  const countOf = (who) => (c) => suCount(c, 'journey_docs', `owner="${who(c)}"`);
+
+  checkFrom('ACCT04-1', 'A 列 journey_docs 只有自己的 2 条（200），B 的文档确实存在', real['ACCT04-1']);
+
+  check('ACCT04-2', 'A 用 filter 指向 B 列文档得到 200 空列表，B 的文档确实存在', async (c) => {
+    const r = await c.api('GET', `/api/collections/journey_docs/records?perPage=100&filter=${q(`owner="${c.B.id}"`)}`, { token: c.A.token });
+    const hidden = (await suCount(c, 'journey_docs', `owner="${c.B.id}"`)) >= 1;
+    return out(r.status === 200 && r.json && Array.isArray(r.json.items) && r.json.items.length === 0 && hidden, r);
+  });
+
+  checkFrom('ACCT04-3', 'A 查看 B 的文档被拒（404），B 的文档确实存在', real['ACCT04-3']);
+  checkFrom('ACCT04-4', 'A 更新 B 的文档被拒（404）且 B 的文档不变', real['ACCT04-4']);
+  checkFrom('ACCT04-5', 'A 删除 B 的文档被拒（403）且 B 的文档还在', real['ACCT04-5']);
+
+  check(
+    'ACCT04-6',
+    'A 删除自己的文档被拒（403）且文档还在',
+    async (c) => {
+      const r1 = await c.api('DELETE', recPath('journey_docs', c.docs.a.state), { token: c.A.token });
+      const r2 = await c.api('DELETE', recPath('journey_docs', c.docs.a.plan), { token: c.A.token });
+      return { ...out(r1.status === 403 && r2.status === 403, r1), detail: `${r1.status},${r2.status}` };
+    },
+    { write: true, readback: async (c) => [await dr(c, c.docs.a.state), await dr(c, c.docs.a.plan)] },
+  );
+
+  check(
+    'ACCT04-7',
+    'A 以 owner=B 新建文档被拒（400），槽位空着时也被拒（不是唯一索引在挡）',
+    async (c) => {
+      const restore = await freeSlot(c, 'b', 'plan');
+      try {
+        const r = await c.api('POST', '/api/collections/journey_docs/records', { token: c.A.token, body: { owner: c.B.id, kind: 'plan', data: { _synthetic: true } } });
+        const n = await suCount(c, 'journey_docs', `owner="${c.B.id}" && kind="plan"`);
+        const masked = fieldCode(r.json, 'owner') === 'validation_not_unique' || fieldCode(r.json, 'kind') === 'validation_not_unique';
+        return out(r.status === 400 && n === 0 && !masked, r);
+      } finally {
+        await restore();
+      }
+    },
+    { write: true, readback: countOf((c) => c.B.id) },
+  );
+
+  check(
+    'ACCT04-8',
+    'A 以 owner=A 新建已存在的 kind 被拒（400，owner 和 kind 都是 validation_not_unique）',
+    async (c) => {
+      const r = await c.api('POST', '/api/collections/journey_docs/records', { token: c.A.token, body: { owner: c.A.id, kind: 'state', data: { _synthetic: true } } });
+      return out(r.status === 400 && fieldCode(r.json, 'owner') === 'validation_not_unique' && fieldCode(r.json, 'kind') === 'validation_not_unique', r);
+    },
+    { write: true, readback: countOf((c) => c.A.id) },
+  );
+
+  check(
+    'ACCT04-9',
+    'A 以 owner=A 新建不在选项里的 kind 被拒（400，kind 的错误码 validation_invalid_value，实测定稿）',
+    async (c) => {
+      const r = await c.api('POST', '/api/collections/journey_docs/records', { token: c.A.token, body: { owner: c.A.id, kind: 'bogus', data: { _synthetic: true } } });
+      return out(r.status === 400 && fieldCode(r.json, 'kind') === 'validation_invalid_value', r);
+    },
+    { write: true, readback: countOf((c) => c.A.id) },
+  );
+
+  const blockedUpdate = (id, name, body) =>
+    check(
+      id,
+      name,
+      async (c) => {
+        const r = await patchDoc(c, c.A.token, c.docs.a.state, body(c));
+        return out(r.status === 404, r);
+      },
+      { write: true, readback: (c) => dr(c, c.docs.a.state) },
+    );
+  blockedUpdate('ACCT04-10', 'A 更新自己的文档时带 owner=B 被拒（404）且 owner 不变', (c) => ({ owner: c.B.id }));
+  blockedUpdate('ACCT04-11', 'A 更新自己的文档时带另一种 kind 被拒（404）且 kind 不变', () => ({ kind: 'plan' }));
+  blockedUpdate('ACCT04-12', 'A 更新自己的文档时带与原值相同的 owner 也被拒（404）', (c) => ({ owner: c.A.id }));
+
+  check(
+    'ACCT04-13',
+    'A 更新时用字段修饰符键（owner+、+owner、owner-、kind+）改 owner 或 kind 被拒且回读不变',
+    async (c) => {
+      const tries = [
+        { 'owner+': c.B.id },
+        { '+owner': c.B.id },
+        { 'owner-': c.A.id },
+        { 'kind+': 'plan' },
+      ];
+      const seen = [];
+      let all4xx = true;
+      let first = null;
+      for (const body of tries) {
+        const r = await patchDoc(c, c.A.token, c.docs.a.state, body);
+        seen.push(r.status);
+        if (r.status !== 404) all4xx = false; // 实测定稿：规则里的 :isset = false 对修饰符键同样成立，全部 404
+        if (!first) first = r;
+      }
+      return { ...out(all4xx, first), detail: seen.join(',') };
+    },
+    { write: true, readback: (c) => dr(c, c.docs.a.state) },
+  );
+
+  check(
+    'ACCT04-14',
+    'A 更新自己的文档（合法 data 和 writer）成功（200）且回读等于新值',
+    async (c) => {
+      const r = await patchDoc(c, c.A.token, c.docs.a.state, { data: { _synthetic: true, n: 1 }, writer: 'iso' });
+      return out(r.status === 200 && r.json && r.json.owner === c.A.id, r);
+    },
+    {
+      write: true,
+      readback: (c) => dr(c, c.docs.a.state),
+      expect: (b, a) => a.data && a.data.n === 1 && a.writer === 'iso' && a.updated !== b.updated && a.owner === b.owner && a.kind === b.kind,
+    },
+  );
+
+  check(
+    'ACCT04-15',
+    'A 的 writer 超过 40 个字符被拒（400，validation_max_text_constraint，实测定稿）且回读不变',
+    async (c) => {
+      const r = await patchDoc(c, c.A.token, c.docs.a.state, { writer: 'w'.repeat(41) });
+      return out(r.status === 400 && fieldCode(r.json, 'writer') === 'validation_max_text_constraint', r);
+    },
+    { write: true, readback: (c) => dr(c, c.docs.a.state) },
+  );
+
+  check(
+    'ACCT04-16',
+    'A 写入 3.9 MiB 的 data 成功（200）且回读等于新值',
+    async (c) => {
+      const r = await patchDoc(c, c.A.token, c.docs.a.plan, { data: dataOfSize(BYTES_39_MIB) });
+      return out(r.status === 200, r);
+    },
+    {
+      write: true,
+      readback: async (c) => {
+        const x = await dr(c, c.docs.a.plan);
+        return { len: x.data && x.data.pad ? x.data.pad.length : -1 };
+      },
+      expect: (b, a) => a.len === dataOfSize(BYTES_39_MIB).pad.length,
+    },
+  );
+
+  check(
+    'ACCT04-17',
+    'A 写入超过 4194304 字节的 data 被拒（400，validation_json_size_limit）且回读不变',
+    async (c) => {
+      const r = await patchDoc(c, c.A.token, c.docs.a.state, { data: dataOfSize(LIMIT + 1024) });
+      return out(r.status === 400 && fieldCode(r.json, 'data') === 'validation_json_size_limit', r);
+    },
+    { write: true, readback: (c) => dr(c, c.docs.a.state) },
+  );
+
+  check('ACCT04-18', '未登录列 journey_docs 得到 200 空列表，文档确实存在', async (c) => {
+    const r = await c.api('GET', '/api/collections/journey_docs/records?perPage=100');
+    const hidden = (await suCount(c, 'journey_docs', '')) >= 4;
+    return out(r.status === 200 && r.json && Array.isArray(r.json.items) && r.json.items.length === 0 && hidden, r);
+  });
+
+  check(
+    'ACCT04-19',
+    '未登录查看、更新、删除、创建分别是 404、404、403、400（槽位空着时创建也被拒）且数据不变',
+    async (c) => {
+      const p = await anonProbe(c, undefined, c.docs.b.state);
+      return { ...out(p.pass, p.res), detail: p.detail };
+    },
+    { write: true, readback: docsAndVictim((c) => c.docs.b.state) },
+  );
+
+  check(
+    'ACCT04-20',
+    '无效令牌的读写与未登录相同（空列表、404、404、403、400），不是 401',
+    async (c) => {
+      const bad = tamperToken(c.A.token);
+      const refresh = await c.api('POST', '/api/collections/users/auth-refresh', { token: bad });
+      const p = await anonProbe(c, bad, c.docs.a.state);
+      return { ...out(refresh.status === 401 && p.pass, p.res), detail: `refresh:${refresh.status},${p.detail}` };
+    },
+    { write: true, readback: docsAndVictim((c) => c.docs.a.state) },
+  );
+
+  check('ACCT04-21', 'A 列 users 只有自己 1 条，返回体里没有 B 的 id 和邮箱，B 确实存在', async (c) => {
+    const r = await c.api('GET', '/api/collections/users/records?perPage=100', { token: c.A.token });
+    const items = (r.json && r.json.items) || [];
+    const raw = JSON.stringify(r.json);
+    const hidden = (await usersCount(c)) >= 2;
+    return out(r.status === 200 && items.length === 1 && items[0].id === c.A.id && !raw.includes(c.B.id) && !raw.includes(c.B.email) && hidden, r);
+  });
+
+  check('ACCT04-22', 'A 查看 users 里 B 的记录被拒（404），B 确实存在', async (c) => {
+    const r = await c.api('GET', recPath('users', c.B.id), { token: c.A.token });
+    const exists = (await suRecord(c, 'users', c.B.id)).id === c.B.id;
+    return out(r.status === 404 && exists, r);
+  });
+
+  check(
+    'ACCT04-23',
+    'A 更新 users 里 B 的记录被拒（404）且 B 不变',
+    async (c) => {
+      const r = await c.api('PATCH', recPath('users', c.B.id), { token: c.A.token, body: { emailVisibility: true } });
+      return out(r.status === 404, r);
+    },
+    { write: true, readback: (c) => suRecord(c, 'users', c.B.id) },
+  );
+
+  check('ACCT04-24', 'users 只看自己的规则下登录和刷新仍然正常（200）', async (c) => {
+    const l = await c.api('POST', '/api/collections/users/auth-with-password', { body: { identity: c.A.email, password: c.A.password } });
+    const loginOk = l.status === 200 && l.json && typeof l.json.token === 'string' && l.json.record && l.json.record.email === c.A.email;
+    const rf = await c.api('POST', '/api/collections/users/auth-refresh', { token: c.A.token });
+    return { ...out(loginOk && rf.status === 200, l), detail: `login:${l.status},refresh:${rf.status}` };
+  });
+
+  check('ACCT04-25', '普通账号碰不到超级用户接口，也不能用自己的凭据登录超级用户集合', async (c) => {
+    const paths = ['/api/collections/_superusers/records', '/api/collections', '/api/settings', '/api/logs', '/api/backups'];
+    const seen = [];
+    let denied = true;
+    let first = null;
+    for (const p of paths) {
+      const r = await c.api('GET', p, { token: c.A.token });
+      seen.push(r.status);
+      if (r.status !== 403) denied = false; // 实测定稿：五个管理接口对普通账号都是 403
+      if (!first) first = r;
+    }
+    const l = await c.api('POST', '/api/collections/_superusers/auth-with-password', { body: { identity: c.A.email, password: c.A.password } });
+    seen.push(l.status);
+    return { ...out(denied && l.status === 400, first), detail: seen.join(',') };
+  });
+
+  check('ACCT04-26', 'A 列系统集合 _authOrigins 和 _externalAuths 看不到 B 的记录', async (c) => {
+    const seen = [];
+    let pass = true;
+    let first = null;
+    // 先让超级用户给 B 造一条第三方登录记录，保证“B 的记录存在”，检查不是空转
+    const users = await c.su('GET', '/api/collections/users');
+    const mk = await c.su('POST', '/api/collections/_externalAuths/records', { collectionRef: users.json.id, recordRef: c.B.id, provider: 'google', providerId: hex(6) });
+    seen.push(mk.status);
+    if (mk.status !== 200) pass = false;
+    for (const name of ['_authOrigins', '_externalAuths']) {
+      const r = await c.api('GET', `/api/collections/${name}/records?perPage=100`, { token: c.A.token });
+      seen.push(r.status);
+      const items = (r.json && r.json.items) || [];
+      if (r.status !== 200 || items.some((i) => i.recordRef === c.B.id)) pass = false;
+      if (!first) first = r;
+    }
+    const hiddenB = await suCount(c, '_externalAuths', `recordRef="${c.B.id}"`);
+    if (hiddenB < 1) pass = false;
+    return { ...out(pass, first), detail: seen.join(',') };
+  });
+
+  // ----- 令牌与改密码（TOK-2、D5-1 放在最后） -----
+  check('TOK-1', '令牌有效期是 7776000 秒，登录令牌的 exp 在 90 天上下 1 天内', async (c) => {
+    const r = await c.su('GET', '/api/collections/users');
+    const dur = r.status === 200 && r.json.authToken ? r.json.authToken.duration : -1;
+    const left = tokenExp(c.A.token) - Math.floor(Date.now() / 1000);
+    return out(dur === 7776000 && Math.abs(left - 7776000) <= 86400, r);
+  });
+
+  check(
+    'D5-2',
+    'A 改密码不带 oldPassword 被拒（400，validation_required），旧口令仍能登录',
+    async (c) => {
+      const np = newPassword();
+      const r = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { password: np, passwordConfirm: np } });
+      return out(r.status === 400 && fieldCode(r.json, 'oldPassword') === 'validation_required', r);
+    },
+    { write: true, readback: (c) => loginStatus(c, 'users', c.A.email, c.A.password) },
+  );
+
+  check(
+    'D5-3',
+    'A 改密码带错误的 oldPassword 被拒（400，validation_invalid_old_password），旧口令仍能登录',
+    async (c) => {
+      const np = newPassword();
+      const r = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { oldPassword: newPassword(), password: np, passwordConfirm: np } });
+      return out(r.status === 400 && fieldCode(r.json, 'oldPassword') === 'validation_invalid_old_password', r);
+    },
+    { write: true, readback: (c) => loginStatus(c, 'users', c.A.email, c.A.password) },
+  );
+
+  check(
+    'D5-4',
+    'A 改自己的 verified 或 emailVisibility 被拒（404）且回读不变',
+    async (c) => {
+      const r1 = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { verified: false } });
+      const r2 = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { emailVisibility: true } });
+      return { ...out(r1.status === 404 && r2.status === 404, r1), detail: `${r1.status},${r2.status}` };
+    },
+    { write: true, readback: (c) => suRecord(c, 'users', c.A.id) },
+  );
+
+  check(
+    'D5-5',
+    'A 改自己的 email 被拒（400，validation_values_mismatch）且邮箱不变',
+    async (c) => {
+      const r = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { email: newEmail('changed') } });
+      return out(r.status === 400 && fieldCode(r.json, 'email') === 'validation_values_mismatch', r);
+    },
+    { write: true, readback: (c) => suRecord(c, 'users', c.A.id) },
+  );
+
+  // ----- 反向对照：故意写错的集合，检查函数必须报出泄漏 -----
+  check('NEG-1', '反向对照：在故意写错规则的 journey_docs_leaky 上，ACCT04-1、3、4、5 的检查都报出泄漏', async (c) => {
+    const leaky = await makeLeaky(c);
+    const defs = restProbeDefs(() => leaky);
+    const verdicts = [];
+    for (const id of ['ACCT04-1', 'ACCT04-3', 'ACCT04-4', 'ACCT04-5']) {
+      const d = defs[id];
+      const r = await executeCheck({ id, name: id, fn: d.fn, readback: d.readback, write: d.write }, c);
+      verdicts.push(`${id}:${r.pass ? 'noleak' : 'leak'}`);
+    }
+    return { pass: verdicts.every((v) => v.endsWith(':leak')), detail: verdicts.join(',') };
+  });
+
+  check(
+    'D5-1',
+    'A 带正确 oldPassword 改密码成功（200），旧令牌 auth-refresh 为 401，新口令能登录、旧口令不能',
+    async (c) => {
+      const np = newPassword();
+      const r = await c.api('PATCH', recPath('users', c.A.id), { token: c.A.token, body: { oldPassword: c.A.password, password: np, passwordConfirm: np } });
+      const refresh = await c.api('POST', '/api/collections/users/auth-refresh', { token: c.A.token });
+      const newLogin = await loginStatus(c, 'users', c.A.email, np);
+      const oldLogin = await loginStatus(c, 'users', c.A.email, c.A.password);
+      return { ...out(r.status === 200 && refresh.status === 401 && newLogin === 200 && oldLogin === 400, r), detail: `patch:${r.status},refresh:${refresh.status},new:${newLogin},old:${oldLogin}` };
+    },
+    { write: true, readback: (c) => loginStatus(c, 'users', c.A.email, c.A.password), expect: (b, a) => b === 200 && a === 400 },
+  );
+
+  check(
+    'TOK-2',
+    '所有者（超级用户）重置密码后，B 的旧令牌 auth-refresh 为 401，新口令能登录',
+    async (c) => {
+      const np = newPassword();
+      const r = await c.su('PATCH', recPath('users', c.B.id), { password: np, passwordConfirm: np });
+      const refresh = await c.api('POST', '/api/collections/users/auth-refresh', { token: c.B.token });
+      const newLogin = await loginStatus(c, 'users', c.B.email, np);
+      return { ...out(r.status === 200 && refresh.status === 401 && newLogin === 200, refresh), detail: `patch:${r.status},refresh:${refresh.status},new:${newLogin}` };
+    },
+    { write: true, readback: (c) => loginStatus(c, 'users', c.B.email, c.B.password), expect: (b, a) => b === 200 && a === 400 },
+  );
+}
+
+// 临时集合 journey_docs_leaky：故意写错的规则（list、view、update 只要求已登录，deleteRule 为空字符串）
+async function makeLeaky(c) {
+  const users = await c.su('GET', '/api/collections/users');
+  const auth = '@request.auth.id != ""';
+  const r = await c.su('POST', '/api/collections', {
+    name: 'journey_docs_leaky',
+    type: 'base',
+    listRule: auth,
+    viewRule: auth,
+    createRule: `${auth} && @request.body.owner = @request.auth.id`,
+    updateRule: auth,
+    deleteRule: '',
+    fields: [
+      { type: 'relation', name: 'owner', required: true, collectionId: users.json.id, maxSelect: 1, cascadeDelete: true },
+      { type: 'select', name: 'kind', required: true, maxSelect: 1, values: ['state', 'plan'] },
+      { type: 'json', name: 'data', maxSize: LIMIT },
+      { type: 'text', name: 'writer', max: 40 },
+    ],
+  });
+  if (r.status !== 200) throw new Error(`准备失败：创建 journey_docs_leaky 返回 ${r.status}`);
+  const coll = 'journey_docs_leaky';
+  return {
+    coll,
+    a: { state: await makeDoc(c, coll, c.A.id, 'state'), plan: await makeDoc(c, coll, c.A.id, 'plan') },
+    b: { state: await makeDoc(c, coll, c.B.id, 'state'), plan: await makeDoc(c, coll, c.B.id, 'plan') },
+    aTok: c.A.token,
+    bTok: c.B.token,
+    aId: c.A.id,
+    bId: c.B.id,
+  };
 }
 
 // ---------- 运行 ----------
