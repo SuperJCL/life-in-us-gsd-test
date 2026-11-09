@@ -168,3 +168,44 @@ test('PLAN-01 a plan document that fails validation is shown as the default plan
   expect(app.fake.writes.filter((w) => w.path === 'journey_docs:plan')).toEqual([]);
   expect(app.fake.fulfillErrors).toEqual([]);
 });
+
+test('PLAN-01 task progress in the state document survives a plan document that fails validation, at the first save and after a reload', async ({
+  app,
+  page,
+}) => {
+  const bad = { _synthetic: true, groups: [] };
+  // 一个只在个人计划里存在的任务进度、一个形状合格但示例计划里没有的内置位置键、一个示例计划里有的键：
+  // 计划回落成示例计划时，三个都不能被丢弃（只有账号真实加载的计划才能用来丢孤儿进度）
+  const tasks = {
+    't-synthzz1': { done: true, doneDate: '2026-03-10' },
+    'P9-9': { done: true, doneDate: '2026-03-11', due: '2026-03-20' },
+    'P1-1': { done: false, due: '2026-03-25' },
+  };
+  const seed = syntheticState('a', { tasks });
+  await app.open({ mode: 'cloud', seed, plan: bad, login: 0 });
+
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-0910 progress kept');
+  await entry.submit();
+  await expect
+    .poll(() => (app.fake.lastState(0)?.logs ?? []).some((l: { text: string }) => l.text === 'SYNTH-0910 progress kept'), {
+      message: '等待记录写入 state 文档',
+    })
+    .toBe(true);
+  expect(app.fake.lastState(0)?.tasks).toEqual(tasks);
+
+  // 重新打开：这次从本机缓存起步，再记一笔，服务器上的进度仍然完整
+  await app.reload();
+  const again = composer(page, 'w');
+  await again.type('SYNTH-0910 progress kept again');
+  await again.submit();
+  await expect
+    .poll(() => (app.fake.lastState(0)?.logs ?? []).some((l: { text: string }) => l.text === 'SYNTH-0910 progress kept again'), {
+      message: '等待第二条记录写入 state 文档',
+    })
+    .toBe(true);
+  expect(app.fake.lastState(0)?.tasks).toEqual(tasks);
+  expect(app.fake.lastPlan(0)).toEqual(bad);
+  expect(app.fake.writes.filter((w) => w.path === 'journey_docs:plan')).toEqual([]);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});

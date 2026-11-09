@@ -481,8 +481,9 @@ function normalizePlan(p){
   if(p.fitNote!==undefined&&!pStr(p.fitNote))return null;
   return {v:1,presets,groups,lifts,fitGoal:p.fitGoal.slice(),fitNote:p.fitNote===undefined?"":p.fitNote};
 }
-let plan,planTasks,planIds,planCat;
-/* 用 normalizePlan 校验；不合格就回落到 DEFAULT_PLAN；返回传入的计划是否被接受 */
+let plan,planTasks,planIds,planCat,keepOrphans=false;
+/* 用 normalizePlan 校验；不合格就回落到 DEFAULT_PLAN；返回传入的计划是否被接受。
+   云端路径在返回 false 时把 keepOrphans 设为真：回落的示例计划不是这个账号的真实计划，normalize 不能按它丢进度键（Phase 7 D-08 只对账号真实加载的计划丢孤儿进度） */
 function usePlan(p){
   let n=normalizePlan(p);const ok=!!n;if(!n)n=normalizePlan(DEFAULT_PLAN);
   plan=n;planTasks=[];plan.groups.forEach(g=>g.tasks.forEach(t=>planTasks.push({id:t.id,group:g.id,text:t.text})));
@@ -566,7 +567,7 @@ function normalize(s){
     return r;
   });
   const cids=new Set(custom.map(c=>c.id));
-  const tasks=Object.fromEntries(Object.keys(isObj(s.tasks)?s.tasks:{}).map(k=>[idMap.has(k)?idMap.get(k):k,s.tasks[k]]).filter(([k,v])=>isObj(v)&&(planIds.has(k)||cids.has(k))).map(([k,v])=>{
+  const tasks=Object.fromEntries(Object.keys(isObj(s.tasks)?s.tasks:{}).map(k=>[idMap.has(k)?idMap.get(k):k,s.tasks[k]]).filter(([k,v])=>isObj(v)&&(planIds.has(k)||cids.has(k)||(keepOrphans&&TASK_KEY_RE.test(k)))).map(([k,v])=>{
     const r={...v};
     if(r.done!==undefined&&typeof r.done!=="boolean")r.done=!!r.done;
     for(const f of ["doneDate","due"])if(r[f]!==undefined&&r[f]!==""&&!okDate(r[f]))r[f]="";
@@ -845,7 +846,7 @@ async function enterApp(refresh){
   try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
   const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cp,state:cs};
   if(cached){
-    usePlan(cp.data);state=normalize(cs.data);
+    keepOrphans=!usePlan(cp.data);state=normalize(cs.data);
     docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0};
     store=cloudStore();
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
@@ -882,14 +883,16 @@ async function reconcileOnce(r){
   };
   const pr=await resolve("plan"),sr=await resolve("state");
   live();
-  usePlan(pr.data);
+  const planOk=usePlan(pr.data);keepOrphans=!planOk;
   state=normalize(sr.data);
+  /* an invalid plan document is cached as the server sent it, not as the fallback plan: the fallback is not this account's plan and must never become the clean cache */
+  const pdata=planOk?plan:pr.data;
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
-  const changed=differs(old.plan,pr.sv,plan)||differs(old.state,sr.sv,state);
+  const changed=differs(old.plan,pr.sv,pdata)||differs(old.state,sr.sv,state);
   const settle=(k,x,data)=>{const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
     cachePut(k,rec);
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
-  docs.plan=settle("plan",pr,plan);docs.state=settle("state",sr,state);
+  docs.plan=settle("plan",pr,pdata);docs.state=settle("state",sr,state);
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
@@ -993,7 +996,7 @@ function resetSession(){
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
-  usePlan(DEFAULT_PLAN);state=normalize({});
+  usePlan(DEFAULT_PLAN);keepOrphans=false;state=normalize({});
   view=new Date();view.setDate(1);sel=today();wk=monday(today());wsel=today();filter="全部";
   [compEdit,compAdding].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));compCat.c="语言";compCat.w="语言";
   setGate(null);
