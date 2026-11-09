@@ -31,23 +31,161 @@ const SYN = () => ({ _synthetic: true, note: 'sample' });
 // 符号写成函数调用：S('email', 'A') 得到 {email:A}。不写成引号字面量，是因为口令键后面跟引号字面量会被隐私规则 G 当成写死的口令（不加放行名单）
 const S = (kind, arg) => (arg === undefined ? '{' + kind + '}' : '{' + kind + ':' + arg + '}');
 
+// 文档和步骤的小帮手：只为让场景表读起来短
+const stateDoc = (owner) => ({ owner, kind: 'state', data: SYN() });
+const planDoc = (owner) => ({ owner, kind: 'plan', data: SYN() });
+const DOC_A = S('doc', 'A:state');
+const DOC_B = S('doc', 'B:state');
+const login = (as, who, pw) => ({
+  as,
+  method: 'POST',
+  path: `${USERS}/auth-with-password`,
+  body: { identity: S('email', who), password: pw },
+  expect: 200,
+});
+const refresh = (as, expect) => ({ as, method: 'POST', path: `${USERS}/auth-refresh`, expect });
+const list = (as) => ({ as, method: 'GET', path: DOCS, query: LIST_QUERY, expect: 200 });
+const view = (as, doc, expect) => ({ as, method: 'GET', path: `${DOCS}/${doc}`, expect });
+const create = (as, body, expect) => ({ as, method: 'POST', path: DOCS, body, expect });
+const patch = (as, doc, body, expect) => ({ as, method: 'PATCH', path: `${DOCS}/${doc}`, body, expect });
+const newDoc = (ownerSym, kind) => ({ owner: ownerSym, kind, data: SYN(), writer: 'test-device' });
+
 const REST_SCENARIOS = [
+  { id: 'auth-ok', setup: { users: ['A'] }, steps: [login('anon', 'A', S('password', 'A'))] },
   {
-    id: 'auth-ok',
+    id: 'auth-bad-password',
     setup: { users: ['A'] },
-    steps: [
-      {
-        as: 'anon',
-        method: 'POST',
-        path: `${USERS}/auth-with-password`,
-        body: { identity: S('email', 'A'), password: S('password', 'A') },
-        expect: 200,
-      },
-    ],
+    steps: [{ ...login('anon', 'A', S('password', 'wrong')), expect: 400 }],
+  },
+  { id: 'refresh-ok', setup: { users: ['A'] }, steps: [refresh('A', 200)] },
+  { id: 'refresh-invalid-token', setup: { users: ['A'] }, steps: [refresh('invalid', 401)] },
+
+  {
+    id: 'list-own',
+    setup: { users: ['A', 'B'], docs: [stateDoc('A'), planDoc('A'), stateDoc('B')] },
+    steps: [list('A')],
+  },
+  { id: 'list-anonymous', setup: { users: ['A'], docs: [stateDoc('A')] }, steps: [list('anon')] },
+  { id: 'list-invalid-token', setup: { users: ['A'], docs: [stateDoc('A')] }, steps: [list('invalid')] },
+
+  { id: 'view-own', setup: { users: ['A'], docs: [stateDoc('A')] }, steps: [view('A', DOC_A, 200)] },
+  {
+    id: 'view-other',
+    setup: { users: ['A', 'B'], docs: [stateDoc('A'), stateDoc('B')] },
+    steps: [view('A', DOC_B, 404)],
+  },
+  { id: 'view-anonymous', setup: { users: ['A'], docs: [stateDoc('A')] }, steps: [view('anon', DOC_A, 404)] },
+
+  // 创建成功的状态码是 200（08-05 的 ACCT03-5 实测；不是 201）
+  { id: 'create-own', setup: { users: ['A'] }, steps: [create('A', newDoc(S('user', 'A'), 'state'), 200)] },
+  {
+    id: 'create-duplicate-kind',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [create('A', newDoc(S('user', 'A'), 'state'), 400)],
+  },
+  // B 没有 state，所以拒绝只来自 createRule，不会与唯一冲突混在一起
+  {
+    id: 'create-other-owner',
+    setup: { users: ['A', 'B'] },
+    steps: [create('A', newDoc(S('user', 'B'), 'state'), 400)],
+  },
+  { id: 'create-invalid-kind', setup: { users: ['A'] }, steps: [create('A', newDoc(S('user', 'A'), 'note'), 400)] },
+  { id: 'create-anonymous', setup: { users: ['A'] }, steps: [create('anon', newDoc(S('user', 'A'), 'state'), 400)] },
+
+  {
+    id: 'update-own',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [patch('A', DOC_A, { data: { _synthetic: true, note: 'updated' }, writer: 'test-device' }, 200)],
+  },
+  {
+    id: 'update-owner-key',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [patch('A', DOC_A, { owner: S('user', 'A'), writer: 'test-device' }, 404)],
+  },
+  {
+    id: 'update-kind-key',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [patch('A', DOC_A, { kind: 'plan', writer: 'test-device' }, 404)],
+  },
+  {
+    id: 'update-other',
+    setup: { users: ['A', 'B'], docs: [stateDoc('A'), stateDoc('B')] },
+    steps: [patch('A', DOC_B, { data: { _synthetic: true, note: 'updated' }, writer: 'test-device' }, 404)],
+  },
+  {
+    id: 'update-oversize',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [patch('A', DOC_A, { data: S('oversize', 4195328), writer: 'test-device' }, 400)],
+  },
+  {
+    id: 'update-writer-too-long',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [patch('A', DOC_A, { writer: 'w'.repeat(41) }, 400)],
+  },
+  {
+    id: 'delete-own',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [{ as: 'A', method: 'DELETE', path: `${DOCS}/${DOC_A}`, expect: 403 }],
   },
 ];
 
-const REALTIME_SCENARIOS = [];
+// 实时场景。订阅串与 SDK 0.28.1 一致：journey_docs/* 加 ?options= 和 URL 编码的 {"query":{"fields":"..."}}
+const FIELDS_TOPIC = `journey_docs/*?options=${encodeURIComponent(JSON.stringify({ query: { fields: 'id,kind,writer,updated' } }))}`;
+const FULL_TOPIC = 'journey_docs/*';
+const RT = '/api/realtime';
+const connect = { op: 'connect', as: 'anon', method: 'GET', path: RT };
+const subscribeStep = (as, clientId, topic, expect) => ({
+  op: 'subscribe',
+  as,
+  method: 'POST',
+  path: RT,
+  body: { clientId, subscriptions: [topic] },
+  expect,
+});
+const expectEvent = (as) => ({ op: 'expectEvent', as });
+
+const REALTIME_SCENARIOS = [
+  { id: 'realtime-connect', setup: { users: ['A'] }, steps: [connect] },
+  {
+    id: 'realtime-subscribe',
+    setup: { users: ['A'] },
+    steps: [connect, subscribeStep('A', S('clientId'), FIELDS_TOPIC, 204)],
+  },
+  {
+    id: 'realtime-subscribe-unknown-client',
+    setup: { users: ['A'] },
+    steps: [subscribeStep('A', S('clientId', 'unknown'), FULL_TOPIC, 404)],
+  },
+  {
+    id: 'realtime-subscribe-other-identity',
+    setup: { users: ['A', 'B'] },
+    steps: [
+      connect,
+      subscribeStep('A', S('clientId'), FULL_TOPIC, 204),
+      subscribeStep('B', S('clientId'), FULL_TOPIC, 403),
+    ],
+  },
+  {
+    id: 'realtime-update-fields',
+    setup: { users: ['A'], docs: [stateDoc('A')] },
+    steps: [
+      connect,
+      subscribeStep('A', S('clientId'), FIELDS_TOPIC, 204),
+      { ...patch('A', DOC_A, { data: { _synthetic: true, note: 'updated' }, writer: 'test-device' }, 200), op: 'request' },
+      expectEvent('A'),
+    ],
+  },
+  {
+    id: 'realtime-create-full',
+    setup: { users: ['A'] },
+    steps: [
+      connect,
+      subscribeStep('A', S('clientId'), FULL_TOPIC, 204),
+      { ...create('A', newDoc(S('user', 'A'), 'state'), 200), op: 'request' },
+      expectEvent('A'),
+    ],
+  },
+];
 
 const SYMBOL_RE = /\{(user|doc|email|password|clientId|oversize)(?::([A-Za-z0-9:]+))?\}/g;
 const OVERSIZE_FULL_RE = /^\{oversize:(\d+)\}$/;

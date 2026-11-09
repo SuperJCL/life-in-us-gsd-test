@@ -89,8 +89,9 @@ function normalizeValue(value, ctx) {
   if (typeof value === 'string') return normalizeText(value, ctx);
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map((v) => normalizeValue(v, ctx));
+  // 键按字典序处理：服务器返回的键序不稳定（带 fields 的事件里每次不同），排序后样本可复现，占位编号也稳定
   const out = {};
-  for (const key of Object.keys(value)) {
+  for (const key of Object.keys(value).sort()) {
     const v = value[key];
     if (key === 'tokenKey') continue;
     if (key === 'authToken' && v && typeof v === 'object' && !Array.isArray(v)) {

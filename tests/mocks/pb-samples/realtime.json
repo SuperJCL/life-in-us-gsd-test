@@ -1,0 +1,467 @@
+{
+  "_synthetic": true,
+  "meta": {
+    "server": "0.41.1",
+    "sdk": "0.28.1",
+    "exeSha256": "f44191176f90382d5a03290496b23b333cf64cf6cb2024893cb39f3c10e46f7e",
+    "sdkSha256": "94c1e032b783952f6989ff74256ec97440d0ecf0c24edb9575f8c8716cb04a9f",
+    "recordedOn": "2026-11-08",
+    "client": "sdk-vm",
+    "sdkIsValidOnRealToken": true,
+    "tool": "tools/pb/record-samples.mjs"
+  },
+  "scenarios": [
+    {
+      "id": "realtime-connect",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "op": "connect",
+          "as": "anon",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "PB_CONNECT",
+            "data": {
+              "clientId": "<CLIENT_ID>"
+            },
+            "dataKeys": [
+              "clientId"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "realtime-subscribe",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "op": "connect",
+          "as": "anon",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "PB_CONNECT",
+            "data": {
+              "clientId": "<CLIENT_ID>"
+            },
+            "dataKeys": [
+              "clientId"
+            ]
+          }
+        },
+        {
+          "as": "A",
+          "op": "subscribe",
+          "expect": 204,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*?options=%7B%22query%22%3A%7B%22fields%22%3A%22id%2Ckind%2Cwriter%2Cupdated%22%7D%7D"
+              ]
+            }
+          },
+          "response": {
+            "status": 204
+          }
+        }
+      ]
+    },
+    {
+      "id": "realtime-subscribe-unknown-client",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "A",
+          "op": "subscribe",
+          "expect": 404,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*"
+              ]
+            }
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "Missing or invalid client id.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "realtime-subscribe-other-identity",
+      "setup": {
+        "users": [
+          "A",
+          "B"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "op": "connect",
+          "as": "anon",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "PB_CONNECT",
+            "data": {
+              "clientId": "<CLIENT_ID>"
+            },
+            "dataKeys": [
+              "clientId"
+            ]
+          }
+        },
+        {
+          "as": "A",
+          "op": "subscribe",
+          "expect": 204,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*"
+              ]
+            }
+          },
+          "response": {
+            "status": 204
+          }
+        },
+        {
+          "as": "B",
+          "op": "subscribe",
+          "expect": 403,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*"
+              ]
+            }
+          },
+          "response": {
+            "status": 403,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The current and the previous request authorization don't match.",
+              "status": 403
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "realtime-update-fields",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "op": "connect",
+          "as": "anon",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "PB_CONNECT",
+            "data": {
+              "clientId": "<CLIENT_ID>"
+            },
+            "dataKeys": [
+              "clientId"
+            ]
+          }
+        },
+        {
+          "as": "A",
+          "op": "subscribe",
+          "expect": 204,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*?options=%7B%22query%22%3A%7B%22fields%22%3A%22id%2Ckind%2Cwriter%2Cupdated%22%7D%7D"
+              ]
+            }
+          },
+          "response": {
+            "status": 204
+          }
+        },
+        {
+          "as": "A",
+          "op": "request",
+          "expect": 200,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "updated"
+              },
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "collectionId",
+              "collectionName",
+              "created",
+              "data",
+              "id",
+              "kind",
+              "owner",
+              "updated",
+              "writer"
+            ],
+            "body": {
+              "collectionId": "<COLLECTION_ID:1>",
+              "collectionName": "journey_docs",
+              "created": "<TS>",
+              "data": {
+                "_synthetic": true,
+                "note": "updated"
+              },
+              "id": "<ID:1>",
+              "kind": "state",
+              "owner": "<ID:2>",
+              "updated": "<TS>",
+              "writer": "test-device"
+            }
+          }
+        },
+        {
+          "op": "expectEvent",
+          "as": "A",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "journey_docs/*?options=%7B%22query%22%3A%7B%22fields%22%3A%22id%2Ckind%2Cwriter%2Cupdated%22%7D%7D",
+            "data": {
+              "action": "update",
+              "record": {
+                "id": "<ID:1>",
+                "kind": "state",
+                "updated": "<TS>",
+                "writer": "test-device"
+              }
+            },
+            "dataKeys": [
+              "action",
+              "record"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "realtime-create-full",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "op": "connect",
+          "as": "anon",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "PB_CONNECT",
+            "data": {
+              "clientId": "<CLIENT_ID>"
+            },
+            "dataKeys": [
+              "clientId"
+            ]
+          }
+        },
+        {
+          "as": "A",
+          "op": "subscribe",
+          "expect": 204,
+          "request": {
+            "method": "POST",
+            "path": "/api/realtime",
+            "hasAuth": true,
+            "bodyKeys": [
+              "clientId",
+              "subscriptions"
+            ],
+            "body": {
+              "clientId": "<CLIENT_ID>",
+              "subscriptions": [
+                "journey_docs/*"
+              ]
+            }
+          },
+          "response": {
+            "status": 204
+          }
+        },
+        {
+          "as": "A",
+          "op": "request",
+          "expect": 200,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "state",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "collectionId",
+              "collectionName",
+              "created",
+              "data",
+              "id",
+              "kind",
+              "owner",
+              "updated",
+              "writer"
+            ],
+            "body": {
+              "collectionId": "<COLLECTION_ID:1>",
+              "collectionName": "journey_docs",
+              "created": "<TS>",
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "id": "<ID:2>",
+              "kind": "state",
+              "owner": "<ID:1>",
+              "updated": "<TS>",
+              "writer": "test-device"
+            }
+          }
+        },
+        {
+          "op": "expectEvent",
+          "as": "A",
+          "event": {
+            "id": "<CLIENT_ID>",
+            "event": "journey_docs/*",
+            "data": {
+              "action": "create",
+              "record": {
+                "collectionId": "<COLLECTION_ID:1>",
+                "collectionName": "journey_docs",
+                "created": "<TS>",
+                "data": {
+                  "_synthetic": true,
+                  "note": "sample"
+                },
+                "id": "<ID:2>",
+                "kind": "state",
+                "owner": "<ID:1>",
+                "updated": "<TS>",
+                "writer": "test-device"
+              }
+            },
+            "dataKeys": [
+              "action",
+              "record"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

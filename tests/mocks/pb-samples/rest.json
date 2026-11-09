@@ -69,6 +69,1076 @@
           }
         }
       ]
+    },
+    {
+      "id": "auth-bad-password",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "anon",
+          "expect": 400,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/users/auth-with-password",
+            "hasAuth": false,
+            "bodyKeys": [
+              "identity",
+              "password"
+            ],
+            "body": {
+              "identity": "user-a@example.com",
+              "password": "<PASSWORD>"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "Failed to authenticate.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "refresh-ok",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 200,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/users/auth-refresh",
+            "hasAuth": true
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "record",
+              "token"
+            ],
+            "body": {
+              "record": {
+                "collectionId": "<USERS_COLLECTION_ID>",
+                "collectionName": "users",
+                "created": "<TS>",
+                "email": "user-a@example.com",
+                "emailVisibility": false,
+                "id": "<ID:1>",
+                "updated": "<TS>",
+                "verified": true
+              },
+              "token": "<JWT>"
+            }
+          },
+          "tokenClaims": {
+            "keys": [
+              "collectionId",
+              "exp",
+              "id",
+              "refreshable",
+              "type"
+            ],
+            "type": "auth",
+            "expInSeconds": 7776000
+          }
+        }
+      ]
+    },
+    {
+      "id": "refresh-invalid-token",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "invalid",
+          "expect": 401,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/users/auth-refresh",
+            "hasAuth": true
+          },
+          "response": {
+            "status": 401,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The request requires valid record authorization token.",
+              "status": 401
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "list-own",
+      "setup": {
+        "users": [
+          "A",
+          "B"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          },
+          {
+            "owner": "A",
+            "kind": "plan"
+          },
+          {
+            "owner": "B",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 200,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records",
+            "query": {
+              "page": "1",
+              "perPage": "1000",
+              "skipTotal": "1"
+            },
+            "hasAuth": true
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "items",
+              "page",
+              "perPage",
+              "totalItems",
+              "totalPages"
+            ],
+            "body": {
+              "items": [
+                {
+                  "collectionId": "<COLLECTION_ID:1>",
+                  "collectionName": "journey_docs",
+                  "created": "<TS>",
+                  "data": {
+                    "_synthetic": true,
+                    "note": "sample"
+                  },
+                  "id": "<ID:1>",
+                  "kind": "plan",
+                  "owner": "<ID:2>",
+                  "updated": "<TS>",
+                  "writer": "setup"
+                },
+                {
+                  "collectionId": "<COLLECTION_ID:1>",
+                  "collectionName": "journey_docs",
+                  "created": "<TS>",
+                  "data": {
+                    "_synthetic": true,
+                    "note": "sample"
+                  },
+                  "id": "<ID:3>",
+                  "kind": "state",
+                  "owner": "<ID:2>",
+                  "updated": "<TS>",
+                  "writer": "setup"
+                }
+              ],
+              "page": 1,
+              "perPage": 1000,
+              "totalItems": -1,
+              "totalPages": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "list-anonymous",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "anon",
+          "expect": 200,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records",
+            "query": {
+              "page": "1",
+              "perPage": "1000",
+              "skipTotal": "1"
+            },
+            "hasAuth": false
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "items",
+              "page",
+              "perPage",
+              "totalItems",
+              "totalPages"
+            ],
+            "body": {
+              "items": [],
+              "page": 1,
+              "perPage": 1000,
+              "totalItems": -1,
+              "totalPages": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "list-invalid-token",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "invalid",
+          "expect": 200,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records",
+            "query": {
+              "page": "1",
+              "perPage": "1000",
+              "skipTotal": "1"
+            },
+            "hasAuth": true
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "items",
+              "page",
+              "perPage",
+              "totalItems",
+              "totalPages"
+            ],
+            "body": {
+              "items": [],
+              "page": 1,
+              "perPage": 1000,
+              "totalItems": -1,
+              "totalPages": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "view-own",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 200,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "collectionId",
+              "collectionName",
+              "created",
+              "data",
+              "id",
+              "kind",
+              "owner",
+              "updated",
+              "writer"
+            ],
+            "body": {
+              "collectionId": "<COLLECTION_ID:1>",
+              "collectionName": "journey_docs",
+              "created": "<TS>",
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "id": "<ID:1>",
+              "kind": "state",
+              "owner": "<ID:2>",
+              "updated": "<TS>",
+              "writer": "setup"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "view-other",
+      "setup": {
+        "users": [
+          "A",
+          "B"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          },
+          {
+            "owner": "B",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 404,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The requested resource wasn't found.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "view-anonymous",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "anon",
+          "expect": 404,
+          "request": {
+            "method": "GET",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": false
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The requested resource wasn't found.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "create-own",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 200,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "state",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "collectionId",
+              "collectionName",
+              "created",
+              "data",
+              "id",
+              "kind",
+              "owner",
+              "updated",
+              "writer"
+            ],
+            "body": {
+              "collectionId": "<COLLECTION_ID:1>",
+              "collectionName": "journey_docs",
+              "created": "<TS>",
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "id": "<ID:2>",
+              "kind": "state",
+              "owner": "<ID:1>",
+              "updated": "<TS>",
+              "writer": "test-device"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "create-duplicate-kind",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 400,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "state",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {
+                "kind": {
+                  "code": "validation_not_unique",
+                  "message": "Value must be unique."
+                },
+                "owner": {
+                  "code": "validation_not_unique",
+                  "message": "Value must be unique."
+                }
+              },
+              "message": "Failed to create record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "create-other-owner",
+      "setup": {
+        "users": [
+          "A",
+          "B"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 400,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "state",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "Failed to create record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "create-invalid-kind",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 400,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "note",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {
+                "kind": {
+                  "code": "validation_invalid_value",
+                  "message": "Invalid value note.",
+                  "params": {
+                    "value": "note"
+                  }
+                }
+              },
+              "message": "Failed to create record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "create-anonymous",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "anon",
+          "expect": 400,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/journey_docs/records",
+            "hasAuth": false,
+            "bodyKeys": [
+              "data",
+              "kind",
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "sample"
+              },
+              "kind": "state",
+              "owner": "<ID:1>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "Failed to create record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-own",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 200,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "updated"
+              },
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "collectionId",
+              "collectionName",
+              "created",
+              "data",
+              "id",
+              "kind",
+              "owner",
+              "updated",
+              "writer"
+            ],
+            "body": {
+              "collectionId": "<COLLECTION_ID:1>",
+              "collectionName": "journey_docs",
+              "created": "<TS>",
+              "data": {
+                "_synthetic": true,
+                "note": "updated"
+              },
+              "id": "<ID:1>",
+              "kind": "state",
+              "owner": "<ID:2>",
+              "updated": "<TS>",
+              "writer": "test-device"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-owner-key",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 404,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "owner",
+              "writer"
+            ],
+            "body": {
+              "owner": "<ID:2>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The requested resource wasn't found.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-kind-key",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 404,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "kind",
+              "writer"
+            ],
+            "body": {
+              "kind": "plan",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The requested resource wasn't found.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-other",
+      "setup": {
+        "users": [
+          "A",
+          "B"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          },
+          {
+            "owner": "B",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 404,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "writer"
+            ],
+            "body": {
+              "data": {
+                "_synthetic": true,
+                "note": "updated"
+              },
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 404,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "The requested resource wasn't found.",
+              "status": 404
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-oversize",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 400,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "data",
+              "writer"
+            ],
+            "body": {
+              "data": "<OVERSIZE:4195328>",
+              "writer": "test-device"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {
+                "data": {
+                  "code": "validation_json_size_limit",
+                  "message": "The maximum allowed JSON size is 4194304 bytes.",
+                  "params": {
+                    "maxSize": 4194304
+                  }
+                }
+              },
+              "message": "Failed to update record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "update-writer-too-long",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 400,
+          "request": {
+            "method": "PATCH",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true,
+            "bodyKeys": [
+              "writer"
+            ],
+            "body": {
+              "writer": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"
+            }
+          },
+          "response": {
+            "status": 400,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {
+                "writer": {
+                  "code": "validation_max_text_constraint",
+                  "message": "Must be no more than 40 character(s).",
+                  "params": {
+                    "max": 40
+                  }
+                }
+              },
+              "message": "Failed to update record.",
+              "status": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "delete-own",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": [
+          {
+            "owner": "A",
+            "kind": "state"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "as": "A",
+          "expect": 403,
+          "request": {
+            "method": "DELETE",
+            "path": "/api/collections/journey_docs/records/<ID:1>",
+            "hasAuth": true
+          },
+          "response": {
+            "status": 403,
+            "bodyKeys": [
+              "data",
+              "message",
+              "status"
+            ],
+            "body": {
+              "data": {},
+              "message": "Only superusers can perform this action.",
+              "status": 403
+            }
+          }
+        }
+      ]
     }
   ]
 }
