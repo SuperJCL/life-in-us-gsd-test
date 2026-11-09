@@ -151,7 +151,7 @@ Plans:
   3. `PB-CONTRACT.md` 写明“服务器 0.41.1 配 SDK 0.28.1”，并收录从本机真实实例录下的协议样本：登录、刷新令牌、读取、创建、更新、唯一索引冲突、401（只有 auth-refresh 返回；记录接口对无效令牌按未登录处理，返回空列表、404 或 400）和实时事件。契约自测证明，Node 侧假服务器对同一组请求的回应与样本一致。
   4. `AppHarness` 新增 cloud 模式：真实的 PocketBase SDK（同源提供、固定版本、记录 sha256）在浏览器里连到假服务器，能完成登录、读写和订阅，实时连接由页面侧的假 `EventSource` 承接。请求假服务器以外的任何地址都会让用例失败，这道护栏有故意违规的自检。`context.setOffline` 是否派发 `online`/`offline` 事件，由探针确认并写进 `tests/PROBES.md`。
   5. v1 的 154 条用例照旧通过；cloud 用例有单独的入口（如 `npm run test:cloud`），同样低优先级、1 个 worker 运行。
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 Plans:
 **Wave 1**
 - [x] 08-01-PLAN.md — users 加固和 journey_docs 的迁移（只有结构）、node:vm 静态检查与规则快照、篡改自检；先修正 ROADMAP 和研究文档的过时内容（D-02、D-04、D-05、D-06）
@@ -162,7 +162,7 @@ Plans:
 - [x] 08-04-PLAN.md — 所有者批准下载 PocketBase 0.41.1 Windows 版（blocking-human）、核对留存、一次性实例库和真实实例 smoke（D-02、D-03、D-17）
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 08-05-PLAN.md — 隔离脚本：47 个编号的断言矩阵（注册关闭、跨账号读写、防改写、4 MiB、唯一、journey_docs 和 users 的实时订阅、D-05 自改密码、令牌失效）、反向对照、新实例重放对比
+- [x] 08-05-PLAN.md — 隔离脚本：47 个编号的断言矩阵（注册关闭、跨账号读写、防改写、4 MiB、唯一、journey_docs 和 users 的实时订阅、D-05 自改密码、令牌失效）、反向对照、新实例重放对比
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 08-06-PLAN.md — 协议样本录制与归一化（28 个场景，三道自检）、隐私检查器可被 import、PB-CONTRACT.md
@@ -283,7 +283,7 @@ Plans:
 | 5. 时间线、导入与窄屏 | v1.0 | 4/4 | Complete | 2026-11-05 |
 | 6. 采购与中美可达性实测 | v2.0 | 10/10 | Complete    | 2026-11-08 |
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
-| 8. PocketBase 规则、隔离与假服务器 | v2.0 | 4/7 | In Progress | - |
+| 8. PocketBase 规则、隔离与假服务器 | v2.0 | 5/7 | In Progress | - |
 | 9. 登录与云端存储 | v2.0 | 0/TBD | Not started | - |
 | 10. 离线与实时同步 | v2.0 | 0/TBD | Not started | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |

@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 08
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-11-08T23:53:35.967Z"
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-11-09T00:11:03.475Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 08 execution started
-state_head: 85284f302fed335215ca52cef1106c50740889bd
+state_head: 7920319d8fd4c71b43fefc049c6e91e2bbc731fb
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 25
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
 ## Current Position
 
 Phase: 08 (PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 08 execution started
 
@@ -106,6 +106,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 08 P02 | 60min | 3 tasks | 9 files |
 | Phase 08 P03 | 45min | 3 tasks | 6 files |
 | Phase 08 P04 | 40min | 3 tasks | 4 files |
+| Phase 08 P05 | 50min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,8 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 08]: 08-03: guardPolicy uses a rest parameter so explicit undefined means unset; no BROWSER_AUTO_PATHS needed (no favicon violation observed)
 - [Phase 08]: 08-03: PROBE-9 shows setOffline changes navigator.onLine and fires events but does not affect route-fulfilled fetches or the fake EventSource; network faults must come from fake server switches
 - [Phase 08]: 08-04: owner approved one download of PocketBase 0.41.1 Windows build (single-source trust model, same as 06 D-16); exe sha256 pinned in instance.mjs and PB-LOCAL.md; real-instance smoke passed with no reconciliation; rate limits default off (A2 holds)
+- [Phase 08]: 08-05: 字段修饰符键（owner+、+owner、owner-、kind+）被 :isset = false 拦下（404），journey_docs 规则无需修改
+- [Phase 08]: 08-05: 创建成功状态码实测为 200（ACCT03-5），不是 201；规则不满足时列表 200 空、查看和更新 404、创建 400、锁定规则 403
 
 ### Pending Todos
 
@@ -210,8 +213,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T23:53:34.672Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-11-09T00:11:01.845Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
