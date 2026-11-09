@@ -636,7 +636,8 @@ function loadSdk(){return new Promise((ok,no)=>{
   s.onerror=()=>{s.remove();no(new Error("sdk"))};
   document.head.appendChild(s);
 })}
-function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
+/* the auth listener belongs to the client itself: it is registered wherever the client is created, including a first sign-in after the SDK failed to load at startup */
+function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false);pb.authStore.onChange(onAuthChange)}
 /* the token is shared by every tab of this browser through localStorage: another tab signing out (empty token) signs this tab out locally, without touching the caches again
    (that tab already cleared them); another tab signing in as a different account reloads this tab; a refreshed token of the same account changes nothing.
    authQuiet is true while this tab clears the token itself (logout, a 401 on refresh), so those are never mistaken for another tab. */
@@ -689,7 +690,6 @@ async function cloudInit(){
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
-  pb.authStore.onChange(onAuthChange);
   if(!pb.authStore.token){showLogin("");return}
   /* a stored token whose own exp has passed is expired without asking the server; only this device-local check or an authRefresh 401 ever means expired */
   if(!pb.authStore.isValid){pb.authStore.clear();showLogin("","expired");return}

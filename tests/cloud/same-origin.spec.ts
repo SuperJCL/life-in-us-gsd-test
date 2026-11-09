@@ -4,11 +4,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../support/test';
+import { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
 import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
-import { APP_FILE_NAME, APP_ORIGIN, FONT_HOSTS, PB_SDK_PATH, PB_SDK_SHA256, STATE_KEY } from '../support/constants';
-import { LOGIN_ERR_UNREACHABLE, STATUS_CLOUD_SYNCED } from '../support/strings';
+import { APP_FILE_NAME, APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, PB_SDK_PATH, PB_SDK_SHA256, STATE_KEY } from '../support/constants';
+import { LOGIN_ERR_UNREACHABLE, NOTICE_OTHER_TAB, STATUS_CLOUD_SYNCED } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
 const { normalizePlan, DEFAULT_PLAN } = loadAppPure(['normalizePlan', 'DEFAULT_PLAN']);
@@ -103,4 +104,40 @@ test('INFRA-03 a tampered SDK is refused by the integrity check and the app neve
   await expect.poll(() => guard.state.consoleErrors.length).toBe(1);
   expect(guard.state.consoleErrors[0]).toContain('integrity');
   expect(guard.remove('consoleErrors', 'integrity')).toBe(1);
+});
+
+test('ACCT-02 a sign-in after the SDK failed to load at startup still follows a sign-out in another tab', async ({ app, page, guard }) => {
+  // 第一次加载 SDK 失败（篡改），之后撤掉篡改再登录：应用在登录时才创建客户端，登录状态监听也要在这时接上
+  await page.route('**' + PB_SDK_PATH, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: 'window.PocketBase = function () { window.__SYNTH_TAMPERED_SDK_RAN = true; };',
+    }),
+  );
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, sdkRefused: true });
+  await expect(page.locator('#login-err')).toHaveText(LOGIN_ERR_UNREACHABLE);
+  await expect.poll(() => guard.state.consoleErrors.length).toBe(1);
+  expect(guard.remove('consoleErrors', 'integrity')).toBe(1);
+  await page.unroute('**' + PB_SDK_PATH);
+
+  await app.login(0);
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+
+  // 同一个浏览器的第二个标签页以已有会话打开，然后在那里退出登录
+  const page2 = await page.context().newPage();
+  try {
+    await page2.clock.setFixedTime(FROZEN_NOW);
+    const app2 = new AppHarness(page2, { fake: app.fake });
+    await app2.open({ mode: 'cloud', login: 'session' });
+    await page2.locator('#logoutBtn').click();
+    await expect(page2.locator('#login')).toBeVisible();
+
+    // 标签页一跟着退出，并显示“已在另一个标签页退出登录”
+    await expect(page.locator('#login')).toBeVisible();
+    await expect(page.locator('.wrap')).toBeHidden();
+    await expect(page.locator('#loginNotice')).toHaveText(NOTICE_OTHER_TAB);
+  } finally {
+    await page2.close();
+  }
 });
