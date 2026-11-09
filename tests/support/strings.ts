@@ -323,3 +323,7 @@ export const LOGIN_EXPIRED = '登录已过期，请重新登录';
 
 // 登录过期提示的第二行：这个账号在本机还有没上传的修改或留底时才有（09-UI-SPEC S1 逐字复制）
 export const LOGIN_EXPIRED_UNSENT = '本机还有没上传的修改，用同一账号登录后会自动上传。';
+
+// 工具栏的退出登录按钮文字（09-UI-SPEC S7，#logoutBtn）和退出过程中的文字（E5 loading，按钮同时 disabled）
+export const BTN_LOGOUT = '退出登录';
+export const BTN_LOGGING_OUT = '正在退出…';

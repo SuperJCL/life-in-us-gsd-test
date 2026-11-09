@@ -58,6 +58,9 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(-
 .ghost{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
 .ghost:hover{color:var(--ink);border-color:var(--muted)}
 #snapshotBtn{color:var(--ink);background:var(--c-job-s);border-color:var(--c-job);font-size:12px}
+#logoutBtn,.who{font-size:12px}
+.who{color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:560px){.who{display:none}}
 .icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
 .primary{background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:7px 14px;font-weight:600}
 .primary:disabled{opacity:.4;cursor:default}
@@ -319,6 +322,8 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
       <button class="ghost hidden" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
       <button class="ghost hidden" id="exportJson">备份</button>
       <label class="ghost" style="cursor:pointer">恢复<input type="file" id="importJson" accept=".json,application/json" class="hidden"></label>
+      <span class="who hidden" id="who"></span>
+      <button class="ghost hidden" id="logoutBtn">退出登录</button>
     </div>
   </nav>
 
@@ -581,7 +586,8 @@ function persist(){dirty=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.sta
 async function flush(){
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
   if(!store||saving||!dirty)return;saving=true;dirty=false;
-  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label,store.state)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"),e&&e.state)}
+  const ep=sessionEpoch;
+  try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(e&&e.message||"未知错误"),e&&e.state)}
   saving=false;if(dirty)flush();
 }
 function setStatus(t,st){const e=$("status");e.textContent=t;if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
@@ -613,7 +619,7 @@ async function init(){
 /* ---------- cloud ---------- */
 const SDK_PATH="/vendor/pocketbase.iife.js",SDK_SRI="sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8=",WRITER=uid();
 const ERR_NET="连不上服务器，请检查网络后重试",ERR_CRED="邮箱或密码不对，请检查后重试";
-let pb=null,me=null,docs={state:null,plan:null};
+let pb=null,me=null,docs={state:null,plan:null},sessionEpoch=0;
 function loadSdk(){return new Promise((ok,no)=>{
   if(typeof window.PocketBase==="function"){ok();return}
   const s=document.createElement("script");s.src=SDK_PATH;s.integrity=SDK_SRI;
@@ -793,7 +799,8 @@ function startReconcile(mode,retrying){
   return attempt();
 }
 async function enterApp(refresh){
-  me=pb.authStore.record.id;
+  sessionEpoch++;
+  me=pb.authStore.record.id;showWho();
   try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
   const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cp,state:cs};
   if(cached){
@@ -895,16 +902,58 @@ function sizeCheck(s){
 }
 async function cloudSave(s){
   sizeCheck(s);
-  const seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r;
+  const ep=sessionEpoch,seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r;
   try{
     const cur=await coll.getOne(docs.state.id);
+    if(ep!==sessionEpoch)return;
     if(cur.updated!==docs.state.base)keepConflict("state",cur);
     r=await coll.update(docs.state.id,{data:s,writer:WRITER});
   }
   catch(e){const er=new Error("修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
+  if(ep!==sessionEpoch)return;
   docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
   cachePut("state",{...docs.state,data:state});
 }
+/* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
+   sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
+function showWho(){
+  const em=(pb.authStore.record&&pb.authStore.record.email)||"",w=$("who");
+  w.textContent=em;w.title=em;w.classList.toggle("hidden",!em);$("logoutBtn").classList.remove("hidden");
+}
+function resetSession(){
+  sessionEpoch++;
+  clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;
+  endRun(run);run=null;
+  store=null;me=null;docs={state:null,plan:null};
+  usePlan(DEFAULT_PLAN);state=normalize({});
+  view=new Date();view.setDate(1);sel=today();wk=monday(today());wsel=today();filter="全部";
+  [compEdit,compAdding].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));compCat.c="语言";compCat.w="语言";
+  setGate(null);
+  Object.keys(sbs).forEach(k=>delete sbs[k]);drawBar();sizeAck=false;
+  if(dlg.open)dlg.close();
+  form.textContent="";delete form.dataset.keep;delete form.dataset.kdate;
+  clearTimeout(tt);const t=$("toast");t.classList.remove("on","act");t.textContent="";
+  $("snapshotBtn").classList.add("hidden");$("logoutBtn").classList.add("hidden");
+  const w=$("who");w.classList.add("hidden");w.textContent="";w.removeAttribute("title");
+  document.querySelector(".wrap").classList.add("hidden");
+  renderAll();
+}
+let loggingOut=false;
+async function logout(){
+  if(loggingOut||!me)return;
+  loggingOut=true;
+  const btn=$("logoutBtn"),ep=sessionEpoch;btn.disabled=true;btn.textContent="正在退出…";
+  try{await pb.realtime.unsubscribe()}catch(e){}
+  if(ep===sessionEpoch){
+    ["state","plan","snapshot"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
+    try{localStorage.removeItem(LAST_USER_KEY)}catch(e){}
+    pb.authStore.clear();
+    resetSession();showLogin("");
+  }
+  btn.disabled=false;btn.textContent="退出登录";
+  loggingOut=false;
+}
+$("logoutBtn").addEventListener("click",logout);
 
 /* ---------- shared ---------- */
 function eventsOn(date){
