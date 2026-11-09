@@ -10,10 +10,13 @@ import { expectToast } from '../support/toast';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
 import {
+  BANNER_SNAPSHOT_NOT_KEPT,
+  BTN_ACK,
   BTN_DOWNLOAD_SNAPSHOT,
   FILENAME_SNAPSHOT_FROZEN,
   TOAST_CONFLICT,
   TOAST_SNAPSHOT_DOWNLOADED,
+  TOAST_SNAPSHOT_FAILED,
 } from '../support/strings';
 
 type Log = { id: string; text: string };
@@ -170,6 +173,105 @@ test('SYNC-05 a newer conflict replaces the single kept version', async ({ app, 
     expect(keys).toEqual([key]);
     expect(hasText(snap.data.logs, 'SYNTH-0908 first')).toBe(false);
     expect(hasText(snap.data.logs, 'SYNTH-0908 fourth')).toBe(false);
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-05 a kept version that does not fit in browser storage is reported by a banner instead of a success notice', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    // 测试装置只装在设备二、只针对留底键：写留底时抛 QuotaExceededError，其他键照常写
+    await second.page.addInitScript(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (String(key).endsWith(':snapshot')) throw new DOMException('quota exceeded', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+    });
+    await second.app.open({ mode: 'cloud', login: 0 });
+
+    const one = composer(page, 'w');
+    await one.type('SYNTH-0909 first');
+    await one.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0909 first'), { message: '等待设备一的记录上传' })
+      .toBe(true);
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0909 second');
+    await two.submit();
+
+    // 服务器仍以后保存的为准
+    await expect
+      .poll(
+        () => {
+          const logs = app.fake.lastState(0)?.logs;
+          return hasText(logs, 'SYNTH-0909 second') && !hasText(logs, 'SYNTH-0909 first');
+        },
+        { message: '等待设备二的保存成为服务器上的最新版本' },
+      )
+      .toBe(true);
+
+    const bar = second.page.locator('#syncbar');
+    await expect(bar).toBeVisible();
+    await expect(bar).toHaveAttribute('data-tone', 'warn');
+    await expect(bar.locator('.sb-msg')).toHaveText(BANNER_SNAPSHOT_NOT_KEPT);
+    await expect(bar.locator('button')).toHaveText(BTN_ACK);
+
+    // 不能弹“已在本机留底”的假提示，也不能显示下载按钮，本机没有留底
+    const toast = await second.page.evaluate(() => {
+      const t = document.querySelector('#toast');
+      return { on: !!t && t.classList.contains('on'), text: t?.querySelector('span')?.textContent ?? '' };
+    });
+    expect(toast.on && toast.text === TOAST_CONFLICT).toBe(false);
+    await expect(second.page.locator('#snapshotBtn')).toBeHidden();
+    const snap = await second.page.evaluate((k) => localStorage.getItem(k), `usj:v2:${app.fake.users[0].id}:snapshot`);
+    expect(snap).toBeNull();
+
+    await bar.locator('button').click();
+    await expect(bar).toBeHidden();
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-05 a failed download keeps the kept version and says so', async ({ app, page, browser, guard }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    // 测试装置只装在设备二：生成下载地址时抛错
+    await second.page.addInitScript(() => {
+      URL.createObjectURL = () => {
+        throw new Error('blob failed');
+      };
+    });
+    await second.app.open({ mode: 'cloud', login: 0 });
+
+    const one = composer(page, 'w');
+    await one.type('SYNTH-0909 first');
+    await one.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0909 first'), { message: '等待设备一的记录上传' })
+      .toBe(true);
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0909 second');
+    await two.submit();
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+
+    await second.page.locator('#snapshotBtn').click();
+    await expectToast(second.page, TOAST_SNAPSHOT_FAILED);
+
+    const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
+    const snap = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(snap).not.toBeNull();
+    expect(hasText(snap.data.logs, 'SYNTH-0909 first')).toBe(true);
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
   } finally {
     await second.context.close();

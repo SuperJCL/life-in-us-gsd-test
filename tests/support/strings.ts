@@ -282,3 +282,13 @@ export const TOAST_SNAPSHOT_DOWNLOADED = '已开始下载留底，本机不再�
 
 // 冻结日期（2026-03-18）下载留底的文件名：只有应用名、种类和日期，不含任何账号标识（D-11）
 export const FILENAME_SNAPSHOT_FROZEN = '在美国的日子-留底-2026-03-18.json';
+
+// 留底生成或下载出错时的 toast（09-UI-SPEC S5/S8 D-10 逐字复制，4000 ms）；此时不删留底、#snapshotBtn 保留
+export const TOAST_SNAPSHOT_FAILED = '留底生成失败，本机副本仍然保留';
+
+// 留底存不下（localStorage 配额不够等）时的横幅正文（09-UI-SPEC S4 逐字复制）；data-tone 为 warn，带 BTN_ACK 按钮
+export const BANNER_SNAPSHOT_NOT_KEPT =
+  '另一台设备上的修改被覆盖了，但本机空间不够，没能留底。请到另一台设备上核对被覆盖的内容。';
+
+// 横幅上“知道了”按钮的文字（09-UI-SPEC S4 按钮列，.ghost）
+export const BTN_ACK = '知道了';

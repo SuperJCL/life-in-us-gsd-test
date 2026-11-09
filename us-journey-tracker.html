@@ -789,8 +789,11 @@ function snapGet(){try{const r=JSON.parse(localStorage.getItem(snapKey()));retur
 function snapShow(){$("snapshotBtn").classList.toggle("hidden",!(CLOUD&&me&&snapGet()))}
 function keepConflict(kind,doc){
   const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
-  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}))}catch(e){return false}
-  snapShow();
+  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}))}catch(e){
+    showBar("snapfail",{tone:"warn",msg:"另一台设备上的修改被覆盖了，但本机空间不够，没能留底。请到另一台设备上核对被覆盖的内容。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("snapfail")}]});
+    return false;
+  }
+  hideBar("snapfail");snapShow();
   toast("另一台设备上的修改被覆盖，已在本机留底",{label:"下载留底",fn:snapDownload},8000);
   return true;
 }
@@ -798,8 +801,14 @@ function snapDownload(){
   const snap=snapGet();
   if(!snap){snapShow();return}
   const name=(snap.kind==="plan"?"在美国的日子-计划留底-":"在美国的日子-留底-")+today()+".json";
-  const url=URL.createObjectURL(new Blob([JSON.stringify(snap.data,null,2)],{type:"application/json"}));
-  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  let url=null;
+  try{
+    url=URL.createObjectURL(new Blob([JSON.stringify(snap.data,null,2)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  }catch(e){
+    if(url)try{URL.revokeObjectURL(url)}catch(x){}
+    toast("留底生成失败，本机副本仍然保留",null,4000);return;
+  }
   setTimeout(()=>URL.revokeObjectURL(url),0);
   try{localStorage.removeItem(snapKey())}catch(e){}
   snapShow();
