@@ -330,3 +330,19 @@ export const BTN_LOGGING_OUT = '正在退出…';
 
 // 另一个标签页退出登录后，本标签页登录页顶部的提示（09-UI-SPEC S1、Assumption A5 逐字复制）；#loginNotice 的 data-tone 为 info
 export const NOTICE_OTHER_TAB = '已在另一个标签页退出登录';
+
+// 退出确认框（09-UI-SPEC S7，D-05，逐字复制）：dialog#confirm，正文第一行是 当前账号：{邮箱}，后两行按实际情况出现
+export const CONFIRM_LOGOUT_TITLE = '退出登录？';
+export const CONFIRM_LOGOUT_ACCOUNT_PREFIX = '当前账号：';
+export const CONFIRM_LOGOUT_UNSAVED = '有修改还没保存到服务器，退出后会丢失。';
+export const CONFIRM_LOGOUT_SNAPSHOT = '有一份另一台设备的旧版本留底还没下载，退出后会丢失。';
+export const BTN_STAY = '不退出';
+export const BTN_LOGOUT_ANYWAY = '仍然退出';
+
+// 换账号登录确认框（09-UI-SPEC S7，Claude's Discretion）：凭据通过之后、清除前一个账号的本机数据之前弹出
+export const CONFIRM_SWITCH_TITLE = '换账号登录？';
+export const BTN_NO_SWITCH = '不换账号';
+export const BTN_SWITCH_ANYWAY = '仍然登录';
+// parts：按实际情况出现的 没上传的修改、没下载的留底，两样都有时用 、 连接
+export const switchBody = (email: string, parts: string[]) =>
+  `这台设备上还有 ${email} ${parts.join('、')}，换账号登录后会被清除。`;

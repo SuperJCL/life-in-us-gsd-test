@@ -215,9 +215,15 @@ body[data-gate] .primary:disabled{opacity:.4}
 body[data-gate] .ghost[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
 body[data-gate] [aria-disabled="true"]{cursor:default}
 body[data-gate] .ent[aria-disabled="true"]:hover,body[data-gate] .editable[aria-disabled="true"]:hover{filter:none;box-shadow:none}
-dialog#editor{border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink)}
-dialog#editor::backdrop{background:rgba(10,16,30,.45)}
-@media (max-width:560px){dialog#editor{margin:auto 0 0;width:100vw;max-width:100vw;border-radius:14px 14px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
+dialog#editor,dialog#confirm{border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink)}
+dialog#editor::backdrop,dialog#confirm::backdrop{background:rgba(10,16,30,.45)}
+@media (max-width:560px){dialog#editor,dialog#confirm{margin:auto 0 0;width:100vw;max-width:100vw;border-radius:14px 14px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
+dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2}
+#cf-body{font-size:14px;word-break:break-word}
+#cf-body p{margin:0}
+#cf-body p+p{margin-top:6px}
+#cf-body p:first-child{color:var(--muted)}
+@media (max-width:560px){dialog#confirm .ed-foot .sp{display:none}dialog#confirm .ed-foot button{flex:1;min-height:44px}}
 .ed-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
 .ed-h h3{font-family:var(--serif);font-size:19px;margin:0}
 .ed-grid{display:grid;gap:12px}
@@ -370,6 +376,7 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <dialog id="editor" aria-labelledby="ed-title"><form method="dialog" id="ed-form"></form></dialog>
+<dialog id="confirm" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-body"><form method="dialog"><div class="ed-h"><h3 id="cf-title"></h3></div><div id="cf-body"></div><div class="ed-foot"><span class="sp"></span><button type="button" class="ghost" id="cfCancel" autofocus></button><button type="button" class="danger" id="cfOk"></button></div></form></dialog>
 
 <script>
 (function(){
@@ -581,9 +588,10 @@ function normalize(s){
 }
 
 /* ---------- saving ---------- */
-let saveTimer=null,saving=false,dirty=false;
-function persist(){dirty=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cachePut("state",{...docs.state,data:state})}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
+function persist(){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cachePut("state",{...docs.state,data:state})}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 async function flush(){
+  savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
   if(!store||saving||!dirty)return;saving=true;dirty=false;
   const ep=sessionEpoch;
@@ -640,13 +648,14 @@ function onAuthChange(){
 }
 const T_OTHER_TAB="已在另一个标签页退出登录",T_EXPIRED="登录已过期，请重新登录",T_EXPIRED_UNSENT="本机还有没上传的修改，用同一账号登录后会自动上传。";
 /* unsent work of the last account on this device: a dirty state or plan cache, or a kept snapshot (read without me, which is null on the login page) */
+function unsentOf(id){
+  if(!id)return {edits:false,snap:false};
+  const g=k=>{try{return JSON.parse(localStorage.getItem("usj:v2:"+id+":"+k))}catch(e){return null}};
+  const s=g("state"),p=g("plan");
+  return {edits:!!((s&&s.dirty)||(p&&p.dirty)),snap:!!g("snapshot")};
+}
 function hasUnsent(){
-  try{
-    const id=localStorage.getItem(LAST_USER_KEY);if(!id)return false;
-    const g=k=>{try{return JSON.parse(localStorage.getItem("usj:v2:"+id+":"+k))}catch(e){return null}};
-    const s=g("state"),p=g("plan");
-    return !!((s&&s.dirty)||(p&&p.dirty)||g("snapshot"));
-  }catch(e){return false}
+  try{const u=unsentOf(localStorage.getItem(LAST_USER_KEY));return u.edits||u.snap}catch(e){return false}
 }
 function loginNotice(kind){
   const n=$("loginNotice");n.textContent="";
@@ -712,12 +721,32 @@ async function onLogin(e){
     status=err&&err.status;
     msg=gaveUp?ERR_NET:status===400?ERR_CRED:status===429?ERR_RATE:ERR_NET;
   }
-  clearTimeout(timer);setLoginBusy(false);
+  clearTimeout(timer);
   if(msg){
+    setLoginBusy(false);
     $("login-err").textContent=msg;
     if(msg===ERR_CRED){const p=$("loginPw");p.value="";p.setAttribute("aria-invalid","true");p.focus()}
     return;
   }
+  /* another account than the last one on this device: its local data is cleared before this one enters; when that data still holds unsent edits or a kept version,
+     ask first (the button keeps showing the busy text meanwhile); no leaves the page as it was, without the new token and with the typed email */
+  let prevId=null;try{prevId=localStorage.getItem(LAST_USER_KEY)}catch(err){}
+  const rec=pb.authStore.record;
+  if(prevId&&rec&&prevId!==rec.id){
+    const u=unsentOf(prevId);
+    if(u.edits||u.snap){
+      let em="";try{em=localStorage.getItem(LAST_EMAIL_KEY)||""}catch(err){}
+      const parts=[];if(u.edits)parts.push("没上传的修改");if(u.snap)parts.push("没下载的留底");
+      const go=await confirmBox({title:"换账号登录？",lines:["这台设备上还有 "+em+" "+parts.join("、")+"，换账号登录后会被清除。"],cancel:"不换账号",ok:"仍然登录"});
+      if(!go){
+        authQuiet=true;pb.authStore.clear();authQuiet=false;
+        setLoginBusy(false);$("loginPw").value="";setPwShown(false);$("loginPw").focus();
+        return;
+      }
+    }
+    ["state","plan","snapshot"].forEach(k=>{try{localStorage.removeItem("usj:v2:"+prevId+":"+k)}catch(err){}});
+  }
+  setLoginBusy(false);
   $("loginPw").value="";setPwShown(false);loginNotice(null);
   try{localStorage.setItem(LAST_EMAIL_KEY,email)}catch(err){}
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
@@ -928,13 +957,39 @@ async function cloudSave(s){
 }
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
    sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
+/* confirmBox: one shared dialog (logout confirm, switch-account confirm); text is written with textContent, the cancel button is the default focus,
+   Esc, a click on the backdrop and the cancel button all resolve false; only the ok button resolves true; focus goes back to the element that opened it */
+const cfDlg=$("confirm");
+function confirmBox(o){
+  return new Promise(res=>{
+    if(cfDlg.open){res(false);return}
+    const back=document.activeElement,cancel=$("cfCancel"),okb=$("cfOk");let val=false;
+    $("cf-title").textContent=o.title;
+    const body=$("cf-body");body.textContent="";
+    o.lines.forEach(t=>{const p=document.createElement("p");p.textContent=t;body.appendChild(p)});
+    cancel.textContent=o.cancel;okb.textContent=o.ok;
+    cancel.onclick=()=>cfDlg.close();
+    okb.onclick=()=>{val=true;cfDlg.close()};
+    cfDlg.onclick=e=>{if(e.target===cfDlg)cfDlg.close()};
+    cfDlg.addEventListener("close",()=>{
+      cancel.onclick=okb.onclick=cfDlg.onclick=null;
+      try{if(back&&back.isConnected&&typeof back.focus==="function")back.focus()}catch(e){}
+      res(val);
+    },{once:true});
+    cfDlg.showModal();cancel.focus();
+  });
+}
+/* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce */
+function hasUnsaved(){return savePending||saving||rvPending||!!(docs.state&&docs.state.dirty)||!!(docs.plan&&docs.plan.dirty)}
+const T_CF_OUT="退出登录？",T_CF_ACCOUNT="当前账号：",T_CF_UNSAVED="有修改还没保存到服务器，退出后会丢失。",T_CF_SNAP="有一份另一台设备的旧版本留底还没下载，退出后会丢失。";
 function showWho(){
   const em=(pb.authStore.record&&pb.authStore.record.email)||"",w=$("who");
   w.textContent=em;w.title=em;w.classList.toggle("hidden",!em);$("logoutBtn").classList.remove("hidden");
 }
 function resetSession(){
   sessionEpoch++;
-  clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;
+  clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
+  if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
   usePlan(DEFAULT_PLAN);state=normalize({});
@@ -965,7 +1020,19 @@ async function logout(){
   btn.disabled=false;btn.textContent="退出登录";
   loggingOut=false;authQuiet=false;
 }
-$("logoutBtn").addEventListener("click",logout);
+/* the toolbar button: ask first only when something would be lost (D-05); the confirm does not wait for a running save, and a save answering later is stopped by sessionEpoch */
+async function onLogoutClick(){
+  if(loggingOut||!me)return;
+  const unsaved=hasUnsaved(),snap=!!snapGet();
+  if(unsaved||snap){
+    const lines=[T_CF_ACCOUNT+((pb.authStore.record&&pb.authStore.record.email)||"")];
+    if(unsaved)lines.push(T_CF_UNSAVED);
+    if(snap)lines.push(T_CF_SNAP);
+    if(!await confirmBox({title:T_CF_OUT,lines,cancel:"不退出",ok:"仍然退出"}))return;
+  }
+  await logout();
+}
+$("logoutBtn").addEventListener("click",onLogoutClick);
 
 /* ---------- shared ---------- */
 function eventsOn(date){
@@ -1201,7 +1268,7 @@ $("wkNow").onclick=()=>{wk=monday(today());wsel=today();renderWeek()};
 function pickDay(el){if(!el)return;wsel=el.dataset.wday;renderWeek();if(innerWidth<=900)$("wkComp").scrollIntoView({behavior:"smooth",block:"start"})}
 $("days").addEventListener("click",e=>{if(e.target.closest(".x"))return;pickDay(e.target.closest("[data-wday]"))});
 $("days").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset.wday){e.preventDefault();pickDay(e.target)}});
-let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvT=setTimeout(()=>{if(v.trim())state.reviews[w]=v;else delete state.reviews[w];persist()},800)});
+let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvPending=true;rvT=setTimeout(()=>{rvPending=false;if(v.trim())state.reviews[w]=v;else delete state.reviews[w];persist()},800)});
 // calendar
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);renderCal()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);renderCal()};
