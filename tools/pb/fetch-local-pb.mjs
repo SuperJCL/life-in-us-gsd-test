@@ -99,6 +99,35 @@ function selfTest() {
   check('checkMembers 反斜杠开头被拒', checkMembers(['pocketbase.exe', '\\x']) === false);
   check('checkMembers 两个 pocketbase.exe 被拒', checkMembers(['pocketbase.exe', 'pocketbase.exe']) === false);
 
+  // WR-03：PowerShell 用绝对路径；用本机刚建的小 zip 走一遍“列成员 -> 核对 -> 解出一个成员”（不联网、不碰真实程序）
+  let missingThrows = false;
+  try {
+    powershellPath({ SystemRoot: 'Z:\\no-such-root' });
+  } catch (e) {
+    missingThrows = true;
+  }
+  check('powershellPath 是绝对路径，SystemRoot 指向不存在的目录时抛错', path.isAbsolute(powershellPath()) && missingThrows);
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'usj-pbst-'));
+  try {
+    const src = path.join(work, 'src');
+    const cwd = path.join(work, 'cwd');
+    const outDir = path.join(work, 'out');
+    for (const d of [src, cwd, outDir]) fs.mkdirSync(d);
+    const payload = crypto.randomBytes(64);
+    fs.writeFileSync(path.join(src, 'pocketbase.exe'), payload);
+    fs.writeFileSync(path.join(src, 'LICENSE.md'), 'x');
+    const zipFile = path.join(work, 'sample.zip');
+    runPowerShell('Compress-Archive -LiteralPath $env:USJ_ARG0,$env:USJ_ARG1 -DestinationPath $env:USJ_ARG2', [path.join(src, 'pocketbase.exe'), path.join(src, 'LICENSE.md'), zipFile], cwd);
+    const names = listZipMembers(zipFile, cwd);
+    check('listZipMembers 在空的工作目录里列出成员且通过 checkMembers', checkMembers(names) === true && fs.readdirSync(cwd).length === 0);
+    extractExe(zipFile, outDir, cwd);
+    check('extractExe 只解出 pocketbase.exe 且内容一致', fs.readdirSync(outDir).join() === 'pocketbase.exe' && fs.readFileSync(path.join(outDir, 'pocketbase.exe')).equals(payload) && fs.readdirSync(cwd).length === 0);
+  } catch (e) {
+    check('zip 本机往返（PowerShell）', false);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+
   const ok = results.every(Boolean);
   console.log(ok ? 'FETCH SELF-TEST OK' : 'FETCH SELF-TEST FAIL');
   return ok;
@@ -123,39 +152,45 @@ async function download(url, timeoutMs) {
   throw new Error('跳转次数超过 5 次');
 }
 
-function listZipMembers(zipFile) {
-  const r = spawnSync('unzip', ['-Z1', zipFile], { encoding: 'utf8', cwd: os.tmpdir(), windowsHide: true });
-  if (!r.error && r.status === 0) return r.stdout.split(/\r?\n/);
-  const ps = spawnSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      "Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::OpenRead($args[0]); try{$z.Entries|ForEach-Object{$_.FullName}}finally{$z.Dispose()}",
-      zipFile,
-    ],
-    { encoding: 'utf8', cwd: os.tmpdir(), windowsHide: true },
-  );
-  if (ps.error || ps.status !== 0) throw new Error('无法列出 zip 成员（unzip 和 PowerShell 都不可用）');
-  return ps.stdout.split(/\r?\n/);
+// WR-03：刚下载的数据只交给系统自带的 PowerShell 处理，并且
+//   - 用绝对路径调用（从 %SystemRoot% 解析），不让当前目录或 PATH 里的同名程序参与；
+//   - 工作目录是调用方刚建好的空目录（不是共享的系统临时目录），里面没有任何可被抢先放置的文件；
+//   - 不再有 unzip 分支（Windows 没有自带的 unzip，PATH 上的 unzip 来路不明）。
+export function powershellPath(env = process.env) {
+  const root = env.SystemRoot || env.windir || 'C:\\Windows';
+  const exe = path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  if (!path.isAbsolute(exe) || !fs.existsSync(exe)) throw new Error('找不到系统自带的 PowerShell，无法检查 zip');
+  return exe;
 }
 
-function extractExe(zipFile, outDir) {
-  const r = spawnSync('unzip', ['-j', '-o', zipFile, 'pocketbase.exe', '-d', outDir], { encoding: 'utf8', cwd: os.tmpdir(), windowsHide: true });
-  if (!r.error && r.status === 0) return;
-  const tmpAll = fs.mkdtempSync(path.join(os.tmpdir(), 'usj-pbdl-all-'));
-  try {
-    const ps = spawnSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force', zipFile, tmpAll],
-      { encoding: 'utf8', cwd: os.tmpdir(), windowsHide: true },
-    );
-    if (ps.error || ps.status !== 0) throw new Error('解压失败');
-    fs.copyFileSync(path.join(tmpAll, 'pocketbase.exe'), path.join(outDir, 'pocketbase.exe'));
-  } finally {
-    fs.rmSync(tmpAll, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  }
+// 路径通过环境变量 USJ_ARG0、USJ_ARG1…传给脚本（-Command 后面的位置参数会被拼进命令文本，$args 是空的）
+function runPowerShell(script, args, cwd) {
+  const env = { ...process.env };
+  args.forEach((a, i) => {
+    env[`USJ_ARG${i}`] = a;
+  });
+  const r = spawnSync(powershellPath(), ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', cwd, env, windowsHide: true });
+  if (r.error || r.status !== 0) throw new Error('PowerShell 处理 zip 失败');
+  return r.stdout;
+}
+
+// cwd 必须是空的新建目录
+export function listZipMembers(zipFile, cwd) {
+  const out = runPowerShell(
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::OpenRead($env:USJ_ARG0); try{$z.Entries|ForEach-Object{$_.FullName}}finally{$z.Dispose()}',
+    [zipFile],
+    cwd,
+  );
+  return out.split(/\r?\n/);
+}
+
+// 只解出顶层的 pocketbase.exe 一个成员（成员名单已由 checkMembers 核对过）
+export function extractExe(zipFile, outDir, cwd) {
+  runPowerShell(
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem; $z=[IO.Compression.ZipFile]::OpenRead($env:USJ_ARG0); try{$e=$z.GetEntry("pocketbase.exe"); if($null -eq $e){exit 3}; [IO.Compression.ZipFileExtensions]::ExtractToFile($e,$env:USJ_ARG1,$true)}finally{$z.Dispose()}',
+    [zipFile, path.join(outDir, 'pocketbase.exe')],
+    cwd,
+  );
 }
 
 async function approvedRun() {
@@ -179,6 +214,7 @@ async function approvedRun() {
     const zipDir = mk('usj-pbdl-zip-');
     const sumDir = mk('usj-pbdl-sum-');
     const outDir = mk('usj-pbdl-out-');
+    const workDir = mk('usj-pbdl-cwd-'); // 子进程的工作目录：保持为空
     const zipBytes = await download(`${BASE_URL}/${ZIP_NAME}`, 180000);
     const sumBytes = await download(`${BASE_URL}/checksums.txt`, 60000);
     const zipFile = path.join(zipDir, ZIP_NAME);
@@ -189,10 +225,10 @@ async function approvedRun() {
     console.log('PB_ZIP_PINNED_MATCH=yes');
     if (!checkChecksums(sumBytes.toString('utf8'))) throw new Error('核对失败：checksums.txt 里 Windows 或 linux 那一行与钉死值不一致，什么都没有解出');
     console.log('PB_CHECKSUMS_MATCH=yes');
-    if (!checkMembers(listZipMembers(zipFile))) throw new Error('核对失败：zip 的成员名单不符合要求，什么都没有解出');
+    if (!checkMembers(listZipMembers(zipFile, workDir))) throw new Error('核对失败：zip 的成员名单不符合要求，什么都没有解出');
     console.log('PB_MEMBERS_OK=yes');
 
-    extractExe(zipFile, outDir);
+    extractExe(zipFile, outDir, workDir);
     const exe = path.join(outDir, 'pocketbase.exe');
     if (!fs.existsSync(exe)) throw new Error('解压后没有 pocketbase.exe');
     fs.mkdirSync(path.dirname(PB_EXE_PATH), { recursive: true });
