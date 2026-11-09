@@ -6,10 +6,10 @@ current_phase: 08
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
 status: verifying
 stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-09T00:37:18.463Z"
+last_updated: "2026-11-09T02:59:31.774Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 08 execution started
-state_head: 72eb3f1f17cea0c29085b8cfbc51167446ccd2c5
+state_head: bb0db7154ec6e4f491ebeed4a93c822c730f2065
 progress:
   total_phases: 8
   completed_phases: 2
@@ -172,6 +172,7 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 08]: 08-06: 录制客户端是 sdk-vm（真实 SDK 0.28.1 在 node:vm 里运行成功）；样本归一化时对象键按字典序处理，三次录制逐字节相同；隐私检查器入口保护 fail closed
 - [Phase 08]: 08-07: 契约自测没有登记任何有意偏差；4 处差异（列表顺序、三种字段错误的 params 和消息）都改假服务器对齐样本
 - [Phase 08]: 08-07: TEST-02 在 Phase 8 只完成基础部分，保持 Pending；Phase 9-12 补用例，Phase 13 收口
+- [Phase 08]: WR-01 定论：真实 0.41.1 上新建文档带修饰符键不能跨账号（ACCT04-27，48/48）；kind+ 只能在本人账号内把类型从 plan 改成 state，规则语法无法禁止，所有者 2026-11-08 判定无害、接受并记录（不加 pb_hooks）
 
 ### Pending Todos
 
