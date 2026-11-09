@@ -6,10 +6,10 @@ current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: verifying
 stopped_at: "Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)"
-last_updated: "2026-11-09T12:22:01.144Z"
+last_updated: "2026-11-09T21:56:00.474Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 8a8f026416146398e8eadb887635620ceb3a3933
+state_head: 4a5ab159a7645cfe6c052006f30bd0f872a2ec71
 progress:
   total_phases: 8
   completed_phases: 3
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
 Plan: 14 of 14
 Status: Phase complete — ready for verification
-Last activity: 2026-11-09 — Phase 09 execution started
+Last activity: 2026-11-09 - Completed quick task 261109-inq: 应用改名为“计划手记”，页面里的美国字样改成通用说法
 
 Progress: [████░░░░░░] 38%
 
@@ -252,6 +252,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 | 2 | privacy-check --push 加窄例外清单，放行已在 0fa5cea 修正的示例地址（2 处，规则 H），自检 193 项通过 | 2026-11-08 | cae2c04 | — |
 | 3 | redact.mjs 私有文件存在但没有值时也拒绝输出（06-REVIEW WR-06），自检 33 项 | 2026-11-08 | dcfc987 | — |
 | 4 | 修 09-UI-REVIEW 的 4 条 CSS 警告：375px 下云端 toast 宽度、新界面按钮 14px、等待卡片进度条外边距、换账号确认框正文颜色（8a8f026） | 2026-11-09 | 8a8f026 | — |
+| 261109-inq | 应用改名为“计划手记”，页面里的美国字样改成通用说法；隐私规则保留旧导出文件名并加上新文件名 | 2026-11-09 | 4a5ab15 | [261109-inq-rename-app-title-and-neutral-wording](./quick/261109-inq-rename-app-title-and-neutral-wording/) |
 
 ## Deferred Items
 
