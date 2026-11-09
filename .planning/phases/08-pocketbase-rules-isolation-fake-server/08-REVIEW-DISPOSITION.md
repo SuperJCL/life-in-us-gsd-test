@@ -17,7 +17,7 @@ findings:
     title: "下载脚本以系统临时目录为工作目录调用相对名字的 unzip 和 powershell，存在可执行文件被抢先放置的风险"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "假服务器在同文档导航时也会注销页面的实时连接"
   - id: IN-01
     severity: info
@@ -51,9 +51,9 @@ findings:
     severity: info
     disposition: open
     title: "测试工具里几处小的健壮性问题"
-open: 12
+open: 11
 total: 12
-recorded: 2026-11-09T00:47:37.473Z
+recorded: 2026-11-09T02:58:33.306Z
 ---
 
 # Phase 08: Code Review Disposition
@@ -63,7 +63,7 @@ recorded: 2026-11-09T00:47:37.473Z
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
+| WR-04 | warning | fixed | 08-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
