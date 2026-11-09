@@ -356,7 +356,8 @@ test('SYNC-05 a first sign-in that cannot reach the server shows only the retry 
   await expect(boot.locator('button:visible')).toHaveCount(1);
   await expect(boot.locator('button:visible')).toHaveText(BTN_RETRY);
   await expect(page.locator('.wrap')).toBeHidden();
-  await expect(page.getByText('退出登录')).toHaveCount(0);
+  // 工具栏里的退出登录按钮（09-13 起一直在页面里，只是 hidden）和 dialog#confirm 的标题（09-14）都不可见：只数看得见的文字
+  await expect(page.getByText('退出登录').locator('visible=true')).toHaveCount(0);
   await expect(page.getByText('合成记录')).toHaveCount(0);
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'unreachable');
 

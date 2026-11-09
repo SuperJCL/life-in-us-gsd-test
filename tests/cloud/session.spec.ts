@@ -84,10 +84,10 @@ test('ACCT-01 signing in again with the same account uploads the edit kept throu
 
   await app.login(0);
 
-  // 对账照常上传过期期间留在缓存里的修改；登录成功后过期提示收起，也没有换账号确认框
+  // 对账照常上传过期期间留在缓存里的修改；登录成功后过期提示收起，也没有打开换账号确认框（dialog#confirm 自 09-14 起一直在页面里，只数打开的）
   expect(hasText(app.fake.lastState(0)?.logs, KEPT)).toBe(true);
   await expect(page.locator('#loginNotice')).toBeHidden();
-  await expect(page.locator('dialog#confirm')).toHaveCount(0);
+  await expect(page.locator('dialog#confirm[open]')).toHaveCount(0);
   const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:state`);
   expect(cached.dirty).toBe(false);
 });
