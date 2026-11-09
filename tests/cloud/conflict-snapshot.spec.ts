@@ -376,7 +376,7 @@ test('SYNC-05 a server version written by this same page is not another device a
   expect(toast.on && toast.text === TOAST_CONFLICT).toBe(false);
 });
 
-test('SYNC-05 a conflict is kept and announced only after the overwrite succeeded, not when the upload is refused', async ({
+test('SYNC-05 a conflict is kept silently before the upload and announced only after an upload succeeded, not when the upload is refused', async ({
   app,
   page,
   browser,
@@ -395,7 +395,7 @@ test('SYNC-05 a conflict is kept and announced only after the overwrite succeede
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
       .toBe(true);
 
-    // 设备二的基线是旧的：它的第一次上传被拒绝，服务器版本没有被覆盖，所以不留底、不提示
+    // 设备二的基线是旧的：它的第一次上传被拒绝，服务器版本没有被覆盖。上传之前已经静默留底（T-09-18），但还没有提示、没有下载入口
     app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse', times: 1 });
     const two = composer(second.page, 'w');
     await two.type('SYNTH-0912 second');
@@ -403,7 +403,10 @@ test('SYNC-05 a conflict is kept and announced only after the overwrite succeede
     await expect(second.page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
     expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first')).toBe(true);
-    expect(await second.page.evaluate((k) => localStorage.getItem(k), key)).toBeNull();
+    const silent = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(silent?.kind).toBe('state');
+    expect(hasText(silent.data.logs, 'SYNTH-0912 first')).toBe(true);
+    expect(hasText(silent.data.logs, 'SYNTH-0912 second')).toBe(false);
     await expect(second.page.locator('#snapshotBtn')).toBeHidden();
     const toast = await second.page.evaluate(() => {
       const t = document.querySelector('#toast');
@@ -411,7 +414,7 @@ test('SYNC-05 a conflict is kept and announced only after the overwrite succeede
     });
     expect(toast.on && toast.text === TOAST_CONFLICT).toBe(false);
 
-    // 下一次修改上传成功：这次才真的覆盖了设备一的版本，留底和提示这时出现
+    // 下一次修改上传成功：这次才真的覆盖了设备一的版本，提示和下载入口这时出现，留底仍是同一份（不重复、不丢失）
     const again = composer(second.page, 'w');
     await again.type('SYNTH-0912 third');
     await again.submit();
@@ -424,6 +427,65 @@ test('SYNC-05 a conflict is kept and announced only after the overwrite succeede
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
     const snap = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
     expect(hasText(snap.data.logs, 'SYNTH-0912 first')).toBe(true);
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-05 a conflict whose overwrite reached the server but whose answer was lost keeps the other device version and offers it after the next successful save', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
+
+    const one = composer(page, 'w');
+    await one.type('SYNTH-0912 first');
+    await one.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
+      .toBe(true);
+
+    // 设备二的基线是旧的：它的上传在服务器上生效了（设备一的版本已被覆盖），但答复丢了，页面报保存失败
+    const lost = app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'lose-answer', times: 1 });
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0912 second');
+    await two.submit();
+    await expect(second.page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_RESET: 1 });
+    expect(lost.hits).toBe(1);
+    await expect
+      .poll(() => {
+        const logs = app.fake.lastState(0)?.logs;
+        return hasText(logs, 'SYNTH-0912 second') && !hasText(logs, 'SYNTH-0912 first');
+      }, { message: '服务器上已经是设备二的版本' })
+      .toBe(true);
+
+    // 设备一的版本已经留在本机，此时还没有提示
+    const kept = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(kept?.kind).toBe('state');
+    expect(hasText(kept.data.logs, 'SYNTH-0912 first')).toBe(true);
+    expect(hasText(kept.data.logs, 'SYNTH-0912 second')).toBe(false);
+    await expect(second.page.locator('#snapshotBtn')).toBeHidden();
+
+    // 下一次保存读到的是自己的写入（writer 相同、内容相同），但留底仍在：成功之后提示并给下载入口，留底没有丢也没有重复
+    const again = composer(second.page, 'w');
+    await again.type('SYNTH-0912 third');
+    await again.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 third'), { message: '等待设备二的下一次保存到达服务器' })
+      .toBe(true);
+    await expectToast(second.page, TOAST_CONFLICT);
+    await expect(second.page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+    const after = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(after).toEqual(kept);
+    expect(hasText(after.data.logs, 'SYNTH-0912 first')).toBe(true);
   } finally {
     await second.context.close();
   }

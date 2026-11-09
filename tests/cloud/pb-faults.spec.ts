@@ -62,6 +62,7 @@ type Call =
   | { kind: 'refresh' }
   | { kind: 'login'; creds: Creds }
   | { kind: 'create'; owner: string }
+  | { kind: 'update'; id: string; data: Record<string, unknown> }
   | { kind: 'delete'; id: string };
 
 // 在 window.__pb 上执行一次 SDK 调用；失败时整理成可序列化的 { status, message, codes }（codes 是每个出错字段的错误码）
@@ -75,6 +76,7 @@ function attempt(page: Page, call: Call): Promise<Outcome> {
       if (c.kind === 'refresh') await pb.collection('users').authRefresh();
       if (c.kind === 'login') await pb.collection('users').authWithPassword(c.creds.email, c.creds.password);
       if (c.kind === 'create') await docs.create({ owner: c.owner, kind: 'state', data: { _synthetic: true } });
+      if (c.kind === 'update') await docs.update(c.id, { data: c.data });
       if (c.kind === 'delete') await docs.delete(c.id);
       return { ok: true, status: 200, message: '', codes: {}, count };
     } catch (e: any) {
@@ -150,6 +152,31 @@ test('TEST-02 the status switch answers once with the injected status and a Pock
   expect(app.fake.requests.map((r) => r.status)).toEqual([200, 200]);
   expect(app.fake.fulfillErrors).toEqual([]);
   await acknowledgeConsoleErrors(guard, { 'status of 429 ': 1, 'status of 503 ': 1 });
+});
+
+test('TEST-02 the lose-answer switch applies the request on the server and fails it in the page', async ({ app, page, guard }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
+  const [user] = app.fake.users;
+  await signIn(page, user);
+  const id = app.fake.docId(0, 'state');
+  const path = `${LIST_PATH}/${id}`;
+  const f = app.fake.fault({ method: 'PATCH', path, mode: 'lose-answer', times: 1 });
+
+  // 页面看到网络错误（status 0），但 handle() 已经应用了这次写入：服务器上是新内容，requests 里有这条 PATCH 200
+  const lost = await attempt(page, { kind: 'update', id, data: { _synthetic: true, marker: 'lose-answer-one' } });
+  expect(lost.ok).toBe(false);
+  expect(lost.status).toBe(0);
+  expect(f.hits).toBe(1);
+  expect(JSON.stringify(app.fake.lastState(0))).toContain('lose-answer-one');
+  expect(app.fake.requests.filter((r) => r.method === 'PATCH')).toEqual([{ method: 'PATCH', path, status: 200 }]);
+  expect(app.fake.faultHits).toEqual([{ method: 'PATCH', path, mode: 'lose-answer', status: 0 }]);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_RESET: 1 });
+
+  // times 用完之后恢复正常：这次页面收到 200
+  expect((await attempt(page, { kind: 'update', id, data: { _synthetic: true, marker: 'lose-answer-two' } })).ok).toBe(true);
+  expect(JSON.stringify(app.fake.lastState(0))).toContain('lose-answer-two');
+  expect(f.hits).toBe(1);
+  expect(app.fake.fulfillErrors).toEqual([]);
 });
 
 test('TEST-02 the hold switch keeps a request pending until it is released', async ({ app, page }) => {

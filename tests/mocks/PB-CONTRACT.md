@@ -219,6 +219,7 @@
 | --- | --- | --- |
 | `fault({ mode: 'refuse' })` | 网络层拒绝连接（`route.abort('connectionrefused')`），页面里的 fetch 以网络错误失败；请求不进 `requests` | 没有录制样本：真实实例不会“拒绝连接”，这只是让页面看到服务器连不上 |
 | `fault({ mode: 'status', status })` | 不经过 `handle()`，直接回指定状态码，正文 `{ status, message, data: {} }`；429 的 message 是 `Too Many Requests.`，5xx 是 `Something went wrong while processing your request.`，其他是 `Injected failure.` | 没有录制样本：429 和 5xx 的正文形状按 PocketBase 的通用错误形状写，未经真实实例录制 |
+| `fault({ mode: 'lose-answer' })` | 请求照常交给 `handle()`，写入在服务器上生效、推送照常送出，但页面收不到答复：`route.abort('connectionreset')`，页面里的 fetch 以网络错误失败；请求进 `requests`，`faultHits` 记 0 | 没有录制样本，属于未经录制的测试设施行为，不是有意偏差：只是模拟“服务器已应用、答复在路上丢了”，写入本身仍由 `handle()` 的真实逻辑处理 |
 | `fault({ mode: 'hold' })` | 请求一直挂着，直到该句柄的 `release()` 或 `clearFaults()`，之后照常交给 `handle()` | 没有录制样本：只是推迟响应，放行后的响应仍来自 `handle()` |
 | `times` | 规则命中次数达到 `times` 后自动失效；缺省表示一直生效，`remove()` 立即撤掉 | 测试设施，无对应的服务器行为 |
 | `clearFaults()` | 撤掉全部规则并放行全部挂起的请求 | 测试设施 |

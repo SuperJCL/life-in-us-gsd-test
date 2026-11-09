@@ -36,9 +36,10 @@ export type PbRequest = {
 // 错误注入开关（Phase 9，不属于录制契约）：
 //  refuse：网络层拒绝连接（route.abort('connectionrefused')），页面里的 fetch 以网络错误失败；
 //  status：不经过 handle()，直接回 status 指定的状态码和 PocketBase 形状的错误正文；
-//  hold：请求一直挂着，直到句柄的 release() 或 clearFaults()，之后才照常交给 handle()。
+//  hold：请求一直挂着，直到句柄的 release() 或 clearFaults()，之后才照常交给 handle()；
+//  lose-answer：请求照常交给 handle()（服务器上的写入已经生效、推送照常送出），但页面收不到答复：route.abort('connectionreset')，页面里的 fetch 以网络错误失败。
 // times 缺省表示一直生效，命中 times 次之后自动失效。
-export type PbFaultMode = 'refuse' | 'status' | 'hold';
+export type PbFaultMode = 'refuse' | 'status' | 'hold' | 'lose-answer';
 export type PbFault = { method: string; path: string | RegExp; mode: PbFaultMode; status?: number; times?: number };
 export type PbFaultHandle = { readonly hits: number; release(): Promise<void>; remove(): void };
 
@@ -395,6 +396,12 @@ export class FakePbServer {
             }
             return;
           }
+          if (rule.fault.mode === 'lose-answer') {
+            // 请求已被 handle() 应用（进 requests），只是答复被丢掉；faultHits 记 0
+            this.faultHits.push({ ...hit, status: 0 });
+            await this.serve(route, request, url, true);
+            return;
+          }
           // hold：没有注入的状态码，记 0；放行后的响应来自 handle()
           this.faultHits.push({ ...hit, status: 0 });
           const done = new Promise<void>((resolve) => {
@@ -427,7 +434,7 @@ export class FakePbServer {
   }
 
   // 一个页面请求的常规处理：一次性钩子、handle()、fulfill、推送
-  private async serve(route: Route, request: Request, url: URL): Promise<void> {
+  private async serve(route: Route, request: Request, url: URL, loseAnswer = false): Promise<void> {
     const hookIndex = this.beforeHooks.findIndex(
       (h) => h.method === request.method().toUpperCase() && pathMatches(h.path, url.pathname),
     );
@@ -459,7 +466,9 @@ export class FakePbServer {
       return route.fallback();
     }
     try {
-      if (res.status === 204) {
+      if (loseAnswer) {
+        await route.abort('connectionreset');
+      } else if (res.status === 204) {
         await route.fulfill({ status: 204, body: '' });
       } else {
         await route.fulfill({

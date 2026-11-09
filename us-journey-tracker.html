@@ -931,6 +931,7 @@ function keepConflict(kind,doc){
   const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
   try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}));return true}catch(e){return false}
 }
+let snapPending=null;/* null = nothing waiting for a notice; true / false = a copy was kept / could not be kept, announced after the next successful upload */
 function conflictNotice(kept){
   if(!kept){
     showBar("snapfail",{tone:"warn",msg:"另一台设备上的修改被覆盖了，但本机空间不够，没能留底。请到另一台设备上核对被覆盖的内容。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("snapfail")}]});
@@ -977,13 +978,15 @@ async function cloudSave(s){
   try{
     cur=await coll.getOne(docs.state.id);
     if(ep!==sessionEpoch)return;
+    /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
+       the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
+    if(cur.updated!==docs.state.base&&cur.writer!==WRITER&&canon(cur.data)!==canon(s))snapPending=keepConflict("state",cur);
     r=await coll.update(docs.state.id,{data:s,writer:WRITER});
   }
   catch(e){const er=new Error(cacheFull?T_NOCACHE:"修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
   if(ep!==sessionEpoch)return;
-  /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what was just uploaded;
-     it is kept and announced only now, after the overwrite succeeded */
-  if(cur.updated!==docs.state.base&&cur.writer!==WRITER&&canon(cur.data)!==canon(s))conflictNotice(keepConflict("state",cur));
+  /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
+  if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
   docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
   if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
   if(!docs.state.dirty)cacheNote(true);
@@ -1030,7 +1033,7 @@ function resetSession(){
   view=new Date();view.setDate(1);sel=today();wk=monday(today());wsel=today();filter="全部";
   [compEdit,compAdding].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));compCat.c="语言";compCat.w="语言";
   setGate(null);
-  Object.keys(sbs).forEach(k=>delete sbs[k]);drawBar();sizeAck=false;
+  Object.keys(sbs).forEach(k=>delete sbs[k]);drawBar();sizeAck=false;snapPending=null;
   if(dlg.open)dlg.close();
   form.textContent="";delete form.dataset.keep;delete form.dataset.kdate;
   clearTimeout(tt);const t=$("toast");t.classList.remove("on","act");t.textContent="";
