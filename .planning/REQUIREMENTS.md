@@ -16,7 +16,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 ### 账号与登录（ACCT）
 
 - [x] **ACCT-01**：用户用账号和密码登录；刷新页面或重开浏览器后仍保持登录。
-- [ ] **ACCT-02**：用户可以退出登录；退出后，本机不留该账号的缓存数据。
+- [x] **ACCT-02**：用户可以退出登录；退出后，本机不留该账号的缓存数据。
 - [x] **ACCT-03**：账号只能由所有者在后台创建，网页上无法注册新账号。
 - [x] **ACCT-04**：每个账号只能读写自己的数据，用别的账号读不到、也改不了。这一点要在真实 PocketBase 上用合成账号验证。
 - [ ] **ACCT-05**：登录过期时，本机还没上传的修改不会丢；重新登录后继续上传。
@@ -103,7 +103,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | INFRA-02 | Phase 6 | Complete |
 | INFRA-03 | Phase 9 | Complete |
 | ACCT-01 | Phase 9 | Complete |
-| ACCT-02 | Phase 9 | Pending |
+| ACCT-02 | Phase 9 | Complete |
 | ACCT-03 | Phase 8 | Complete |
 | ACCT-04 | Phase 8 | Complete |
 | ACCT-05 | Phase 10 | Pending |

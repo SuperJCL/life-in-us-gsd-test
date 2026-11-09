@@ -188,6 +188,12 @@ status: complete
 - Anchors each appear once; `APP_SHA256` matches the file; staged privacy checks printed `隐私检查通过` for both commits; `privacy-check.mjs --all` passed (359 files).
 - The default full `npm test` was not run (execute-phase regression gate runs it after this plan; v1 154 cases are inside its 175).
 
+## Orchestrator Follow-up (2026-11-09)
+
+- The execute-phase orchestrator ran the plan's exact Task 2 `<automated>` command once more after this plan's two test fixes (same below-normal-priority wrapper, `--workers=1`, no code change in between): **102 passed, REPORT OK expected=102 flaky=0 unexpected=0**, `--min-expected 101` and every listed title found.
+- ACCT-02 was then marked complete through the Shared-ID gate (`requirements.ready-ids` → `ready: [ACCT-02]`, `requirements.mark-complete ACCT-02`). TEST-02 stays Pending.
+- This confirming run is a second full `test:cloud` for this plan, recorded as a known exception to the one-full-suite-per-plan rule (the first run had two stale assertions that the plan's own DOM change broke).
+
 ## Known Stubs
 
 None.
@@ -203,7 +209,7 @@ None - no external service configuration required.
 ## Next Phase Readiness
 
 - Two manual acceptance checks remain: dark theme look of the login page, banners and confirm dialog, and the longest 375px notice.
-- A confirming full `npm run test:cloud` is still needed before ACCT-02 is marked.
+- ~~A confirming full `npm run test:cloud` is still needed before ACCT-02 is marked.~~ Done by the orchestrator (see Orchestrator Follow-up).
 - Phase 9 plans are complete; the phase regression gate and verification come next.
 
 ## Self-Check: PASSED
