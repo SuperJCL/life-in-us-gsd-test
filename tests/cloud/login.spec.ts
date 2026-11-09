@@ -5,6 +5,7 @@ import { test, expect } from '../support/test';
 import { composer } from '../support/composer';
 import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
+import { gotoGoals, readGroups } from '../support/goals';
 import { STATUS_CLOUD_SYNCED } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -55,5 +56,32 @@ test('SYNC-01 a log recorded on the cloud path is uploaded to the state document
   expect(app.fake.requests.filter((r) => r.status === 404)).toEqual([]);
   await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-01 a first sign-in creates the state document and a plan document holding the synthetic default plan', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', users: 1, login: 0 });
+
+  expect(app.fake.lastPlan(0)).toEqual(SEED_PLAN);
+  expect(app.fake.lastState(0)).toEqual({ arrival: '', tasks: {}, custom: [], logs: [], lifts: {}, reviews: {}, presets: {} });
+  const created = app.fake.requests.filter((r) => r.method === 'POST' && r.path === '/api/collections/journey_docs/records');
+  expect(created).toHaveLength(2);
+  expect(created.every((r) => r.status === 200)).toBe(true);
+  await gotoGoals(page);
+  expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 a signed-in session survives a page reload', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+
+  await app.reload();
+
+  await expect(page.locator('#login')).toBeHidden();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  expect(app.fake.requests).toContainEqual({ method: 'POST', path: '/api/collections/users/auth-refresh', status: 200 });
   expect(app.fake.fulfillErrors).toEqual([]);
 });

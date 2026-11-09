@@ -590,8 +590,10 @@ async function cloudInit(){
   $("loginForm").addEventListener("submit",onLogin);
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
-  if(pb.authStore.isValid){try{await enterApp()}catch(e){showLogin(ERR_NET)}}
-  else showLogin("");
+  if(!pb.authStore.isValid){showLogin("");return}
+  try{await pb.collection("users").authRefresh()}
+  catch(e){if(e&&e.status===401){pb.authStore.clear();showLogin("")}else showLogin(ERR_NET);return}
+  try{await enterApp()}catch(e){showLogin(ERR_NET)}
 }
 async function onLogin(e){
   e.preventDefault();
@@ -604,9 +606,10 @@ async function onLogin(e){
 }
 async function enterApp(){
   me=pb.authStore.record.id;
-  const list=await pb.collection("journey_docs").getFullList();
-  const planDoc=list.find(d=>d.kind==="plan"),stateDoc=list.find(d=>d.kind==="state");
-  if(!planDoc||!stateDoc){showLogin(ERR_NET);return}
+  const coll=pb.collection("journey_docs"),list=await coll.getFullList();
+  let planDoc=list.find(d=>d.kind==="plan"),stateDoc=list.find(d=>d.kind==="state");
+  if(!planDoc)planDoc=await coll.create({owner:me,kind:"plan",data:normalizePlan(DEFAULT_PLAN),writer:WRITER});
+  if(!stateDoc)stateDoc=await coll.create({owner:me,kind:"state",data:normalize({}),writer:WRITER});
   usePlan(planDoc.data);state=normalize(stateDoc.data);
   docs.plan={id:planDoc.id,base:planDoc.updated};docs.state={id:stateDoc.id,base:stateDoc.updated};
   store={label:"已同步",state:"synced",load:async()=>null,save:cloudSave};
