@@ -292,3 +292,13 @@ export const BANNER_SNAPSHOT_NOT_KEPT =
 
 // 横幅上“知道了”按钮的文字（09-UI-SPEC S4 按钮列，.ghost）
 export const BTN_ACK = '知道了';
+
+// 云端保存因文档超过容量上限失败时的状态行文案（09-UI-SPEC S2/S9 逐字复制）；#status 的 data-state 同时为 toolarge
+export const STATUS_TOO_LARGE = '保存失败：数据超过容量上限（4 MB）';
+
+// 超过容量上限时的 error 横幅正文（09-UI-SPEC S4 逐字复制），不可关闭、没有按钮
+export const BANNER_TOO_LARGE = '数据超过了云端容量上限，新修改存不上了，请联系管理员。';
+
+// 达到容量上限 70% 时的 warn 横幅正文（09-UI-SPEC S4/S9 逐字复制）；pct 是向下取整的整数
+export const bannerCapacity = (pct: number) =>
+  `保存空间快满了：已用 ${pct}%（上限 4 MB）。超过上限后新修改就存不上了，请联系管理员。`;

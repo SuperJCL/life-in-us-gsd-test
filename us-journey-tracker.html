@@ -815,7 +815,21 @@ function snapDownload(){
   toast("已开始下载留底，本机不再保留副本",null,3000);
 }
 $("snapshotBtn").addEventListener("click",snapDownload);
+/* capacity guard: the document is measured in UTF-8 bytes before any request; over the limit nothing is sent and the edit stays dirty in the local cache */
+const CLOUD_MAX=4194304;let sizeAck=false;
+function sizeCheck(s){
+  const n=new TextEncoder().encode(JSON.stringify(s)).length;
+  if(n>CLOUD_MAX){
+    hideBar("sizewarn");
+    showBar("toolarge",{tone:"error",msg:"数据超过了云端容量上限，新修改存不上了，请联系管理员。"});
+    const er=new Error("数据超过容量上限（4 MB）");er.state="toolarge";throw er;
+  }
+  hideBar("toolarge");
+  if(n>=CLOUD_MAX*0.7&&!sizeAck)showBar("sizewarn",{tone:"warn",msg:"保存空间快满了：已用 "+Math.floor(n*100/CLOUD_MAX)+"%（上限 4 MB）。超过上限后新修改就存不上了，请联系管理员。",btns:[{text:"知道了",cls:"ghost",fn:()=>{sizeAck=true;hideBar("sizewarn")}}]});
+  else if(n<CLOUD_MAX*0.7)hideBar("sizewarn");
+}
 async function cloudSave(s){
+  sizeCheck(s);
   const seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r;
   try{
     const cur=await coll.getOne(docs.state.id);
