@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
-status: executing
-stopped_at: Completed 09-13-PLAN.md
-last_updated: "2026-11-09T10:20:23.808Z"
+status: verifying
+stopped_at: "Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)"
+last_updated: "2026-11-09T10:39:32.857Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: e4d7be6fb716477f4cbea8e0b282ade3cb3b635e
+state_head: ed63dc407c9a5ac0171b700bb8aaa1bb669c6ebf
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
   percent: 38
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
 Plan: 14 of 14
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-09 — Phase 09 execution started
 
 Progress: [████░░░░░░] 38%
@@ -123,6 +123,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P11 | 25 min | 2 tasks | 6 files |
 | Phase 09 P12 | 25 min | 2 tasks | 4 files |
 | Phase 09 P13 | 33 min | 2 tasks | 5 files |
+| Phase 09 P14 | 36 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -209,6 +210,8 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-11: expired login (authRefresh 401 or local token exp) shows a warn notice on the login card, clears only the token and keeps all usj:v2 caches; same-account re-login uploads kept edits
 - [Phase 09]: 09-12: login busy is released right after authWithPassword settles (before enterApp); aria-invalid only on the password box for a 400; lastEmail stored from the trimmed typed email and never for an abandoned late success
 - [Phase 09]: 09-13: pb.authStore.clear() stays literally inside logout() so the D-06 order is source-checkable; another tab's sign-out resets memory only; own token clears (logout, 401 on refresh) set authQuiet so onChange ignores them
+- [Phase 09]: 09-14: logout confirm never waits for a running save; sessionEpoch stops a late save from writing the old account's cache
+- [Phase 09]: 09-14: a cancelled switch-account confirm clears the new token, keeps the typed email and empties the password
 
 ### Pending Todos
 
@@ -259,8 +262,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T10:20:22.806Z
-Stopped at: Completed 09-13-PLAN.md
+Last session: 2026-11-09T10:39:31.842Z
+Stopped at: Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)
 Resume file: None
 
 ## Operator Next Steps
