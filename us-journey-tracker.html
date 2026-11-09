@@ -741,16 +741,22 @@ async function enterApp(refresh){
 async function reconcileOnce(r){
   const sg={signal:r.ctrl.signal},live=()=>{if(!(r.live&&run===r))throw STALE},old=r.mode.old;
   if(r.mode.refresh){await pb.collection("users").authRefresh(sg);live()}
-  const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);live();
+  const coll=pb.collection("journey_docs");let list=await coll.getFullList(sg);live();
   const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
   /* reconcile table, one kind at a time (plan first, then state):
      server only -> server; clean cache with the same updated -> cache (= server); clean cache and newer server -> server, nothing uploaded;
      dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict(), then upload the local version;
-     no server document -> create. Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
+     no server document -> create it from the cache, or from DEFAULT_PLAN / an empty state when there is no cache; a create that hits the (owner, kind)
+     unique index (400 validation_not_unique: another device created it first) re-reads the list and continues from the same table with the server document.
+     Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
+  const uniq=e=>{const d=e&&e.status===400&&e.response&&e.response.data;return !!d&&["kind","owner"].some(k=>d[k]&&d[k].code==="validation_not_unique")};
   const resolve=async kind=>{
-    const c=old[kind],sv=list.find(d=>d.kind===kind);
-    if(!sv){const d=await mk(kind,kind==="plan"?normalizePlan(DEFAULT_PLAN):normalize({}));return {sv:d,data:d.data,c}}
+    const c=old[kind];let sv=list.find(d=>d.kind===kind);
+    if(!sv){
+      try{const d=await mk(kind,c?c.data:kind==="plan"?normalizePlan(DEFAULT_PLAN):normalize({}));return {sv:d,data:d.data,c}}
+      catch(e){if(!uniq(e))throw e;list=await coll.getFullList(sg);live();sv=list.find(d=>d.kind===kind);if(!sv)throw e}
+    }
     if(c&&c.dirty&&canon(c.data)!==canon(sv.data)){
       if(c.base!==sv.updated)keepConflict(kind,sv);
       const u=await coll.update(sv.id,{data:c.data,writer:WRITER},sg);live();

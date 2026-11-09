@@ -470,3 +470,78 @@ test('SYNC-05 an edit kept in the cache on top of the current server version is 
   await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
   expect(app.fake.fulfillErrors).toEqual([]);
 });
+
+test('SYNC-01 two devices creating the first documents at the same time end with one state and one plan document', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', users: 1 });
+
+  // 另一台设备抢先建好两份文档：第一个创建请求到达服务器之前，先把文档播进去
+  app.fake.beforeNext('POST', LIST_PATH, () => app.fake.seed(syntheticState('other'), { userIndex: 0, plan: SEED_PLAN }));
+  await app.login(0);
+
+  await expect(page.locator('#days').getByText('合成记录 other')).toBeVisible();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('#syncbar')).not.toBeVisible();
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  const posts = app.fake.requests.filter((r) => r.method === 'POST' && r.path === LIST_PATH);
+  expect(posts).toEqual([{ method: 'POST', path: LIST_PATH, status: 400 }]);
+  expect(app.fake.requests.filter((r) => r.method === 'PATCH')).toEqual([]);
+  await acknowledgeConsoleErrors(guard, { 'status of 400 ': 1 });
+  expect(app.fake.docId(0, 'state')).toBeTruthy();
+  expect(app.fake.docId(0, 'plan')).toBeTruthy();
+  // 每种 kind 恰好一份，内容是先到的那一台建的
+  const listed = await app.fake.request(0, 'GET', LIST_PATH);
+  const kinds = (listed.body as { items: Array<{ kind: string }> }).items.map((d) => d.kind).sort();
+  expect(kinds).toEqual(['plan', 'state']);
+  expect(app.fake.lastState(0)).toEqual(syntheticState('other'));
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('SYNC-01 a cached account whose server documents are gone recreates them from the cache', async ({ app, page }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 超级用户在后台把这个账号的文档删了；本机缓存还在
+  app.fake.dropDocs(0);
+  expect(app.fake.docId(0, 'state')).toBeNull();
+  const before = app.fake.requests.length;
+  await app.reload();
+
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+  expect((app.fake.lastState(0)?.logs ?? []).map((l: { id: string }) => l.id)).toContain('synthetic-a');
+  expect(app.fake.lastPlan(0)).not.toBeNull();
+  expect(app.fake.docId(0, 'state')).toBeTruthy();
+  expect(app.fake.docId(0, 'plan')).toBeTruthy();
+  const writes = writesSince(app, before);
+  expect(writes).toHaveLength(2);
+  expect(writes.map((r) => [r.method, r.status])).toEqual([
+    ['POST', 200],
+    ['POST', 200],
+  ]);
+  await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('SYNC-01 reloading a synced session twice creates no extra documents and sends no write', async ({ app, page }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  // 种子只写 state；登录时由客户端创建 plan（唯一的一次 POST）
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  expect(writesSince(app, 0).map((r) => r.method)).toEqual(['POST']);
+
+  await app.reload();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await app.reload();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+
+  const writes = writesSince(app, 0);
+  expect(writes.map((r) => r.method)).toEqual(['POST']);
+  expect(app.fake.requests.filter((r) => r.method === 'PATCH')).toEqual([]);
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
