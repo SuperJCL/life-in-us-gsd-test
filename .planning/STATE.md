@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-06-PLAN.md
-last_updated: "2026-11-09T09:10:35.529Z"
+stopped_at: Completed 09-07-PLAN.md
+last_updated: "2026-11-09T09:18:57.448Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: dfcaf3532285752b59aaff766e8f57350b69bd94
+state_head: 4962f3d263d146926dd7d8c5d56df4dd3ae5aa51
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 30
+  completed_plans: 31
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 7 of 14
+Plan: 8 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -116,6 +116,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P04 | 15 min | 2 tasks | 4 files |
 | Phase 09 P05 | 12 min | 2 tasks | 5 files |
 | Phase 09 P06 | 10 min | 2 tasks | 4 files |
+| Phase 09 P07 | 6 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -195,6 +196,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: authRefresh moved into enterApp so cached content and the gate render before the refresh; dirty cache rows are left to 09-07 (server version shown, nothing uploaded, dirty record untouched) — authRefresh moved into enterApp so cached content and the gate render before the refresh; dirty cache rows are left to 09-07 (server version shown, nothing uploaded, dirty record untouched)
 - [Phase 09]: 09-06: SLOW_MS 3000, FAIL_MS 15000, RETRY_MS 5000; a run makes at most 3 attempts and the 15 s deadline always wins; late or replaced responses are dropped by run identity plus AbortController
 - [Phase 09]: 09-06: banner priority expired > unreachable > slow > toolarge > snapfail > remote > sizewarn, one banner at a time; a retry keeps the unreachable banner with a disabled retrying button
+- [Phase 09]: 09-07: reconcile table complete; dirty cache uploads (keepConflict hook empty until 09-08), missing docs recreated from cache, validation_not_unique create race re-reads server; each cached document is handed to the reconcile separately
 
 ### Pending Todos
 
@@ -245,8 +247,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T09:10:34.568Z
-Stopped at: Completed 09-06-PLAN.md
+Last session: 2026-11-09T09:18:56.493Z
+Stopped at: Completed 09-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
