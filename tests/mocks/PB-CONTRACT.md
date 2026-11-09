@@ -95,7 +95,19 @@
 - 时间用假时钟：从 `FROZEN_NOW` 起，每次写入加 1 毫秒。
 - 记录 id 是确定性的，不是随机的 15 位字符。
 - 超大请求体在样本里只记字节数。
-- 08-07 的契约自测发现的其他偏差补在这里。偏差只能是表示层的；状态码类别和拒绝与否必须与样本一致。
+- **契约自测（08-07，`tests/cloud/pb-contract.spec.ts`）的结论：没有登记任何额外的有意偏差**（`INTENTIONAL_DEVIATIONS` 为空）。28 个场景在状态码、顶层键集合、归一化后的正文和令牌声明上都与真实 0.41.1 样本一致。
+- 偏差只能是表示层的；状态码和“拒绝与否”永远不能登记为有意偏差，不一致就改假服务器，不改样本。
+
+契约自测发现并已改掉的差异（都是假服务器按源码记忆写错的细节，已对齐样本）：
+
+| 场景 | 差异 | 修正 |
+|------|------|------|
+| list-own | 假服务器按创建顺序返回，样本里后建的 plan 排在先建的 state 前面 | 列表新建的在前（更新不改变顺序） |
+| create-invalid-kind | kind 的错误缺 `params.value` | 补上 `params: { value }` |
+| update-oversize | data 的错误缺 `params.maxSize` | 补上 `params: { maxSize: 4194304 }` |
+| update-writer-too-long | writer 的消息是 `Must be less than 40 character(s).`，缺 `params.max` | 消息改为 `Must be no more than 40 character(s).`，补上 `params: { max: 40 }` |
+
+列表顺序只有 list-own 一个两条记录的样本作依据：应用不应依赖列表顺序，要按 `kind` 取 state 和 plan。
 
 ## 6. 实时的线上格式
 

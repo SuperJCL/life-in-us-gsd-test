@@ -35,6 +35,9 @@ export type PbDelivery = { connectionId: string; name: string; data: string; las
 
 export type PbResponse = { status: number; body: unknown; deliveries: PbDelivery[] };
 
+// 字段校验错误：code、message 加可选的 params（真实 0.41.1 的样本里 invalid_value、max_text、json_size_limit 带 params）
+type FieldError = { code: string; message: string; params?: Record<string, unknown> };
+
 type PbUser = { id: string; email: string; password: string };
 
 type PbDoc = {
@@ -56,7 +59,8 @@ const JOURNEY_DOCS_ID = 'pbc_1000000001';
 type PbConnection = {
   id: string;
   clientId: string;
-  page: Page;
+  // null：没有页面的连接（契约自测在 Node 侧直接调用 handle()，不开浏览器）
+  page: Page | null;
   authUserId: string | null | undefined;
   subscriptions: string[];
 };
@@ -174,8 +178,9 @@ export class FakePbServer {
     await this.deliver(this.deliveriesFor(full, action));
   }
 
-  // 登记一条页面里的实时连接（假 EventSource 握手时调用），返回连接 id 和 clientId
-  openConnection(page: Page): { connectionId: string; clientId: string } {
+  // 登记一条页面里的实时连接（假 EventSource 握手时调用），返回连接 id 和 clientId。
+  // page 为 null 表示没有页面的连接：只用于契约自测，事件由 handle() 的 deliveries 返回，不会推送给任何页面
+  openConnection(page: Page | null): { connectionId: string; clientId: string } {
     const n = ++this.connectionCounter;
     const connection: PbConnection = {
       id: 'conn' + n,
@@ -186,7 +191,7 @@ export class FakePbServer {
     };
     this.connections.set(connection.id, connection);
     // 页面关闭或整页导航（刷新）之后，页面里的假 EventSource 已经不存在，连接要一并注销
-    if (!this.watchedPages.has(page)) {
+    if (page !== null && !this.watchedPages.has(page)) {
       this.watchedPages.add(page);
       const dropPageConnections = () => {
         for (const [id, c] of this.connections) if (c.page === page) this.connections.delete(id);
@@ -284,6 +289,10 @@ export class FakePbServer {
       const connection = this.connections.get(d.connectionId);
       if (!connection) {
         this.deliveryErrors.push('连接 ' + d.connectionId + ' 已注销，事件没有送达');
+        continue;
+      }
+      if (connection.page === null) {
+        this.deliveryErrors.push('连接 ' + d.connectionId + ' 没有页面，事件没有送达');
         continue;
       }
       try {
@@ -432,7 +441,8 @@ export class FakePbServer {
       const supported = new Set(['page', 'perPage', 'skipTotal']);
       if (Object.keys(req.query).some((key) => !supported.has(key))) return null;
       const identity = this.identityOf(req.authorization);
-      const own = identity ? this.docs.filter((d) => d.owner === identity) : [];
+      // 顺序：新建的在前（真实样本 list-own 里后建的 plan 排在先建的 state 前面；更新不改变顺序）
+      const own = identity ? this.docs.filter((d) => d.owner === identity).reverse() : [];
       const page = Math.max(1, Number(req.query.page ?? 1));
       const perPage = Math.max(1, Number(req.query.perPage ?? 30));
       const items = own.slice((page - 1) * perPage, page * perPage);
@@ -491,10 +501,16 @@ export class FakePbServer {
       if (!identity || body.owner !== identity) {
         return this.respond(400, { status: 400, message: 'Failed to create record.', data: {} });
       }
-      const errors: Record<string, { code: string; message: string }> = {};
+      const errors: Record<string, FieldError> = {};
       const kindValid = body.kind === 'state' || body.kind === 'plan';
       // select 字段的值不在 values 里
-      if (!kindValid) errors.kind = { code: 'validation_invalid_value', message: 'Invalid value ' + String(body.kind) + '.' };
+      if (!kindValid) {
+        errors.kind = {
+          code: 'validation_invalid_value',
+          message: 'Invalid value ' + String(body.kind) + '.',
+          params: { value: body.kind },
+        };
+      }
       this.checkWriterAndData(body, errors);
       // (owner, kind) 唯一索引：两个字段都报 validation_not_unique
       if (kindValid && this.docs.some((d) => d.owner === identity && d.kind === body.kind)) {
@@ -532,7 +548,7 @@ export class FakePbServer {
       // updateRule 里 owner、kind 的 :isset = false：请求体里出现这两个键（值相同也算）规则就不满足，404
       const body = (req.body ?? {}) as { data?: unknown; writer?: unknown };
       if ('owner' in body || 'kind' in body) return notFound;
-      const errors: Record<string, { code: string; message: string }> = {};
+      const errors: Record<string, FieldError> = {};
       this.checkWriterAndData(body, errors);
       if (Object.keys(errors).length > 0) {
         return this.respond(400, { status: 400, message: 'Failed to update record.', data: errors });
@@ -550,15 +566,20 @@ export class FakePbServer {
   // writer 最多 40 个字符，data 序列化后不超过 PB_DOC_MAX_BYTES；创建和更新共用
   private checkWriterAndData(
     body: { data?: unknown; writer?: unknown },
-    errors: Record<string, { code: string; message: string }>,
+    errors: Record<string, FieldError>,
   ): void {
     if (typeof body.writer === 'string' && Array.from(body.writer).length > 40) {
-      errors.writer = { code: 'validation_max_text_constraint', message: 'Must be less than 40 character(s).' };
+      errors.writer = {
+        code: 'validation_max_text_constraint',
+        message: 'Must be no more than 40 character(s).',
+        params: { max: 40 },
+      };
     }
     if ('data' in body && Buffer.byteLength(JSON.stringify(body.data ?? null)) > PB_DOC_MAX_BYTES) {
       errors.data = {
         code: 'validation_json_size_limit',
         message: `The maximum allowed JSON size is ${PB_DOC_MAX_BYTES} bytes.`,
+        params: { maxSize: PB_DOC_MAX_BYTES },
       };
     }
   }

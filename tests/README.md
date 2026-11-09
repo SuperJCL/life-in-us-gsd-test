@@ -17,7 +17,7 @@
 - `npm test`：无界面跑完全部用例。
 - `npm run test:ui`：Playwright UI 模式，可以逐步回放每个用例的动作和页面快照。它会打开一个使用本机 Edge 或 Chrome 的窗口。如果提示需要安装浏览器，不要安装，按第 8 节“浏览器出问题时”处理。
 
-- `npm run test:cloud`：跑 `tests/cloud/` 下的 cloud 用例（真实 PocketBase SDK 对 Node 侧的假 PocketBase），同样低优先级、1 个 worker。它和 `npm test` 共用 4789 端口，所以不能同时跑（本来也不应并发）；只在阶段收尾和发布前手动跑，日常不需要。
+- `npm run test:cloud`：跑 `tests/cloud/` 下的 cloud 用例（真实 PocketBase SDK 对 Node 侧的假 PocketBase），同样低优先级、1 个 worker。它和 `npm test` 共用 4789 端口，所以不能同时跑（本来也不应并发）；只在阶段收尾和发布前手动跑，日常不需要。换 PocketBase 或 SDK 的版本、或怀疑假服务器与真实实例漂移时：先经所有者批准，再用 `node tools/pb/record-samples.mjs` 重新录制协议样本、`node tools/pb/record-samples.mjs --check` 扫描样本目录，最后跑 `npm run test:cloud`（其中 `tests/cloud/pb-contract.spec.ts` 逐场景比对假服务器与样本）。
 
 - `npm run pb:isolation`：手动运行的账号隔离脚本。需要先按 `tools/pb/PB-LOCAL.md` 完成所有者批准的下载；它在一次性本机 PocketBase 上用合成账号逐条断言账号隔离（注册关闭、只能读写自己的数据、实时事件不外泄、令牌和改密码），输出只有 PASS/FAIL 和规则名，最后一行 `ISOLATION OK N/N`；`node tools/pb/isolation-check.mjs --self-test` 不需要程序。它不在 `npm test` 和 `npm run test:cloud` 里。
 
@@ -48,8 +48,8 @@
 | `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
-| `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`） |
+| `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
 | `tests/PROBES.md` | 运行时探针的结论 |
