@@ -258,6 +258,8 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 .syncbar[data-tone="info"]{--tone:var(--c-lang)}
 .syncbar .sb-msg{flex:1 1 220px;min-width:0;word-break:break-word}
 .syncbar button{min-height:36px;padding:4px 12px}
+#loginNotice{flex-direction:column;align-items:stretch;gap:4px;margin:0 0 16px}
+#loginNotice p{margin:0}
 /* first sign-in wait card */
 #boot{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px max(20px,env(safe-area-inset-right)) 48px max(20px,env(safe-area-inset-left))}
 #boot h2{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0}
@@ -275,6 +277,7 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
   <h1 id="login-title">在美国的日子</h1>
   <p class="lead">登录后，记录会在你的手机和电脑之间同步</p>
   <div class="gate-card">
+    <div id="loginNotice" class="syncbar hidden" role="status"></div>
     <form id="loginForm" novalidate>
       <label class="f" for="loginEmail">邮箱</label>
       <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
@@ -619,7 +622,23 @@ function loadSdk(){return new Promise((ok,no)=>{
   document.head.appendChild(s);
 })}
 function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
-function showLogin(err){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
+const T_EXPIRED="登录已过期，请重新登录",T_EXPIRED_UNSENT="本机还有没上传的修改，用同一账号登录后会自动上传。";
+/* unsent work of the last account on this device: a dirty state or plan cache, or a kept snapshot (read without me, which is null on the login page) */
+function hasUnsent(){
+  try{
+    const id=localStorage.getItem(LAST_USER_KEY);if(!id)return false;
+    const g=k=>{try{return JSON.parse(localStorage.getItem("usj:v2:"+id+":"+k))}catch(e){return null}};
+    const s=g("state"),p=g("plan");
+    return !!((s&&s.dirty)||(p&&p.dirty)||g("snapshot"));
+  }catch(e){return false}
+}
+function loginNotice(kind){
+  const n=$("loginNotice");n.textContent="";
+  if(kind!=="expired"){n.classList.add("hidden");n.removeAttribute("data-tone");return}
+  [T_EXPIRED].concat(hasUnsent()?[T_EXPIRED_UNSENT]:[]).forEach(t=>{const p=document.createElement("p");p.textContent=t;n.appendChild(p)});
+  n.setAttribute("data-tone","warn");n.classList.remove("hidden");
+}
+function showLogin(err,notice){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err;loginNotice(notice)}
 async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
@@ -636,7 +655,7 @@ async function onLogin(e){
   $("login-err").textContent="";
   try{if(!pb){await loadSdk();startPb()}await pb.collection("users").authWithPassword(email,pw)}
   catch(err){$("login-err").textContent=err&&err.status===400?ERR_CRED:ERR_NET;return}
-  $("loginPw").value="";
+  $("loginPw").value="";loginNotice(null);
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
 }
 /* local cache: usj:v2:<user id>:<plan|state> = { id, base, dirty, seq, data }; base is the server-issued updated stamp */
@@ -721,7 +740,7 @@ function startReconcile(mode,retrying){
     try{await reconcileOnce(r)}
     catch(e){
       if(!alive())return;
-      if(e&&e.status===401){endRun(r);pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("");return}
+      if(e&&e.status===401){endRun(r);pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("","expired");return}
       if(r.tries<3)later(attempt,RETRY_MS);
     }
   };
