@@ -74,6 +74,9 @@ export function classifyRequest(url: string, policy: GuardPolicy): 'allow' | 'fo
     const allowed = policy === 'cloud' ? CLOUD_APP_PATHS : V1_APP_PATHS;
     return allowed.includes(parsed.pathname) ? 'allow' : 'violation';
   }
+  // INFRA-03：云端页面只能请求同源，字体主机在 cloud 策略下也是违规（Phase 9 起应用不再引用字体主机）；
+  // v1 策略保留 font 分支：默认 npm test 的护栏自检仍用它证明“已预期拦截”这一路
+  if (policy === 'cloud') return 'violation';
   return FONT_HOSTS.includes(parsed.hostname) ? 'font' : 'violation';
 }
 
@@ -83,7 +86,7 @@ export function classifyRequest(url: string, policy: GuardPolicy): 'allow' | 'fo
 //    同一 context 里任何 page 的未捕获异常和 console.error。
 //  - cloud 策略下，应用来源里假服务器没接住的 /api/*（含真实 EventSource 连 /api/realtime）也会报警：
 //    假服务器的 route 在用例里后注册、先匹配，没实现的路径 route.fallback() 回到这里。
-//  - 无法报警：preconnect 这类不产生 Playwright 事件的 socket 连接。guard 没有事件可听，
+//  - 无法报警：route 看不到的 socket 连接（例如 WebSocket）这类不产生 Playwright 事件的连接。guard 没有事件可听，
 //    只能靠解析层（--host-resolver-rules）和死代理挡住，两层的证据见 PROBE-2。
 //  - 没有加 requestfailed 监听：交付配置里 context.route 先拦下页面的每个 HTTP 请求，
 //    被 abort 的请求错误是 ERR_BLOCKED_BY_CLIENT；代理层和解析层的错误码

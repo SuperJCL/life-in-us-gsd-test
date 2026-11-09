@@ -69,20 +69,39 @@ test('SAFE-01 a fetch to a non-allowlisted path on the app origin is reported as
   expect(guard.remove('consoleErrors', 'ERR_BLOCKED_BY_CLIENT')).toBe(1);
 });
 
-test('SAFE-01 opening the app only aborts the allowlisted font hosts', async ({ page, guard }) => {
+// INFRA-03（Phase 9）：应用不再引用字体主机，打开应用不会请求任何字体主机或外部主机。
+// 原来这条用例靠应用自己的字体 link 产生“已预期拦截”；现在由页面主动 fetch 字体主机下的合成路径来自证 font 分支仍然有效
+// （v1 策略下字体主机记为已预期拦截，不算违规），意图不变：font 分支没有被悄悄删掉或放宽。
+test('SAFE-01 opening the app requests no font host and no external host', async ({ page, guard }) => {
   await page.goto('/');
   await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
 
-  // 显式信号：字体请求已经进过 route 并被 abort
-  await expect.poll(() => guard.state.expectedAborts.length).toBeGreaterThanOrEqual(1);
-
-  // 在信号之后：每条被 abort 的 URL，主机都在字体白名单内
-  for (const url of guard.state.expectedAborts) {
-    expect(FONT_HOSTS).toContain(new URL(url).hostname);
-  }
-
-  // 此刻没有外部请求。晚到的外部请求由 teardown 的 guardViolations 兜底
+  // 打开应用之后：没有被预期拦截的字体请求，也没有外部请求
+  expect(guard.state.expectedAborts).toEqual([]);
   expect(guard.state.unexpectedRequests).toEqual([]);
+
+  // 自证 font 分支：页面主动请求字体主机下的合成路径
+  const target = 'https://' + FONT_HOSTS[0] + '/css2?family=SYNTH';
+  const result = await page.evaluate(
+    (url) =>
+      fetch(url).then(
+        (res) => 'resolved:' + res.status,
+        (err) => 'rejected:' + String(err),
+      ),
+    target,
+  );
+  expect(result).not.toMatch(/^resolved/);
+
+  // 显式信号：这一条已经进过 route 并被 abort，且恰好只有这一条；它不算违规
+  await expect.poll(() => guard.state.expectedAborts).toEqual([target]);
+  expect(FONT_HOSTS).toContain(new URL(guard.state.expectedAborts[0]).hostname);
+  expect(guard.state.unexpectedRequests).toEqual([]);
+
+  // 被 abort 的 fetch，Chromium 另写一条 console.error，来源就是这个字体主机（实测：和 example.com 那条不同），
+  // 所以被噪音过滤规则接住：先等到恰好一条过滤记录并核对内容，再断言它没有变成违规，不需要 guard.remove
+  await expect.poll(() => guard.state.filteredConsoleNoise.length).toBe(1);
+  expect(guard.state.filteredConsoleNoise[0]).toContain('ERR_BLOCKED_BY_CLIENT');
+  expect(guard.state.consoleErrors).toEqual([]);
 });
 
 test('SAFE-04 an uncaught page error is reported as a guard violation', async ({ page, guard }) => {
@@ -115,6 +134,15 @@ test('SAFE-04 console.error is reported while aborted-font noise is filtered', a
 }) => {
   await page.goto('/');
   await expect(page.locator('#status')).toHaveText(STATUS_LOCAL);
+
+  // 应用不再引用字体主机，字体噪音由用例主动制造：往 head 插一条 rel=stylesheet、href 指向字体主机的 link，
+  // 请求被 route abort，Chromium 写一条来源为字体主机的 console.error
+  await page.evaluate((host) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://' + host + '/css2?family=SYNTH';
+    document.head.appendChild(link);
+  }, FONT_HOSTS[0]);
 
   // 显式信号：字体噪音确实产生了，并且 guard 的同步监听器已经把它过滤掉。
   // 证明的是“噪音被过滤”，而不是“噪音还没到”

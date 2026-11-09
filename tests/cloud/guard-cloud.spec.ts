@@ -12,7 +12,7 @@ test('TEST-02 classifyRequest allows only the app page, the app file and the SDK
   for (const path of ['/api/collections/journey_docs/records', '/package.json', '/tests/support/static-server.cjs']) {
     expect(classifyRequest(APP_ORIGIN + path, 'cloud'), path).toBe('violation');
   }
-  expect(classifyRequest('https://fonts.googleapis.com/css2', 'cloud')).toBe('font');
+  expect(classifyRequest('https://fonts.googleapis.com/css2', 'cloud')).toBe('violation');
   expect(classifyRequest('https://example.com/', 'cloud')).toBe('violation');
   expect(classifyRequest('http://localhost:4789/', 'cloud')).toBe('violation');
   expect(classifyRequest('not a url', 'cloud')).toBe('violation');

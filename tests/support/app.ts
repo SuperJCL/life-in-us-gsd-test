@@ -64,6 +64,8 @@ export class AppHarness {
   // cloud 且 backend 为 pocketbase 时，当前期望的视图：login（登录页）或 app（应用外壳 + 已同步）
   private cloudApp = false;
   private view: 'login' | 'app' = 'login';
+  // cloud：用例故意让 SDK 加载失败（被篡改或被拦），登录页就绪时页面里不会有 PocketBase（INFRA-03 篡改对照）
+  private sdkRefused = false;
   // 本地模式 open() 写进 localStorage 的种子原文；没有种子时为 null（saved() 用它区分“种子”和“应用写回”）
   private seedJson: string | null = null;
 
@@ -85,6 +87,8 @@ export class AppHarness {
       backend?: 'pocketbase' | null;
       // cloud 模式：打开后立刻用第几个合成账号登录
       login?: number;
+      // cloud：用例故意让 SDK 加载失败（例如被篡改、integrity 不符），就绪只等登录页，不等页面里出现 PocketBase
+      sdkRefused?: boolean;
     } = {},
   ) {
     // 账户 mock 用 Object.defineProperty 装 window.claude（不可配置），第二个 init script 会抛
@@ -104,6 +108,7 @@ export class AppHarness {
       this.store = 'cloud';
       this.cloudApp = (opts.backend === undefined ? 'pocketbase' : opts.backend) === 'pocketbase';
       this.view = 'login';
+      this.sdkRefused = opts.sdkRefused === true;
       if (this.cloudApp) {
         const context = this.page.context();
         if (!configuredContexts.has(context)) {
@@ -171,7 +176,9 @@ export class AppHarness {
     if (this.store === 'cloud' && this.cloudApp) {
       if (this.view === 'login') {
         await expect(this.page.locator('#login')).toBeVisible();
-        await this.page.waitForFunction(() => typeof (window as any).PocketBase === 'function');
+        if (!this.sdkRefused) {
+          await this.page.waitForFunction(() => typeof (window as any).PocketBase === 'function');
+        }
       } else {
         const status = this.page.locator('#status');
         await expect(status).toHaveAttribute('data-state', 'synced');
