@@ -1,16 +1,25 @@
 // AppHarness：收拢打开应用、reload 和持久化断言（D-17、D-18）。
 // 这里只能从 @playwright/test 导入，不能从 ./test 导入，否则会和 test.ts 循环引用。
-import { expect, type Page } from '@playwright/test';
+import { expect, type BrowserContext, type Page } from '@playwright/test';
 import { installClaudeMock } from '../mocks/claude-runtime';
 import { MockBackend } from '../mocks/claude-backend';
 import { FakePbServer } from '../mocks/pb-server';
 import { ACCOUNT_DOC_PATH, ACCOUNT_USER_ID, MOCK_BINDING_NAME, PB_SDK_PATH, STATE_KEY } from './constants';
-import { STATUS_ACCOUNT, STATUS_LOCAL } from './strings';
+import { STATUS_ACCOUNT, STATUS_CLOUD_SYNCED, STATUS_LOCAL } from './strings';
 
 // 预置种子：只有 localStorage 里没有这个键时才写入。
 // addInitScript 注入的脚本在每次导航（包括 reload）时都会重新执行，
 // 所以必须“没有才写”，否则 reload 会用种子覆盖应用刚保存的新数据（D-18）。
 // 函数体必须自包含，不能引用模块里的任何变量：addInitScript 会把函数序列化成源码发给浏览器。
+// 云端开关：在应用脚本之前放 window.USJ_CONFIG（Phase 9 的配置缝约定：backend 为字面量 pocketbase，地址由应用取 location.origin）。
+// 函数体必须自包含：addInitScript 会把函数序列化成源码发给浏览器。
+export function installUsjConfig(arg: { backend: string }) {
+  (window as any).USJ_CONFIG = { backend: arg.backend };
+}
+
+// 同一个 context 只加一次云端开关 init script（init script 会在每个 frame、每次导航执行，重复添加没有意义）
+const configuredContexts = new WeakSet<BrowserContext>();
+
 export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
   // init script 在每个 frame、每次导航都会执行：导航到 opaque origin（例如 data: URL、
   // 沙箱 iframe）时访问 localStorage 会抛 SecurityError，那不是被测应用的错误，
@@ -26,8 +35,9 @@ export function seedLocalStorageIfAbsent(arg: { key: string; json: string }) {
 //  - local（默认）：页面没有 window.claude，数据存在 localStorage，Phase 1 的用例都走这条；
 //  - account：页面装 window.claude mock，数据存在 Node 侧的 MockBackend（app.backend），
 //    种子写进 MockBackend 而不写 localStorage；
-//  - cloud：页面里是真实的 PocketBase SDK（同源提供），REST 由 Node 侧的 FakePbServer（app.fake）接应，
-//    数据在 FakePbServer 里。Phase 8 的应用还没有云端路径，所以 cloud 只验证测试设施本身。
+//  - cloud：REST 由 Node 侧的 FakePbServer（app.fake）接应，数据在 FakePbServer 里。
+//    backend 缺省为 pocketbase：init script 在应用脚本之前放 USJ_CONFIG，应用自己同源加载真实的 PocketBase SDK、显示登录页；
+//    显式传 backend: null 保持 Phase 8 的行为（应用走本地路径，harness 自己注入 SDK），只用来验证测试设施本身。
 // 环境变量映射：只有 USJ_TEST_MODE 为 cloud 时才把 account 换算成 cloud；默认 npm test 下 account 和 local 不变。
 // 映射要到 Phase 9 应用接上云端之后才对 v1 的账户用例有意义，Phase 8 只落地这个换算。
 // playwright.cloud.config.ts 顶部设置 USJ_TEST_MODE，worker 继承环境变量；env 不设默认值，由调用方显式传入，
@@ -51,6 +61,9 @@ export class AppHarness {
   private bindingExposed = false;
   // open() 每个 AppHarness 只能调用一次：init script 和 binding 都会在同一个 page 上累积（WR-04）
   private opened = false;
+  // cloud 且 backend 为 pocketbase 时，当前期望的视图：login（登录页）或 app（应用外壳 + 已同步）
+  private cloudApp = false;
+  private view: 'login' | 'app' = 'login';
   // 本地模式 open() 写进 localStorage 的种子原文；没有种子时为 null（saved() 用它区分“种子”和“应用写回”）
   private seedJson: string | null = null;
 
@@ -68,6 +81,10 @@ export class AppHarness {
       expectStore?: 'local' | 'account';
       users?: number;
       plan?: unknown;
+      // cloud 模式：pocketbase（缺省）由应用自己走云端路径；null 保持 Phase 8 的设施用法
+      backend?: 'pocketbase' | null;
+      // cloud 模式：打开后立刻用第几个合成账号登录
+      login?: number;
     } = {},
   ) {
     // 账户 mock 用 Object.defineProperty 装 window.claude（不可配置），第二个 init script 会抛
@@ -85,6 +102,15 @@ export class AppHarness {
       }
       await this.fake.attach(this.page.context());
       this.store = 'cloud';
+      this.cloudApp = (opts.backend === undefined ? 'pocketbase' : opts.backend) === 'pocketbase';
+      this.view = 'login';
+      if (this.cloudApp) {
+        const context = this.page.context();
+        if (!configuredContexts.has(context)) {
+          configuredContexts.add(context);
+          await context.addInitScript(installUsjConfig, { backend: 'pocketbase' });
+        }
+      }
     } else if (mode === 'account') {
       if (!this.bindingExposed) {
         await this.page.exposeBinding(MOCK_BINDING_NAME, (_source, op: string, json: string) =>
@@ -112,17 +138,47 @@ export class AppHarness {
     }
     await this.page.goto('/');
     await this.ready();
+    if (mode === 'cloud' && this.cloudApp && opts.login !== undefined) {
+      await this.login(opts.login);
+    }
+  }
+
+  // 在登录页填第 userIndex 个合成账号的邮箱和口令并点登录，不等待结果
+  async submitLogin(userIndex = 0) {
+    const user = this.fake.users[userIndex];
+    if (!user) throw new Error('AppHarness.submitLogin：没有这个序号的合成账号');
+    await this.page.locator('#loginEmail').fill(user.email);
+    await this.page.locator('#loginPw').fill(user.password);
+    await this.page.locator('#loginBtn').click();
+  }
+
+  // 登录并等到应用外壳显示、状态行为已同步
+  async login(userIndex = 0) {
+    await this.submitLogin(userIndex);
+    this.view = 'app';
+    await this.ready();
   }
 
   // 就绪条件。
   // local：状态行显示本地模式文案，说明 store 已就位。
   // account（D-08）：状态行显示账户文案，并且两个导出按钮都可见。
   // 只看状态栏会抢跑：应用在 setStatus 之后还要再 await use("downloads") 才显示导出按钮。
-  // cloud：Phase 8 的应用仍走本地路径，所以状态栏是本地文案；再同源加载真实 SDK，等到页面里有 PocketBase。
-  // Phase 9 应用接上云端后要改这里的就绪条件（等应用的云端状态文案）。
-  // 不要给页面设置 USJ_CONFIG.backend：Phase 7 的决定是它非 null 时应用停在加载之前并显示“存储配置无效”。
+  // cloud 且 backend 为 pocketbase（Phase 9 起应用自己同源加载 SDK）：
+  //   期望视图是登录页时，等 #login 可见且页面里有 PocketBase 函数；
+  //   期望视图是应用时，等 #status 的 data-state 为 synced、文字是已同步，且 .wrap 可见。
+  // cloud 且 backend 为 null（Phase 8 设施用法）：应用走本地路径，状态栏是本地文案；harness 自己同源注入真实 SDK，等到页面里有 PocketBase。
   async ready() {
-    if (this.store === 'cloud') {
+    if (this.store === 'cloud' && this.cloudApp) {
+      if (this.view === 'login') {
+        await expect(this.page.locator('#login')).toBeVisible();
+        await this.page.waitForFunction(() => typeof (window as any).PocketBase === 'function');
+      } else {
+        const status = this.page.locator('#status');
+        await expect(status).toHaveAttribute('data-state', 'synced');
+        await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+        await expect(this.page.locator('.wrap')).toBeVisible();
+      }
+    } else if (this.store === 'cloud') {
       await expect(this.page.locator('#status')).toHaveText(STATUS_LOCAL);
       await this.page.addScriptTag({ url: PB_SDK_PATH });
       await this.page.waitForFunction(() => typeof (window as any).PocketBase === 'function');

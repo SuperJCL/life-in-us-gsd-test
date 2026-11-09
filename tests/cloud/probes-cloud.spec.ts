@@ -37,7 +37,7 @@ test('PROBE-9a what context.setOffline does to navigator.onLine and the online a
   context,
 }, testInfo) => {
   await page.addInitScript(installNetworkEventCounters);
-  await app.open({ mode: 'cloud' });
+  await app.open({ mode: 'cloud', backend: null });
 
   const initial = await readNet(page);
   probe(testInfo, '9a.initial', initial);
@@ -64,7 +64,7 @@ test('PROBE-9b whether a route-fulfilled same-origin fetch still succeeds while 
   context,
   guard,
 }, testInfo) => {
-  await app.open({ mode: 'cloud' });
+  await app.open({ mode: 'cloud', backend: null });
   await context.setOffline(true);
   const result = await page.evaluate(() =>
     fetch('/api/collections/journey_docs/records?page=1&perPage=1&skipTotal=1').then(
@@ -88,7 +88,7 @@ test('PROBE-9c whether the fake EventSource still delivers while the context is 
   page,
   context,
 }, testInfo) => {
-  await app.open({ mode: 'cloud', users: 1 });
+  await app.open({ mode: 'cloud', users: 1, backend: null });
   app.fake.seed({ _synthetic: true, logs: [] }, { userIndex: 0 });
   const [user] = app.fake.users;
   const docId = await page.evaluate(

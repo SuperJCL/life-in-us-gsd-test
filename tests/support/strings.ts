@@ -226,3 +226,12 @@ export const TOAST_IMPORT_BAD_FORMAT = '文件格式不对，请选择导出的�
 
 // USJ_CONFIG 配了不支持的后端时状态行的文案（应用源码逐字复制）；它出现说明应用停在加载之前、没有悄悄退回本地
 export const STATUS_BACKEND_UNSUPPORTED = '存储配置无效：这个版本还不支持所配置的后端，修改不会保存';
+
+// 云端路径下状态行在已同步时的文案（09-UI-SPEC 状态文案总表逐字复制）；#status 的 data-state 同时为 synced
+export const STATUS_CLOUD_SYNCED = '已同步';
+
+// 登录页错误区：邮箱或密码不对（09-UI-SPEC Copywriting 逐字复制）
+export const LOGIN_ERR_CREDENTIALS = '邮箱或密码不对，请检查后重试';
+
+// 登录页错误区：连不上服务器（09-UI-SPEC Copywriting 逐字复制）
+export const LOGIN_ERR_UNREACHABLE = '连不上服务器，请检查网络后重试';

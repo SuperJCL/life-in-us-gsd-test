@@ -223,10 +223,45 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 @media (max-width:560px){.ed-foot .hint{display:none}}
 .danger{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;color:var(--red)}
 .danger:hover{border-color:var(--red)}
+/* login */
+:is(#login,#boot,dialog#confirm){font-size:14px;line-height:1.55}
+#login{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px max(20px,env(safe-area-inset-right)) 48px max(20px,env(safe-area-inset-left))}
+@media (min-width:561px){#login{padding-top:64px;padding-bottom:64px}}
+#login h1{font-family:var(--serif);font-weight:600;font-size:clamp(26px,4vw,34px);line-height:1.2;margin:0;text-align:center}
+#login .lead{color:var(--muted);text-align:center;margin:8px 0 24px}
+.gate-card{width:min(400px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px}
+#login label.f{display:block;margin:0 0 4px}
+#login input{font-size:16px;line-height:1.55;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper)}
+#login .pw-row{position:relative}
+#login .pw-row input{padding-right:64px}
+#login .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:12px}
+#login #loginForm>input{margin-bottom:16px}
+#login button{font-size:14px}
+#login .primary{width:100%}
+#login-err{color:var(--red);margin:8px 0 0}
+#login-err:empty{display:none}
+#login #login-err+.primary{margin-top:16px}
+#login .fine{font-size:12px;color:var(--muted);text-align:center;margin:16px 0 0}
+@media (max-width:560px){#login input,#login .primary{min-height:44px}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 </head>
 <body>
+<section id="login" class="hidden" aria-labelledby="login-title">
+  <h1 id="login-title">在美国的日子</h1>
+  <p class="lead">登录后，记录会在你的手机和电脑之间同步</p>
+  <div class="gate-card">
+    <form id="loginForm" novalidate>
+      <label class="f" for="loginEmail">邮箱</label>
+      <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <label class="f" for="loginPw">密码</label>
+      <div class="pw-row"><input type="password" id="loginPw" name="password" autocomplete="current-password" required><button type="button" class="ghost pw-toggle" aria-pressed="false" aria-label="显示密码">显示</button></div>
+      <p id="login-err" role="alert"></p>
+      <button type="submit" class="primary" id="loginBtn">登录</button>
+    </form>
+    <p class="fine">账号由管理员开通。忘记密码请联系管理员。</p>
+  </div>
+</section>
 <div class="wrap">
   <header class="top">
     <div class="title">
@@ -507,10 +542,10 @@ let saveTimer=null,saving=false,dirty=false;
 function persist(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 async function flush(){
   if(!store||saving||!dirty)return;saving=true;dirty=false;
-  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"))}
+  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label,store.state)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"))}
   saving=false;if(dirty)flush();
 }
-function setStatus(t){$("status").textContent=t}
+function setStatus(t,st){const e=$("status");e.textContent=t;if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
@@ -520,8 +555,10 @@ function readConfig(){
   return {backend:null};
 }
 const USJ=readConfig();
+const CLOUD=USJ.backend==="pocketbase";
 async function init(){
   renderAll();
+  if(CLOUD){await cloudInit();return}
   if(USJ.backend!==null){setStatus("存储配置无效：这个版本还不支持所配置的后端，修改不会保存");return}
   let db=null,user=null,id=null;
   try{[db,user]=await Promise.all([window.claude?window.claude.use("db"):null,window.claude?window.claude.use("user"):null])}catch(e){}
@@ -533,6 +570,50 @@ async function init(){
   const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
   if(dl){window.__dl=dl;$("exportCsv").classList.remove("hidden");$("exportJson").classList.remove("hidden")}
 }
+
+/* ---------- cloud ---------- */
+const SDK_PATH="/vendor/pocketbase.iife.js",SDK_SRI="sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8=",WRITER=uid();
+const ERR_NET="连不上服务器，请检查网络后重试",ERR_CRED="邮箱或密码不对，请检查后重试";
+let pb=null,me=null,docs={state:null,plan:null};
+function loadSdk(){return new Promise((ok,no)=>{
+  if(typeof window.PocketBase==="function"){ok();return}
+  const s=document.createElement("script");s.src=SDK_PATH;s.integrity=SDK_SRI;
+  s.onload=()=>typeof window.PocketBase==="function"?ok():no(new Error("sdk"));
+  s.onerror=()=>{s.remove();no(new Error("sdk"))};
+  document.head.appendChild(s);
+})}
+function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
+function showLogin(err){document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
+async function cloudInit(){
+  document.querySelector(".wrap").classList.add("hidden");
+  $("importJson").parentNode.classList.add("hidden");
+  $("loginForm").addEventListener("submit",onLogin);
+  try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
+  startPb();
+  if(pb.authStore.isValid){try{await enterApp()}catch(e){showLogin(ERR_NET)}}
+  else showLogin("");
+}
+async function onLogin(e){
+  e.preventDefault();
+  const email=$("loginEmail").value.trim(),pw=$("loginPw").value;
+  $("login-err").textContent="";
+  try{if(!pb){await loadSdk();startPb()}await pb.collection("users").authWithPassword(email,pw)}
+  catch(err){$("login-err").textContent=err&&err.status===400?ERR_CRED:ERR_NET;return}
+  $("loginPw").value="";
+  try{await enterApp()}catch(err){showLogin(ERR_NET)}
+}
+async function enterApp(){
+  me=pb.authStore.record.id;
+  const list=await pb.collection("journey_docs").getFullList();
+  const planDoc=list.find(d=>d.kind==="plan"),stateDoc=list.find(d=>d.kind==="state");
+  if(!planDoc||!stateDoc){showLogin(ERR_NET);return}
+  usePlan(planDoc.data);state=normalize(stateDoc.data);
+  docs.plan={id:planDoc.id,base:planDoc.updated};docs.state={id:stateDoc.id,base:stateDoc.updated};
+  store={label:"已同步",state:"synced",load:async()=>null,save:cloudSave};
+  $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
+  setStatus("已同步","synced");renderAll();
+}
+async function cloudSave(s){const r=await pb.collection("journey_docs").update(docs.state.id,{data:s,writer:WRITER});docs.state.base=r.updated}
 
 /* ---------- shared ---------- */
 function eventsOn(date){

@@ -33,7 +33,7 @@ test('TEST-02 classifyRequest allows only the app page, the app file and the SDK
 });
 
 test('TEST-02 the cloud guard reports an /api path the fake server does not implement', async ({ app, page, guard }) => {
-  await app.open({ mode: 'cloud' });
+  await app.open({ mode: 'cloud', backend: null });
   const target = APP_ORIGIN + '/api/collections/nope/records';
 
   const result = await page.evaluate(() =>

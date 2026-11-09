@@ -4,6 +4,7 @@
 import { test, expect, type GuardHandle, type Page } from '../support/test';
 import { APP_ORIGIN, PB_DOC_MAX_BYTES } from '../support/constants';
 import { resolveHarnessMode } from '../support/app';
+import { syntheticState } from '../support/cloud-data';
 
 // 故意制造的 4xx 响应：Chromium 会为每一条写一条 console.error（Failed to load resource）。
 // 先断言恰好是预期的这几条（状态码 -> 条数），再用 guard.remove 删掉；其他任何 console.error 或页面异常仍会让用例失败。
@@ -17,16 +18,8 @@ async function acknowledgeHttpErrors(guard: GuardHandle, expected: Record<number
   }
 }
 
-// 合成 state：带 _synthetic 标记和一条合成记录；label 区分不同账号
-function syntheticState(label: string) {
-  return {
-    _synthetic: true,
-    logs: [{ id: `synthetic-${label}`, date: '2026-03-17', cat: '语言', text: `合成记录 ${label}` }],
-  };
-}
-
 test('TEST-02 the real SDK signs in to the fake server and lists only its own documents', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', users: 2 });
+  await app.open({ mode: 'cloud', users: 2, backend: null });
   app.fake.seed(syntheticState('a'), { userIndex: 0 });
   app.fake.seed(syntheticState('b'), { userIndex: 1 });
   const [first] = app.fake.users;
@@ -60,7 +53,7 @@ test('TEST-02 the real SDK creates and updates its own documents and the fake se
   app,
   page,
 }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
   const [user] = app.fake.users;
   const newPlan = { _synthetic: true, goals: ['合成目标'] };
   const newState = syntheticState('a-updated');
@@ -112,7 +105,7 @@ test('TEST-02 the fake server rejects another owner, a duplicate kind, an owner 
 }) => {
   const seedA = syntheticState('a');
   const seedB = syntheticState('b');
-  await app.open({ mode: 'cloud', users: 2 });
+  await app.open({ mode: 'cloud', users: 2, backend: null });
   app.fake.seed(seedA, { userIndex: 0 });
   app.fake.seed(seedB, { userIndex: 1 });
   const [userA, userB] = app.fake.users;
@@ -196,7 +189,7 @@ test('TEST-02 the fake server rejects another owner, a duplicate kind, an owner 
 });
 
 test('TEST-02 an invalid token is anonymous on record routes and only auth-refresh answers 401', async ({ app, page, guard }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
   const [user] = app.fake.users;
 
   const result = await page.evaluate(
@@ -252,7 +245,7 @@ test('TEST-02 an invalid token is anonymous on record routes and only auth-refre
 });
 
 test('TEST-02 a request cancelled by the SDK does not fail the test', async ({ app, page, guard }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
   const [user] = app.fake.users;
 
   // 默认的自动取消是开着的：同一个 requestKey 连发两次，第一次会被 SDK 取消
@@ -325,7 +318,7 @@ test("TEST-02 a subscription gets its own account's changes with the requested f
   app,
   page,
 }) => {
-  await app.open({ mode: 'cloud', users: 2 });
+  await app.open({ mode: 'cloud', users: 2, backend: null });
   app.fake.seed(syntheticState('a'), { userIndex: 0 });
   app.fake.seed(syntheticState('b'), { userIndex: 1 });
   const [userA, userB] = app.fake.users;
@@ -364,7 +357,7 @@ test("TEST-02 a subscription gets its own account's changes with the requested f
 });
 
 test('TEST-02 the page EventSource is the fake one and closing it unregisters the client', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
   const [user] = app.fake.users;
   expect(await page.evaluate(() => (window as any).EventSource.name)).toBe('FakeEventSource');
   expect(app.fake.connectionCount()).toBe(0);
@@ -379,7 +372,7 @@ test('TEST-02 the page EventSource is the fake one and closing it unregisters th
 });
 
 test('TEST-02 a same-document navigation keeps the realtime connection and a new document drops it', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
   const [user] = app.fake.users;
   const ownId = await signInAndSubscribe(page, user);
   expect(app.fake.connectionCount()).toBe(1);
