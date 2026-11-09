@@ -22,9 +22,14 @@
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
+import http from 'node:http';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { verifyExe, withInstance } from './lib/instance.mjs';
-import { stable } from './lib/rules-snapshot.mjs';
+import { diffSnapshots, snapshotFromLive, stable } from './lib/rules-snapshot.mjs';
+import { openSse, subscribe } from './lib/sse-client.mjs';
+
+const EXPECTED_RULES_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'pb', 'rules.expected.json');
 
 // 本脚本自身用低于正常的优先级运行（用户的电脑容易卡）
 try {
@@ -41,7 +46,9 @@ export const EXPECTED_IDS = [
   'ACCT04-11', 'ACCT04-12', 'ACCT04-13', 'ACCT04-14', 'ACCT04-15', 'ACCT04-16', 'ACCT04-17', 'ACCT04-18', 'ACCT04-19', 'ACCT04-20',
   'ACCT04-21', 'ACCT04-22', 'ACCT04-23', 'ACCT04-24', 'ACCT04-25', 'ACCT04-26',
   'TOK-1', 'TOK-2', 'D5-1', 'D5-2', 'D5-3', 'D5-4', 'D5-5',
+  'RT-1', 'RT-2', 'RT-3', 'RT-4', 'RT-5', 'RT-6', 'RT-7',
   'NEG-1',
+  'REPLAY-1',
 ];
 
 // ---------- 输出格式（不含令牌、邮箱、请求体） ----------
@@ -268,6 +275,123 @@ function tokenExp(tok) {
 }
 
 const loginStatus = async (c, coll, identity, password) => (await c.api('POST', `/api/collections/${coll}/auth-with-password`, { body: { identity, password } })).status;
+
+// ---------- 实时断言的共享实现 ----------
+
+const SILENCE_MS = 1500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function waitFor(pred, ms = 8000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (pred()) return true;
+    await sleep(50);
+  }
+  return pred();
+}
+
+// 连接上收到的业务事件（去掉 PB_CONNECT），data 解析成 { event, action, rec }；解析失败的 data 当作没有记录
+function eventsOf(conn) {
+  return conn.events
+    .filter((e) => e.event !== 'PB_CONNECT')
+    .map((e) => {
+      let d = null;
+      try {
+        d = JSON.parse(e.data);
+      } catch (err) {
+        d = null; // 非 JSON 的 data：rec 为 null，不会被当成任何记录
+      }
+      return { event: e.event, action: d && d.action, rec: d && d.record ? d.record : null };
+    });
+}
+
+const seesId = (conn, id) => eventsOf(conn).some((e) => e.rec && e.rec.id === id);
+
+// RT-1：订阅 <集合>/*；B 改 B 的文档，A 再改自己的作为正向对照；对照到达后静默 1.5 秒，A 的连接里不得出现 B 的记录
+async function rt1(c, t) {
+  const conn = await openSse(c.base);
+  try {
+    const st = await subscribe(c.base, conn.clientId, [`${t.coll}/*`], t.aTok);
+    const bUp = await c.api('PATCH', recPath(t.coll, t.b.state), { token: t.bTok, body: { writer: 'rt1b' } });
+    const aUp = await c.api('PATCH', recPath(t.coll, t.a.state), { token: t.aTok, body: { writer: 'rt1a' } });
+    const ctrl = await waitFor(() => seesId(conn, t.a.state));
+    if (ctrl) await sleep(SILENCE_MS);
+    const forbidden = [t.b.state, t.b.plan];
+    const leaked = eventsOf(conn).some((e) => e.rec && (forbidden.includes(e.rec.id) || e.rec.owner === t.bId));
+    return {
+      pass: st === 204 && bUp.status === 200 && aUp.status === 200 && ctrl && !leaked && conn.errors.length === 0,
+      status: st,
+      leaked,
+      detail: `sub:${st},bup:${bUp.status},aup:${aUp.status},ctrl:${ctrl ? 1 : 0},events:${eventsOf(conn).length},leaked:${leaked ? 1 : 0}`,
+    };
+  } finally {
+    await conn.close();
+  }
+}
+
+// RT-7：users 类集合的订阅（Pitfall 2）。subTok 决定订阅者身份；订阅 <集合>/* 和 <集合>/<目标>；
+// 超级用户先改目标记录、再改对照记录（只改 emailVisibility，不轮换 tokenKey）；对照到达后静默 1.5 秒，不得出现目标记录
+async function rt7(c, t) {
+  const conn = await openSse(c.base);
+  const orig = {};
+  try {
+    for (const id of [t.targetId, t.controlId]) orig[id] = (await suRecord(c, t.coll, id)).emailVisibility === true;
+    const st = await subscribe(c.base, conn.clientId, [`${t.coll}/*`, `${t.coll}/${t.targetId}`], t.subTok);
+    const p1 = await c.su('PATCH', recPath(t.coll, t.targetId), { emailVisibility: !orig[t.targetId] });
+    const p2 = await c.su('PATCH', recPath(t.coll, t.controlId), { emailVisibility: !orig[t.controlId] });
+    const ctrl = await waitFor(() => seesId(conn, t.controlId));
+    const idx = eventsOf(conn).findIndex((e) => e.rec && e.rec.id === t.controlId);
+    if (ctrl) await sleep(SILENCE_MS);
+    const all = eventsOf(conn);
+    const leaked = all.some((e) => e.rec && e.rec.id === t.targetId);
+    const inWindow = ctrl ? all.length - (idx + 1) : 0;
+    return {
+      pass: st === 204 && p1.status === 200 && p2.status === 200 && ctrl && !leaked && conn.errors.length === 0,
+      status: st,
+      leaked,
+      detail: `sub:${st},ctrl:${ctrl ? 1 : 0},events:${all.length},window:${inWindow},leaked:${leaked ? 1 : 0}`,
+    };
+  } finally {
+    for (const id of Object.keys(orig)) await c.su('PATCH', recPath(t.coll, id), { emailVisibility: orig[id] });
+    await conn.close();
+  }
+}
+
+// 临时认证集合 users_leaky：list、view 只要求已登录；订阅者是其中的账号 X，Y 是不该被 X 看到的记录
+async function makeUsersLeaky(c) {
+  const auth = '@request.auth.id != ""';
+  const r = await c.su('POST', '/api/collections', {
+    name: 'users_leaky',
+    type: 'auth',
+    listRule: auth,
+    viewRule: auth,
+    createRule: null,
+    updateRule: null,
+    deleteRule: null,
+    authRule: '',
+    passwordAuth: { enabled: true, identityFields: ['email'] },
+  });
+  if (r.status !== 200) throw new Error(`准备失败：创建 users_leaky 返回 ${r.status}`);
+  const mk = async (tag) => {
+    const email = newEmail(tag);
+    const password = newPassword();
+    const u = await c.su('POST', '/api/collections/users_leaky/records', { email, password, passwordConfirm: password, verified: true });
+    if (u.status !== 200) throw new Error(`准备失败：创建 users_leaky 账号返回 ${u.status}`);
+    return { id: u.json.id, email, password };
+  };
+  const x = await mk('x');
+  const y = await mk('y');
+  const l = await c.api('POST', '/api/collections/users_leaky/auth-with-password', { body: { identity: x.email, password: x.password } });
+  if (l.status !== 200 || !l.json || !l.json.token) throw new Error(`准备失败：users_leaky 登录返回 ${l.status}`);
+  return { coll: 'users_leaky', subTok: l.json.token, controlId: x.id, targetId: y.id };
+}
+
+async function liveSnapshot(inst) {
+  const users = await inst.su('/api/collections/users');
+  const docs = await inst.su('/api/collections/journey_docs');
+  if (users.status !== 200 || docs.status !== 200) throw new Error('读取集合失败');
+  return snapshotFromLive([await users.json(), await docs.json()]);
+}
 
 function restProbeDefs(getT) {
   return {
@@ -703,8 +827,96 @@ export function registerAll(reg) {
     { write: true, readback: (c) => suRecord(c, 'users', c.A.id) },
   );
 
+  // ----- 实时隔离（RT-7 必须排在 D5-1、TOK-2 之前） -----
+  const rtTarget = (c) => realTarget(c);
+
+  check('RT-1', 'A 订阅 journey_docs/* 收不到 B 的变更（A 自己的对照事件到达后再静默 1.5 秒）', (c) => rt1(c, rtTarget(c)));
+
+  check('RT-2', 'A 订阅 B 文档的单条主题收不到 B 的变更，A 自己文档的单条主题收得到', async (c) => {
+    const t = rtTarget(c);
+    const conn = await openSse(c.base);
+    try {
+      const st = await subscribe(c.base, conn.clientId, [`journey_docs/${t.b.state}`, `journey_docs/${t.a.state}`], t.aTok);
+      const bUp = await c.api('PATCH', recPath('journey_docs', t.b.state), { token: t.bTok, body: { writer: 'rt2b' } });
+      const aUp = await c.api('PATCH', recPath('journey_docs', t.a.state), { token: t.aTok, body: { writer: 'rt2a' } });
+      const ctrl = await waitFor(() => seesId(conn, t.a.state));
+      if (ctrl) await sleep(SILENCE_MS);
+      const leaked = seesId(conn, t.b.state);
+      return {
+        pass: st === 204 && bUp.status === 200 && aUp.status === 200 && ctrl && !leaked && conn.errors.length === 0,
+        status: st,
+        detail: `sub:${st},ctrl:${ctrl ? 1 : 0},events:${eventsOf(conn).length},leaked:${leaked ? 1 : 0}`,
+      };
+    } finally {
+      await conn.close();
+    }
+  });
+
+  check('RT-3', '未登录的连接订阅 journey_docs/* 收不到任何事件（A 的连接同时收到对照事件）', async (c) => {
+    const t = rtTarget(c);
+    const anon = await openSse(c.base);
+    const withA = await openSse(c.base);
+    try {
+      const s1 = await subscribe(c.base, anon.clientId, ['journey_docs/*']);
+      const s2 = await subscribe(c.base, withA.clientId, ['journey_docs/*'], t.aTok);
+      const aUp = await c.api('PATCH', recPath('journey_docs', t.a.state), { token: t.aTok, body: { writer: 'rt3a' } });
+      const ctrl = await waitFor(() => seesId(withA, t.a.state));
+      if (ctrl) await sleep(SILENCE_MS);
+      const n = eventsOf(anon).length;
+      return {
+        pass: s1 === 204 && s2 === 204 && aUp.status === 200 && ctrl && n === 0 && anon.errors.length === 0 && withA.errors.length === 0,
+        status: s1,
+        detail: `sub:${s1},${s2},ctrl:${ctrl ? 1 : 0},anonevents:${n}`,
+      };
+    } finally {
+      await anon.close();
+      await withA.close();
+    }
+  });
+
+  check('RT-4', '带 fields 选项的订阅，事件 record 的键恰好是 id、kind、writer、updated（实测定稿）', async (c) => {
+    const t = rtTarget(c);
+    const topic = `journey_docs/*?options=${q(JSON.stringify({ query: { fields: 'id,kind,writer,updated' } }))}`;
+    const conn = await openSse(c.base);
+    try {
+      const st = await subscribe(c.base, conn.clientId, [topic], t.aTok);
+      const aUp = await c.api('PATCH', recPath('journey_docs', t.a.state), { token: t.aTok, body: { writer: 'rt4a' } });
+      const got = await waitFor(() => eventsOf(conn).some((e) => e.rec));
+      const ev = eventsOf(conn).find((e) => e.rec);
+      const keys = ev ? Object.keys(ev.rec).sort() : [];
+      return {
+        pass: st === 204 && aUp.status === 200 && got && stable(keys) === stable(['id', 'kind', 'updated', 'writer']),
+        status: st,
+        detail: `sub:${st},keys:${keys.length}`,
+      };
+    } finally {
+      await conn.close();
+    }
+  });
+
+  check('RT-5', '同一个 clientId 带 B 的令牌再提交订阅被拒（403）', async (c) => {
+    const t = rtTarget(c);
+    const conn = await openSse(c.base);
+    try {
+      const s1 = await subscribe(c.base, conn.clientId, ['journey_docs/*'], t.aTok);
+      const s2 = await subscribe(c.base, conn.clientId, ['journey_docs/*'], t.bTok);
+      return { pass: s1 === 204 && s2 === 403, status: s2, detail: `first:${s1},second:${s2}` };
+    } finally {
+      await conn.close();
+    }
+  });
+
+  check('RT-6', '不存在的 clientId 提交订阅（404）', async (c) => {
+    const s = await subscribe(c.base, hex(8), ['journey_docs/*'], c.A.token);
+    return { pass: s === 404, status: s };
+  });
+
+  check('RT-7', 'A 订阅 users/* 和 B 账号记录的单条主题收不到 B 账号记录的变更（A 自己账号记录的对照事件到达后再静默 1.5 秒）', (c) =>
+    rt7(c, { coll: 'users', subTok: c.A.token, controlId: c.A.id, targetId: c.B.id }),
+  );
+
   // ----- 反向对照：故意写错的集合，检查函数必须报出泄漏 -----
-  check('NEG-1', '反向对照：在故意写错规则的 journey_docs_leaky 上，ACCT04-1、3、4、5 的检查都报出泄漏', async (c) => {
+  check('NEG-1', '反向对照：在故意写错规则的集合上，ACCT04-1、3、4、5、RT-1、RT-7 的检查都报出泄漏', async (c) => {
     const leaky = await makeLeaky(c);
     const defs = restProbeDefs(() => leaky);
     const verdicts = [];
@@ -713,7 +925,13 @@ export function registerAll(reg) {
       const r = await executeCheck({ id, name: id, fn: d.fn, readback: d.readback, write: d.write }, c);
       verdicts.push(`${id}:${r.pass ? 'noleak' : 'leak'}`);
     }
-    return { pass: verdicts.every((v) => v.endsWith(':leak')), detail: verdicts.join(',') };
+    // RT 的检查函数还要求“确实看到了不该看的事件”（leaked），不能只因为对照没到就算报出泄漏
+    const r1 = await rt1(c, leaky);
+    verdicts.push(`RT-1:${r1.leaked ? 'leak' : 'noleak'}`);
+    const ul = await makeUsersLeaky(c);
+    const r7 = await rt7(c, ul);
+    verdicts.push(`RT-7:${r7.leaked ? 'leak' : 'noleak'}`);
+    return { pass: verdicts.length === 6 && verdicts.every((v) => v.endsWith(':leak')), detail: verdicts.join(',') };
   });
 
   check(
@@ -741,6 +959,26 @@ export function registerAll(reg) {
       return { ...out(r.status === 200 && refresh.status === 401 && newLogin === 200, refresh), detail: `patch:${r.status},refresh:${refresh.status},new:${newLogin}` };
     },
     { write: true, readback: (c) => loginStatus(c, 'users', c.B.email, c.B.password), expect: (b, a) => b === 200 && a === 400 },
+  );
+
+  // ----- 重放：第一个实例关闭后，在第二个全新实例上重放迁移，规则快照必须一致 -----
+  check(
+    'REPLAY-1',
+    '第二个全新实例上重放迁移得到的规则快照与第一个实例逐字一致，也与 pb/rules.expected.json 一致',
+    async (c) => {
+      let expected = null;
+      try {
+        expected = JSON.parse(fs.readFileSync(EXPECTED_RULES_FILE, 'utf8'));
+      } catch (e) {
+        return { pass: false, detail: 'expected-unreadable' };
+      }
+      const snap2 = await withInstance({}, (inst2) => liveSnapshot(inst2));
+      const d12 = diffSnapshots(c.snap1, snap2).length;
+      const d1e = diffSnapshots(expected, c.snap1).length;
+      const d2e = diffSnapshots(expected, snap2).length;
+      return { pass: stable(c.snap1) === stable(snap2) && d12 === 0 && d1e === 0 && d2e === 0, detail: `diff12:${d12},diff1e:${d1e},diff2e:${d2e}` };
+    },
+    { post: true },
   );
 }
 
@@ -816,16 +1054,21 @@ async function run(argv) {
       emit({ id: def.id, name: def.name, pass: false, status: undefined, code: 'exception' });
     }
   };
+  let snap1 = null;
   try {
     await withInstance({}, async (inst) => {
       await inst.ensureRateLimitsOff();
       const c = await setup(inst);
-      for (const def of reg.defs) await runDef(def, c);
+      for (const def of reg.defs.filter((d) => !d.post)) await runDef(def, c);
+      // 全部断言之后取快照：证明这些断言没有改动规则
+      snap1 = await liveSnapshot(inst);
     });
   } catch (e) {
     console.error(`实例或准备阶段失败${e && e.code ? `（${e.code}）` : ''}，退出。`);
     return 2;
   }
+  // 第一个实例已关闭；后置断言（REPLAY-1）自己起第二个实例
+  for (const def of reg.defs.filter((d) => d.post)) await runDef(def, { snap1 });
   const passed = results.filter((r) => r.pass).length;
   const ok = passed === reg.defs.length && results.length === reg.defs.length;
   console.log(`${ok ? 'ISOLATION OK' : 'ISOLATION FAIL'} ${passed}/${reg.defs.length}`);
@@ -834,7 +1077,7 @@ async function run(argv) {
 
 // ---------- 自检（不需要程序） ----------
 
-function selfTest() {
+async function selfTest() {
   const results = [];
   const t = (name, ok) => {
     results.push(ok);
@@ -886,6 +1129,29 @@ function selfTest() {
   t('登记的编号集合等于 EXPECTED_IDS', idsMatch(reg.defs));
   t('每条真实登记的写类断言都带回读', reg.defs.every((d) => !d.write || typeof d.readback === 'function'));
 
+  // SSE 客户端：对本机的假 SSE 服务器解析 PB_CONNECT 和业务事件（不需要 PocketBase）
+  const srv = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write('id:cid1\nevent:PB_CONNECT\ndata:{"clientId":"cid1"}\n\n');
+    setTimeout(() => res.write('event:journey_docs/*\ndata:{"action":"update","record":{"id":"r1","kind":"state"}}\n\n'), 50);
+  });
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+  let sseOk = false;
+  let conn = null;
+  try {
+    conn = await openSse(`http://127.0.0.1:${srv.address().port}`, { timeoutMs: 3000 });
+    const got = await waitFor(() => eventsOf(conn).length === 1, 3000);
+    const ev = eventsOf(conn)[0];
+    sseOk = conn.clientId === 'cid1' && got && ev.event === 'journey_docs/*' && ev.action === 'update' && ev.rec.id === 'r1' && conn.errors.length === 0;
+  } catch (e) {
+    sseOk = false;
+  } finally {
+    if (conn) await conn.close();
+    srv.closeAllConnections();
+    await new Promise((resolve) => srv.close(resolve));
+  }
+  t('openSse 解析 PB_CONNECT 的 clientId 和业务事件', sseOk);
+
   const all = results.every(Boolean);
   console.log(all ? 'ISOLATION SELF-TEST OK' : 'ISOLATION SELF-TEST FAIL');
   return all;
@@ -895,7 +1161,7 @@ const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).h
 if (isMain) {
   const argv = process.argv.slice(2);
   if (argv.includes('--self-test')) {
-    process.exit(selfTest() ? 0 : 1);
+    process.exit((await selfTest()) ? 0 : 1);
   } else {
     process.exit(await run(argv));
   }
