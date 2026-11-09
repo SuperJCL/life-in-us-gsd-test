@@ -6,7 +6,18 @@ import { composer } from '../support/composer';
 import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readGroups } from '../support/goals';
-import { STATUS_CLOUD_SYNCED } from '../support/strings';
+import { randomUUID } from 'node:crypto';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
+import { FROZEN_NOW } from '../support/constants';
+import {
+  LOGIN_BUSY,
+  LOGIN_ERR_CREDENTIALS,
+  LOGIN_ERR_RATE,
+  LOGIN_ERR_UNREACHABLE,
+  STATUS_CLOUD_SYNCED,
+} from '../support/strings';
+
+const AUTH_PATH = '/api/collections/users/auth-with-password';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
 const { normalizePlan, DEFAULT_PLAN } = loadAppPure(['normalizePlan', 'DEFAULT_PLAN']);
@@ -83,5 +94,141 @@ test('ACCT-01 a signed-in session survives a page reload', async ({ app, page })
   await expect(page.locator('#login')).toBeHidden();
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
   expect(app.fake.requests).toContainEqual({ method: 'POST', path: '/api/collections/users/auth-refresh', status: 200 });
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 a wrong password says the email or password is wrong, clears only the password and keeps the email', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud' });
+  const [user] = app.fake.users;
+  const wrongEntry = randomUUID();
+  const email = page.locator('#loginEmail');
+  const pw = page.locator('#loginPw');
+  const err = page.locator('#login-err');
+  await email.fill(user.email);
+  await pw.fill(wrongEntry);
+  await page.locator('#loginBtn').click();
+
+  // 统一文案，不说明是邮箱还是密码不对；密码框清空并聚焦、aria-invalid 为 true，邮箱保留
+  await expect(err).toHaveText(LOGIN_ERR_CREDENTIALS);
+  await expect(pw).toHaveValue('');
+  await expect(pw).toBeFocused();
+  await expect(pw).toHaveAttribute('aria-invalid', 'true');
+  await expect(email).toHaveValue(user.email);
+  await expect(page.locator('#login')).toBeVisible();
+  await acknowledgeConsoleErrors(guard, { 'status of 400 ': 1 });
+
+  // 再次输入：错误区清空，aria-invalid 去掉
+  await pw.pressSequentially('x');
+  await expect(err).toHaveText('');
+  await expect(pw).not.toHaveAttribute('aria-invalid', /.*/);
+  expect(await page.evaluate(() => window.localStorage.getItem('pocketbase_auth'))).toBeNull();
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 an unreachable server, a server error and a rate limit each show their own message and keep both fields', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud' });
+  const [user] = app.fake.users;
+  const err = page.locator('#login-err');
+  const email = page.locator('#loginEmail');
+  const pw = page.locator('#loginPw');
+
+  const refuse = app.fake.fault({ method: 'POST', path: AUTH_PATH, mode: 'refuse', times: 1 });
+  await app.submitLogin(0);
+  await expect(err).toHaveText(LOGIN_ERR_UNREACHABLE);
+  expect(refuse.hits).toBe(1);
+  await expect(email).toHaveValue(user.email);
+  await expect(pw).toHaveValue(user.password);
+
+  const serverError = app.fake.fault({ method: 'POST', path: AUTH_PATH, mode: 'status', status: 503, times: 1 });
+  await page.locator('#loginBtn').click();
+  await expect(err).toHaveText(LOGIN_ERR_UNREACHABLE);
+  expect(serverError.hits).toBe(1);
+  await expect(email).toHaveValue(user.email);
+  await expect(pw).toHaveValue(user.password);
+
+  const limited = app.fake.fault({ method: 'POST', path: AUTH_PATH, mode: 'status', status: 429, times: 1 });
+  await page.locator('#loginBtn').click();
+  await expect(err).toHaveText(LOGIN_ERR_RATE);
+  expect(limited.hits).toBe(1);
+  await expect(email).toHaveValue(user.email);
+  await expect(pw).toHaveValue(user.password);
+  await expect(pw).not.toHaveAttribute('aria-invalid', /.*/);
+
+  await expect(page.locator('#login')).toBeVisible();
+  expect(await page.evaluate(() => window.localStorage.getItem('pocketbase_auth'))).toBeNull();
+  expect(app.fake.fulfillErrors).toEqual([]);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1, 'status of 503 ': 1, 'status of 429 ': 1 });
+});
+
+// 15 秒超时只在 manual 时钟下测，不真的等
+test.describe('login timeout', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('ACCT-01 a sign-in with no answer after about 15 seconds is reported as unreachable and a late answer does not sign in', async ({
+    app,
+    page,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud' });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const btn = page.locator('#loginBtn');
+    const hold = app.fake.fault({ method: 'POST', path: AUTH_PATH, mode: 'hold' });
+
+    await app.submitLogin(0);
+    await expect.poll(() => hold.hits, { message: '等待登录请求到达假服务器（被挂起）' }).toBe(1);
+
+    // 提交中：按钮 disabled、aria-busy、忙碌文字，两个输入框 readonly
+    await expect(btn).toBeDisabled();
+    await expect(btn).toHaveText(LOGIN_BUSY);
+    await expect(btn).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('#loginEmail')).toHaveJSProperty('readOnly', true);
+    await expect(page.locator('#loginPw')).toHaveJSProperty('readOnly', true);
+
+    // 约 15 秒无响应：按连不上处理，按钮恢复
+    await page.clock.runFor(15_000);
+    await expect(page.locator('#login-err')).toHaveText(LOGIN_ERR_UNREACHABLE);
+    await expect(btn).toBeEnabled();
+    await expect(btn).toHaveText('登录');
+    await expect(btn).not.toHaveAttribute('aria-busy', /.*/);
+    await expect(page.locator('#loginEmail')).toHaveJSProperty('readOnly', false);
+    await expect(page.locator('#loginPw')).toHaveJSProperty('readOnly', false);
+
+    // 放行：请求已被中止，晚到的成功不会让页面登录，也不会留下令牌
+    await hold.release();
+    await expect(page.locator('#login')).toBeVisible();
+    await expect(page.locator('.wrap')).toBeHidden();
+    expect(await page.evaluate(() => window.localStorage.getItem('pocketbase_auth'))).toBeNull();
+    // 被中止的请求在放行时 fulfill 没有报错：fulfillErrors 实测为 0 条（计划只要求至多一条）
+    expect(app.fake.fulfillErrors).toEqual([]);
+  });
+});
+
+test('ACCT-01 submitting twice sends one sign-in request', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN });
+  const hold = app.fake.fault({ method: 'POST', path: AUTH_PATH, mode: 'hold' });
+
+  await app.submitLogin(0);
+  // 提交中：再点两次、再在密码框按 Enter，都不会再发请求（按钮已 disabled，force 跳过可点击检查）
+  await page.locator('#loginBtn').click({ force: true });
+  await page.locator('#loginBtn').click({ force: true });
+  await page.locator('#loginPw').press('Enter');
+  await expect.poll(() => hold.hits, { message: '等待登录请求到达假服务器（被挂起）' }).toBe(1);
+  // 再走一轮页面事件循环，让可能多发的第二个请求有机会到达
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
+  expect(hold.hits).toBe(1);
+
+  await hold.release();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('.wrap')).toBeVisible();
+  expect(app.fake.requests.filter((r) => r.method === 'POST' && r.path === AUTH_PATH)).toHaveLength(1);
+  expect(hold.hits).toBe(1);
   expect(app.fake.fulfillErrors).toEqual([]);
 });

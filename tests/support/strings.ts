@@ -236,6 +236,12 @@ export const LOGIN_ERR_CREDENTIALS = '邮箱或密码不对，请检查后重试
 // 登录页错误区：连不上服务器（09-UI-SPEC Copywriting 逐字复制）
 export const LOGIN_ERR_UNREACHABLE = '连不上服务器，请检查网络后重试';
 
+// 登录页错误区：尝试次数太多，对应 429（09-UI-SPEC Copywriting 逐字复制）
+export const LOGIN_ERR_RATE = '尝试次数太多，请过几分钟再试';
+
+// 登录按钮在提交中的文字（09-UI-SPEC Copywriting 逐字复制）；按钮同时 disabled、aria-busy 为 true
+export const LOGIN_BUSY = '登录中…';
+
 // 云端路径对账中的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 reconciling
 export const STATUS_RECONCILING = '正在和服务器对账…';
 

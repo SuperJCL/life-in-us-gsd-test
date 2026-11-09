@@ -280,9 +280,9 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
     <div id="loginNotice" class="syncbar hidden" role="status"></div>
     <form id="loginForm" novalidate>
       <label class="f" for="loginEmail">邮箱</label>
-      <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <input type="email" id="loginEmail" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="login-err" required>
       <label class="f" for="loginPw">密码</label>
-      <div class="pw-row"><input type="password" id="loginPw" name="password" autocomplete="current-password" required><button type="button" class="ghost pw-toggle" aria-pressed="false" aria-label="显示密码">显示</button></div>
+      <div class="pw-row"><input type="password" id="loginPw" name="password" autocomplete="current-password" aria-describedby="login-err" required><button type="button" class="ghost pw-toggle" aria-pressed="false" aria-label="显示密码">显示</button></div>
       <p id="login-err" role="alert"></p>
       <button type="submit" class="primary" id="loginBtn">登录</button>
     </form>
@@ -643,6 +643,7 @@ async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
   $("loginForm").addEventListener("submit",onLogin);
+  ["loginEmail","loginPw"].forEach(id=>$(id).addEventListener("input",clearLoginErr));
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
@@ -651,12 +652,38 @@ async function cloudInit(){
   if(!pb.authStore.isValid){pb.authStore.clear();showLogin("","expired");return}
   try{await enterApp(true)}catch(e){showLogin(ERR_NET)}
 }
+/* login form: one submit at a time; a sign-in with no answer after FAIL_MS is abandoned (aborted) and a success arriving after that is discarded */
+const ERR_RATE="尝试次数太多，请过几分钟再试";
+let loginBusy=false;
+function setLoginBusy(b){
+  loginBusy=b;
+  const btn=$("loginBtn");btn.disabled=b;btn.textContent=b?"登录中…":"登录";
+  if(b)btn.setAttribute("aria-busy","true");else btn.removeAttribute("aria-busy");
+  ["loginEmail","loginPw"].forEach(id=>{$(id).readOnly=b});
+}
+function clearLoginErr(){$("login-err").textContent="";["loginEmail","loginPw"].forEach(id=>$(id).removeAttribute("aria-invalid"))}
 async function onLogin(e){
   e.preventDefault();
+  if(loginBusy)return;
   const email=$("loginEmail").value.trim(),pw=$("loginPw").value;
-  $("login-err").textContent="";
-  try{if(!pb){await loadSdk();startPb()}await pb.collection("users").authWithPassword(email,pw)}
-  catch(err){$("login-err").textContent=err&&err.status===400?ERR_CRED:ERR_NET;return}
+  clearLoginErr();
+  setLoginBusy(true);
+  const ctrl=new AbortController();let gaveUp=false,msg="",status=0;
+  const timer=setTimeout(()=>{gaveUp=true;ctrl.abort()},FAIL_MS);
+  try{
+    if(!pb){await loadSdk();startPb()}
+    await pb.collection("users").authWithPassword(email,pw,{signal:ctrl.signal});
+    if(gaveUp){pb.authStore.clear();msg=ERR_NET}
+  }catch(err){
+    status=err&&err.status;
+    msg=gaveUp?ERR_NET:status===400?ERR_CRED:status===429?ERR_RATE:ERR_NET;
+  }
+  clearTimeout(timer);setLoginBusy(false);
+  if(msg){
+    $("login-err").textContent=msg;
+    if(msg===ERR_CRED){const p=$("loginPw");p.value="";p.setAttribute("aria-invalid","true");p.focus()}
+    return;
+  }
   $("loginPw").value="";loginNotice(null);
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
 }
