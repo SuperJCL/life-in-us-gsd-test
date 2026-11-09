@@ -7,12 +7,13 @@
 //  - REST 由 context.route 接应用来源下的 /api/，页面里的真实 SDK 原样运行；
 //    门面与 v1 的 MockBackend 同名同义：reads、writes、downloads、seed()、lastState()。
 //  - 令牌和口令只在运行时生成，源码里没有字面量（隐私规则 F、G）。
-//  - 错误注入开关（fault 等，Phase 9）只作用于页面请求：由 attach 的路由处理函数在调用 handle() 之前匹配；
-//    handle() 和 request() 不受影响，契约自测照旧直接调用 handle()。注入的状态码只是错误注入，不是真实服务器的契约。
+//  - 错误注入开关（fault、clearFaults、revokeTokens、beforeNext、dropDocs，Phase 9）只作用于页面请求：
+//    由 attach 的路由处理函数在调用 handle() 之前匹配；handle() 和 request() 不受影响，契约自测照旧直接调用 handle()。
+//    注入的状态码只是错误注入，不是真实服务器的契约（见 PB-CONTRACT.md §10）。
 //  - 假时钟从 FROZEN_NOW 起，每次写入前进 1 毫秒，不读 Node 的真实时间：
 //    页面的 Date.now() 被固定在 FROZEN_NOW，两边的时间对不上会让令牌过期判断取决于运行日期。
 import { randomBytes } from 'node:crypto';
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Page, Request, Route } from '@playwright/test';
 import {
   APP_ORIGIN,
   FROZEN_NOW,
@@ -41,7 +42,28 @@ export type PbFaultMode = 'refuse' | 'status' | 'hold';
 export type PbFault = { method: string; path: string | RegExp; mode: PbFaultMode; status?: number; times?: number };
 export type PbFaultHandle = { readonly hits: number; release(): Promise<void>; remove(): void };
 
-type FaultRule = { fault: PbFault; hits: number; active: boolean };
+// waiting：hold 模式下挂起的请求；open 放行它，done 在这条请求处理完（响应已 fulfill、推送已送出）之后 resolve
+type FaultRule = {
+  fault: PbFault;
+  hits: number;
+  active: boolean;
+  waiting: Array<{ open: () => void; done: Promise<void> }>;
+};
+
+// 一次性钩子：下一个匹配的页面请求在交给 handle() 之前先执行 fn
+type BeforeNextHook = { method: string; path: string | RegExp; fn: () => void | Promise<void> };
+
+function pathMatches(rulePath: string | RegExp, path: string): boolean {
+  return typeof rulePath === 'string' ? rulePath === path : rulePath.test(path);
+}
+
+// status 模式的错误正文：PocketBase 的通用错误形状 { status, message, data }。
+// 429 和 5xx 的 message 没有真实实例的录制样本，只是按通用形状写的（PB-CONTRACT.md §10 标明）
+function injectedMessage(status: number): string {
+  if (status === 429) return 'Too Many Requests.';
+  if (status >= 500 && status <= 599) return 'Something went wrong while processing your request.';
+  return 'Injected failure.';
+}
 
 // 实时推送给某个页面连接的一条事件
 export type PbDelivery = { connectionId: string; name: string; data: string; lastEventId: string };
@@ -130,6 +152,7 @@ export class FakePbServer {
   private watchedPages = new WeakSet<Page>();
   private pendingNavigations = new Set<Promise<void>>();
   private faultRules: FaultRule[] = [];
+  private beforeHooks: BeforeNextHook[] = [];
 
   // 添加第 n 个合成账号：邮箱 user-a@example.com、user-b@example.com……
   addUser(): PbUser {
@@ -252,18 +275,67 @@ export class FakePbServer {
   }
 
   // 登记一条错误注入规则，返回它的句柄。规则按注册顺序匹配，第一条仍有效且方法、路径都相同的生效。
+  // hits：命中次数；remove()：立即撤掉规则（已挂起的请求不受影响，仍需 release）；
+  // release()：hold 规则放行已挂起的请求并不再拦截之后的请求，返回的 Promise 在这些请求都处理完之后 resolve；其他模式立即返回。
   fault(f: PbFault): PbFaultHandle {
-    const rule: FaultRule = { fault: { ...f, method: f.method.toUpperCase() }, hits: 0, active: true };
+    const rule: FaultRule = { fault: { ...f, method: f.method.toUpperCase() }, hits: 0, active: true, waiting: [] };
     this.faultRules.push(rule);
     return {
       get hits() {
         return rule.hits;
       },
-      release: async () => {},
+      release: async () => {
+        if (rule.fault.mode !== 'hold') return;
+        rule.active = false;
+        await this.openGates(rule);
+      },
       remove: () => {
         rule.active = false;
       },
     };
+  }
+
+  // 撤掉全部规则并放行全部挂起的请求；返回的 Promise 在这些请求都处理完之后 resolve。
+  async clearFaults(): Promise<void> {
+    const rules = this.faultRules;
+    this.faultRules = [];
+    for (const rule of rules) rule.active = false;
+    for (const rule of rules) await this.openGates(rule);
+  }
+
+  // 让某个账号的全部令牌立即失效（只删令牌表项，不打印令牌）。
+  // 依据真实实例的 TOK-2、D5-1：改密码或后台重置会轮换 tokenKey，旧令牌立即失效；失效后 auth-refresh 是 401，
+  // 记录接口把它当匿名，重新登录得到新令牌。
+  revokeTokens(userIndex: number): void {
+    const user = this.users[userIndex];
+    if (!user) throw new Error('FakePbServer.revokeTokens：没有这个序号的账号');
+    for (const [token, entry] of this.tokens) if (entry.userId === user.id) this.tokens.delete(token);
+  }
+
+  // 登记一个一次性钩子：下一个匹配的页面请求在交给 handle() 之前先 await fn()，然后照常处理，
+  // 响应仍由 handle() 的真实逻辑给出。用来让“另一个参与者”先于页面改动服务器（例如抢先创建文档）。
+  // 被错误注入开关拦下的请求不消耗钩子。
+  beforeNext(method: string, path: string | RegExp, fn: () => void | Promise<void>): void {
+    this.beforeHooks.push({ method: method.toUpperCase(), path, fn });
+  }
+
+  // 删掉某个账号的文档（给了 kind 只删那一种）。等同超级用户在后台删除记录；客户端删除仍是 403。
+  dropDocs(userIndex: number, kind?: string): void {
+    const user = this.users[userIndex];
+    if (!user) throw new Error('FakePbServer.dropDocs：没有这个序号的账号');
+    this.docs = this.docs.filter((d) => !(d.owner === user.id && (kind === undefined || d.kind === kind)));
+  }
+
+  // 某个账号某种文档的 id；没有时返回 null
+  docId(userIndex: number, kind: string): string | null {
+    const user = this.users[userIndex];
+    if (!user) return null;
+    return this.docs.find((d) => d.owner === user.id && d.kind === kind)?.id ?? null;
+  }
+
+  // 这个 context 是否已被 attach
+  isAttached(context: BrowserContext): boolean {
+    return this.attachedContexts.has(context);
   }
 
   // 接管应用来源下的 /api/。护栏的 **/* route 在 fixture 里先注册，这里后注册所以先匹配；
@@ -292,13 +364,16 @@ export class FakePbServer {
       async (route) => {
         const request = route.request();
         const url = new URL(request.url());
-        // 错误注入先于 handle()：命中的请求不进 requests，也不改变假服务器的状态
+        // 错误注入先于 handle()：refuse 和 status 的请求不进 requests，也不改变假服务器的状态；
+        // hold 的请求挂起，放行之后才照常进入 handle()
         const rule = this.matchFault(request.method(), url.pathname);
+        let finish: () => void = () => {};
         if (rule) {
           rule.hits++;
           if (rule.fault.times !== undefined && rule.hits >= rule.fault.times) rule.active = false;
+          const hit = { method: request.method(), path: url.pathname, mode: rule.fault.mode };
           if (rule.fault.mode === 'refuse') {
-            this.faultHits.push({ method: request.method(), path: url.pathname, mode: 'refuse', status: 0 });
+            this.faultHits.push({ ...hit, status: 0 });
             try {
               await route.abort('connectionrefused');
             } catch (e) {
@@ -306,45 +381,32 @@ export class FakePbServer {
             }
             return;
           }
-        }
-        const query: Record<string, string> = {};
-        url.searchParams.forEach((value, key) => {
-          query[key] = value;
-        });
-        const raw = request.postData();
-        let body: unknown = null;
-        if (raw) {
-          try {
-            body = JSON.parse(raw);
-          } catch (e) {
-            this.fulfillErrors.push({ path: url.pathname, message: '请求体不是合法 JSON：' + String(e) });
+          if (rule.fault.mode === 'status') {
+            const status = rule.fault.status ?? 500;
+            this.faultHits.push({ ...hit, status });
+            try {
+              await route.fulfill({
+                status,
+                contentType: 'application/json',
+                body: JSON.stringify({ status, message: injectedMessage(status), data: {} }),
+              });
+            } catch (e) {
+              this.fulfillErrors.push({ path: url.pathname, message: String(e) });
+            }
+            return;
           }
-        }
-        const res = this.handle({
-          method: request.method(),
-          path: url.pathname,
-          query,
-          authorization: request.headers()['authorization'] ?? null,
-          body,
-        });
-        if (res === null) {
-          return route.fallback();
+          // hold：没有注入的状态码，记 0；放行后的响应来自 handle()
+          this.faultHits.push({ ...hit, status: 0 });
+          const done = new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+          await new Promise<void>((open) => rule.waiting.push({ open, done }));
         }
         try {
-          if (res.status === 204) {
-            await route.fulfill({ status: 204, body: '' });
-          } else {
-            await route.fulfill({
-              status: res.status,
-              contentType: 'application/json',
-              body: JSON.stringify(res.body),
-            });
-          }
-        } catch (e) {
-          this.fulfillErrors.push({ path: url.pathname, message: String(e) });
+          await this.serve(route, request, url);
+        } finally {
+          finish();
         }
-        // 响应 fulfill 之后才推送给订阅者：确定性的顺序，不靠计时器
-        await this.deliver(res.deliveries);
       },
     );
   }
@@ -352,12 +414,65 @@ export class FakePbServer {
   // ---------- 内部 ----------
 
   private matchFault(method: string, path: string): FaultRule | null {
-    for (const rule of this.faultRules) {
-      if (!rule.active || rule.fault.method !== method.toUpperCase()) continue;
-      const p = rule.fault.path;
-      if (typeof p === 'string' ? p === path : p.test(path)) return rule;
+    return (
+      this.faultRules.find((r) => r.active && r.fault.method === method.toUpperCase() && pathMatches(r.fault.path, path)) ?? null
+    );
+  }
+
+  // 放行一条规则下挂起的全部请求，并等它们都处理完
+  private async openGates(rule: FaultRule): Promise<void> {
+    const waiting = rule.waiting.splice(0);
+    for (const w of waiting) w.open();
+    await Promise.all(waiting.map((w) => w.done));
+  }
+
+  // 一个页面请求的常规处理：一次性钩子、handle()、fulfill、推送
+  private async serve(route: Route, request: Request, url: URL): Promise<void> {
+    const hookIndex = this.beforeHooks.findIndex(
+      (h) => h.method === request.method().toUpperCase() && pathMatches(h.path, url.pathname),
+    );
+    if (hookIndex >= 0) {
+      const [hook] = this.beforeHooks.splice(hookIndex, 1);
+      await hook.fn();
     }
-    return null;
+    const query: Record<string, string> = {};
+    url.searchParams.forEach((value, key) => {
+      query[key] = value;
+    });
+    const raw = request.postData();
+    let body: unknown = null;
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch (e) {
+        this.fulfillErrors.push({ path: url.pathname, message: '请求体不是合法 JSON：' + String(e) });
+      }
+    }
+    const res = this.handle({
+      method: request.method(),
+      path: url.pathname,
+      query,
+      authorization: request.headers()['authorization'] ?? null,
+      body,
+    });
+    if (res === null) {
+      return route.fallback();
+    }
+    try {
+      if (res.status === 204) {
+        await route.fulfill({ status: 204, body: '' });
+      } else {
+        await route.fulfill({
+          status: res.status,
+          contentType: 'application/json',
+          body: JSON.stringify(res.body),
+        });
+      }
+    } catch (e) {
+      this.fulfillErrors.push({ path: url.pathname, message: String(e) });
+    }
+    // 响应 fulfill 之后才推送给订阅者：确定性的顺序，不靠计时器
+    await this.deliver(res.deliveries);
   }
 
   // 逐条推给页面里的假 EventSource；页面已关闭等异常记进 deliveryErrors，不吞掉

@@ -86,7 +86,7 @@
 - `users` 记录的列表、查看、更新（包括改密码）、创建、删除。
 - 集合、设置、日志、备份等超级用户接口。
 - 文件、批量请求、OAuth2、OTP、MFA、邮件流程。
-- 网络失败、5xx、SSE 断开、乱序事件（Phase 9、10 按需补）。
+- 网络失败、5xx 和挂起由 Phase 9 的注入开关提供（见 §10），SSE 断开、乱序事件留给 Phase 10。
 - 未实现的路径一律交回护栏，由护栏报违规，不会悄悄返回一个看似正常的响应。
 
 ## 5. 假服务器的有意偏差
@@ -210,3 +210,22 @@
 - 经 nginx 时，4 MiB 的 PATCH 可能先撞到请求体大小上限，要对着服务器的 nginx 配置核实（研究 A12）。
 - 实时订阅会校验提交订阅的请求与 SSE 连接来自同一个客户端 IP，nginx 的代理头要配对。
 - 线上用同一个隔离脚本复验账号隔离。
+
+## 10. 错误注入开关（Phase 9，不属于录制契约）
+
+这一节的开关是测试设施，不是对真实 PocketBase 的描述。它们由用例显式打开，只作用于 `attach` 接管的页面请求：开关在路由处理函数里、调用 `handle()` 之前生效，`handle()`、Node 侧的 `request()` 和契约自测（`pb-contract.spec.ts`）不受影响。不用计时器，也不用 `context.setOffline`。
+
+| 开关 | 行为 | 依据 |
+| --- | --- | --- |
+| `fault({ mode: 'refuse' })` | 网络层拒绝连接（`route.abort('connectionrefused')`），页面里的 fetch 以网络错误失败；请求不进 `requests` | 没有录制样本：真实实例不会“拒绝连接”，这只是让页面看到服务器连不上 |
+| `fault({ mode: 'status', status })` | 不经过 `handle()`，直接回指定状态码，正文 `{ status, message, data: {} }`；429 的 message 是 `Too Many Requests.`，5xx 是 `Something went wrong while processing your request.`，其他是 `Injected failure.` | 没有录制样本：429 和 5xx 的正文形状按 PocketBase 的通用错误形状写，未经真实实例录制 |
+| `fault({ mode: 'hold' })` | 请求一直挂着，直到该句柄的 `release()` 或 `clearFaults()`，之后照常交给 `handle()` | 没有录制样本：只是推迟响应，放行后的响应仍来自 `handle()` |
+| `times` | 规则命中次数达到 `times` 后自动失效；缺省表示一直生效，`remove()` 立即撤掉 | 测试设施，无对应的服务器行为 |
+| `clearFaults()` | 撤掉全部规则并放行全部挂起的请求 | 测试设施 |
+| `revokeTokens(userIndex)` | 删掉该账号的全部令牌；之后 `auth-refresh` 是 401，记录接口把该令牌当匿名，重新登录得到新令牌 | 真实实例实测 TOK-2、D5-1（§7）：改密码或后台重置会轮换 tokenKey，旧令牌立即失效 |
+| `beforeNext(method, path, fn)` | 下一个匹配的页面请求在交给 `handle()` 之前先执行 `fn`，然后照常处理；一次性 | 响应来自 `handle()` 的真实逻辑，唯一索引冲突与 create-duplicate-kind 样本一致（400，`owner` 和 `kind` 都是 `validation_not_unique`） |
+| `dropDocs(userIndex, kind?)` | 删掉该账号的文档（给了 `kind` 只删那一种） | 等同超级用户在后台删除记录；客户端删除仍是 403（delete-own 样本） |
+
+另有只读的 `docId(userIndex, kind)`、`isAttached(context)` 和断言用的 `faultHits`（每次命中记方法、路径、模式和状态码，refuse 和 hold 记 0）。
+
+约定：注入的状态码永远不登记为 `INTENTIONAL_DEVIATIONS`，也不能在任何文档里写成真实服务器的行为；`pb-faults.spec.ts` 只证明开关本身按上表工作。
