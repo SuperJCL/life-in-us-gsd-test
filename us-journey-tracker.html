@@ -590,7 +590,7 @@ function normalize(s){
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
-function persist(){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cachePut("state",{...docs.state,data:state})}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+function persist(){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cacheNote(cachePut("state",{...docs.state,data:state}))}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 async function flush(){
   savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
@@ -757,6 +757,16 @@ const LAST_USER_KEY="usj:v2:lastUser";
 const cacheKey=k=>"usj:v2:"+me+":"+k;
 function cacheGet(k){try{const r=JSON.parse(localStorage.getItem(cacheKey(k)));return r&&typeof r==="object"&&r.data&&typeof r.data==="object"?r:null}catch(e){return null}}
 function cachePut(k,rec){try{localStorage.setItem(cacheKey(k),JSON.stringify(rec));return true}catch(e){return false}}
+/* a cache write can fail (storage full): an edit that did not reach the cache is only in memory, so the page says so instead of claiming it is kept on this device;
+   a clean record that could not be written is removed so an older dirty record can never be mistaken for unsent work */
+const dropCache=k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}};
+let cacheFull=false;
+const T_NOCACHE="本机空间不够，这次修改没能保存，请先别关闭页面";
+function cacheNote(ok){
+  cacheFull=!ok;
+  if(ok){hideBar("cachefail");return}
+  showBar("cachefail",{tone:"warn",msg:"本机空间不够，没能在本机保存这次修改。上传成功之前请别关闭或刷新页面。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("cachefail")}]});
+}
 function canon(v){return JSON.stringify(v,(k,x)=>x&&typeof x==="object"&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(y=>[y,x[y]])):x)}
 const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null,save:cloudSave});
 /* edit gate: body[data-gate] is the only switch; the legacy path never has it */
@@ -787,7 +797,7 @@ function gateGuard(e){
 }
 ["click","keydown","dragstart","drop","change","input"].forEach(n=>window.addEventListener(n,gateGuard,true));
 /* sync bar: one banner at a time, highest priority first (S2); text and buttons are built with textContent and createElement */
-const SB_ORDER=["expired","unreachable","slow","toolarge","snapfail","remote","sizewarn"],sbs={};
+const SB_ORDER=["expired","unreachable","slow","toolarge","cachefail","snapfail","remote","sizewarn"],sbs={};
 function drawBar(){
   const el=$("syncbar"),key=SB_ORDER.find(k=>sbs[k]),msg=el.querySelector(".sb-msg");
   el.querySelectorAll("button").forEach(b=>b.remove());
@@ -892,7 +902,7 @@ async function reconcileOnce(r){
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
   const changed=differs(old.plan,pr.sv,pdata)||differs(old.state,sr.sv,state);
   const settle=(k,x,data)=>{const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
-    cachePut(k,rec);
+    if(!cachePut(k,rec))dropCache(k);
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
   docs.plan=settle("plan",pr,pdata);docs.state=settle("state",sr,state);
   store=cloudStore();
@@ -958,13 +968,14 @@ async function cloudSave(s){
     if(ep!==sessionEpoch)return;
     r=await coll.update(docs.state.id,{data:s,writer:WRITER});
   }
-  catch(e){const er=new Error("修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
+  catch(e){const er=new Error(cacheFull?T_NOCACHE:"修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
   if(ep!==sessionEpoch)return;
   /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what was just uploaded;
      it is kept and announced only now, after the overwrite succeeded */
   if(cur.updated!==docs.state.base&&cur.writer!==WRITER&&canon(cur.data)!==canon(s))conflictNotice(keepConflict("state",cur));
   docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
-  cachePut("state",{...docs.state,data:state});
+  if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
+  if(!docs.state.dirty)cacheNote(true);
 }
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
    sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
@@ -1004,7 +1015,7 @@ function resetSession(){
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
-  usePlan(DEFAULT_PLAN);keepOrphans=false;state=normalize({});
+  usePlan(DEFAULT_PLAN);keepOrphans=false;cacheFull=false;state=normalize({});
   view=new Date();view.setDate(1);sel=today();wk=monday(today());wsel=today();filter="全部";
   [compEdit,compAdding].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));compCat.c="语言";compCat.w="语言";
   setGate(null);

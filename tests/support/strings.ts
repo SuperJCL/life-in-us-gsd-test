@@ -261,6 +261,11 @@ export const TOAST_REMOTE_UPDATED = '已更新为其他设备上的最新内容'
 // Phase 10 做自动重试（SYNC-06）时由 retrying 取代，到那时本常量随之删除
 export const STATUS_SAVE_FAILED_CLOUD = '保存失败：修改仍在本机，下次修改或重新打开时会再上传';
 
+// 本机缓存写不进去（localStorage 配额不够）时：横幅正文（warn，带 BTN_ACK）和云端保存也失败时的状态行文案。
+// 此时修改只在内存里，不能再说“修改仍在本机”；09-UI-SPEC 没有这两句，是审查修复（WR-05）补的
+export const BANNER_CACHE_FULL = '本机空间不够，没能在本机保存这次修改。上传成功之前请别关闭或刷新页面。';
+export const STATUS_SAVE_FAILED_NO_CACHE = '保存失败：本机空间不够，这次修改没能保存，请先别关闭页面';
+
 // 对账约 3 秒仍未完成时的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 slow。
 // 没有缓存时等待卡片的标题用同一句
 export const STATUS_SLOW = '网络较慢，还在连…';
