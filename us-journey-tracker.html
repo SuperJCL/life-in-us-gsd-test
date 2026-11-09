@@ -979,7 +979,8 @@ function confirmBox(o){
     cfDlg.showModal();cancel.focus();
   });
 }
-/* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce */
+/* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce;
+   the cache is shared by every tab of this browser, so logout also reads the dirty bit another tab left there (onLogoutClick adds unsentOf) */
 function hasUnsaved(){return savePending||saving||rvPending||!!(docs.state&&docs.state.dirty)||!!(docs.plan&&docs.plan.dirty)}
 const T_CF_OUT="退出登录？",T_CF_ACCOUNT="当前账号：",T_CF_UNSAVED="有修改还没保存到服务器，退出后会丢失。",T_CF_SNAP="有一份另一台设备的旧版本留底还没下载，退出后会丢失。";
 function showWho(){
@@ -1023,7 +1024,7 @@ async function logout(){
 /* the toolbar button: ask first only when something would be lost (D-05); the confirm does not wait for a running save, and a save answering later is stopped by sessionEpoch */
 async function onLogoutClick(){
   if(loggingOut||!me)return;
-  const unsaved=hasUnsaved(),snap=!!snapGet();
+  const u=unsentOf(me),unsaved=hasUnsaved()||u.edits,snap=!!snapGet()||u.snap;
   if(unsaved||snap){
     const lines=[T_CF_ACCOUNT+((pb.authStore.record&&pb.authStore.record.email)||"")];
     if(unsaved)lines.push(T_CF_UNSAVED);

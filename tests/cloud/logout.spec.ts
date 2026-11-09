@@ -198,9 +198,10 @@ test('ACCT-02 the toolbar shows the signed-in email on wide screens and hides it
   await expect(logout).toBeVisible();
 });
 
-test('ACCT-02 logging out in one tab signs the other tab out with a notice and it writes nothing for the old account', async ({
+test('ACCT-02 logging out in one tab asks first when the other tab holds an unsent edit, then signs the other tab out with a notice and it writes nothing for the old account', async ({
   app,
   page,
+  guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
   const userA = app.fake.users[0];
@@ -212,12 +213,34 @@ test('ACCT-02 logging out in one tab signs the other tab out with a notice and i
     const app2 = new AppHarness(page2, { fake: app.fake });
     await app2.open({ mode: 'cloud', login: 'session' });
     await expect(page2.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
-    // 第二个标签页留下一条等着上传的修改（防抖计时器还在跑），退出之后它不能再为旧账号写任何缓存
+    // 第二个标签页留下一条没上传的修改：保存被拒，修改以 dirty 缓存留在两个标签页共用的 localStorage 里；
+    // 标签页一自己没有任何未保存的状态，只能从共用缓存里看到它（CR-01）
+    app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse' });
     const entry = composer(page2, 'w');
     await entry.type('SYNTH-0913 pending in the other tab');
     await entry.submit();
+    await expect(page2.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+    const cached = await page2.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `${PREFIX}${userA.id}:state`);
+    expect(cached?.dirty).toBe(true);
 
+    // 点退出先问（D-05）：不退出，两个标签页都留在应用里，令牌还在
+    const dialog = page.locator('dialog#confirm');
     await page.locator('#logoutBtn').click();
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('#cf-body')).toContainText(`${CONFIRM_LOGOUT_ACCOUNT_PREFIX}${userA.email}`);
+    await expect(page.locator('#cf-body')).toContainText(CONFIRM_LOGOUT_UNSAVED);
+    await page.locator('#cfCancel').click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.wrap')).toBeVisible();
+    await expect(page2.locator('.wrap')).toBeVisible();
+    expect(await stored(page, 'pocketbase_auth')).not.toBeNull();
+    expect(await stored(page, `${PREFIX}${userA.id}:state`)).not.toBeNull();
+
+    // 仍然退出：标签页一回到登录页，标签页二跟着退出
+    await page.locator('#logoutBtn').click();
+    await expect(dialog).toBeVisible();
+    await page.locator('#cfOk').click();
     await expect(page.locator('#login')).toBeVisible();
 
     await expect(page2.locator('#login')).toBeVisible();
