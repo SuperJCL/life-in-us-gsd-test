@@ -25,8 +25,8 @@ test('PROBE-1 msedge launches headless and reports browser.version()', async ({ 
 // ---------------------------------------------------------------------------
 // PROBE-2：网络兜底（D-16）
 //
-// route 只拦截 HTTP 请求。应用 head 里的两条 <link rel="preconnect"> 是浏览器直接发起的 socket 连接，
-// route 看不到。playwright.config.ts 的 launchOptions 配了两层浏览器级兜底：
+// route 只拦截 HTTP 请求。浏览器直接发起的 socket 连接（例如 WebSocket）route 看不到。
+// Phase 9 起应用不再引用字体主机，页头也没有 preconnect。playwright.config.ts 的 launchOptions 配了两层浏览器级兜底：
 //   解析层：--host-resolver-rules 把除 127.0.0.1 之外的主机名都解析失败；
 //   代理层：死代理 DEAD_PROXY_SERVER，除 PROXY_BYPASS 之外的流量都只能连到它。
 // 下面手动创建的 context 会继承浏览器级的启动参数和死代理，但没有 guard 的 route。
@@ -116,8 +116,8 @@ test('PROBE-2 the dead-end proxy rejects non-loopback traffic and still lets 127
   expect(result[urls[2]].status).toBe(404);
 });
 
-test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)', async ({ browser }, testInfo) => {
-  // 这条用例的证明范围（WR-03）：route 看不到的 WebSocket 会交给代理；这台 Edge 没有观察到 preconnect。
+test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy and the app opens no font-host connection', async ({ browser }, testInfo) => {
+  // 这条用例的证明范围（WR-03）：route 看不到的 WebSocket 会交给代理；应用打开后没有任何字体主机连接到达代理（INFRA-03 的回归检查）。
   // 录制代理只能看到“到达它的”连接，所以这条用例发现不了绕过代理的直连：
   // 如果某个 Edge 版本绕过代理直接出网，这条用例照样通过。直连的保证来自解析层（PROBE-2a）。
   // 录制代理：只监听 127.0.0.1 的随机端口，每个连接只读第一块数据，
@@ -138,8 +138,8 @@ test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy 
     proxy: { server: `http://127.0.0.1:${port}`, bypass: PROXY_BYPASS },
   });
   try {
-    // 只放行应用来源，其余全部 abort：字体样式表请求在 route 层就被拦下，
-    // 所以到达录制代理的字体主机连接只可能来自 route 看不到的 preconnect
+    // 只放行应用来源，其余全部 abort：应用已不再引用字体主机，
+    // 所以到达录制代理的字体主机连接只可能来自应用重新引入了字体或 preconnect（回归）
     await context.route('**/*', (route) =>
       route.request().url().startsWith(APP_ORIGIN + '/') ? route.continue() : route.abort(),
     );
@@ -158,8 +158,7 @@ test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy 
     });
     await expect.poll(() => seen.some((line) => line.includes('probe.invalid')), { message: '等待 WebSocket 对照行' }).toBe(true);
 
-    // preconnect 的直接观察：只等有限时间，看字体主机的 CONNECT 是否出现。
-    // 这一步只记录，不断言（见 PROBES.md：这台 Edge 没有发出 preconnect）。
+    // 字体主机连接的观察窗口：只等有限时间，看字体主机的 CONNECT 是否出现；下面断言它没有出现（INFRA-03）。
     // 只吞 expect.poll 的超时错误（Playwright 1.64.1 的原文，见 node_modules/playwright/lib/matchers/expect.js）；
     // 其他错误（例如页面已关闭）照常抛出，不被悄悄吞掉
     const fontLine = () => seen.some((line) => FONT_HOSTS.some((h) => line.includes(h)));
@@ -176,6 +175,7 @@ test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy 
         },
       );
     testInfo.annotations.push({ type: 'probe', description: `fontHostObserved=${fontHostObserved}` });
+    expect(fontHostObserved, '应用不应再向字体主机发起连接（INFRA-03）').toBe(false);
 
     const fontHostLines = seen.filter((line) => FONT_HOSTS.some((h) => line.includes(h)));
     const otherLines = seen.filter(
@@ -183,6 +183,7 @@ test('PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy 
     );
     testInfo.annotations.push({ type: 'probe', description: `seen=${JSON.stringify(seen)}` });
     testInfo.annotations.push({ type: 'probe', description: `fontHostLines=${fontHostLines.length}` });
+    expect(fontHostLines, '录制代理没有收到任何字体主机的连接').toEqual([]);
     testInfo.annotations.push({ type: 'probe', description: `otherLines=${JSON.stringify(otherLines)}` });
     console.log(`PROBE-2 recorder saw: ${JSON.stringify(seen)}`);
   } finally {

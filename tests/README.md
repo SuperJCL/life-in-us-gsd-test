@@ -49,7 +49,7 @@
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -65,6 +65,7 @@
 - 持久化断言按固定顺序：先 `expect.poll` 到 localStorage 里有数据，再 `reload`，最后断言 DOM。不要用固定睡眠。
 - 护栏自检只用 `guard.remove(kind, match)` 删掉自己制造的那一条违规，删除前先断言该类记录恰好是预期的那几条；不提供清空全部记录的方法。
 - cloud 配置（`playwright.cloud.config.ts`）把 `USJ_TEST_MODE` 设为 `cloud`，护栏随之换成 cloud 策略：应用来源下只放行页面、应用文件和同源的 SDK（`/vendor/pocketbase.iife.js`），假服务器没接住的 `/api/*` 和所有其他来源都记为违规。默认 `npm test` 用 v1 策略：应用来源下只放行 `/` 和 `/us-journey-tracker.html`。
+- cloud 模式下应用自己同源加载 SDK 并显示登录页，AppHarness 只负责打开页面、登录和等就绪（`open({ mode: 'cloud', login: 0 })`）；Phase 8 的设施用例（只验证假服务器和 harness 本身）用 `backend: null` 打开，应用走本地路径，harness 自己注入 SDK。故意让 SDK 加载失败的用例加 `sdkRefused: true`，就绪只等登录页。
 - `USJ_TEST_MODE=cloud` 时 AppHarness 把 `account` 模式映射成 `cloud`（Phase 9 应用接上云端后才对 v1 的账户用例生效）；默认配置下 `account` 和 `local` 不变。
 - 用例不稳定（flaky）就是缺陷。配置里 `retries` 是 1，但一次重试通过也要查明原因，不能靠重试掩盖。
 
@@ -73,17 +74,17 @@
 每次 `npm test` 都自动生效，下面每一项都有对应的用例证明它会在该失败的时候失败：
 
 - **网络拦截**（`tests/e2e/platform/guardrails.spec.ts`、`tests/e2e/platform/probes.spec.ts`）：分几道。
-  1. `context.route` 只放行应用自己的来源；两个字体主机直接中止并记为“已预期拦截”；其他外部 HTTP 请求会让用例失败。
+  1. `context.route` 只放行应用自己的来源；v1 策略下两个字体主机直接中止并记为“已预期拦截”（应用自己已不再请求它们，护栏自检用页面主动 fetch 来证明这一支）；其他外部 HTTP 请求会让用例失败。Phase 9 起应用不加载任何外部资源，cloud 策略把字体主机也记为违规。
   2. `--host-resolver-rules` 让除 `127.0.0.1` 之外的主机名都解析失败。
   3. 死代理 `127.0.0.1:9` 让所有非回环连接只能连到本机一个关闭的端口。
 
-  `route` 只看得到 HTTP 请求，看不到浏览器直接发起的 socket 连接，例如应用 head 里的 `preconnect`。后两道（第 2、3 道）就是为这类连接准备的。哪一层已被证明，以 `tests/PROBES.md` 的 PROBE-2 为准：
+  `route` 只看得到 HTTP 请求，看不到浏览器直接发起的 socket 连接（例如 WebSocket）。后两道（第 2、3 道）就是为这类连接准备的。哪一层已被证明，以 `tests/PROBES.md` 的 PROBE-2 为准：
   - 解析层已证明：直连的名字（实测只有回环名 `localhost`、`probe.localhost`）除 `127.0.0.1` 外都解析失败（`ERR_NAME_NOT_RESOLVED`）；经过代理的名字（例如 `.invalid` 主机）浏览器不在本机解析，由代理层保证，表现为 `ERR_PROXY_CONNECTION_FAILED`。
   - 代理层已证明：`.invalid` 地址和 WebSocket 都只到达代理，页面请求以 `ERR_PROXY_CONNECTION_FAILED` 失败。
-  - `preconnect` 本身没有被直接观察到：探针运行时无界面 Edge 没有发出任何 `preconnect`。所以“`preconnect` 到不了字体主机”是由已证明的两层（解析规则加死代理）推断出来的，不是直接观察到的事实。
+  - 应用不再有 `preconnect`：PROBE-2c 断言应用打开后录制代理里没有任何字体主机连接（INFRA-03 的回归检查）；route 看不到的其他 socket 连接由已证明的两层（解析规则加死代理）挡住。
   - 探针里观察到 Edge 自己的后台流量（`bing.com`、`edge.microsoft.com`）也只到达了本机的录制代理，没有到达任何真实主机。
 - **两档策略**（`tests/support/test.ts` 的 `classifyRequest`、`guardPolicy`、`attachGuard`）：v1 策略（默认 `npm test`）在应用来源下只放行 `/` 和 `/us-journey-tracker.html`，其他路径（例如 `/package.json`）记为违规；cloud 策略（`npm run test:cloud`）在应用来源下只放行 `/`、`/us-journey-tracker.html` 和 `/vendor/pocketbase.iife.js`。两档都有故意违规的自检（v1 在 `guardrails.spec.ts`，cloud 在 `tests/cloud/guard-cloud.spec.ts`）。第二台“设备”（第二个 context）用 `attachGuard` 复用同一套策略。
-- **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。`preconnect` 这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
+- **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。route 看不到的 socket 连接（例如 WebSocket）这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
 - **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
 - **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
 - **应用完整性**（`tests/e2e/platform/app-integrity.spec.ts`）：测试记录了应用文件的 sha256 基线，基线随每次应用改动在同一次提交里有意识地更新；改了不更新时 SAFE-02 变红。

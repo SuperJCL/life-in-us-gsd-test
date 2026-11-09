@@ -21,7 +21,7 @@
 | PROBE-1 | Edge 无界面启动并报告版本 | `PROBE-1 msedge launches headless and reports browser.version()` | 通过 | 156.0.4314.58 | 保持 `channel: 'msedge'` |
 | PROBE-2a | 解析层：`--host-resolver-rules` | `PROBE-2 --host-resolver-rules makes non-excluded hostnames unresolvable` | 通过 | `localhost` 与 `probe.localhost` 都是 `ERR_NAME_NOT_RESOLVED`；`127.0.0.1` 返回 404；去掉规则的对照浏览器里 `localhost` 返回 404 | 保留规则；对直连的名字有效 |
 | PROBE-2b | 代理层：死代理 | `PROBE-2 the dead-end proxy rejects non-loopback traffic and still lets 127.0.0.1 load` | 通过 | `http://` 和 `https://` 的 `probe.invalid` 都是 `ERR_PROXY_CONNECTION_FAILED`；`127.0.0.1` 返回 404 | 保留死代理 `127.0.0.1:9`，端口无需更换 |
-| PROBE-2c | route 看不到的 WebSocket 会交给代理 | `PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)` | 通过，但 preconnect 本身没有被观察到 | WebSocket 对照行 `CONNECT probe.invalid:80` 出现在录制代理；字体主机的 CONNECT 为 0 条 | 标题按应急办法改写，见下文 |
+| PROBE-2c | route 看不到的 WebSocket 会交给代理，应用不再连字体主机 | `PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy and the app opens no font-host connection` | 通过 | WebSocket 对照行 `CONNECT probe.invalid:80` 出现在录制代理；字体主机的 CONNECT 为 0 条，且现在是断言 | Phase 9 起应用没有字体 link 和 preconnect，字体主机行由“只记录”改为断言为 0（INFRA-03 的回归检查），见下文 |
 | PROBE-3 | `setFixedTime` 在 reload 后保持 | `PROBE-3 setFixedTime survives page.reload()` | 通过 | reload 前后 `Date.now()` 都是 1773835200000 | 无需在 reload 前重新冻结 |
 | PROBE-4 | `expect.poll` 读取防抖保存 | `PROBE-4 expect.poll observes the debounced localStorage save` | 通过 | 三次耗时 1012、960、975 ms（都在 500 到 5000 ms 之间） | 默认的 `expectPersisted` 即可 |
 | PROBE-5 | `dragTo` 驱动 HTML5 拖放 | `PROBE-5 dragTo drives HTML5 drag and drop in the week view` | 通过（方案 A） | 条目从 2026-03-16 拖到 2026-03-19，落盘日期变化，目标列可见 | 方案 A：`dragTo(..., { steps: 10 })` |
@@ -41,7 +41,7 @@
 
 ## PROBE-2：两层浏览器网络兜底
 
-背景：`context.route` 只拦截 HTTP 请求。应用 head 里的两条 `<link rel="preconnect">` 是浏览器直接发起的 socket 连接，route 看不到。`playwright.config.ts` 的 `launchOptions` 因此配了两层浏览器级兜底：
+背景：`context.route` 只拦截 HTTP 请求，浏览器直接发起的 socket 连接（例如 WebSocket）route 看不到。Phase 9 起应用不再有字体 link 和 `preconnect`（INFRA-03），页头不再引用任何外部主机。`playwright.config.ts` 的 `launchOptions` 因此配了两层浏览器级兜底：
 
 - **解析层：** `--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1`；
 - **代理层：** 死代理 `127.0.0.1:9`，`bypass` 只有 `127.0.0.1,localhost`。
@@ -62,20 +62,20 @@
 - **观察到什么：** 两个 `.invalid` 地址都是 `ERR_PROXY_CONNECTION_FAILED`（不是 `ERR_NAME_NOT_RESOLVED`），说明名字没有在本机解析，而是交给了死代理并在本机被拒绝；`127.0.0.1` 照常收到 404。
 - **端口 9 的应急办法：** 没有触发。结果不是超时，死代理端口没有被占用，`DEAD_PROXY_SERVER` 保持不变。
 
-### PROBE-2c：PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy (preconnect not observed on this Edge)
+### PROBE-2c：PROBE-2 WebSocket traffic that route cannot see is delivered to the proxy and the app opens no font-host connection
 
-- **怎么测的：** 在 Node 侧用 `node:net` 起一个只监听 `127.0.0.1` 随机端口的录制代理，每个连接只读第一行后立即销毁，不转发、不发起任何对外连接。新建 context，代理指向录制代理，`bypass` 用 `PROXY_BYPASS`，route 只放行应用来源。打开应用页面，等状态行就绪，然后在页面里执行 `new WebSocket('ws://probe.invalid/')` 作为对照。对字体主机的 CONNECT 只等 3 秒，且只吞掉 `expect.poll` 的超时错误，其他错误照常抛出；是否观察到记成 `fontHostObserved` annotation。
+- **怎么测的：** 在 Node 侧用 `node:net` 起一个只监听 `127.0.0.1` 随机端口的录制代理，每个连接只读第一行后立即销毁，不转发、不发起任何对外连接。新建 context，代理指向录制代理，`bypass` 用 `PROXY_BYPASS`，route 只放行应用来源。打开应用页面，等状态行就绪，然后在页面里执行 `new WebSocket('ws://probe.invalid/')` 作为对照。对字体主机的 CONNECT 只等 3 秒，且只吞掉 `expect.poll` 的超时错误，其他错误照常抛出；是否观察到记成 `fontHostObserved` annotation。Phase 9 起这一项从“只记录”改为断言：`fontHostObserved` 必须为 false，录制代理里字体主机的行必须为 0 条。
 - **录到的行（只写主机名和端口）：** `www.bing.com:443`（3 条）、`edge.microsoft.com:443`（2 条）、`probe.invalid:80`（1 条，WebSocket 对照）。
-- **字体主机的 CONNECT：0 条。** 所以 preconnect 没有被直接观察到。按计划的应急办法，用例标题改为 `...(preconnect not observed on this Edge)`，断言只保留对照行：route 看不到的页面流量会交给代理。
+- **字体主机的 CONNECT：0 条。** Phase 9 之前，应用页头有字体 link 和 `preconnect`，这台 Edge 也没有发出 preconnect，用例标题当时带 `(preconnect not observed on this Edge)`，断言只保留对照行。Phase 9 删掉了字体 link 和 `preconnect`，标题改为 `...and the app opens no font-host connection`，字体主机行变成断言为 0 条：应用以后要是重新引入字体或 `preconnect`，这条用例会变红。WebSocket 对照行的断言不变：route 看不到的页面流量会交给代理。
 - **`www.bing.com` 和 `edge.microsoft.com` 是什么：** 既不是字体主机也不是 `probe.invalid`，是 Edge 自己的后台服务流量。它们同样只到达了本机录制代理。这说明连浏览器自己发起的、和页面无关的连接，在这个配置下也会被交给代理，而不是直接出网。
 - **边界：** 录制代理只能看到到达它的连接，所以这条用例发现不了绕过代理的直连，也就不能证明“只会”到达代理；它只证明 route 看不到的 WebSocket 会交给代理。直连的保证来自解析层（PROBE-2a）。
-- **为什么没有看到 preconnect：** 只做了两次一次性诊断（没有保留为用例）：把 `rel=preconnect` 指向 `.invalid` 主机，以及指向本机一个监听端口的回环地址，两种情况下这台无界面 Edge 都没有发出任何连接。结论是这台 Edge 在无界面模式下不发 preconnect（或观察不到），而不是 preconnect 绕过了代理。
+- **为什么当时没有看到 preconnect（历史记录）：** 只做了两次一次性诊断（没有保留为用例）：把 `rel=preconnect` 指向 `.invalid` 主机，以及指向本机一个监听端口的回环地址，两种情况下这台无界面 Edge 都没有发出任何连接。结论是这台 Edge 在无界面模式下不发 preconnect（或观察不到），而不是 preconnect 绕过了代理。
 
 ### 网络兜底结论（只写已被用例证明的层）
 
 - **解析层：已证明**，依据 PROBE-2a。
 - **代理层：已证明**，依据 PROBE-2b 和 PROBE-2c 的 WebSocket 对照行。
-- **preconnect：没有被直接观察到。** 不把它写成已观察的事实。它的保证是推断：如果某个 Edge 版本发出 preconnect，它和 WebSocket、Edge 后台服务连接一样是浏览器发起的 socket，这两类连接已经被证明只会到达代理。规则写的是 `MAP *`，对任何直连的主机名都生效，这一点只用回环名（`localhost`、`probe.localhost`）实测过，对字体主机名没有直接测，这部分是推断。
+- **应用不再有 preconnect：** Phase 9 起应用没有字体 link 和 `preconnect`，PROBE-2c 断言字体主机连接为 0。route 看不到的 socket 连接（例如 WebSocket、Edge 后台流量）的保证仍是推断加证明：它们是浏览器发起的 socket，这两类连接已经被证明只会到达代理。规则写的是 `MAP *`，对任何直连的主机名都生效，这一点只用回环名（`localhost`、`probe.localhost`）实测过，对字体主机名没有直接测，这部分是推断。
 - **route 看不到的连接由哪一层保证不会离开本机：** 经过代理的连接（非回环主机名、IP 字面量、WebSocket、Edge 后台流量）由代理层保证，只会连到本机端口 9 并失败；直连的名字（只有 bypass 里的回环名）由解析层保证，除 `127.0.0.1` 外全部解析失败。
 - **仍然存在的前提：** 这两层都写在 `launchOptions` 里，PROBE-2 每次运行都会重新断言，配置被改掉时用例会变红。
 
