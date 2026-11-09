@@ -14,6 +14,11 @@ export interface FakeEventSourceConfig {
 export function installFakeEventSource(cfg: FakeEventSourceConfig): void {
   const w = window as any;
 
+  // 文档令牌：每个新文档（整页导航、刷新）随机生成一次，同文档导航（hash 变化、pushState）不变。
+  // 握手时随连接带给 Node，Node 在主框架导航后读回当前文档的令牌，只注销属于旧文档的连接（WR-04）。
+  // 用 crypto.getRandomValues 而不是 Math.random 或时间：测试可能固定了时钟和随机数。
+  w.__pbDocToken = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('-');
+
   // 调用时才读 binding，传 JSON 字符串，返回值也是 JSON 字符串
   const rpc = async (op: string, arg: unknown): Promise<any> => {
     const raw = await w[cfg.binding](op, JSON.stringify(arg));
@@ -39,7 +44,7 @@ export function installFakeEventSource(cfg: FakeEventSourceConfig): void {
       super();
       this.url = String(url);
       // 必须异步握手：SDK 在 new EventSource 返回之后才挂 PB_CONNECT 监听
-      rpc('es.open', { url: this.url }).then((r) => {
+      rpc('es.open', { url: this.url, docToken: w.__pbDocToken }).then((r) => {
         if (this.readyState === 2) {
           // 握手期间已被关闭：通知 Node 注销，不再派发 PB_CONNECT
           rpc('es.close', { connectionId: r.connectionId });

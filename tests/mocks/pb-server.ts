@@ -61,6 +61,8 @@ type PbConnection = {
   clientId: string;
   // null：没有页面的连接（契约自测在 Node 侧直接调用 handle()，不开浏览器）
   page: Page | null;
+  // 握手时页面文档的令牌（pb-runtime 的 __pbDocToken）；没有页面或没带令牌时为 null
+  docToken: string | null;
   authUserId: string | null | undefined;
   subscriptions: string[];
 };
@@ -111,6 +113,7 @@ export class FakePbServer {
   private connectionCounter = 0;
   private attachedContexts = new WeakSet<BrowserContext>();
   private watchedPages = new WeakSet<Page>();
+  private pendingNavigations = new Set<Promise<void>>();
 
   // 添加第 n 个合成账号：邮箱 user-a@example.com、user-b@example.com……
   addUser(): PbUser {
@@ -180,28 +183,47 @@ export class FakePbServer {
 
   // 登记一条页面里的实时连接（假 EventSource 握手时调用），返回连接 id 和 clientId。
   // page 为 null 表示没有页面的连接：只用于契约自测，事件由 handle() 的 deliveries 返回，不会推送给任何页面
-  openConnection(page: Page | null): { connectionId: string; clientId: string } {
+  openConnection(page: Page | null, docToken: string | null = null): { connectionId: string; clientId: string } {
     const n = ++this.connectionCounter;
     const connection: PbConnection = {
       id: 'conn' + n,
       clientId: makeId('k', n),
       page,
+      docToken,
       authUserId: undefined,
       subscriptions: [],
     };
     this.connections.set(connection.id, connection);
-    // 页面关闭或整页导航（刷新）之后，页面里的假 EventSource 已经不存在，连接要一并注销
+    // 页面关闭或换了新文档（整页导航、刷新）之后，页面里的假 EventSource 已经不存在，连接要一并注销。
+    // framenavigated 对同文档导航（hash 变化、history.pushState）也会触发，那种情况页面里的实例还活着，不能注销（WR-04），
+    // 所以导航后读回当前文档的令牌，只注销令牌不同的连接。读不到（导航又发生了、上下文被销毁）就什么都不做：
+    // 后一次导航自己的处理会补上，不能因为一次失败的读取把新文档的连接也删掉。
     if (page !== null && !this.watchedPages.has(page)) {
       this.watchedPages.add(page);
-      const dropPageConnections = () => {
+      page.on('close', () => {
         for (const [id, c] of this.connections) if (c.page === page) this.connections.delete(id);
-      };
-      page.on('close', dropPageConnections);
+      });
       page.on('framenavigated', (frame) => {
-        if (frame === page.mainFrame()) dropPageConnections();
+        if (frame !== page.mainFrame()) return;
+        const pending = (async () => {
+          let token: string | null;
+          try {
+            token = await frame.evaluate(() => (window as any).__pbDocToken ?? null);
+          } catch (e) {
+            return;
+          }
+          for (const [id, c] of this.connections) if (c.page === page && c.docToken !== token) this.connections.delete(id);
+        })();
+        this.pendingNavigations.add(pending);
+        void pending.finally(() => this.pendingNavigations.delete(pending));
       });
     }
     return { connectionId: connection.id, clientId: connection.clientId };
+  }
+
+  // 等已经收到的导航事件都处理完（测试在 page.goto、reload、waitForURL 之后调用，保证断言看到的是处理之后的连接数）
+  async whenNavigationsSettled(): Promise<void> {
+    while (this.pendingNavigations.size > 0) await Promise.all([...this.pendingNavigations]);
   }
 
   closeConnection(connectionId: string): void {
@@ -225,7 +247,7 @@ export class FakePbServer {
     // 页面侧假 EventSource 经 context.exposeBinding 往返 Node：source.page 区分是哪个页面调用的
     await context.exposeBinding(PB_ES_BINDING_NAME, (source, op: string, json: string) => {
       const arg = JSON.parse(json);
-      if (op === 'es.open') return JSON.stringify(this.openConnection(source.page));
+      if (op === 'es.open') return JSON.stringify(this.openConnection(source.page, typeof arg.docToken === 'string' ? arg.docToken : null));
       if (op === 'es.close') {
         this.closeConnection(arg.connectionId);
         return 'null';

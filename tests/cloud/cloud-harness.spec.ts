@@ -377,3 +377,37 @@ test('TEST-02 the page EventSource is the fake one and closing it unregisters th
   await expect.poll(() => app.fake.connectionCount()).toBe(0);
   expect(app.fake.deliveryErrors).toEqual([]);
 });
+
+test('TEST-02 a same-document navigation keeps the realtime connection and a new document drops it', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a') });
+  const [user] = app.fake.users;
+  const ownId = await signInAndSubscribe(page, user);
+  expect(app.fake.connectionCount()).toBe(1);
+
+  // hash 变化和 history.pushState 是同文档导航：framenavigated 会触发，但页面里的假 EventSource 还活着，连接必须保留
+  await page.evaluate(() => {
+    window.location.hash = '#same-doc';
+  });
+  await page.waitForURL(/#same-doc$/);
+  await app.fake.whenNavigationsSettled();
+  expect(app.fake.connectionCount()).toBe(1);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/?pushed=1#pushed');
+  });
+  await page.waitForURL(/pushed=1#pushed$/);
+  await app.fake.whenNavigationsSettled();
+  expect(app.fake.connectionCount()).toBe(1);
+
+  // 正向对照：导航之后推送仍然到达页面，没有记投递错误
+  await updateOwn(page, ownId, 'after-same-doc-navigation');
+  await expect.poll(() => readEvents(page)).toHaveLength(1);
+  expect((await readEvents(page))[0].id).toBe(ownId);
+  expect(app.fake.deliveryErrors).toEqual([]);
+
+  // 整页刷新是新文档：旧文档里的实例没了，连接必须注销
+  await page.reload();
+  await app.fake.whenNavigationsSettled();
+  expect(app.fake.connectionCount()).toBe(0);
+  expect(app.fake.deliveryErrors).toEqual([]);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
