@@ -1,9 +1,9 @@
 ---
 phase: "09"
 slug: "login-cloud-storage"
-status: open
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 created: "2026-11-09"
 ---
@@ -13,9 +13,9 @@ created: "2026-11-09"
 > 本阶段的安全契约：威胁登记、已接受的风险和审计记录。
 
 本阶段只在本机的假 PocketBase 上测试，不连接任何真实服务器。判断依据有三类：
-- 应用和测试源码（行号以 HEAD 332d323 为准）；
+- 应用和测试源码（行号以 HEAD ced49a7 为准，应用最后一次改动在 6a214d8）；
 - 各 SUMMARY、09-REVIEW-FIX.md 里记录的执行结果；
-- 编排者在 HEAD 上的运行记录：默认 `npm test` 175 条通过、`npm run test:cloud` 110 条通过、核对代理定向 41 条通过。
+- 编排者在 HEAD 上的运行记录：默认 `npm test` 175 条通过、`npm run test:cloud` 114 条通过（两条安全修复之后）、复核代理定向 39 条通过。
 
 本文件不含服务器地址、域名、邮箱、口令或令牌。
 
@@ -79,11 +79,11 @@ created: "2026-11-09"
 | T-09-15 | Denial of Service | 服务器慢或连不上时用户被锁死（PITFALLS 14） | medium | mitigate | 有缓存时只读显示上次内容、横幅和等待卡片都有重试；窗口内静默重试；Phase 10 再升级为断网可编辑 | closed |
 | T-09-16 | Tampering | 首次创建竞争产生重复文档或覆盖另一台设备刚建的文档 | medium | mitigate | 服务器 (owner, kind) 唯一索引拒绝第二份；客户端得到 validation_not_unique 后重读并按对账表处理，没有缓存时只采用不写；竞争用例证明每种 kind 一份 | closed |
 | T-09-17 | Tampering | 脏缓存在服务器更新后悄悄整份覆盖 | high | transfer | 本计划只留 keepConflict 钩子并照最后保存的为准上传；留底与告知在 09-08 补全并由其用例证明 | closed |
-| T-09-18 | Tampering | 真冲突覆盖另一台设备的数据（PITFALLS 1） | high | mitigate | 上传前比对服务器 updated，真冲突时先留底再上传；toast 带下载按钮，工具栏常驻入口；用例覆盖两台设备、启动时冲突和替换 | open |
+| T-09-18 | Tampering | 真冲突覆盖另一台设备的数据（PITFALLS 1） | high | mitigate | 上传前比对服务器 updated，真冲突时先留底再上传；toast 带下载按钮，工具栏常驻入口；用例覆盖两台设备、启动时冲突和替换 | closed |
 | T-09-19 | Information Disclosure | 留底文件名带出邮箱或账号 id | medium | mitigate | 文件名只有应用名、种类和日期；用例断言不含邮箱和用户 id | closed |
 | T-09-36 | Tampering | 读后写窗口：另一台设备的写入落在 cloudSave 的 getOne 和 PATCH 之间，被覆盖且没有留底 | low | accept | PocketBase 0.41.1 没有条件更新，整份文档最后保存为准是所有者锁定的决定；窗口只是一次往返，3 个用户各自账号，需同一账号两台设备几乎同时保存；Phase 10 的实时同步进一步缩小窗口；应用能察觉的冲突（读到的 updated 与基线不同、启动时缓存 dirty 且服务器更新）都照常留底；不加服务器端 hook（见“已接受的限制”） | closed |
 | T-09-20 | Repudiation | 留底存不下却显示“已留底” | medium | mitigate | 写入失败只显示“没能留底”横幅、不弹成功提示、不显示下载按钮；用例用存储异常装置证明 | closed |
-| T-09-21 | Denial of Service | 文档超过 4 MiB 后保存开始失败（PITFALLS 12） | medium | mitigate | 70% 提前警告；超过上限不发送请求、状态行和 error 横幅说明、修改留在本机缓存 | open — below high threshold (non-blocking) |
+| T-09-21 | Denial of Service | 文档超过 4 MiB 后保存开始失败（PITFALLS 12） | medium | mitigate | 70% 提前警告；超过上限不发送请求、状态行和 error 横幅说明、修改留在本机缓存 | closed |
 | T-09-22 | Information Disclosure | 一个账号看到另一个账号的计划或记录 | high | mitigate | 文档按 kind 和登录身份取，服务器规则隔离（Phase 8 已证）；用例对 A、B 做正向和负向断言，负向标记覆盖对方全部计划文字 | closed |
 | T-09-23 | Tampering | 不合格的计划被示例计划改写到服务器 | medium | mitigate | usePlan 失败时只在页面和缓存里用 DEFAULT_PLAN，从不对 plan 文档写；用例断言 writes 里没有 plan 写入、服务器 plan 不变 | closed |
 | T-09-24 | Spoofing | 依据记录接口状态码误判登录状态（PB-CONTRACT §9） | high | mitigate | 只看 authRefresh 的 401 和本地 exp；用例覆盖 401 和本地 exp 两条路径 | closed |
@@ -110,16 +110,12 @@ created: "2026-11-09"
 
 ---
 
-## Open Threats
+## 审计中发现并已修复的威胁
 
-- **T-09-18（Tampering，high，阻塞）：** 计划写的缓解是“上传前比对服务器 updated，真冲突时先留底再上传”。代码审查的 WR-01 修复（f53301c）把普通保存路径改成了“写入成功后才留底”（`us-journey-tracker.html` 978–986），catch 分支不留底。失败路径如下：
-  1. 发现真冲突，PATCH 已经在服务器生效，但响应丢了；
-  2. 客户端报保存失败，什么也没留；
-  3. 下一次保存读到的是自己的写入（`writer` 相同），重新打开后内容相同，都不再留底；
-  4. 结果另一台设备的版本被覆盖，既没留底也没提示。
+第一次审计（42704a8）留下 2 条未关闭，修复后第二次审计确认关闭：
 
-  启动时的对账路径（898–903）仍然是先留底，不受影响。修法：照 898–903 的做法，在 `update` 之前静默写留底，成功之后才调用 `conflictNotice`。
-- **T-09-21（DoS，medium，不阻塞）：** 容量检查只在保存路径上做（963–975）。对账上传未同步缓存时（895、901）不检查大小，超限的缓存在下次启动会被服务器以 400 拒绝，页面最后停在只读的“连不上服务器”，而不是“超过容量上限”。修法：在这两处调用前也做大小检查，超限时显示 `toolarge`。
+- **T-09-18（Tampering，high）：** 代码审查的 WR-01 修复（f53301c）曾把普通保存路径改成“写入成功后才留底”。这样一来，写入已在服务器生效但响应丢失时，另一台设备的版本会被覆盖且不留底。**修复（43c8b90）：** `cloudSave` 在 `getOne` 判定真冲突后、`update` 之前，同步、静默地写入留底（第 993 行先于第 994 行，中间没有 await）；提示由 `snapPending` 推迟到下一次上传成功之后，只公告一次。启动时的对账路径（904 行先于 905 行）本来就是先留底。新的假服务器开关 `lose-answer` 在 pb-faults 里自检，并在 PB-CONTRACT §10 登记为测试专用。用例 conflict-snapshot.spec.ts:379（PATCH 被拒）和 :435（服务器已生效但响应丢失）。
+- **T-09-21（DoS，medium）：** 启动对账上传未同步缓存时不检查大小。**修复（6a214d8）：** 创建前（897 行）和更新前（902 行）都先测大小，超过 4 MiB 时不发请求，缓存保持 dirty 和旧基线，页面显示 `toolarge` 状态和横幅，不再落到“连不上服务器”。用例 capacity.spec.ts:113、:151。
 
 ---
 
@@ -128,7 +124,7 @@ created: "2026-11-09"
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | AR-01 | T-09-33 | 登录页一直预填上次成功登录的邮箱，退出后也保留（D-07）。退出只留这一项，下一个账号登录后替换。审计没有发现与此矛盾的证据 | 所有者（09-CONTEXT D-07） | 2026-11-08 |
-| AR-02 | T-09-36 | 先读服务器版本、再 PATCH 之间有一次往返的空窗，PocketBase 0.41.1 没有条件更新，空窗里另一台设备的写入会被覆盖且不留底。整份以最后保存为准是锁定决定，只有 3 个用户，Phase 10 的实时同步会进一步缩小空窗。**注意：** 理由里“应用能察觉的每一种冲突照常留底”这句在 T-09-18 修好之前不成立 | 计划阶段登记（09-08），待所有者确认 | 2026-11-09 |
+| AR-02 | T-09-36 | 先读服务器版本、再 PATCH 之间有一次往返的空窗，PocketBase 0.41.1 没有条件更新，空窗里另一台设备的写入会被覆盖且不留底。整份以最后保存为准是锁定决定，只有 3 个用户，Phase 10 的实时同步会进一步缩小空窗。T-09-18 修好之后，应用能察觉的每一种冲突（普通保存路径和启动对账路径）都会先留底再上传，这句理由成立 | 计划阶段登记（09-08），待所有者确认 | 2026-11-09 |
 | AR-03 | T-09-SC | 本阶段没有安装或下载任何东西：package.json、lock 文件、两个 Playwright 配置、vendor 目录、tools/pb 和 pb/ 都没有改动，SDK 哈希仍与 SHA256SUMS 一致 | 计划阶段的处置 | 2026-11-09 |
 
 *Accepted risks do not resurface in future audit runs.*
@@ -144,6 +140,15 @@ created: "2026-11-09"
 - **T-09-31：** 另一个账号在别的标签页登录后本页重载的分支（659 行）没有用例覆盖。
 - **T-09-32：** Phase 9 还没有实时订阅，退订 3 秒上限要到 Phase 10 才真正起作用。
 - **T-09-34：** 对应用例分不清是会话计数守卫还是 `docs` 为空在起作用（审查 IN-04），但守卫在代码里。
+- **T-09-18 残余（写入者标识每次打开都变）：** `WRITER` 在每次打开页面时重新生成。一条很少见的链条仍会丢掉另一台设备的留底：
+  1. 发生真冲突，留底已写，上传在服务器生效但响应丢失；
+  2. 用户又改了一处，这次保存也失败（或在 600 毫秒防抖内关了页面）；
+  3. 重新打开页面；
+  4. 启动对账把本机上一次的写入误认成别的设备的（写入者不同、基线也不同），于是用本机自己的旧版本替换了单份留底，提示也误说“另一台设备的修改已留底”。
+
+  这不是回归：修复之前这条路径根本不留底。可行的修法是把最近一次上传的写入者标识存进缓存记录，启动时视为本机自己的写入。Phase 10 会重做保存和重试（SYNC-06），建议在那里一并处理。
+- **T-09-18 小注：** 响应丢失之后如果用户不再修改，留底会一直静默，工具栏入口也隐藏，直到下一次保存成功或重新打开；退出确认框仍会提醒有留底。另外，留底写入失败（存储已满）后，如果在下一次保存成功之前就重新打开，“没能留底”横幅不会再出现，因为 `snapPending` 只在内存里。T-09-20 没被违反：页面从不声称有留底。
+- **T-09-21 小注：** 如果被拦下的是计划文档，下一次保存记录时 `sizeCheck` 会清掉横幅；Phase 9 没有编辑计划的入口，计划不可能超过 4 MiB。被拦下且服务器上没有记录文档时，`docs.state.id` 仍是被删文档的 id，重新打开之前的一次未超限保存会以 `savefailed` 失败，不丢数据，重新打开后会重建文档。
 - **未登记的新键：** WR-06 修复（a110311）新增了 localStorage 键 `usj:v2:authExpired`，值只有 "1"，不含账号标识。
 
 ---
@@ -153,6 +158,7 @@ created: "2026-11-09"
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-09 | 37 | 35 | 2（1 条阻塞） | gsd-security-auditor（ASVS L1，block_on high；逐条核对，只做只读检查：隐私自检 193 项、`--all` 365 个文件通过，SDK 哈希与 SRI 重算一致） |
+| 2026-11-09 | 37 | 37 | 0 | gsd-security-auditor 复审（T-09-18、T-09-21 修复后；复查了修复触及的 T-09-11、14、17、19、20、23、34 和 3 条接受的风险，`--all` 隐私检查通过） |
 
 ---
 
@@ -160,7 +166,7 @@ created: "2026-11-09"
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed
-- [ ] `status: verified` set in frontmatter
+- [x] `threats_open: 0` confirmed
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending（T-09-18 修复后重新审查）
+**Approval:** verified 2026-11-09（AR-02 仍待所有者确认）
