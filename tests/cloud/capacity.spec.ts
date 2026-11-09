@@ -9,10 +9,12 @@ import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import {
   BANNER_CACHE_FULL,
   BANNER_TOO_LARGE,
+  BANNER_UNREACHABLE,
   BTN_ACK,
   STATUS_SAVE_FAILED_CLOUD,
   STATUS_SAVE_FAILED_NO_CACHE,
   STATUS_TOO_LARGE,
+  STATUS_UNREACHABLE,
   bannerCapacity,
 } from '../support/strings';
 
@@ -91,6 +93,80 @@ test('SYNC-01 a save over the 4 MB limit is not sent, keeps the change on this d
   }, key);
   expect(cached).not.toBeNull();
   expect(cached.dirty).toBe(true);
+  expect(hasText(cached.data.logs, text)).toBe(true);
+});
+
+// T-09-21：启动对账上传未同步缓存之前也要做容量检查；超限不发请求，修改留在缓存里，页面停在“超过容量上限”而不是“连不上服务器”
+async function overLimitDirtyCache(app: { open: (o: any) => Promise<void> }, page: any, text: string) {
+  await app.open({ mode: 'cloud', seed: bulkyState('edge', PB_DOC_MAX_BYTES - 4_000), login: 0 });
+  const entry = composer(page, 'w');
+  await entry.type(text);
+  await entry.submit();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'toolarge');
+}
+const cachedState = (page: any, id: string) =>
+  page.evaluate((k: string) => {
+    const raw = localStorage.getItem(k);
+    return raw === null ? null : JSON.parse(raw);
+  }, `usj:v2:${id}:state`);
+
+test('SYNC-01 an over-limit unsent cache found at startup is not uploaded, stays unsent on this device and shows the over-limit state', async ({
+  app,
+  page,
+}) => {
+  const text = `SYNTH-0909 over at start ${'超'.repeat(3_000)}`;
+  await overLimitDirtyCache(app, page, text);
+  const id = app.fake.users[0].id;
+  const serverBefore = JSON.stringify(app.fake.lastState(0));
+
+  // 重新打开：对账看到脏缓存和服务器不同；超限，所以不发 PATCH 也不发创建
+  const requestsBefore = app.fake.requests.length;
+  await page.reload();
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'toolarge');
+  await expect(status).toHaveText(STATUS_TOO_LARGE);
+  await expect(status).not.toHaveText(STATUS_UNREACHABLE);
+  const bar = page.locator('#syncbar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAttribute('data-tone', 'error');
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_TOO_LARGE);
+  await expect(bar.locator('.sb-msg')).not.toHaveText(BANNER_UNREACHABLE);
+  await expect(bar.locator('button')).toHaveCount(0);
+
+  // 对账期间服务器只收到读请求；服务器内容没有变
+  const after = app.fake.requests.slice(requestsBefore);
+  expect(after.filter((r) => r.method === 'PATCH')).toEqual([]);
+  expect(after.filter((r) => r.path.endsWith('/journey_docs/records') && r.method === 'POST')).toEqual([]);
+  expect(JSON.stringify(app.fake.lastState(0))).toBe(serverBefore);
+  expect(hasText(app.fake.lastState(0)?.logs, text)).toBe(false);
+
+  // 页面可以编辑，修改仍在缓存里，标记为未上传，文字还在页面上
+  const cached = await cachedState(page, id);
+  expect(cached?.dirty).toBe(true);
+  expect(hasText(cached.data.logs, text)).toBe(true);
+  await expect(page.locator('body')).toContainText('SYNTH-0909 over at start');
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate', /.*/);
+});
+
+test('SYNC-01 an over-limit unsent cache whose server document is gone is not created at startup either', async ({ app, page }) => {
+  const text = `SYNTH-0909 over no doc ${'超'.repeat(3_000)}`;
+  await overLimitDirtyCache(app, page, text);
+  const id = app.fake.users[0].id;
+  app.fake.dropDocs(0, 'state');
+
+  const requestsBefore = app.fake.requests.length;
+  await page.reload();
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'toolarge');
+  await expect(status).toHaveText(STATUS_TOO_LARGE);
+  await expect(page.locator('#syncbar .sb-msg')).toHaveText(BANNER_TOO_LARGE);
+
+  const after = app.fake.requests.slice(requestsBefore);
+  expect(after.filter((r) => r.method === 'POST' && r.path.endsWith('/journey_docs/records'))).toEqual([]);
+  expect(after.filter((r) => r.method === 'PATCH')).toEqual([]);
+  expect(app.fake.lastState(0)).toBeNull();
+  const cached = await cachedState(page, id);
+  expect(cached?.dirty).toBe(true);
   expect(hasText(cached.data.logs, text)).toBe(true);
 });
 

@@ -891,11 +891,15 @@ async function reconcileOnce(r){
   const uniq=e=>{const d=e&&e.status===400&&e.response&&e.response.data;return !!d&&["kind","owner"].some(k=>d[k]&&d[k].code==="validation_not_unique")};
   const resolve=async kind=>{
     const c=old[kind];let sv=list.find(d=>d.kind===kind);
+    /* capacity (same limit as a save): an over-limit local version is not sent; it stays dirty in the cache with its old base and the page shows the over-limit state, not "unreachable" */
+    const held=sv=>({held:true,sv,data:c.data,c});
     if(!sv){
+      if(c&&sizeOf(c.data)>CLOUD_MAX)return held({id:c.id,updated:c.base});
       try{const d=await mk(kind,c?c.data:kind==="plan"?normalizePlan(DEFAULT_PLAN):normalize({}));return {sv:d,data:d.data,c}}
       catch(e){if(!uniq(e))throw e;list=await coll.getFullList(sg);live();sv=list.find(d=>d.kind===kind);if(!sv)throw e}
     }
     if(c&&c.dirty&&canon(c.data)!==canon(sv.data)){
+      if(sizeOf(c.data)>CLOUD_MAX)return held(sv);
       /* the kept copy is written before the upload (a run abandoned meanwhile must still have kept it); it is announced only after the overwrite succeeded */
       const clash=c.base!==sv.updated&&sv.writer!==WRITER,kept=clash&&keepConflict(kind,sv);
       const u=await coll.update(sv.id,{data:c.data,writer:WRITER},sg);live();
@@ -912,14 +916,18 @@ async function reconcileOnce(r){
   const pdata=planOk?plan:pr.data;
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
   const changed=differs(old.plan,pr.sv,pdata)||differs(old.state,sr.sv,state);
-  const settle=(k,x,data)=>{const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
+  const settle=(k,x,data)=>{
+    if(x.held)return {id:x.sv.id,base:x.c.base,dirty:true,seq:x.c.seq||0};
+    const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
     if(!cachePut(k,rec))dropCache(k);
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
   docs.plan=settle("plan",pr,pdata);docs.state=settle("state",sr,state);
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
-  setGate(null);setStatus("已同步","synced");renderAll();snapShow();
+  setGate(null);
+  if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
+  renderAll();snapShow();
   if(changed)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
@@ -961,12 +969,14 @@ function snapDownload(){
 $("snapshotBtn").addEventListener("click",snapDownload);
 /* capacity guard: the document is measured in UTF-8 bytes before any request; over the limit nothing is sent and the edit stays dirty in the local cache */
 const CLOUD_MAX=4194304;let sizeAck=false;
+const sizeOf=s=>new TextEncoder().encode(JSON.stringify(s)).length;
+function showTooLarge(){hideBar("sizewarn");showBar("toolarge",{tone:"error",msg:"数据超过了云端容量上限，新修改存不上了，请联系管理员。"})}
+const T_TOOLARGE="数据超过容量上限（4 MB）";
 function sizeCheck(s){
-  const n=new TextEncoder().encode(JSON.stringify(s)).length;
+  const n=sizeOf(s);
   if(n>CLOUD_MAX){
-    hideBar("sizewarn");
-    showBar("toolarge",{tone:"error",msg:"数据超过了云端容量上限，新修改存不上了，请联系管理员。"});
-    const er=new Error("数据超过容量上限（4 MB）");er.state="toolarge";throw er;
+    showTooLarge();
+    const er=new Error(T_TOOLARGE);er.state="toolarge";throw er;
   }
   hideBar("toolarge");
   if(n>=CLOUD_MAX*0.7&&!sizeAck)showBar("sizewarn",{tone:"warn",msg:"保存空间快满了：已用 "+Math.floor(n*100/CLOUD_MAX)+"%（上限 4 MB）。超过上限后新修改就存不上了，请联系管理员。",btns:[{text:"知道了",cls:"ghost",fn:()=>{sizeAck=true;hideBar("sizewarn")}}]});
