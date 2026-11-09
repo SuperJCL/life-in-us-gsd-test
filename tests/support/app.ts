@@ -52,8 +52,11 @@ export function resolveHarnessMode(
 export class AppHarness {
   // Node 侧的 mock 后端：用例通过它直接读 reads、writes、downloads、lastState()，不用 page.evaluate
   readonly backend = new MockBackend();
-  // Node 侧的假 PocketBase：cloud 模式下用例通过它读 reads、writes、lastState()、requests，不用 page.evaluate
-  readonly fake = new FakePbServer();
+  // Node 侧的假 PocketBase：cloud 模式下用例通过它读 reads、writes、lastState()、requests，不用 page.evaluate。
+  // 多设备用例把第一台设备的 app.fake 传给第二台（构造函数的 fake 选项），两台设备共用同一个服务器
+  readonly fake: FakePbServer;
+  // fake 是外部传入的（共享）：open() 不再默认新建账号，也不重复接管已经接管过的 context
+  private readonly sharedFake: boolean;
 
   // 当前期望应用走哪种存储，决定 ready() 的就绪条件
   private store: 'local' | 'account' | 'cloud' = 'local';
@@ -69,12 +72,19 @@ export class AppHarness {
   // 本地模式 open() 写进 localStorage 的种子原文；没有种子时为 null（saved() 用它区分“种子”和“应用写回”）
   private seedJson: string | null = null;
 
-  constructor(private readonly page: Page) {}
+  constructor(
+    private readonly page: Page,
+    opts: { fake?: FakePbServer } = {},
+  ) {
+    this.sharedFake = opts.fake !== undefined;
+    this.fake = opts.fake ?? new FakePbServer();
+  }
 
   // 打开应用并等到就绪。
   // mode 缺省为 local；account 模式下 userId 缺省为 ACCOUNT_USER_ID，显式传 null 表示没有身份。
   // expectStore 只给 D-07 的反向对照用：账户 mock 已装但应用预期退回本地，就绪条件按本地算。
-  // cloud 模式：users 是合成账号个数（默认 1），seed 写给第 0 个账号的 state 文档，plan 写给它的 plan 文档。
+  // cloud 模式：users 是合成账号个数（默认 1；共用外部假服务器时默认 0，账号已由第一台设备建好），
+  // seed 写给第 0 个账号的 state 文档，plan 写给它的 plan 文档（共用时只有显式给了 seed 才写种子）。
   async open(
     opts: {
       mode?: 'local' | 'account' | 'cloud';
@@ -100,11 +110,14 @@ export class AppHarness {
     this.opened = true;
     const mode = resolveHarnessMode(opts.mode ?? 'local', process.env.USJ_TEST_MODE);
     if (mode === 'cloud') {
-      for (let i = 0; i < (opts.users ?? 1); i++) this.fake.addUser();
+      for (let i = 0; i < (opts.users ?? (this.sharedFake ? 0 : 1)); i++) this.fake.addUser();
       if (opts.seed !== undefined) {
         this.fake.seed(opts.seed, { plan: opts.plan });
       }
-      await this.fake.attach(this.page.context());
+      // 每个 context 只能接管一次：共用假服务器时，这个 context 可能已被接管过
+      if (!this.fake.isAttached(this.page.context())) {
+        await this.fake.attach(this.page.context());
+      }
       this.store = 'cloud';
       this.cloudApp = (opts.backend === undefined ? 'pocketbase' : opts.backend) === 'pocketbase';
       this.view = 'login';
