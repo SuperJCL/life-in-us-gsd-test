@@ -27,6 +27,8 @@ export async function openDevice(opts: {
   clock?: 'fixed' | 'none';
   acceptDownloads?: boolean;
   viewport?: { width: number; height: number };
+  // 新 context 带着的存储状态（localStorage 和 cookie），用来模拟关掉浏览器再打开；原样传给 browser.newContext
+  storageState?: Awaited<ReturnType<BrowserContext['storageState']>>;
 }): Promise<Device> {
   const context = await opts.browser.newContext({
     baseURL: APP_ORIGIN,
@@ -37,6 +39,7 @@ export async function openDevice(opts: {
     reducedMotion: 'reduce',
     serviceWorkers: 'block',
     acceptDownloads: opts.acceptDownloads ?? false,
+    storageState: opts.storageState,
   });
   try {
     const page = await context.newPage();

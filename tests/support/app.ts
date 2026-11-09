@@ -95,8 +95,9 @@ export class AppHarness {
       plan?: unknown;
       // cloud 模式：pocketbase（缺省）由应用自己走云端路径；null 保持 Phase 8 的设施用法
       backend?: 'pocketbase' | null;
-      // cloud 模式：打开后立刻用第几个合成账号登录
-      login?: number;
+      // cloud 模式：打开后立刻用第几个合成账号登录；'session' 表示页面里已有会话（例如带着存储状态的新 context），
+      // 不出现登录页、不填表单，就绪条件直接按应用视图等已同步
+      login?: number | 'session';
       // cloud：用例故意让 SDK 加载失败（例如被篡改、integrity 不符），就绪只等登录页，不等页面里出现 PocketBase
       sdkRefused?: boolean;
     } = {},
@@ -120,7 +121,7 @@ export class AppHarness {
       }
       this.store = 'cloud';
       this.cloudApp = (opts.backend === undefined ? 'pocketbase' : opts.backend) === 'pocketbase';
-      this.view = 'login';
+      this.view = opts.login === 'session' ? 'app' : 'login';
       this.sdkRefused = opts.sdkRefused === true;
       if (this.cloudApp) {
         const context = this.page.context();
@@ -156,7 +157,7 @@ export class AppHarness {
     }
     await this.page.goto('/');
     await this.ready();
-    if (mode === 'cloud' && this.cloudApp && opts.login !== undefined) {
+    if (mode === 'cloud' && this.cloudApp && typeof opts.login === 'number') {
       await this.login(opts.login);
     }
   }

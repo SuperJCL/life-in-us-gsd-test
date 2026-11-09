@@ -7,10 +7,11 @@ import { test, expect } from '../support/test';
 import { syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
+import { openDevice } from '../support/devices';
 import { FROZEN_NOW } from '../support/constants';
 import type { AppHarness } from '../support/app';
 import type { GuardHandle } from '../support/test';
-import { LOGIN_EXPIRED, LOGIN_EXPIRED_UNSENT, STATUS_SAVE_FAILED_CLOUD } from '../support/strings';
+import { LOGIN_EXPIRED, LOGIN_EXPIRED_UNSENT, STATUS_CLOUD_SYNCED, STATUS_SAVE_FAILED_CLOUD } from '../support/strings';
 
 test.use({ clockMode: 'manual' });
 
@@ -89,4 +90,49 @@ test('ACCT-01 signing in again with the same account uploads the edit kept throu
   await expect(page.locator('dialog#confirm')).toHaveCount(0);
   const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:state`);
   expect(cached.dirty).toBe(false);
+});
+
+test('ACCT-01 a token past its local expiry shows the expired notice without contacting the server', async ({ app, page }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+
+  // 90 天的令牌在第 91 天本地 exp 已过：重新打开时不联系服务器
+  await page.clock.setFixedTime(FROZEN_NOW + 91 * 24 * 3600 * 1000);
+  const before = app.fake.requests.length;
+  await page.reload();
+
+  await expect(page.locator('#login')).toBeVisible();
+  const notice = page.locator('#loginNotice');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveAttribute('data-tone', 'warn');
+  // 没有没上传的修改，所以只有第一行
+  await expect(notice.locator('p')).toHaveText([LOGIN_EXPIRED]);
+  expect(app.fake.requests.length).toBe(before);
+  expect(await page.evaluate(() => localStorage.getItem('pocketbase_auth'))).toBeNull();
+  const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:state`);
+  expect(cached).not.toBeNull();
+  expect(cached.dirty).toBe(false);
+});
+
+test('ACCT-01 a session survives closing and reopening the browser', async ({ app, page, browser, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 关掉浏览器再打开：同一份存储状态的新 context
+  const saved = await page.context().storageState();
+  const before = app.fake.requests.length;
+  const second = await openDevice({ browser, guard, fake: app.fake, storageState: saved });
+  try {
+    await second.app.open({ mode: 'cloud', login: 'session' });
+
+    await expect(second.page.locator('#login')).toBeHidden();
+    await expect(second.page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+    await expect(second.page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+    // 启动时向服务器刷新了一次登录
+    const refreshes = app.fake.requests.slice(before).filter((r) => r.method === 'POST' && r.path.endsWith('/auth-refresh'));
+    expect(refreshes.map((r) => r.status)).toEqual([200]);
+  } finally {
+    await second.context.close();
+  }
 });

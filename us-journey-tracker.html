@@ -646,7 +646,9 @@ async function cloudInit(){
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
-  if(!pb.authStore.isValid){showLogin("");return}
+  if(!pb.authStore.token){showLogin("");return}
+  /* a stored token whose own exp has passed is expired without asking the server; only this device-local check or an authRefresh 401 ever means expired */
+  if(!pb.authStore.isValid){pb.authStore.clear();showLogin("","expired");return}
   try{await enterApp(true)}catch(e){showLogin(ERR_NET)}
 }
 async function onLogin(e){
