@@ -270,3 +270,15 @@ export const BOOT_SUB_LOADING = '第一次登录需要先从服务器取数据';
 // 等待卡片约 15 秒仍未完成时的标题和副文字（09-UI-SPEC S10 逐字复制）；卡片里只剩一个重试按钮
 export const BOOT_TITLE_UNREACHABLE = '连不上服务器';
 export const BOOT_SUB_UNREACHABLE = '请检查网络，然后重试';
+
+// 真冲突时的 toast（09-UI-SPEC S5/S8 逐字复制，8000 ms，带 BTN_DOWNLOAD_SNAPSHOT 按钮）
+export const TOAST_CONFLICT = '另一台设备上的修改被覆盖，已在本机留底';
+
+// 工具栏常驻按钮 #snapshotBtn 和 toast 里按钮的文字（09-UI-SPEC S8，固定不变）
+export const BTN_DOWNLOAD_SNAPSHOT = '下载留底';
+
+// 点下载后立即弹出的 toast（09-UI-SPEC S8 D-10 逐字复制，3000 ms）
+export const TOAST_SNAPSHOT_DOWNLOADED = '已开始下载留底，本机不再保留副本';
+
+// 冻结日期（2026-03-18）下载留底的文件名：只有应用名、种类和日期，不含任何账号标识（D-11）
+export const FILENAME_SNAPSHOT_FROZEN = '在美国的日子-留底-2026-03-18.json';

@@ -57,6 +57,7 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(-
 .toolbar{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
 .ghost{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
 .ghost:hover{color:var(--ink);border-color:var(--muted)}
+#snapshotBtn{color:var(--ink);background:var(--c-job-s);border-color:var(--c-job);font-size:12px}
 .icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
 .primary{background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:7px 14px;font-weight:600}
 .primary:disabled{opacity:.4;cursor:default}
@@ -311,6 +312,7 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
     <button role="tab" data-tab="goal" aria-selected="false">目标</button>
     <button role="tab" data-tab="tl" aria-selected="false">时间线</button>
     <div class="toolbar">
+      <button class="ghost hidden" id="snapshotBtn" aria-label="下载留底：另一台设备上的旧版本，下载后会从本机删除" title="下载留底：另一台设备上的旧版本，下载后会从本机删除">下载留底</button>
       <button class="ghost hidden" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
       <button class="ghost hidden" id="exportJson">备份</button>
       <label class="ghost" style="cursor:pointer">恢复<input type="file" id="importJson" accept=".json,application/json" class="hidden"></label>
@@ -736,6 +738,7 @@ async function enterApp(refresh){
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
     setGate("reconciling");renderAll();
   }
+  snapShow();
   return startReconcile({refresh:!!refresh,cached,old});
 }
 async function reconcileOnce(r){
@@ -777,14 +780,39 @@ async function reconcileOnce(r){
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
-  setGate(null);setStatus("已同步","synced");renderAll();
+  setGate(null);setStatus("已同步","synced");renderAll();snapShow();
   if(changed)toast("已更新为其他设备上的最新内容",null,4000);
 }
-/* 09-08 keeps a copy of the server version here and tells the user; until then the local version simply wins (last saved wins) */
-function keepConflict(kind,serverDoc){return false}
+/* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
+const snapKey=()=>cacheKey("snapshot");
+function snapGet(){try{const r=JSON.parse(localStorage.getItem(snapKey()));return r&&typeof r==="object"&&r.data&&typeof r.data==="object"?r:null}catch(e){return null}}
+function snapShow(){$("snapshotBtn").classList.toggle("hidden",!(CLOUD&&me&&snapGet()))}
+function keepConflict(kind,doc){
+  const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
+  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}))}catch(e){return false}
+  snapShow();
+  toast("另一台设备上的修改被覆盖，已在本机留底",{label:"下载留底",fn:snapDownload},8000);
+  return true;
+}
+function snapDownload(){
+  const snap=snapGet();
+  if(!snap){snapShow();return}
+  const name=(snap.kind==="plan"?"在美国的日子-计划留底-":"在美国的日子-留底-")+today()+".json";
+  const url=URL.createObjectURL(new Blob([JSON.stringify(snap.data,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+  try{localStorage.removeItem(snapKey())}catch(e){}
+  snapShow();
+  toast("已开始下载留底，本机不再保留副本",null,3000);
+}
+$("snapshotBtn").addEventListener("click",snapDownload);
 async function cloudSave(s){
-  const seq=docs.state.seq||0;let r;
-  try{r=await pb.collection("journey_docs").update(docs.state.id,{data:s,writer:WRITER})}
+  const seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r;
+  try{
+    const cur=await coll.getOne(docs.state.id);
+    if(cur.updated!==docs.state.base)keepConflict("state",cur);
+    r=await coll.update(docs.state.id,{data:s,writer:WRITER});
+  }
   catch(e){const er=new Error("修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
   docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
   cachePut("state",{...docs.state,data:state});
