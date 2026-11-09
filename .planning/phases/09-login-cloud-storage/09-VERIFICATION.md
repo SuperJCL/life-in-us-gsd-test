@@ -1,6 +1,6 @@
 ---
 phase: 09-login-cloud-storage
-verified: 2026-11-09T13:00:00Z
+verified: 2026-11-09T15:00:00Z
 status: human_needed
 score: 5/5 must-haves verified
 covered_files:
@@ -43,7 +43,7 @@ covered_files:
   - "tests/cloud/session.spec.ts"
   - "tests/support/constants.ts"
   - "us-journey-tracker.html"
-covered_digest: "v4:sha256:737791669fa7252d018bf0cb456e8c158a296bbacf7d0f3f8ce4b2c86900b35c"
+covered_digest: "v4:sha256:e50519b256333753932cd4fa8f6b6b7ef2b3ef7fabab9782a2603bfc3085c251"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -56,9 +56,9 @@ human_verification:
   - test: "在深色主题（prefers-color-scheme: dark）下打开登录页，触发各类横幅（对账中、网络较慢、连不上、容量警告、本机空间不够）和退出确认框"
     expected: "文字对比度足够，色调（info / warn / error）能区分，确认框和登录卡片与四个视图的深色风格一致"
     why_human: "视觉外观，UI-SPEC 把它列为验收时人工核对项，自动化用例只能断言文字和 data-state，不能判断观感"
-  - test: "把窗口缩到 375 px 宽，制造一次真冲突，让最长的提示（冲突提示加“下载留底”按钮）出现"
-    expected: "提示完整显示、可以换行，“下载留底”按钮仍然可点（UI-SPEC E4 long-text backstop）"
-    why_human: "UI-SPEC 明确标为 backstop：需要在手机宽度截图核对，toast 的排版测不出"
+  - test: "把窗口缩到 375 px 宽，制造一次真冲突，让最长的提示（冲突提示加“下载留底”按钮）出现。UI 审查提出的 toast 被挤窄问题已有修复（8a8f026：`.toast[data-cloud]{width:max-content;max-width:calc(100vw - 32px)}` 与按钮 `flex:none`），请直接看修复后的效果"
+    expected: "提示完整显示、可以换行，宽度不再被压到约 187 px，“下载留底”按钮仍然可点（UI-SPEC E4 long-text backstop）"
+    why_human: "UI-SPEC 明确标为 backstop：需要在手机宽度截图核对，toast 的排版测不出；修复只是代码层面的推断，还没有人在 375 px 下看过"
   - test: "375 px 宽下让容量警告横幅出现（数据超过 70%）；再让“超过上限”横幅（启动对账时发现本机未上传的缓存超限，T-09-21 之后新增的路径）出现"
     expected: "横幅文字自动换行，按钮折到下一行，不挤压文字（UI-SPEC E10）；超限横幅在启动路径下同样不遮挡内容"
     why_human: "窄屏换行效果属于视觉判断，计划已把它交给验收"
@@ -72,21 +72,31 @@ human_verification:
 **阶段目标：** 用户用所有者在后台开好的账号登录后，记录、复盘、任务进度、力量历史和自己的个人计划都从服务器读写，换一台设备登录看到的是同一份数据。打开应用时先和服务器对账，再允许编辑，过期缓存不会覆盖别处的新数据。页面只加载同源资源。
 **验证时间：** 2026-11-09
 **状态：** human_needed
-**重新验证：** 是。上一份报告在 `us-journey-tracker.html`、`tests/support/constants.ts`、`tests/cloud/conflict-snapshot.spec.ts` 变动之后失效。变动来自两个安全审计修复：43c8b90（T-09-18）和 6a214d8（T-09-21）。
+**重新验证：** 是（第 2 次）。上一份报告在 `us-journey-tracker.html` 和 `tests/support/constants.ts` 变动之后失效。变动来自提交 8a8f026（UI 审查警告修复）：只改了 CSS，外加退出确认框的一个 class 钩子。
 
 ## 重新验证方法
 
-没有采信 SUMMARY 和 09-SECURITY-FIX.md。步骤如下。
+没有采信 SUMMARY 和提交说明。步骤如下。
 
-1. 读两次提交的完整 diff，再读 HEAD 上 `reconcileOnce`、`keepConflict`、`conflictNotice`、`cloudSave`、`sizeCheck` 的源码。
-2. 重算应用文件 sha256，与 `APP_SHA256` 比对。
-3. 重算 SDK 的 SRI，与页面里的 `SDK_SRI` 比对。
-4. 跑隐私检查。
-5. 定向跑 Playwright 用例（below-normal 优先级，单 worker，一次一批）：
-   - `conflict-snapshot`：10 条，全部通过。
-   - `capacity`：5 条，全部通过。
-   - `reconcile-gate`、`multi-device`、`logout`：合计 24 条，全部通过。
-6. 没有跑默认套件和完整 cloud 套件，采用编排器的证据：默认 `npm test` 175 通过（含 v1 的 154 条），完整 `npm run test:cloud` 114 通过，0 失败。没有 pocketbase.exe 在运行。
+1. 读 `git diff d5e884b..8a8f026 -- us-journey-tracker.html tests/support/constants.ts` 的完整内容。应用文件只有 8 行增删，常量文件只有 `APP_SHA256` 一行。
+2. 整个范围的文件清单（`git diff d5e884b..8a8f026 --stat`）只有 4 个文件：`09-SECURITY.md`、`09-UI-REVIEW.md`、`tests/support/constants.ts`、`us-journey-tracker.html`。`tests/cloud/*.spec.ts`、`tests/mocks/`、`tools/probe/page/vendor/` 都没有变。
+3. 重算应用文件 sha256，与 `APP_SHA256` 比对。
+4. 在 HEAD 上读 `confirmBox`、`onLogoutClick`、`confirmBox` 的全部调用点。
+5. 重跑隐私检查，重扫应用里的外部地址和标记注释。
+6. 没有跑 Playwright。按本次约束，采用编排器在这个 HEAD 上跑的证据：默认 `npm test` 175 通过（含 v1 的 154 条），完整 `npm run test:cloud` 114 通过，0 失败，没有 pocketbase.exe 在运行。
+
+## 8a8f026 的逐行核对
+
+| 变动 | 性质 | 对已验证真值的影响 |
+|------|------|--------------------|
+| `.toast[data-cloud] button{…;flex:none}`、`.toast[data-cloud]{width:max-content;max-width:calc(100vw - 32px)}` | 纯 CSS，只作用于云端 toast | 无。没有改 `toast()`、`conflictNotice`、`snapPending` 的任何逻辑。 |
+| `#cf-body p:first-child` 改为 `#cf-body p.cf-who` | 纯 CSS 选择器 | 无逻辑影响。换账号确认框（第 754 行，只有一行正文）不再被弱化，符合 UI-SPEC S7。 |
+| `confirmBox` 里 `if(i===0&&o.who)p.className="cf-who"`；`onLogoutClick` 传入 `who:true` | 一个 class 钩子 | 无。只改 `<p>` 的 class，文本仍用 `textContent`，不涉及 innerHTML。`lines[0]` 在退出框里确实是 `T_CF_ACCOUNT+账号邮箱` 这一行。`confirmBox` 只有 2 个调用点（换账号、退出），换账号不传 `who`。`logout.spec.ts` 里所有对 `#cf-body` 的断言都是文字断言（`toContainText` / `toHaveText`），不依赖颜色。 |
+| `:is(#syncbar,#boot,dialog#confirm) button{font-size:14px}` | 纯 CSS | 无。 |
+| `#boot .bar{margin:12px 0 8px}` | 纯 CSS | 无。 |
+| `APP_SHA256` 更新 | 随应用同提交更新 | 重算 sha256 为 `c4f37e1b…99005f`，与常量完全一致。 |
+
+diff 里没有任何一行触及 `reconcileOnce`、`resolve`、`settle`、`cloudSave`、`keepConflict`、`resetSession`、`sizeCheck`、`startPb`、SDK 路径与 SRI、登录或退出的逻辑。所以上一份报告里所有基于源码行为和用例的真值，结论原样保留。
 
 ## 目标达成情况
 
@@ -94,92 +104,44 @@ human_verification:
 
 | # | 真值 | 状态 | 证据 |
 |---|------|------|------|
-| 1 | 登录页输入账号密码进入应用，刷新或重开浏览器仍保持登录；登录页没有注册入口；密码错误有明确提示 | ✓ VERIFIED（回归检查） | 两次修复没有改登录路径。`login.spec.ts`、`session.spec.ts` 在编排器的完整 cloud 套件里通过。`logout.spec.ts`（10 条）由我重跑，全部通过。 |
-| 2 | 退出后本机没有该账号的记录缓存、计划缓存、留底和令牌；另一个账号在同一浏览器登录看不到前一个账号的内容 | ✓ VERIFIED | T-09-18 在 `resetSession` 里新增 `snapPending=null`（第 1036 行），退出和 401 重置会丢掉“待公告”的状态，不跨账号泄露。`logout.spec.ts` 全部通过。 |
-| 3 | 账号 A 在一台设备记录、复盘、勾选任务、保存力量值后，另一台设备登录 A 看到同一份数据，四个视图按 A 自己的计划显示；账号 B 看到自己的计划和记录 | ✓ VERIFIED | `reconcileOnce` 按 `kind` 取文档的逻辑没变。`multi-device.spec.ts` 由我重跑通过，`account-data.spec.ts` 在编排器的完整套件里通过。 |
-| 4 | 联网打开时对账完成前不能编辑；缓存比服务器旧时以服务器为准、旧缓存不被上传；真冲突时最后保存的为准，被覆盖的那版在本机留底且可下载 | ✓ VERIFIED（本次重点，见下） | 第 993 行：`cloudSave` 在 `getOne` 判定真冲突后、`update` 之前就静默 `keepConflict`。提示由 `snapPending` 推迟到第一次上传成功之后，只公告一次。T-09-21 的容量判断让超限缓存不被上传，也不让页面落到“连不上”。 |
-| 5 | 浏览器只向同源发请求：Google 字体 `<link>` 已去掉，PocketBase SDK 从同源加载、版本固定；v1 的 154 条用例仍通过 | ✓ VERIFIED | 应用里 `http(s)://` 字面量 0 个，没有 googleapis / gstatic。`SDK_PATH="/vendor/pocketbase.iife.js"`，`SDK_SRI` 的值我用 openssl 对 `tools/probe/page/vendor/pocketbase.iife.js` 重算，与页面里的完全一致。该目录自 e35a38a 之后没有改动。默认套件 175 通过含 v1 的 154 条（编排器证据）。 |
+| 1 | 登录页输入账号密码进入应用，刷新或重开浏览器仍保持登录；登录页没有注册入口；密码错误有明确提示 | ✓ VERIFIED（回归检查） | 本次 diff 不涉及登录和会话逻辑。`login.spec.ts`、`session.spec.ts` 在编排器的完整 cloud 套件（114 通过）里通过。 |
+| 2 | 退出后本机没有该账号的记录缓存、计划缓存、留底和令牌；另一个账号在同一浏览器登录看不到前一个账号的内容 | ✓ VERIFIED（回归检查） | `resetSession`、`logout()` 没有变动。`onLogoutClick` 只多传了 `who:true`，判断条件（`unsaved||snap`）和 `logout()` 调用顺序不变。`logout.spec.ts` 在完整套件里通过。 |
+| 3 | 账号 A 在一台设备记录、复盘、勾选任务、保存力量值后，另一台设备登录 A 看到同一份数据，四个视图按 A 自己的计划显示；账号 B 看到自己的计划和记录 | ✓ VERIFIED（回归检查） | `reconcileOnce` 未变。`multi-device.spec.ts`、`account-data.spec.ts` 在完整套件里通过。 |
+| 4 | 联网打开时对账完成前不能编辑；缓存比服务器旧时以服务器为准、旧缓存不被上传；真冲突时最后保存的为准，被覆盖的那版在本机留底且可下载 | ✓ VERIFIED（回归检查） | 上一轮对 T-09-18、T-09-21 的源码核对结论不变：上传前先留底，公告推迟到上传成功之后，启动对账有容量检查。`conflict-snapshot`、`capacity`、`reconcile-gate` 用例在完整套件里通过。8a8f026 没有触及这些函数。 |
+| 5 | 浏览器只向同源发请求：Google 字体 `<link>` 已去掉，PocketBase SDK 从同源加载、版本固定；v1 的 154 条用例仍通过 | ✓ VERIFIED | 应用里 `http(s)://` 字面量仍是 0 个，无 googleapis / gstatic。`tools/probe/page/vendor/` 没有变，SRI 与上次一致。默认套件 175 通过含 v1 的 154 条（编排器证据）。 |
 
 **得分：** 5/5 真值通过（0 条仅“存在但行为未验证”）。
 
-### 本次重点：两个修复对 SC4 和 D-08..D-11 的影响
-
-**T-09-18（冲突留底的时机，原先是 high 阻塞项）：**
-
-- **先留底，再上传：** 第 993 行的条件是 `cur.updated!==docs.state.base && cur.writer!==WRITER && canon(cur.data)!==canon(s)`，三项与 WR-01 的约束一致。命中后同步写 `keepConflict("state",cur)`，之后才执行第 994 行的 `update`。写入在上传之前，所以 PATCH 已在服务器生效但响应丢了的路径，也留下了另一台设备的版本。
-- **公告推迟到成功之后：** 结果存进模块变量 `snapPending`（null、true、false）。第 999 行在上传成功后调用 `conflictNotice` 并清空。更早的提示、状态栏和下载入口都不会在上传失败时出现。
-- **留底单份（D-09）：** 更新的冲突会覆盖同一个存储键，同时替换 `snapPending`。
-- **下载后不再公告（D-10）：** 公告条件是 `!kept||snapGet()`。留底已被下载删除时，成功的留底不再提示。
-- **会话切换：** `resetSession` 清掉 `snapPending`。保存里每个 await 之后仍检查 `sessionEpoch`，所以过期会话的保存不会碰到新会话的状态。
-- **用例证据：**
-  - `conflict-snapshot.spec.ts` 第 379 行：被拒绝的 PATCH 之后，留底存在且内容是设备一的版本，没有提示，工具栏入口隐藏。下一次成功保存之后才出现提示和下载入口，留底是同一份。
-  - 第 435 行：新用例 `lose-answer`。服务器上已是设备二的版本，设备一的版本已留在本机，此时无提示。下一次保存（同一写入者、同一内容，不再触发冲突判定）成功后出现带“下载留底”按钮的提示，留底与之前完全相同（`toEqual`）。
-  - 修复者称两个用例对修复前的应用会失败。我没有复现这一点，因为不能改源码。
-  - 用例读的是本机存储的真实内容，不是只看界面文字，所以不是只靠文字的弱断言。
-- **假服务器新增开关：** `lose-answer`。它让 `handle()` 先应用请求，再中止答复，用 `pb-faults.spec.ts` 自测，并在 PB-CONTRACT 第 10 节登记为“未记录的测试专用行为”，没有伪装成真实服务器的行为。
-
-**T-09-21（启动对账的容量检查，medium）：**
-
-- `resolve()` 在 `create`（第 897 行）和 `update`（第 902 行）之前先测本机版本的 UTF-8 字节数，超过 `CLOUD_MAX` 时不发请求，返回 `held`。
-- `settle()` 对 held 文档保持缓存记录不变：`dirty:true`、旧 `base`、旧 `seq`。之后的保存仍会对着更新的服务器版本检测冲突。
-- 提交后页面显示已有的 `toolarge` 横幅和状态“保存失败：数据超过容量上限（4 MB）”（`data-state="toolarge"`），门控放开，可编辑。不再抛错，所以不会重试，也不会显示“连不上服务器”。
-- `sizeCheck` 拆成 `sizeOf`、`showTooLarge` 和原来的抛错逻辑，保存路径行为不变。`capacity.spec.ts` 的两条新用例（第 113、151 行）断言：没有 PATCH，没有 POST，服务器内容不变，缓存仍 dirty，横幅内容正确，没有“连不上”横幅和按钮，门控已放开。
-- 修复者记录的局限：计划文档（不是 state 文档）超限时，下一次 state 保存会清掉 `toolarge` 横幅，因为 `sizeCheck` 只测 state。Phase 9 没有编辑计划的入口，达不到这一状态。我认同不阻塞。
-
-**回归扫描（修复有没有破坏别的路径）：**
-
-- 启动对账路径本身没动（先留底、上传后才公告，仍是第 904–906 行）。
-- 对账的 24 条门控用例（含“缓存上的编辑在服务器当前版本之上被上传”“两台设备同时创建首批文档只留一份”）全部通过。
-- `held` 分支返回的 `sv` 对没有服务器文档的情形是 `{id:c.id,updated:c.base}`，只用于 `settle` 的 id；`differs()` 要求缓存不脏，所以对 held 记录不会误报“已更新为其他设备上的最新内容”。
-
 ### 对 09-CONTEXT 锁定决定的核对
 
-| 决定 | 状态 | 证据 |
-|------|------|------|
-| D-01 对账期间只读加状态栏 | ✓ | `setGate("reconciling")`，对账门控用例通过 |
-| D-02 约 3 秒变慢，15 秒才判连不上 | ✓ | `SLOW_MS=3000`、`FAIL_MS=15000` |
-| D-03 连不上只读加重试，不放开编辑 | ✓ | `setGate("readonly")`；T-09-21 之后，容量超限不再被当作连不上 |
-| D-04 对账后内容确有不同才提示 | ✓ | `differs()` / `changed` |
-| D-05 退出前有未保存修改或留底时确认 | ✓ | `onLogoutClick` + `confirmBox` |
-| D-06 退出顺序 | ✓ | `logout()`，用例通过 |
-| D-07 登录页预填上次邮箱 | ✓ | `LAST_EMAIL_KEY`、`prefillLogin()` |
-| D-08 真冲突时被覆盖的那版留在本机 | ✓（比上次更强） | 普通保存路径现在也是上传前留底 |
-| D-09 单份 | ✓ | 同一个存储键，`snapPending` 同步替换 |
-| D-10 点下载即删 | ✓ | `snapDownload` 调用 `removeItem`；已下载的留底不再公告 |
-| D-11 JSON、不含账号标识 | ✓ | 文件名只含日期，内容是 state 形状，用例断言 |
+D-01 到 D-11 的状态与上一份报告一致，全部 ✓。本次 diff 没有碰任何一条决定对应的代码。
 
 ### 必需产物
 
 | 产物 | 状态 |
 |------|------|
-| `us-journey-tracker.html` | ✓ VERIFIED，已接线。sha256 `b55b472c…acc354` 与 `APP_SHA256` 一致 |
-| `tests/cloud/*.spec.ts` | ✓ VERIFIED。本次重跑 conflict-snapshot 10 条、capacity 5 条、reconcile-gate / multi-device / logout 24 条，共 39 条，全部通过 |
-| `tests/support/constants.ts` | ✓ `APP_SHA256` 随应用同提交更新，与实际文件一致 |
-| `tests/mocks/pb-server.ts`、`PB-CONTRACT.md`、`pb-faults.spec.ts` | ✓ `lose-answer` 已实现、自测并登记 |
+| `us-journey-tracker.html` | ✓ VERIFIED，已接线。sha256 `c4f37e1b…99005f` 与 `APP_SHA256` 一致 |
+| `tests/cloud/*.spec.ts` | ✓ VERIFIED。未改动；编排器的完整 cloud 套件 114 条全部通过 |
+| `tests/support/constants.ts` | ✓ `APP_SHA256` 与实际文件一致 |
+| `tests/mocks/pb-server.ts`、`PB-CONTRACT.md`、`pb-faults.spec.ts` | ✓ 未改动 |
 
 ### 关键连线
 
-| 起点 | 终点 | 状态 |
-|------|------|------|
-| `cloudSave`（`getOne` 判冲突）| `keepConflict` → `snapPending` → 上传成功后 `conflictNotice` | ✓ WIRED |
-| `reconcileOnce` → `resolve` | `sizeOf` 与 `CLOUD_MAX` → `held` → `settle` → `showTooLarge` 和状态 `toolarge` | ✓ WIRED |
-| `resetSession` | 清 `snapPending` | ✓ WIRED |
-| `init()` → `cloudInit()` → `startPb` → `enterApp` → `startReconcile` | 未变，用例通过 | ✓ WIRED |
+与上一份报告一致，均 ✓ WIRED：`cloudSave` → `keepConflict` → `snapPending` → `conflictNotice`；`reconcileOnce` → `resolve` → `sizeOf`/`CLOUD_MAX` → `held` → `settle` → `showTooLarge`；`resetSession` 清 `snapPending`；`init()` → `cloudInit()` → `startPb` → `enterApp` → `startReconcile`。新增的 `confirmBox({who})` → `<p class="cf-who">` → `#cf-body p.cf-who` 连线完整，选择器与类名一致。
 
 ### 数据流（第 4 层）
 
-四个视图的 `state` / `plan` 来自 `getFullList("journey_docs")` 按 `kind` 取，经 `usePlan`、`normalize`；保存走 `update({data, writer})`。跨设备用例读到另一台设备写入的值。held 路径里页面显示的是本机缓存的真实数据，不是静态值。✓ FLOWING。
+未变。四个视图的 `state` / `plan` 来自 `getFullList("journey_docs")` 按 `kind` 取，保存走 `update({data, writer})`。✓ FLOWING。
 
 ### 行为抽查
 
 | 行为 | 命令 | 结果 | 状态 |
 |------|------|------|------|
-| 冲突留底（含上传前留底、丢失答复） | `playwright test --config=playwright.cloud.config.ts --workers=1 tests/cloud/conflict-snapshot.spec.ts` | 10 通过 | ✓ PASS |
-| 容量（含启动对账的两条新用例） | 同上，`capacity.spec.ts` | 5 通过 | ✓ PASS |
-| 对账门控、跨设备、退出 | 同上，三个 spec | 24 通过 | ✓ PASS |
-| 隐私检查 | `node tools/privacy/privacy-check.mjs --all` | 通过（367 个文件） | ✓ PASS |
 | 应用基线 | `sha256sum us-journey-tracker.html` | 与 `APP_SHA256` 一致 | ✓ PASS |
-| SDK SRI | `openssl dgst -sha256 -binary … | openssl base64` | 与 `SDK_SRI` 一致 | ✓ PASS |
+| 隐私检查 | `node tools/privacy/privacy-check.mjs --all` | 通过（368 个文件） | ✓ PASS |
+| 同源 | `grep -c "https\?://" us-journey-tracker.html` | 0 | ✓ PASS |
+| 标记注释 | `grep -E "TBD|FIXME|XXX|TODO|HACK"` | 无命中 | ✓ PASS |
+| 全部用例（编排器在 HEAD 上跑，我没有重跑） | `npm run test:cloud` / `npm test` | 114 通过 / 175 通过 | ✓ PASS（采信编排器证据） |
 
 ### 探针执行
 
@@ -189,39 +151,40 @@ human_verification:
 
 | 需求 | 来源计划 | 状态 | 证据 |
 |------|----------|------|------|
-| ACCT-01 | 09-12 | ✓ SATISFIED | 登录和会话用例；源码 `onLogin`、`cloudInit` |
-| ACCT-02 | 09-14 | ✓ SATISFIED | `logout()`；`logout.spec.ts` 重跑通过 |
-| SYNC-01 | 09-10 | ✓ SATISFIED | `account-data`、`multi-device`；容量守卫现在也覆盖启动路径 |
-| SYNC-05 | 09-09 | ✓ SATISFIED | `reconcile-gate`、`conflict-snapshot`、`capacity`；真冲突在普通保存路径和启动路径上都先留底 |
+| ACCT-01 | 09-12 | ✓ SATISFIED | 登录和会话用例；`onLogin`、`cloudInit` 未变 |
+| ACCT-02 | 09-14 | ✓ SATISFIED | `logout()` 未变；`logout.spec.ts` 通过 |
+| SYNC-01 | 09-10 | ✓ SATISFIED | `account-data`、`multi-device`；容量守卫覆盖启动路径 |
+| SYNC-05 | 09-09 | ✓ SATISFIED | `reconcile-gate`、`conflict-snapshot`、`capacity` |
 | PLAN-01 | 09-10 | ✓ SATISFIED | 示例计划全是合成内容，两账号计划隔离用例通过，隐私检查通过 |
 | INFRA-03 | 09-02 | ✓ SATISFIED | 见成功标准 5 |
 
-6 个 ID 都出现在计划的 `requirements` 字段里（其余 8 个骨架计划为 `requirements: []`），没有孤立需求。REQUIREMENTS.md 里这 6 个 ID 都是 Complete；TEST-02 仍是 Pending（Phase 13 收口），ACCT-05 仍是 Pending（Phase 10），符合预期。
+6 个 ID 都出现在计划的 `requirements` 字段里，REQUIREMENTS.md 里都是 Complete，没有孤立需求。TEST-02 仍是 Pending（Phase 13 收口），ACCT-05 仍是 Pending（Phase 10），符合预期。
 
 ### 反模式扫描
 
-本阶段修改的应用和测试文件里，没有 TBD / FIXME / XXX / TODO / HACK。其余仍是上次的 6 条 info（IN-01 到 IN-06，不阻塞）。
+本阶段修改的应用和测试文件里，没有 TBD / FIXME / XXX / TODO / HACK。8a8f026 新增的 8 行没有引入空实现或占位内容。其余仍是上次的 6 条 info（IN-01 到 IN-06，不阻塞）。
 
 ### 观察（不是缺口）
 
-- **09-SECURITY.md 仍写 `threats_open: 1`、`status: open`。** T-09-18 和 T-09-21 已在 HEAD 的代码里修好，台账尚未更新。需要安全审计员重新核对后关闭（审计员正在读文件）。这是文档状态，不是代码缺口。
-- 修复者在复核说明里提醒：留底已写但还没公告时，工具栏入口一直隐藏，到提示出现才显示。用例 379、435 明确断言了这一点，属于有意设计。重新打开页面后 `snapShow` 会直接显示入口（不依赖 `snapPending`）。
+- **09-SECURITY.md 已更新：** 现在是 `status: verified`、`threats_open: 0`。上一份报告里“台账未更新”的那条文档同步项已经关闭。
+- **09-UI-REVIEW.md 里的 4 条代码级警告已处理：** toast 被挤窄、换账号框正文被弱化、新界面按钮字号 13px、启动进度条 10px 边距，都在 8a8f026 里按 UI-SPEC 修了。另外两条警告没有改代码：深色主题对比度没有证据（对应人工项 1）、旧视图标题字体变化未记录为已接受（IN-06，仍是 info，不阻塞）。toast 的修复是代码推断，没有人在 375 px 下实际看过，所以人工项 2 保留。
+- 留底已写但还没公告时，工具栏入口一直隐藏，到提示出现才显示。用例明确断言了这一点，属于有意设计。
 - 保存失败后 `flush` 在发起保存前就清了内存里的 `dirty`（B5，CONTEXT 已写明由 Phase 10 修，SYNC-06）。本阶段由本机脏缓存保证数据不丢。
 - 掉线后的编辑、状态栏的完整行为和实时同步属于 Phase 10。
 
 ## 需要人工验证
 
-阶段计划把下列项目明确留给验收（UI-SPEC 的 backstop），自动化测不出。它们已保存在 `09-UAT.md`，条目没变，只是第 3 条加了 T-09-21 新增的启动超限横幅。
+阶段计划把下列项目明确留给验收（UI-SPEC 的 backstop），自动化测不出。条目与 `09-UAT.md` 一致，只有第 2 条补充了 toast 宽度修复。
 
 ### 1. 深色主题外观
 **测试：** 深色主题下打开登录页，触发各类横幅和退出确认框
 **预期：** 对比度足够，色调可区分，风格一致
-**为什么要人看：** 视觉判断
+**为什么要人看：** 视觉判断，UI 审查也指出深色对比度没有任何计算或截图证据
 
 ### 2. 375 px 宽下最长的提示（UI-SPEC E4）
-**测试：** 手机宽度下制造一次真冲突
-**预期：** 提示可换行，“下载留底”按钮可点
-**为什么要人看：** UI-SPEC 标为 backstop，需截图核对
+**测试：** 手机宽度下制造一次真冲突，看修复后的 toast
+**预期：** 提示不再被压到约 187 px 宽，可换行，“下载留底”按钮可点，不遮挡状态行
+**为什么要人看：** UI-SPEC 标为 backstop，需截图核对。8a8f026 已加 `width:max-content;max-width:calc(100vw - 32px)` 和按钮 `flex:none`，这是现在要看的内容
 
 ### 3. 375 px 宽下的容量横幅（UI-SPEC E10）
 **测试：** 让容量警告出现，再让启动时的“超过上限”横幅出现
@@ -235,7 +198,7 @@ human_verification:
 
 ## 缺口摘要
 
-没有缺口。5 条成功标准、6 个需求、D-01 至 D-11 都有源码和通过的用例作证。两个安全修复经源码和用例核对，对成功标准 4 只有加强，没有发现回归。剩下的是阶段计划自己声明的 4 项视觉和真实浏览器的人工核对，加一条文档同步项（09-SECURITY.md 的 `threats_open` 待审计员更新）。
+没有缺口。5 条成功标准、6 个需求、D-01 至 D-11 都有源码和通过的用例作证。8a8f026 只改了样式和一个确认框的 class 钩子，没有触及任何云端读写、对账、冲突留底、会话或同源逻辑，上一轮的结论逐条保留，没有回归。剩下的是阶段计划自己声明的 4 项视觉和真实浏览器的人工核对。
 
 ---
 

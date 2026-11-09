@@ -21,7 +21,7 @@ expected: 文字对比度足够，info / warn / error 三种色调能区分，�
 result: [pending]
 
 ### 2. 375 px 宽下最长的提示（UI-SPEC E4）
-expected: 制造一次真冲突，冲突提示加“下载留底”按钮完整显示、可以换行，按钮仍然可点
+expected: 制造一次真冲突，冲突提示加“下载留底”按钮完整显示、可以换行，按钮仍然可点（UI 审查发现提示会被挤到约 187px 宽，8a8f026 已改成按内容伸展、最多屏宽减 32px，请确认实际效果）
 result: [pending]
 
 ### 3. 375 px 宽下的容量横幅（UI-SPEC E10）
