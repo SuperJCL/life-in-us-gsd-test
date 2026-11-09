@@ -862,7 +862,7 @@ async function reconcileOnce(r){
   const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
   /* reconcile table, one kind at a time (plan first, then state):
      server only -> server; clean cache with the same updated -> cache (= server); clean cache and newer server -> server, nothing uploaded;
-     dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict(), then upload the local version;
+     dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict() (silent), upload the local version, then conflictNotice();
      no server document -> create it from the cache, or from DEFAULT_PLAN / an empty state when there is no cache; a create that hits the (owner, kind)
      unique index (400 validation_not_unique: another device created it first) re-reads the list and continues from the same table with the server document.
      Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
@@ -875,8 +875,10 @@ async function reconcileOnce(r){
       catch(e){if(!uniq(e))throw e;list=await coll.getFullList(sg);live();sv=list.find(d=>d.kind===kind);if(!sv)throw e}
     }
     if(c&&c.dirty&&canon(c.data)!==canon(sv.data)){
-      if(c.base!==sv.updated)keepConflict(kind,sv);
+      /* the kept copy is written before the upload (a run abandoned meanwhile must still have kept it); it is announced only after the overwrite succeeded */
+      const clash=c.base!==sv.updated&&sv.writer!==WRITER,kept=clash&&keepConflict(kind,sv);
       const u=await coll.update(sv.id,{data:c.data,writer:WRITER},sg);live();
+      if(clash)conflictNotice(kept);
       return {sv:u,data:c.data,c};
     }
     return {sv,data:same(c,sv)?c.data:sv.data,c};
@@ -903,15 +905,18 @@ async function reconcileOnce(r){
 const snapKey=()=>cacheKey("snapshot");
 function snapGet(){try{const r=JSON.parse(localStorage.getItem(snapKey()));return r&&typeof r==="object"&&r.data&&typeof r.data==="object"?r:null}catch(e){return null}}
 function snapShow(){$("snapshotBtn").classList.toggle("hidden",!(CLOUD&&me&&snapGet()))}
+/* keepConflict only writes the kept copy and says whether that worked; conflictNotice tells the user, and is called once the overwrite has really happened */
 function keepConflict(kind,doc){
   const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
-  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}))}catch(e){
+  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}));return true}catch(e){return false}
+}
+function conflictNotice(kept){
+  if(!kept){
     showBar("snapfail",{tone:"warn",msg:"另一台设备上的修改被覆盖了，但本机空间不够，没能留底。请到另一台设备上核对被覆盖的内容。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("snapfail")}]});
-    return false;
+    return;
   }
   hideBar("snapfail");snapShow();
   toast("另一台设备上的修改被覆盖，已在本机留底",{label:"下载留底",fn:snapDownload},8000);
-  return true;
 }
 function snapDownload(){
   const snap=snapGet();
@@ -946,15 +951,17 @@ function sizeCheck(s){
 }
 async function cloudSave(s){
   sizeCheck(s);
-  const ep=sessionEpoch,seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r;
+  const ep=sessionEpoch,seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r,cur;
   try{
-    const cur=await coll.getOne(docs.state.id);
+    cur=await coll.getOne(docs.state.id);
     if(ep!==sessionEpoch)return;
-    if(cur.updated!==docs.state.base)keepConflict("state",cur);
     r=await coll.update(docs.state.id,{data:s,writer:WRITER});
   }
   catch(e){const er=new Error("修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
   if(ep!==sessionEpoch)return;
+  /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what was just uploaded;
+     it is kept and announced only now, after the overwrite succeeded */
+  if(cur.updated!==docs.state.base&&cur.writer!==WRITER&&canon(cur.data)!==canon(s))conflictNotice(keepConflict("state",cur));
   docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
   cachePut("state",{...docs.state,data:state});
 }

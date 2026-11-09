@@ -14,6 +14,7 @@ import {
   BTN_ACK,
   BTN_DOWNLOAD_SNAPSHOT,
   FILENAME_SNAPSHOT_FROZEN,
+  STATUS_SAVE_FAILED_CLOUD,
   TOAST_CONFLICT,
   TOAST_SNAPSHOT_DOWNLOADED,
   TOAST_SNAPSHOT_FAILED,
@@ -22,6 +23,8 @@ import {
 type Log = { id: string; text: string };
 
 const hasText = (logs: Log[] | undefined, text: string) => (logs ?? []).some((l) => l.text === text);
+
+const RECORD = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
 
 test('SYNC-05 a save over a newer server version keeps the last save, keeps the overwritten version on this device and says so', async ({
   app,
@@ -273,6 +276,103 @@ test('SYNC-05 a failed download keeps the kept version and says so', async ({ ap
     expect(snap).not.toBeNull();
     expect(hasText(snap.data.logs, 'SYNTH-0909 first')).toBe(true);
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-05 a server version written by this same page is not another device and keeps no version', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  const key = `usj:v2:${app.fake.users[0].id}`;
+
+  const first = composer(page, 'w');
+  await first.type('SYNTH-0912 first');
+  await first.submit();
+  await expect
+    .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待第一条记录上传' })
+    .toBe(true);
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null')?.dirty, `${key}:state`), {
+      message: '等待第一次保存收尾',
+    })
+    .toBe(false);
+
+  // 模拟“保存在服务器上成功、应答却丢了”：服务器版本比页面的基线新，但是是这个页面（同一个 writer）写的，内容就是页面上传过的那份
+  const path = `/api/collections/journey_docs/records/${app.fake.docId(0, 'state')}`;
+  const current = (await app.fake.request(0, 'GET', path)).body as { data: unknown; writer: string };
+  expect(current.writer).not.toBe('');
+  await app.fake.request(0, 'PATCH', path, { data: current.data, writer: current.writer });
+
+  const second = composer(page, 'w');
+  await second.type('SYNTH-0912 second');
+  await second.submit();
+  await expect
+    .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 second'), { message: '等待第二条记录上传' })
+    .toBe(true);
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null')?.dirty, `${key}:state`), {
+      message: '等待第二次保存收尾',
+    })
+    .toBe(false);
+
+  // 没有留底、没有下载入口、没有“已被覆盖”的提示
+  expect(await page.evaluate((k) => localStorage.getItem(k), `${key}:snapshot`)).toBeNull();
+  await expect(page.locator('#snapshotBtn')).toBeHidden();
+  const toast = await page.evaluate(() => {
+    const t = document.querySelector('#toast');
+    return { on: !!t && t.classList.contains('on'), text: t?.querySelector('span')?.textContent ?? '' };
+  });
+  expect(toast.on && toast.text === TOAST_CONFLICT).toBe(false);
+});
+
+test('SYNC-05 a conflict is kept and announced only after the overwrite succeeded, not when the upload is refused', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
+
+    const one = composer(page, 'w');
+    await one.type('SYNTH-0912 first');
+    await one.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
+      .toBe(true);
+
+    // 设备二的基线是旧的：它的第一次上传被拒绝，服务器版本没有被覆盖，所以不留底、不提示
+    app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse', times: 1 });
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0912 second');
+    await two.submit();
+    await expect(second.page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+    expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first')).toBe(true);
+    expect(await second.page.evaluate((k) => localStorage.getItem(k), key)).toBeNull();
+    await expect(second.page.locator('#snapshotBtn')).toBeHidden();
+    const toast = await second.page.evaluate(() => {
+      const t = document.querySelector('#toast');
+      return { on: !!t && t.classList.contains('on'), text: t?.querySelector('span')?.textContent ?? '' };
+    });
+    expect(toast.on && toast.text === TOAST_CONFLICT).toBe(false);
+
+    // 下一次修改上传成功：这次才真的覆盖了设备一的版本，留底和提示这时出现
+    const again = composer(second.page, 'w');
+    await again.type('SYNTH-0912 third');
+    await again.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 third') && !hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), {
+        message: '等待设备二的保存成为服务器上的最新版本',
+      })
+      .toBe(true);
+    await expectToast(second.page, TOAST_CONFLICT);
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+    const snap = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(hasText(snap.data.logs, 'SYNTH-0912 first')).toBe(true);
   } finally {
     await second.context.close();
   }
