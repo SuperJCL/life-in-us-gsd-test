@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-08-PLAN.md
-last_updated: "2026-11-09T09:27:11.589Z"
+stopped_at: Completed 09-09-PLAN.md
+last_updated: "2026-11-09T09:35:15.614Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 3c3b0693569d2892df6d4aab048f329065585209
+state_head: 5961ac81c448409651552d5bb8919e9cad08d92f
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 32
+  completed_plans: 33
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 9 of 14
+Plan: 10 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -118,6 +118,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P06 | 10 min | 2 tasks | 4 files |
 | Phase 09 P07 | 6 min | 2 tasks | 3 files |
 | Phase 09 P08 | 25 min | 2 tasks | 4 files |
+| Phase 09 P09 | 6 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -199,6 +200,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-06: banner priority expired > unreachable > slow > toolarge > snapfail > remote > sizewarn, one banner at a time; a retry keeps the unreachable banner with a disabled retrying button
 - [Phase 09]: 09-07: reconcile table complete; dirty cache uploads (keepConflict hook empty until 09-08), missing docs recreated from cache, validation_not_unique create race re-reads server; each cached document is handed to the reconcile separately
 - [Phase 09]: 09-08: real conflict = cloudSave getOne(updated) differs from local base; overwritten server version kept as single usj:v2:<id>:snapshot { kind, data }; download via Blob removes it; file name has no account identifier
+- [Phase 09]: 09-09: a snapshot that cannot be stored shows only the snapfail warn banner (no toast, no download button) and the upload still proceeds; 70 percent capacity warning is dismissed per page session via an in-memory flag; over CLOUD_MAX nothing is sent and the edit stays dirty in the local cache
 
 ### Pending Todos
 
@@ -249,8 +251,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T09:27:10.610Z
-Stopped at: Completed 09-08-PLAN.md
+Last session: 2026-11-09T09:35:14.597Z
+Stopped at: Completed 09-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -27,7 +27,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 - [ ] **SYNC-02**：同一账号在另一台设备上的修改，几秒内自动出现在这台设备上，并且不打断正在输入的草稿或打开的编辑框。
 - [ ] **SYNC-03**：断网时照样可以记录，界面显示待上传的数量；联网后自动上传。
 - [ ] **SYNC-04**：状态栏如实显示当前状态：已同步、保存中、离线、失败重试、登录过期。
-- [ ] **SYNC-05**：打开应用时先和服务器对账，再允许编辑，免得过期缓存覆盖其他设备的新数据。真冲突时以最后保存的为准，被覆盖的那一版在本机留底，可以下载。
+- [x] **SYNC-05**：打开应用时先和服务器对账，再允许编辑，免得过期缓存覆盖其他设备的新数据。真冲突时以最后保存的为准，被覆盖的那一版在本机留底，可以下载。
 - [ ] **SYNC-06**：保存失败会自动重试，不会悄悄丢掉（修 B5）；加载完成之前的编辑也不会被丢弃（修 B3）。
 
 ### 个人计划（PLAN）
@@ -111,7 +111,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | SYNC-02 | Phase 10 | Pending |
 | SYNC-03 | Phase 10 | Pending |
 | SYNC-04 | Phase 10 | Pending |
-| SYNC-05 | Phase 9 | Pending |
+| SYNC-05 | Phase 9 | Complete |
 | SYNC-06 | Phase 10 | Pending |
 | PLAN-01 | Phase 9 | Pending |
 | PLAN-02 | Phase 12 | Pending |
