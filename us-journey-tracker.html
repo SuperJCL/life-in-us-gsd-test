@@ -1017,12 +1017,13 @@ function resetSession(){
   document.querySelector(".wrap").classList.add("hidden");
   renderAll();
 }
-let loggingOut=false;
+let loggingOut=false;const UNSUB_MS=3000;
 async function logout(){
   if(loggingOut||!me)return;
   loggingOut=true;authQuiet=true;
   const btn=$("logoutBtn"),ep=sessionEpoch;btn.disabled=true;btn.textContent="正在退出…";
-  try{await pb.realtime.unsubscribe()}catch(e){}
+  /* unsubscribing asks the server; with no answer logout still goes on after UNSUB_MS (offline logout must work) */
+  try{await Promise.race([pb.realtime.unsubscribe(),new Promise(r=>setTimeout(r,UNSUB_MS))])}catch(e){}
   if(ep===sessionEpoch){
     ["state","plan","snapshot"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
     try{localStorage.removeItem(LAST_USER_KEY)}catch(e){}

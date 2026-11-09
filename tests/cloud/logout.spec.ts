@@ -12,6 +12,7 @@ import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openDevice } from '../support/devices';
 import { APP_FILE_NAME, FROZEN_NOW } from '../support/constants';
 import {
+  BTN_LOGGING_OUT,
   BTN_LOGOUT,
   BTN_LOGOUT_ANYWAY,
   BTN_NO_SWITCH,
@@ -378,6 +379,37 @@ test.describe('logout confirmation with the clock under test control', () => {
     expect(keys.filter((k) => k.startsWith(`${PREFIX}${userA.id}:`))).toEqual([]);
     expect(await stored(page, `${PREFIX}lastUser`)).toBe(userB.id);
     expect(JSON.stringify(app.fake.lastState(0))).not.toContain('SYNTH-0914 kept for A');
+  });
+
+  test('ACCT-02 logout still completes when unsubscribing from realtime never answers', async ({ app, page }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const userA = app.fake.users[0];
+
+    // 测试装置：让 SDK 的退订永远没有回应（假装断网时退订请求挂住）；只改这个页面里的 SDK 原型
+    await page.evaluate(() => {
+      const Client = (window as unknown as { PocketBase: new (url: string) => { realtime: object } }).PocketBase;
+      Object.getPrototypeOf(new Client(location.origin).realtime).unsubscribe = () => new Promise(() => {});
+    });
+
+    const button = page.locator('#logoutBtn');
+    await button.click();
+    await expect(button).toHaveText(BTN_LOGGING_OUT);
+    await expect(button).toBeDisabled();
+
+    // 3 秒的上限之前仍在退出中：什么都还没清，令牌还在
+    await page.clock.runFor(2_900);
+    await expect(page.locator('#login')).toBeHidden();
+    expect(await stored(page, 'pocketbase_auth')).not.toBeNull();
+
+    // 超过上限：照常清缓存、清令牌、回到登录页，按钮恢复，之后可以再登录
+    await page.clock.runFor(200);
+    await expect(page.locator('#login')).toBeVisible();
+    expect((await storageKeys(page)).filter((k) => k.startsWith(`${PREFIX}${userA.id}:`))).toEqual([]);
+    expect(await stored(page, 'pocketbase_auth')).toBeNull();
+    await expect(button).toHaveText(BTN_LOGOUT);
+    await expect(button).toBeEnabled();
   });
 });
 
