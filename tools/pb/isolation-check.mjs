@@ -44,7 +44,7 @@ export const EXPECTED_IDS = [
   'ACCT03-1', 'ACCT03-2', 'ACCT03-3', 'ACCT03-4', 'ACCT03-5',
   'ACCT04-1', 'ACCT04-2', 'ACCT04-3', 'ACCT04-4', 'ACCT04-5', 'ACCT04-6', 'ACCT04-7', 'ACCT04-8', 'ACCT04-9', 'ACCT04-10',
   'ACCT04-11', 'ACCT04-12', 'ACCT04-13', 'ACCT04-14', 'ACCT04-15', 'ACCT04-16', 'ACCT04-17', 'ACCT04-18', 'ACCT04-19', 'ACCT04-20',
-  'ACCT04-21', 'ACCT04-22', 'ACCT04-23', 'ACCT04-24', 'ACCT04-25', 'ACCT04-26',
+  'ACCT04-21', 'ACCT04-22', 'ACCT04-23', 'ACCT04-24', 'ACCT04-25', 'ACCT04-26', 'ACCT04-27',
   'TOK-1', 'TOK-2', 'D5-1', 'D5-2', 'D5-3', 'D5-4', 'D5-5',
   'RT-1', 'RT-2', 'RT-3', 'RT-4', 'RT-5', 'RT-6', 'RT-7',
   'NEG-1',
@@ -462,6 +462,81 @@ async function anonProbe(c, token, victimId) {
 
 const docsAndVictim = (victim) => async (c) => ({ v: await suRecord(c, 'journey_docs', victim(c)), n: await suCount(c, 'journey_docs', '') });
 
+// ACCT04-27 的共享实现（WR-01）：A 创建时在 owner、kind 之外再带字段修饰符键（owner+、+owner、owner-、kind+、+kind），
+// 或只带修饰符键不带 owner。两个账号的四个槽位先由超级用户清空，所以此刻集合里出现的任何记录都是这次尝试创建的；
+// 每次尝试之后用超级用户回读：owner 必须是 A、kind 必须仍是合法选项，任何不符（尤其 owner 变成 B）都算泄漏。
+// 修饰符键每种发 CREATE_TRIES 次，并交替键的书写顺序（服务端按 map 处理，顺序可能影响结果）。
+// 第一种 'plain' 是正向对照（普通创建必须成功），'spoof' 是普通的 owner=B 对照；真实集合上 spoof 必须被拒，宽松集合上必须泄漏。
+const CREATE_TRIES = 6;
+async function createModifierProbe(c, t) {
+  const A = t.aId;
+  const B = t.bId;
+  const slots = [['a', 'state'], ['a', 'plan'], ['b', 'state'], ['b', 'plan']];
+  const shapes = [
+    { label: 'plain', pairs: [['owner', A], ['kind', 'plan']] },
+    { label: 'spoof', pairs: [['owner', B], ['kind', 'plan']] },
+    { label: 'owner+', pairs: [['owner', A], ['kind', 'plan'], ['owner+', B]] },
+    { label: '+owner', pairs: [['owner', A], ['kind', 'plan'], ['+owner', B]] },
+    { label: 'owner-', pairs: [['owner', A], ['kind', 'plan'], ['owner-', B]] },
+    { label: 'kind+', pairs: [['owner', A], ['kind', 'plan'], ['kind+', 'state']] },
+    { label: '+kind', pairs: [['owner', A], ['kind', 'plan'], ['+kind', 'state']] },
+    { label: 'oplusonly', pairs: [['owner+', B], ['kind', 'plan']] },
+  ];
+  const sweep = async () => {
+    const l = await c.su('GET', `/api/collections/${t.coll}/records?perPage=100`);
+    if (l.status !== 200) throw new Error('准备失败：回读集合');
+    const items = (l.json && l.json.items) || [];
+    for (const it of items) await c.su('DELETE', recPath(t.coll, it.id));
+    return items;
+  };
+  for (const [w, k] of slots) {
+    const d = await c.su('DELETE', recPath(t.coll, t[w][k]));
+    if (d.status !== 204) throw new Error('准备失败：清空槽位');
+  }
+  const seen = [];
+  let leaks = 0;
+  let shifts = 0;
+  let controlOk = true;
+  let first = null;
+  try {
+    for (const s of shapes) {
+      const codes = [];
+      let shapeLeaks = 0;
+      for (let i = 0; i < CREATE_TRIES; i += 1) {
+        const pairs = i % 2 === 0 ? s.pairs : [...s.pairs].reverse();
+        const body = {};
+        for (const [k, v] of pairs) body[k] = v;
+        body.data = { _synthetic: true };
+        const r = await c.api('POST', `/api/collections/${t.coll}/records`, { token: t.aTok, body });
+        codes.push(r.status);
+        if (!first) first = r;
+        const created = await sweep();
+        for (const it of created) {
+          // 隔离属性：owner 必须是 A，kind 必须仍在选项里。kind 变成请求之外的另一个合法值只记数（0.41.1 实测：kind+ 追加会把
+          // kind 变成 state，仍在 A 自己的命名空间里，不跨账号，也受 (owner, kind) 唯一索引约束），不算泄漏。
+          if (it.owner !== A || !['state', 'plan'].includes(it.kind)) {
+            leaks += 1;
+            shapeLeaks += 1;
+          } else if (it.kind !== 'plan') {
+            shifts += 1;
+          }
+        }
+        if (s.label === 'plain' && !(r.status === 200 && created.length === 1 && created[0].owner === A)) controlOk = false;
+      }
+      seen.push(`${s.label}:${[...new Set(codes)].join('|')}:leak${shapeLeaks}`);
+    }
+  } finally {
+    await sweep();
+    for (const [w, k] of slots) t[w][k] = await makeDoc(c, t.coll, w === 'a' ? A : B, k);
+  }
+  return {
+    pass: leaks === 0 && controlOk,
+    status: first ? first.status : undefined,
+    leaked: leaks > 0,
+    detail: `${seen.join(',')},leaks:${leaks},kindshift:${shifts},control:${controlOk ? 1 : 0}`,
+  };
+}
+
 // ---------- 断言登记 ----------
 
 export function registerAll(reg) {
@@ -776,6 +851,16 @@ export function registerAll(reg) {
     return { ...out(pass, first), detail: seen.join(',') };
   });
 
+  check(
+    'ACCT04-27',
+    'A 创建时带字段修饰符键（owner+、+owner、owner-、kind+、+kind）不能写出别人的记录或改掉 owner（超级用户回读，WR-01）',
+    (c) => createModifierProbe(c, realTarget(c)),
+    {
+      write: true,
+      readback: async (c) => [await suCount(c, 'journey_docs', `owner="${c.A.id}"`), await suCount(c, 'journey_docs', `owner="${c.B.id}"`)],
+    },
+  );
+
   // ----- 令牌与改密码（TOK-2、D5-1 放在最后） -----
   check('TOK-1', '令牌有效期是 7776000 秒，登录令牌的 exp 在 90 天上下 1 天内', async (c) => {
     const r = await c.su('GET', '/api/collections/users');
@@ -916,7 +1001,7 @@ export function registerAll(reg) {
   );
 
   // ----- 反向对照：故意写错的集合，检查函数必须报出泄漏 -----
-  check('NEG-1', '反向对照：在故意写错规则的集合上，ACCT04-1、3、4、5、RT-1、RT-7 的检查都报出泄漏', async (c) => {
+  check('NEG-1', '反向对照：在故意写错规则的集合上，ACCT04-1、3、4、5、27、RT-1、RT-7 的检查都报出泄漏', async (c) => {
     const leaky = await makeLeaky(c);
     const defs = restProbeDefs(() => leaky);
     const verdicts = [];
@@ -931,7 +1016,11 @@ export function registerAll(reg) {
     const ul = await makeUsersLeaky(c);
     const r7 = await rt7(c, ul);
     verdicts.push(`RT-7:${r7.leaked ? 'leak' : 'noleak'}`);
-    return { pass: verdicts.length === 6 && verdicts.every((v) => v.endsWith(':leak')), detail: verdicts.join(',') };
+    // ACCT04-27 的检查函数：创建规则不核对 owner 的集合上，A 以 owner=B 创建必须被它报成泄漏
+    const wide = await makeLeaky(c, { name: 'journey_docs_leaky_create', createRule: '@request.auth.id != ""' });
+    const r27 = await createModifierProbe(c, wide);
+    verdicts.push(`ACCT04-27:${r27.leaked ? 'leak' : 'noleak'}`);
+    return { pass: verdicts.length === 7 && verdicts.every((v) => v.endsWith(':leak')), detail: verdicts.join(',') };
   });
 
   check(
@@ -983,15 +1072,17 @@ export function registerAll(reg) {
 }
 
 // 临时集合 journey_docs_leaky：故意写错的规则（list、view、update 只要求已登录，deleteRule 为空字符串）
-async function makeLeaky(c) {
+// opts.name 和 opts.createRule 供 ACCT04-27 的反向对照使用（创建规则不核对 owner 的集合）
+async function makeLeaky(c, opts = {}) {
   const users = await c.su('GET', '/api/collections/users');
   const auth = '@request.auth.id != ""';
+  const name = opts.name || 'journey_docs_leaky';
   const r = await c.su('POST', '/api/collections', {
-    name: 'journey_docs_leaky',
+    name,
     type: 'base',
     listRule: auth,
     viewRule: auth,
-    createRule: `${auth} && @request.body.owner = @request.auth.id`,
+    createRule: opts.createRule || `${auth} && @request.body.owner = @request.auth.id`,
     updateRule: auth,
     deleteRule: '',
     fields: [
@@ -1001,8 +1092,8 @@ async function makeLeaky(c) {
       { type: 'text', name: 'writer', max: 40 },
     ],
   });
-  if (r.status !== 200) throw new Error(`准备失败：创建 journey_docs_leaky 返回 ${r.status}`);
-  const coll = 'journey_docs_leaky';
+  if (r.status !== 200) throw new Error(`准备失败：创建 ${name} 返回 ${r.status}`);
+  const coll = name;
   return {
     coll,
     a: { state: await makeDoc(c, coll, c.A.id, 'state'), plan: await makeDoc(c, coll, c.A.id, 'plan') },

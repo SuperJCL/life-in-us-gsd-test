@@ -133,6 +133,7 @@
 
 - **401 只来自 `auth-refresh`**（refresh-invalid-token）。对记录接口，无效或过期的令牌被当作未登录：列表是 200 空、查看和更新是 404、删除是 403、创建是 400。所以应用判断“登录是否过期”要看 `authRefresh` 的结果或本地令牌的 exp，不能看记录接口的状态码。
 - **`:isset = false` 连相同值也拒。** 更新规则里写的是 `@request.body.owner:isset = false` 和 `@request.body.kind:isset = false`，只看请求体里有没有这个键；带原值的 owner 一样是 404（update-owner-key）。所以客户端更新只能发 `data` 和 `writer`。08-05 还实测过带字段修饰符的键（`owner+`、`+owner`、`owner-`、`kind+`）同样是 404，回读不变。
+- **创建时的字段修饰符键（08-05 之后由 WR-01 补测，ACCT04-27）：** 创建规则看的是请求体里原始的 `owner`，写入时 PocketBase 还会处理 `owner+`、`+owner`、`kind+` 这类修饰符键。0.41.1 实测：没有任何组合能让 A 写出 owner 不是 A 的记录（`owner+` 让创建被拒、`+owner`、`owner-` 之后 owner 仍是 A），所以跨账号隔离成立。唯一的偏差是 `kind+` 追加会把单选的 kind 变成追加的值（请求 plan 加 `kind+: state` 得到 state）；这发生在 A 自己的命名空间里、值仍受选项和 `(owner, kind)` 唯一索引约束，所以不算漏洞。规则语法不接受带 `+` 的键，规则层挡不了这个偏差。应用的创建请求不要带修饰符键，假服务器也不模拟它们。
 - **唯一冲突：** `(owner, kind)` 有唯一索引；重复创建时 data 里 owner 和 kind 的错误码都是 `validation_not_unique`（create-duplicate-kind）。
 - **改密码或后台重置密码会轮换 tokenKey，旧令牌立即失效**：旧令牌的 `auth-refresh` 是 401，新口令登录 200，旧口令登录 400。
 - **创建成功的状态码是 200，不是 201**（create-own、realtime-create-full；08-05 的 ACCT03-5 在开放集合上匿名注册成功也是 200）。
@@ -164,6 +165,7 @@
 | ACCT04-24 | 登录和刷新 | 200、200 |
 | ACCT04-25 | A 读超级用户记录、集合、设置、日志、备份接口 | 五个都是 403；用 A 的凭据登录超级用户集合是 400 |
 | ACCT04-26 | A 列第三方登录相关的系统集合 | 200，没有 B 的记录 |
+| ACCT04-27 | A 创建时带修饰符键：普通 `owner=A` 正向对照 200；`owner=B` 400；`owner+`（B）400；`+owner`（B）、`owner-` 200 且 owner 仍是 A；只带 `owner+` 不带 owner 400；`kind+`（state）200 且 kind 变成 state；`+kind` 200 且 kind 仍是请求值 | 超级用户回读：没有任何记录的 owner 不是 A，B 的槽位里没有记录；kind 变化只在 A 自己的命名空间里（见第 7 节的说明） |
 | TOK-1 | 令牌有效期 | 集合的令牌有效期 7776000 秒；登录令牌的剩余有效期在 90 天上下一天内 |
 | D5-1 | A 带正确旧口令改密码 | 200；旧令牌 `auth-refresh` 401；新口令登录 200；旧口令登录 400 |
 | D5-2 | 缺旧口令 | 400，`validation_required` |
@@ -183,7 +185,7 @@
 换 PocketBase 或 SDK 的版本时：
 
 1. 先经所有者批准（程序和 SDK 都是单一来源，哈希核对只能防下载损坏）；
-2. `npm run pb:isolation`：重新断言账号隔离，最后一行应是 `ISOLATION OK 47/47`；
+2. `npm run pb:isolation`：重新断言账号隔离，最后一行应是 `ISOLATION OK 48/48`；
 3. `node tools/pb/record-samples.mjs`：重新录制，最后一行 `SAMPLES WRITTEN 28`；录到的状态码与场景表的 `expect` 不同时会以 `STATUS MISMATCH` 中止，先查原因，不改 `expect` 去迁就；
 4. `node tools/pb/record-samples.mjs --check`：最后一行 `SAMPLES CLEAN 2`；
 5. 08-07 的契约自测：让假服务器对同一份场景表产生响应，与新样本比对状态码、键集合和归一化后的正文。
