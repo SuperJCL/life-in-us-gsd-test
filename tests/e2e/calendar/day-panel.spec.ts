@@ -81,7 +81,7 @@ test('CAL-03 a day without entries shows the empty hint and days before and on a
     .poll(() => readDayPanel(page), { message: '3 月 10 日的日面板与推导不一致（只含 id、组号和固定文案）' })
     .toEqual(plansOnly);
 
-  // 翻到 1 月：抵达之前的副标题是年份，抵达当天是来美国第 1 天并且有一条记录
+  // 翻到 1 月：开始日期之前的副标题是年份，开始当天是第 1 天并且有一条记录
   await page.locator('#prev').click();
   await page.locator('#prev').click();
   await pickDay(page, '2026-01-05');

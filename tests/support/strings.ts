@@ -26,11 +26,28 @@ export const STATUS_ACCOUNT = '已同步保存到你的账户';
 // 导出成功后弹出的 toast 文案（应用源码逐字复制）
 export const TOAST_EXPORTED = '已导出';
 
+// 应用名：文档标题、登录卡标题和页头 h1（应用源码逐字复制）
+export const APP_NAME = '计划手记';
+
+// 页头开始日期的标签文字（应用源码逐字复制）
+export const START_DATE_LABEL = '开始日期';
+
+// 页头计数器：没设开始日期时的提示（应用源码逐字复制）
+export const COUNTER_UNSET = '先设置开始日期';
+
+// 页头计数器：开始日期当天及之后写“第 N 天”（应用源码逐字复制）
+export const COUNTER_DAY_PREFIX = '第';
+export const COUNTER_DAY_SUFFIX = '天';
+
+// 页头计数器：开始日期之前写“还有 N 天开始”（应用源码逐字复制）
+export const COUNTER_BEFORE_PREFIX = '还有';
+export const COUNTER_BEFORE_SUFFIX = '天开始';
+
 // 日历 CSV 的导出文件名（应用源码逐字复制）
-export const FILENAME_CSV = '在美国的日子-日历.csv';
+export const FILENAME_CSV = '计划手记-日历.csv';
 
 // JSON 备份的导出文件名；日期是冻结的今天 2026-03-18（D-16）。只是字符串常量，不对应磁盘上的文件
-export const FILENAME_BACKUP_FROZEN = '在美国的日子-备份-2026-03-18.json';
+export const FILENAME_BACKUP_FROZEN = '计划手记-备份-2026-03-18.json';
 
 // 五个类别的显示名，即应用 CATS 的 n 字段，应用持久化的就是它们；按 D-12 的澄清允许复制，第一项复用上面的 CAT_LANGUAGE
 export const CATEGORY_NAMES = [CAT_LANGUAGE, '专业', '健身', '求职', '其他'] as const;
@@ -88,11 +105,11 @@ export const PRESET_EDIT_DONE_LABEL = '完成';
 
 // ---- 本周视图（WEEK-01、WEEK-02、WEEK-05）----
 
-// 周标题：抵达日期所在周之后写“来美国第 N 周”，前缀和后缀（应用源码逐字复制）
-export const WEEK_TITLE_ARRIVAL_PREFIX = '来美国第 ';
+// 周标题：开始日期（state.arrival）所在周之后写“第 N 周”，前缀和后缀（应用源码逐字复制）
+export const WEEK_TITLE_ARRIVAL_PREFIX = '第 ';
 export const WEEK_TITLE_ARRIVAL_SUFFIX = ' 周';
 
-// 周标题：既不在抵达日期之后、也不是今天所在周时的通用标题（应用源码逐字复制）
+// 周标题：既不在开始日期之后、也不是今天所在周时的通用标题（应用源码逐字复制）
 export const WEEK_TITLE_OTHER = '这一周';
 
 // 日期文案片段（应用源码逐字复制）：月、日的后缀，星期的前缀
@@ -176,8 +193,8 @@ export const DAY_SECTION_DUE = '这天到期';
 // 这天没有记录时的空提示，句号是全角（应用源码第 501 行逐字复制）
 export const DAY_EMPTY = '这天还没有记录。';
 
-// 日面板副标题：抵达日及之后写“来美国第 N 天”，之前写“YYYY 年”（应用源码第 497 行逐字复制）
-export const DAY_SUB_ARRIVAL_PREFIX = '来美国第 ';
+// 日面板副标题：开始日期（state.arrival）及之后写“第 N 天”，之前写“YYYY 年”（应用源码逐字复制）
+export const DAY_SUB_ARRIVAL_PREFIX = '第 ';
 export const DAY_SUB_ARRIVAL_SUFFIX = ' 天';
 export const DAY_SUB_YEAR_SUFFIX = ' 年';
 
@@ -301,7 +318,7 @@ export const BTN_DOWNLOAD_SNAPSHOT = '下载留底';
 export const TOAST_SNAPSHOT_DOWNLOADED = '已开始下载留底，本机不再保留副本';
 
 // 冻结日期（2026-03-18）下载留底的文件名：只有应用名、种类和日期，不含任何账号标识（D-11）
-export const FILENAME_SNAPSHOT_FROZEN = '在美国的日子-留底-2026-03-18.json';
+export const FILENAME_SNAPSHOT_FROZEN = '计划手记-留底-2026-03-18.json';
 
 // 留底生成或下载出错时的 toast（09-UI-SPEC S5/S8 D-10 逐字复制，4000 ms）；此时不删留底、#snapshotBtn 保留
 export const TOAST_SNAPSHOT_FAILED = '留底生成失败，本机副本仍然保留';

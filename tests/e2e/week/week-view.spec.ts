@@ -27,8 +27,15 @@ import {
   weekGoalDays,
 } from '../../support/expect-from-fixture';
 import {
+  APP_NAME,
   AREA_COUNT_UNIT,
   CATEGORY_NAMES,
+  COUNTER_BEFORE_PREFIX,
+  COUNTER_BEFORE_SUFFIX,
+  COUNTER_DAY_PREFIX,
+  COUNTER_DAY_SUFFIX,
+  COUNTER_UNSET,
+  START_DATE_LABEL,
   WEEK_GOAL_DAY_UNIT,
   WEEK_GOAL_FIT_PREFIX,
   WEEK_GOAL_RECORDED_SUFFIX,
@@ -188,6 +195,47 @@ test('WEEK-01 the title reads the arrival week, the current week or a generic la
   const generic = expectedWeekTitle(state.arrival, '2026-03-09', FROZEN_TODAY);
   expect(generic).toBe(WEEK_TITLE_OTHER);
   await expectWeekMatches(page, state, '2026-03-09', '2026-03-09');
+});
+
+test('WEEK-01 the header shows the app name, the start-date label and a neutral day counter', async ({ page, app }) => {
+  const state = { ...loadFixture('full-state.json'), arrival: FROZEN_TODAY };
+  await openWeek(app, state);
+
+  // 应用名：文档标题、页头 h1 和登录卡标题（账户模式下登录卡是隐藏的，toHaveText 读文本内容，不需要可见）
+  await expect(page).toHaveTitle(APP_NAME);
+  await expect(page.locator('header.top h1')).toHaveText(APP_NAME);
+  await expect(page.locator('#login-title')).toHaveText(APP_NAME);
+
+  // 标签文字和输入框
+  await expect(page.locator('label.arrival')).toHaveText(START_DATE_LABEL);
+  await expect(page.locator('label.arrival #arrival')).toHaveCount(1);
+
+  // 开始日期是今天：第 1 天
+  await expect(page.locator('#counter .lbl')).toHaveText([COUNTER_DAY_PREFIX, COUNTER_DAY_SUFFIX]);
+  await expect(page.locator('#counter .n')).toHaveText('1');
+
+  // 开始日期在今天之后一周：还有 7 天开始
+  const setArrival = (value: string) =>
+    page.evaluate((v) => {
+      const input = document.querySelector<HTMLInputElement>('#arrival')!;
+      input.value = v;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+  await setArrival('2026-03-25');
+  await expect(page.locator('#counter .lbl')).toHaveText([COUNTER_BEFORE_PREFIX, COUNTER_BEFORE_SUFFIX]);
+  await expect(page.locator('#counter .n')).toHaveText('7');
+
+  // 清空开始日期：只剩提示，没有数字
+  await setArrival('');
+  await expect(page.locator('#counter')).toHaveText(COUNTER_UNSET);
+  await expect(page.locator('#counter .n')).toHaveCount(0);
+
+  // 页头和登录卡里没有旧字样（旧的国家名和两个旧动词）
+  const oldWords = new RegExp(['美国', '抵达', '出发'].join('|'));
+  const headerText = await page.locator('header.top').textContent();
+  const loginText = await page.locator('#login').textContent();
+  expect(headerText ?? '', '页头文字不应含旧字样').not.toMatch(oldWords);
+  expect(loginText ?? '', '登录卡文字不应含旧字样').not.toMatch(oldWords);
 });
 
 test('WEEK-01 the fitness goal row is marked as met when every day of the week has a fitness entry', async ({

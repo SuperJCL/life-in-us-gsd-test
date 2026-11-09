@@ -246,7 +246,7 @@ export function expectedWeekRange(weekStart: string): string {
   return mdLabel(weekStart) + WEEK_RANGE_SEPARATOR + endLabel;
 }
 
-// 周标题：有抵达日期且本周不早于抵达周时写“来美国第 N 周”；否则是今天所在周时写“本周”；其余是“这一周”
+// 周标题：有开始日期且本周不早于开始日期所在周时写“第 N 周”；否则是今天所在周时写“本周”；其余是“这一周”
 export function expectedWeekTitle(arrival: string | null | undefined, weekStart: string, today: string): string {
   if (arrival && weekStart >= mondayOf(arrival)) {
     const weeks = Math.round((utcMs(weekStart) - utcMs(mondayOf(arrival))) / (7 * DAY_MS));
@@ -411,7 +411,7 @@ export function dayPanelTitle(ymd: string): string {
   return `${mdLabel(ymd)} ${weekdayLabel(ymd)}`;
 }
 
-// 日面板副标题：有抵达日期且 ymd 不早于抵达日时是“来美国第 N 天”（抵达当天是第 1 天），否则是“YYYY 年”
+// 日面板副标题：有开始日期且 ymd 不早于开始日期时是“第 N 天”（开始当天是第 1 天），否则是“YYYY 年”
 export function dayPanelSub(arrival: string | null | undefined, ymd: string): string {
   if (arrival && ymd >= arrival) {
     const days = Math.round((utcMs(ymd) - utcMs(arrival)) / DAY_MS);

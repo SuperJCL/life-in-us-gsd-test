@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>在美国的日子</title>
+<title>计划手记</title>
 <style>
 :root{
   --paper:#F2F5F9; --surface:#FFFFFF; --ink:#1B2740; --muted:#5E6B82; --line:#D9E0EA; --red:#B4423A;
@@ -286,7 +286,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 </head>
 <body>
 <section id="login" class="hidden" aria-labelledby="login-title">
-  <h1 id="login-title">在美国的日子</h1>
+  <h1 id="login-title">计划手记</h1>
   <p class="lead">登录后，记录会在你的手机和电脑之间同步</p>
   <div class="gate-card">
     <div id="loginNotice" class="syncbar hidden" role="status"></div>
@@ -312,11 +312,11 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 <div class="wrap">
   <header class="top">
     <div class="title">
-      <h1>在美国的日子</h1>
+      <h1>计划手记</h1>
       <p>语言、专业、健身、求职，每天记一点</p>
-      <label class="arrival">抵达美国 <input type="date" id="arrival"></label>
+      <label class="arrival">开始日期 <input type="date" id="arrival"></label>
     </div>
-    <div class="counter" id="counter"><span class="lbl">先设置抵达日期</span></div>
+    <div class="counter" id="counter"><span class="lbl">先设置开始日期</span></div>
   </header>
 
   <div id="syncbar" class="syncbar hidden" role="status"><span class="sb-msg"></span></div>
@@ -954,7 +954,7 @@ function conflictNotice(kept){
 function snapDownload(){
   const snap=snapGet();
   if(!snap){snapShow();return}
-  const name=(snap.kind==="plan"?"在美国的日子-计划留底-":"在美国的日子-留底-")+today()+".json";
+  const name=(snap.kind==="plan"?"计划手记-计划留底-":"计划手记-留底-")+today()+".json";
   let url=null;
   try{
     url=URL.createObjectURL(new Blob([JSON.stringify(snap.data,null,2)],{type:"application/json"}));
@@ -1149,14 +1149,14 @@ function renderHeader(){
   $("arrival").value=state.arrival||"";
   const c=$("counter");
   if(state.arrival){const days=Math.round((parse(today())-parse(state.arrival))/864e5)+1;
-    c.innerHTML=days>0?`<span class="lbl">来美国第</span><span class="n">${days}</span><span class="lbl">天</span>`:`<span class="lbl">还有</span><span class="n">${1-days}</span><span class="lbl">天出发</span>`;}
-  else c.innerHTML='<span class="lbl">先设置抵达日期</span>';
+    c.innerHTML=days>0?`<span class="lbl">第</span><span class="n">${days}</span><span class="lbl">天</span>`:`<span class="lbl">还有</span><span class="n">${1-days}</span><span class="lbl">天开始</span>`;}
+  else c.innerHTML='<span class="lbl">先设置开始日期</span>';
 }
 
 function renderWeek(){
   const end=addDays(wk,6);
   let title="这一周";
-  if(state.arrival&&wk>=monday(state.arrival))title=`来美国第 ${Math.round((parse(wk)-parse(monday(state.arrival)))/(7*864e5))+1} 周`;
+  if(state.arrival&&wk>=monday(state.arrival))title=`第 ${Math.round((parse(wk)-parse(monday(state.arrival)))/(7*864e5))+1} 周`;
   else if(wk===monday(today()))title="本周";
   $("wkTitle").textContent=title;
   $("wkRange").textContent=md(wk)+" – "+(wk.slice(5,7)===end.slice(5,7)?(+end.slice(8))+"日":md(end));
@@ -1201,7 +1201,7 @@ function renderCal(){
 }
 function renderDay(){
   const d=parse(sel),e=eventsOn(sel);
-  let dayN=state.arrival&&sel>=state.arrival?`来美国第 ${Math.round((d-parse(state.arrival))/864e5)+1} 天`:d.getFullYear()+" 年";
+  let dayN=state.arrival&&sel>=state.arrival?`第 ${Math.round((d-parse(state.arrival))/864e5)+1} 天`:d.getFullYear()+" 年";
   const box=$("dayPanel");
   box.innerHTML=`<h3>${md(sel)} 周${WD[d.getDay()]}</h3><p class="sub">${dayN}</p>${composer("c",sel)}
     <div class="sect">做过的事</div>
@@ -1355,9 +1355,9 @@ $("exportCsv").onclick=async()=>{
     if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",t.group+" 计划"]);
     else if(s.due)rows.push(["截止："+t.text,usDate(s.due),"True",t.group+" 计划"])});
   if(rows.length===1){toast("还没有可导出的日期");return}
-  await save("在美国的日子-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"));
+  await save("计划手记-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"));
 };
-$("exportJson").onclick=()=>save("在美国的日子-备份-"+today()+".json",JSON.stringify(state,null,2));
+$("exportJson").onclick=()=>save("计划手记-备份-"+today()+".json",JSON.stringify(state,null,2));
 async function save(filename,data){
   try{await window.__dl.save({filename,data});toast("已导出")}
   catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
