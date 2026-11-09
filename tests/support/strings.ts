@@ -245,3 +245,20 @@ export const TOAST_REMOTE_UPDATED = '已更新为其他设备上的最新内容'
 // 云端保存失败时的状态行文案（09-UI-SPEC S2 的 savefailed 行逐字复制）；#status 的 data-state 同时为 savefailed。
 // Phase 10 做自动重试（SYNC-06）时由 retrying 取代，到那时本常量随之删除
 export const STATUS_SAVE_FAILED_CLOUD = '保存失败：修改仍在本机，下次修改或重新打开时会再上传';
+
+// 对账约 3 秒仍未完成时的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 slow。
+// 没有缓存时等待卡片的标题用同一句
+export const STATUS_SLOW = '网络较慢，还在连…';
+
+// 对账约 15 秒仍未完成时的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 unreachable
+export const STATUS_UNREACHABLE = '连不上服务器，暂时只能查看，不能修改';
+
+// 顶部横幅 #syncbar 在对账变慢时的正文（09-UI-SPEC S4 横幅文案总表逐字复制，无按钮）；data-tone 为 warn
+export const BANNER_SLOW = '网络较慢，还在连…现在还不能修改。';
+
+// 顶部横幅 #syncbar 在连不上（只读）时的正文（09-UI-SPEC S4 横幅文案总表逐字复制）；data-tone 为 error，带一个重试按钮
+export const BANNER_UNREACHABLE = '连不上服务器，现在只能查看上次的内容，不能修改。';
+
+// 横幅和等待卡片里的重试按钮文字（09-UI-SPEC S4 按钮列），点击后立即换成 BTN_RETRYING 并 disabled（S2 规则）
+export const BTN_RETRY = '重试';
+export const BTN_RETRYING = '正在重试…';

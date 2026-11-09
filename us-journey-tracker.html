@@ -246,6 +246,17 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 #login #login-err+.primary{margin-top:16px}
 #login .fine{font-size:12px;color:var(--muted);text-align:center;margin:16px 0 0}
 @media (max-width:560px){#login input,#login .primary{min-height:44px}}
+/* status dot and sync bar */
+.status[data-state]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
+.status[data-state="synced"]{--tone:var(--c-lang)}
+.status[data-state="saving"],.status[data-state="reconciling"]{--tone:var(--muted)}
+.status[data-state="offline"],.status[data-state="retrying"],.status[data-state="savefailed"],.status[data-state="slow"],.status[data-state="expired"]{--tone:var(--c-job)}
+.status[data-state="unreachable"],.status[data-state="toolarge"]{--tone:var(--red)}
+.syncbar{--tone:var(--c-job);display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0 0;padding:12px 16px;background:var(--surface);color:var(--ink);font-size:14px;line-height:1.55;border:1px solid var(--line);border-left:4px solid var(--tone);border-radius:10px}
+.syncbar[data-tone="error"]{--tone:var(--red)}
+.syncbar[data-tone="info"]{--tone:var(--c-lang)}
+.syncbar .sb-msg{flex:1 1 220px;min-width:0;word-break:break-word}
+.syncbar button{min-height:36px;padding:4px 12px}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 </head>
@@ -274,6 +285,8 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
     </div>
     <div class="counter" id="counter"><span class="lbl">先设置抵达日期</span></div>
   </header>
+
+  <div id="syncbar" class="syncbar hidden" role="status"><span class="sb-msg"></span></div>
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="wk" aria-selected="true">本周</button>
@@ -587,7 +600,7 @@ function loadSdk(){return new Promise((ok,no)=>{
   document.head.appendChild(s);
 })}
 function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
-function showLogin(err){setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
+function showLogin(err){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
 async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
@@ -640,30 +653,75 @@ function gateGuard(e){
   if(t.closest(GATE_BLOCK)||!t.closest(GATE_ALLOW+",.day")){e.stopImmediatePropagation();e.preventDefault()}
 }
 ["click","keydown","dragstart","drop","change","input"].forEach(n=>window.addEventListener(n,gateGuard,true));
+/* sync bar: one banner at a time, highest priority first (S2); text and buttons are built with textContent and createElement */
+const SB_ORDER=["expired","unreachable","slow","toolarge","snapfail","remote","sizewarn"],sbs={};
+function drawBar(){
+  const el=$("syncbar"),key=SB_ORDER.find(k=>sbs[k]),msg=el.querySelector(".sb-msg");
+  el.querySelectorAll("button").forEach(b=>b.remove());
+  if(!key){el.classList.add("hidden");el.removeAttribute("data-tone");msg.textContent="";return}
+  const b=sbs[key];el.setAttribute("data-tone",b.tone);msg.textContent=b.msg;
+  (b.btns||[]).forEach(x=>{const e=document.createElement("button");e.type="button";e.className=x.cls;e.textContent=x.text;if(x.disabled)e.disabled=true;e.addEventListener("click",x.fn);el.appendChild(e)});
+  el.classList.remove("hidden");
+}
+function showBar(key,b){sbs[key]=b;drawBar()}
+function hideBar(key){if(sbs[key]){delete sbs[key];drawBar()}}
+/* reconcile run: exactly one is current; a run that was abandoned at the deadline, replaced by a retry or superseded by a login never touches the page again */
+const SLOW_MS=3000,FAIL_MS=15000;
+const T_RECON="正在和服务器对账…",T_SLOW="网络较慢，还在连…",T_UNREACH="连不上服务器，暂时只能查看，不能修改",T_RETRYING="正在重试…";
+const STALE=new Error("stale");
+let run=null;
+function endRun(r){if(!r)return;r.live=false;r.timers.forEach(clearTimeout);r.timers=[];try{r.ctrl.abort()}catch(e){}}
+function clearRunUI(){hideBar("slow");hideBar("unreachable")}
+const unreachBar=(r,busy)=>({tone:"error",msg:"连不上服务器，现在只能查看上次的内容，不能修改。",btns:[{text:busy?T_RETRYING:"重试",cls:"primary",disabled:busy,fn:()=>onRetry(r.mode)}]});
+/* a retry is only possible once the previous run was abandoned; a click while a run is live (the button is already disabled) does nothing */
+function onRetry(mode){if(run&&run.live)return;startReconcile(mode,true)}
+function startReconcile(mode,retrying){
+  endRun(run);
+  const r={ctrl:new AbortController(),live:true,timers:[],mode};run=r;
+  const alive=()=>r.live&&run===r,cached=mode.cached;
+  const later=(fn,ms)=>{r.timers.push(setTimeout(()=>{if(alive())fn()},ms))};
+  setStatus(T_RECON,"reconciling");
+  if(cached){setGate("reconciling");if(retrying)showBar("unreachable",unreachBar(r,true))}
+  later(()=>{setStatus(T_SLOW,"slow");if(cached)showBar("slow",{tone:"warn",msg:"网络较慢，还在连…现在还不能修改。"})},SLOW_MS);
+  later(()=>{
+    endRun(r);setStatus(T_UNREACH,"unreachable");
+    if(cached){hideBar("slow");setGate("readonly");showBar("unreachable",unreachBar(r,false))}
+  },FAIL_MS);
+  const attempt=async()=>{
+    try{await reconcileOnce(r)}
+    catch(e){
+      if(!alive())return;
+      if(e&&e.status===401){endRun(r);pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("");return}
+    }
+  };
+  return attempt();
+}
 async function enterApp(refresh){
   me=pb.authStore.record.id;
   try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
-  const cp=cacheGet("plan"),cs=cacheGet("state"),old={plan:null,state:null};
-  if(cp&&cs){
-    old.plan=cp;old.state=cs;
+  const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cached?cp:null,state:cached?cs:null};
+  if(cached){
     usePlan(cp.data);state=normalize(cs.data);
     docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0};
     store=cloudStore();
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
-    setGate("reconciling");setStatus("正在和服务器对账…","reconciling");renderAll();
+    setGate("reconciling");renderAll();
   }
-  if(refresh){
-    try{await pb.collection("users").authRefresh()}
-    catch(e){if(e&&e.status===401){pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("");return}throw e}
-  }
-  const coll=pb.collection("journey_docs"),list=await coll.getFullList();
-  const mk=(kind,data)=>coll.create({owner:me,kind,data,writer:WRITER});
+  return startReconcile({refresh:!!refresh,cached,old});
+}
+async function reconcileOnce(r){
+  const sg={signal:r.ctrl.signal},live=()=>{if(!(r.live&&run===r))throw STALE},old=r.mode.old;
+  if(r.mode.refresh){await pb.collection("users").authRefresh(sg);live()}
+  const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);live();
+  const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
   /* reconcile table (plan first, then state): server only -> server; clean cache with the same updated -> cache (= server);
-     clean cache and newer server -> server, nothing uploaded; no server document -> create. A dirty cache is 09-07 and is never uploaded here. */
+     clean cache and newer server -> server, nothing uploaded; no server document -> create. A dirty cache is 09-07 and is never uploaded here.
+     Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
   const pd=list.find(d=>d.kind==="plan")||await mk("plan",normalizePlan(DEFAULT_PLAN));
-  usePlan(same(old.plan,pd)?old.plan.data:pd.data);
   const sd=list.find(d=>d.kind==="state")||await mk("state",normalize({}));
+  live();
+  usePlan(same(old.plan,pd)?old.plan.data:pd.data);
   state=normalize(same(old.state,sd)?old.state.data:sd.data);
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
   const changed=differs(old.plan,pd,plan)||differs(old.state,sd,state);
@@ -672,6 +730,7 @@ async function enterApp(refresh){
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
   docs.plan=settle("plan",pd,plan,old.plan);docs.state=settle("state",sd,state,old.state);
   store=cloudStore();
+  endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
   setGate(null);setStatus("已同步","synced");renderAll();
   if(changed)toast("已更新为其他设备上的最新内容",null,4000);

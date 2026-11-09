@@ -7,7 +7,17 @@ import { loadAppPure } from '../support/app-source';
 import { gotoGoals } from '../support/goals';
 import { expectToast } from '../support/toast';
 import { FROZEN_NOW } from '../support/constants';
-import { STATUS_RECONCILING, TAB_LABELS, TOAST_REMOTE_UPDATED } from '../support/strings';
+import {
+  BANNER_SLOW,
+  BANNER_UNREACHABLE,
+  BTN_RETRY,
+  BTN_RETRYING,
+  STATUS_RECONCILING,
+  STATUS_SLOW,
+  STATUS_UNREACHABLE,
+  TAB_LABELS,
+  TOAST_REMOTE_UPDATED,
+} from '../support/strings';
 
 test.use({ clockMode: 'manual' });
 
@@ -195,4 +205,115 @@ test('SYNC-05 clicks, keys and drags on editing controls during the reconcile ch
   await expect(page.locator('#arrival')).toHaveValue('2026-03-01');
   await expect(page.locator('#goals [data-task="c-synth-one"]')).not.toBeChecked();
   expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('SYNC-05 a reconcile still running after about 3 seconds shows the slow notice and keeps editing disabled', async ({
+  app,
+  page,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  const hold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await page.reload();
+  const status = page.locator('#status');
+  const bar = page.locator('#syncbar');
+
+  // 对账开始：状态行已写，0 到 3 秒不显示横幅（计时器和状态行在同一步里设置，所以等到状态行之后再推时钟）
+  await expect(status).toHaveText(STATUS_RECONCILING);
+  await expect(bar).not.toBeVisible();
+
+  // 2.9 秒：还没到 3 秒，不能提示变慢，更不能判失败
+  await page.clock.runFor(2_900);
+  await expect(status).toHaveText(STATUS_RECONCILING);
+  await expect(status).toHaveAttribute('data-state', 'reconciling');
+  await expect(bar).not.toBeVisible();
+
+  // 3.1 秒：状态行和横幅同时变慢；横幅是 warn 语气、没有按钮，编辑仍然关着
+  await page.clock.runFor(200);
+  await expect(status).toHaveText(STATUS_SLOW);
+  await expect(status).toHaveAttribute('data-state', 'slow');
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAttribute('data-tone', 'warn');
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_SLOW);
+  await expect(bar.locator('button')).toHaveCount(0);
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+  await expect(page.locator('#w-text')).toBeDisabled();
+
+  // 服务器终于回应：对账完成，横幅消失
+  await hold.release();
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(bar).not.toBeVisible();
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('SYNC-05 a reconcile not finished after about 15 seconds turns read-only with a retry that restores editing once it succeeds', async ({
+  app,
+  page,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const before = app.fake.requests.length;
+  const status = page.locator('#status');
+  const bar = page.locator('#syncbar');
+  const entry = page.locator('#days [data-edit="synthetic-a"]');
+
+  const f = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await page.reload();
+  await expect(status).toHaveText(STATUS_RECONCILING);
+  // 列表请求已经到了（被挂起），截止时被中止的就是它
+  await expect.poll(() => f.hits).toBe(1);
+
+  // 15 秒：判连不上，转为只读，横幅带重试，缓存的内容仍然看得到
+  await page.clock.runFor(15_000);
+  await expect(status).toHaveText(STATUS_UNREACHABLE);
+  await expect(status).toHaveAttribute('data-state', 'unreachable');
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'readonly');
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAttribute('data-tone', 'error');
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_UNREACHABLE);
+  await expect(bar.locator('button')).toHaveCount(1);
+  await expect(bar.locator('button')).toHaveText(BTN_RETRY);
+  await expect(bar.locator('button')).toBeEnabled();
+  await expect(entry).toBeVisible();
+  await expect(page.locator('#w-text')).toBeDisabled();
+
+  // 点重试：按钮立即 disabled 并显示“正在重试…”，重新发起一次对账（第二个列表请求被新的挂起规则拦住）
+  f.remove();
+  const f2 = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await bar.getByRole('button', { name: BTN_RETRY, exact: true }).click();
+  const busy = bar.locator('button');
+  await expect(busy).toBeDisabled();
+  await expect(busy).toHaveText(BTN_RETRYING);
+  await expect(status).toHaveText(STATUS_RECONCILING);
+  await expect.poll(() => f2.hits).toBe(1);
+  // 连点：禁用的按钮不会再发起对账（force 跳过可点击检查）
+  await busy.click({ force: true });
+  expect(f2.hits).toBe(1);
+
+  // 重试的请求得到回应：对账完成，放开编辑
+  await f2.release();
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(bar).not.toBeVisible();
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  await expect(page.locator('#w-text')).toBeEnabled();
+  expect(f2.hits, '连点之后仍然只有一次新的对账请求').toBe(1);
+  expect(app.fake.requests.slice(before).filter((r) => r.method === 'GET' && r.path === LIST_PATH)).toHaveLength(1);
+
+  // 第一个（已被中止的）请求现在才被放行：它的响应一律丢弃，页面不变，也不多出任何写入
+  await f.release();
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(bar).not.toBeVisible();
+  await expect(entry).toHaveCount(1);
+  expect(writesSince(app, before)).toEqual([]);
+  expect(app.fake.lastState(0)).toEqual(syntheticState('a'));
+  // 被中止的请求能否走到 fulfill 抛错取决于时序（同 cloud-harness.spec.ts 里被 SDK 取消的请求）：至多一条，而且只能是列表
+  for (const e of app.fake.fulfillErrors) {
+    expect(e.path).toBe(LIST_PATH);
+  }
+  expect(app.fake.fulfillErrors.length).toBeLessThanOrEqual(1);
+  test.info().annotations.push({ type: 'observed', description: 'fulfillErrors=' + app.fake.fulfillErrors.length });
 });
