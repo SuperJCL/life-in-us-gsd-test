@@ -327,3 +327,6 @@ export const LOGIN_EXPIRED_UNSENT = '本机还有没上传的修改，用同一�
 // 工具栏的退出登录按钮文字（09-UI-SPEC S7，#logoutBtn）和退出过程中的文字（E5 loading，按钮同时 disabled）
 export const BTN_LOGOUT = '退出登录';
 export const BTN_LOGGING_OUT = '正在退出…';
+
+// 另一个标签页退出登录后，本标签页登录页顶部的提示（09-UI-SPEC S1、Assumption A5 逐字复制）；#loginNotice 的 data-tone 为 info
+export const NOTICE_OTHER_TAB = '已在另一个标签页退出登录';

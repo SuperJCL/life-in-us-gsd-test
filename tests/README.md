@@ -49,7 +49,7 @@
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -151,6 +151,18 @@ PROBE-1 到 PROBE-9 的结论、证据和采用的方案见 `tests/PROBES.md`；
   - **`acknowledgeConsoleErrors(guard, { 片段: 条数 })`（`tests/support/guard-ack.ts`）：** 故意制造的 4xx、5xx、被拒连接和被护栏 abort 的请求，浏览器会各写一条 console.error；先按精确片段（如 `status of 429 `、`ERR_CONNECTION_REFUSED`、`ERR_BLOCKED_BY_CLIENT`）和条数断言，再删除，其他任何 console.error 仍会让用例失败。
 - **期望值从 fixture 推导（D-10）：** 本周的标题、范围、计数、7 列内容、时间线日期标签等都由 `expect-from-fixture.ts` 的函数独立算出（`weekCountsByCategory`、`weekDayColumns`、`mdLabel`、`timelineDateLabel`、`expectedTimeline`、`expectedNormalize` 等），缺的推导函数加在那里，用例里不抄数字。
 - **时间与保存：** 输入复盘之后，先 `expectSaved` 等保存完成再做别的操作，防止防抖期间的重绘把文本框还原（N2，D-03）。manual 时钟（`test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 加 `pauseAt`，再用 `runFor` 推进）现在有三类用途：(1) 证明“没有保存”（含力量输入框失焦、空白待办）：`runFor` 推过 600 ms 防抖后比较 `app.backend.writes.length`，再用一次哨兵写入证明这个窗口确实推进了防抖（D-05、D-15）；(2) 撤销窗口和 toast 过期：撤销用例的顺序是 install、open、`expectAccountMode`、`pauseAt`、动作、`runFor(1_000)` 推过防抖、再 undo；过期用例再推过 5 秒，看 `#toast` 的 `.on` 消失、`#toast.act button` 为 0 个；(3) 带计时器的刷新（B4）：暂停时钟后输入、不推进防抖就刷新。同一个用例里不混用 `setFixedTime`，不用固定睡眠。
+
+### Phase 9 的云端用例
+
+Phase 9 的云端用例（登录、会话、对账、留底、容量、退出）只在 `npm run test:cloud` 里运行，只用合成账号（`FakePbServer.addUser`：`example.com` 邮箱、运行时随机口令）和合成数据。
+
+- **`AppHarness.open` 的 cloud 选项：** `mode: 'cloud'`；`backend` 缺省为 `'pocketbase'`（应用自己同源加载真实 SDK、走云端路径），传 `null` 保持 Phase 8 的设施用法（应用走本地路径）；`users` 是合成账号个数；`seed`、`plan` 写给第 0 个账号的 state、plan 文档（其他账号用 `app.fake.seed(state, { userIndex, plan })`）；`login` 是打开后立刻用第几个合成账号登录（序号），或 `'session'`，表示页面里已有会话（例如带着存储状态的新 context、同一个 context 的第二个标签页），不出现登录页、不填表单，就绪条件直接按应用视图等已同步。`app.login(i)` 在登录页登录并等到已同步，`app.submitLogin(i)` 只提交不等待。
+- **`openDevice`（`tests/support/devices.ts`）：** 同一个假服务器上的第二台设备（独立的浏览器上下文），带同一套护栏；同一个浏览器里的第二个标签页则用 `page.context().newPage()`，自己固定时钟，再用 `new AppHarness(page2, { fake: app.fake })` 以 `login: 'session'` 打开。
+- **注入开关：** `app.fake.fault({ method, path, mode })`、`clearFaults()`、`revokeTokens`、`beforeNext`、`dropDocs`，由用例显式打开；服务器连不上一律用这些开关制造，不用计时器，也不用 `context.setOffline`。
+- **`acknowledgeConsoleErrors(guard, { 片段: 条数 })`：** 故意制造的被拒连接和 4xx 会让浏览器各写一条 console.error，先按精确片段和条数确认，其他 console.error 仍会让用例失败。
+- **manual 时钟：** 涉及 3 秒（网络较慢提示）和 15 秒（放弃等待、转为只读或重试）的用例用 `test.use({ clockMode: 'manual' })`，`page.clock.install` 加 `pauseAt`，再用 `runFor` 推进，不真的等。
+- **本机缓存键（应用在 localStorage 里写的键）：** `usj:v2:<id>:state` 和 `usj:v2:<id>:plan` 是这个账号的记录缓存和计划缓存（含基准、是否有没上传的修改、序号）；`usj:v2:<id>:snapshot` 是冲突时留下的另一台设备上的旧版本；`usj:v2:lastUser` 是最近一次登录的账号 id，用来判断本机有没有没上传的修改；`usj:v2:lastEmail` 是最近一次登录用的邮箱，登录页用它预填（退出后也保留，所有者选定的行为）。退出登录会删掉该账号的前三类键和 `lastUser`，最后清令牌，只留 `lastEmail`。
+- **范围：** v1 四个视图的整套用例映射到 `test:cloud` 不在 Phase 9，留给 Phase 13 的 TEST-02 收口。
 
 ## 14. 已知 bug
 

@@ -628,7 +628,17 @@ function loadSdk(){return new Promise((ok,no)=>{
   document.head.appendChild(s);
 })}
 function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
-const T_EXPIRED="登录已过期，请重新登录",T_EXPIRED_UNSENT="本机还有没上传的修改，用同一账号登录后会自动上传。";
+/* the token is shared by every tab of this browser through localStorage: another tab signing out (empty token) signs this tab out locally, without touching the caches again
+   (that tab already cleared them); another tab signing in as a different account reloads this tab; a refreshed token of the same account changes nothing.
+   authQuiet is true while this tab clears the token itself (logout, a 401 on refresh), so those are never mistaken for another tab. */
+let authQuiet=false;
+function onAuthChange(){
+  if(authQuiet||!me)return;
+  if(!pb.authStore.token){resetSession();showLogin("","other-tab");return}
+  const rec=pb.authStore.record;
+  if(rec&&rec.id!==me)location.reload();
+}
+const T_OTHER_TAB="已在另一个标签页退出登录",T_EXPIRED="登录已过期，请重新登录",T_EXPIRED_UNSENT="本机还有没上传的修改，用同一账号登录后会自动上传。";
 /* unsent work of the last account on this device: a dirty state or plan cache, or a kept snapshot (read without me, which is null on the login page) */
 function hasUnsent(){
   try{
@@ -640,6 +650,7 @@ function hasUnsent(){
 }
 function loginNotice(kind){
   const n=$("loginNotice");n.textContent="";
+  if(kind==="other-tab"){const p=document.createElement("p");p.textContent=T_OTHER_TAB;n.appendChild(p);n.setAttribute("data-tone","info");n.classList.remove("hidden");return}
   if(kind!=="expired"){n.classList.add("hidden");n.removeAttribute("data-tone");return}
   [T_EXPIRED].concat(hasUnsent()?[T_EXPIRED_UNSENT]:[]).forEach(t=>{const p=document.createElement("p");p.textContent=t;n.appendChild(p)});
   n.setAttribute("data-tone","warn");n.classList.remove("hidden");
@@ -668,6 +679,7 @@ async function cloudInit(){
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
+  pb.authStore.onChange(onAuthChange);
   if(!pb.authStore.token){showLogin("");return}
   /* a stored token whose own exp has passed is expired without asking the server; only this device-local check or an authRefresh 401 ever means expired */
   if(!pb.authStore.isValid){pb.authStore.clear();showLogin("","expired");return}
@@ -792,7 +804,7 @@ function startReconcile(mode,retrying){
     try{await reconcileOnce(r)}
     catch(e){
       if(!alive())return;
-      if(e&&e.status===401){endRun(r);pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("","expired");return}
+      if(e&&e.status===401){endRun(r);authQuiet=true;pb.authStore.clear();authQuiet=false;me=null;docs={state:null,plan:null};showLogin("","expired");return}
       if(r.tries<3)later(attempt,RETRY_MS);
     }
   };
@@ -941,7 +953,7 @@ function resetSession(){
 let loggingOut=false;
 async function logout(){
   if(loggingOut||!me)return;
-  loggingOut=true;
+  loggingOut=true;authQuiet=true;
   const btn=$("logoutBtn"),ep=sessionEpoch;btn.disabled=true;btn.textContent="正在退出…";
   try{await pb.realtime.unsubscribe()}catch(e){}
   if(ep===sessionEpoch){
@@ -951,7 +963,7 @@ async function logout(){
     resetSession();showLogin("");
   }
   btn.disabled=false;btn.textContent="退出登录";
-  loggingOut=false;
+  loggingOut=false;authQuiet=false;
 }
 $("logoutBtn").addEventListener("click",logout);
 
