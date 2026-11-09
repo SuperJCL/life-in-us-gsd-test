@@ -5,15 +5,15 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "journey_docs 的 createRule 没有对字段修饰符键做过隔离断言，可能允许 A 以 B 的名义创建文档"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "多个“只在直接运行时执行入口”的脚本在入口判断失败时静默退出 0（fail open）"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "下载脚本以系统临时目录为工作目录调用相对名字的 unzip 和 powershell，存在可执行文件被抢先放置的风险"
   - id: WR-04
     severity: warning
@@ -51,7 +51,7 @@ findings:
     severity: info
     disposition: open
     title: "测试工具里几处小的健壮性问题"
-open: 11
+open: 8
 total: 12
 recorded: 2026-11-09T02:58:33.306Z
 ---
@@ -60,9 +60,9 @@ recorded: 2026-11-09T02:58:33.306Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-01 | warning | fixed | 7834840 (08-REVIEW-FIX.md) |
+| WR-02 | warning | fixed | 1c1e8db (08-REVIEW-FIX.md) |
+| WR-03 | warning | fixed | 74b31f0 (08-REVIEW-FIX.md) |
 | WR-04 | warning | fixed | 08-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
