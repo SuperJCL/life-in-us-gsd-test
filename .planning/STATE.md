@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 08
 current_phase_name: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
-status: executing
-stopped_at: Completed 08-06-PLAN.md
-last_updated: "2026-11-09T00:27:17.475Z"
+status: verifying
+stopped_at: Completed 08-07-PLAN.md
+last_updated: "2026-11-09T00:37:18.463Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 08 execution started
-state_head: e0d48eadbf07ba412e17eae3ddcba665960d1778
+state_head: 72eb3f1f17cea0c29085b8cfbc51167446ccd2c5
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 24
-  completed_plans: 23
+  completed_plans: 24
   percent: 25
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
 
 Phase: 08 (PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-08 — Phase 08 execution started
 
 Progress: [███░░░░░░░] 25%
@@ -108,6 +108,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 08 P04 | 40min | 3 tasks | 4 files |
 | Phase 08 P05 | 50min | 3 tasks | 4 files |
 | Phase 08 P06 | 45min | 3 tasks | 7 files |
+| Phase 08 P07 | 30min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -169,6 +170,8 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 08]: 08-05: 字段修饰符键（owner+、+owner、owner-、kind+）被 :isset = false 拦下（404），journey_docs 规则无需修改
 - [Phase 08]: 08-05: 创建成功状态码实测为 200（ACCT03-5），不是 201；规则不满足时列表 200 空、查看和更新 404、创建 400、锁定规则 403
 - [Phase 08]: 08-06: 录制客户端是 sdk-vm（真实 SDK 0.28.1 在 node:vm 里运行成功）；样本归一化时对象键按字典序处理，三次录制逐字节相同；隐私检查器入口保护 fail closed
+- [Phase 08]: 08-07: 契约自测没有登记任何有意偏差；4 处差异（列表顺序、三种字段错误的 params 和消息）都改假服务器对齐样本
+- [Phase 08]: 08-07: TEST-02 在 Phase 8 只完成基础部分，保持 Pending；Phase 9-12 补用例，Phase 13 收口
 
 ### Pending Todos
 
@@ -215,8 +218,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T00:27:15.539Z
-Stopped at: Completed 08-06-PLAN.md
+Last session: 2026-11-09T00:37:17.376Z
+Stopped at: Completed 08-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

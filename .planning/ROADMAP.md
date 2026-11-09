@@ -151,7 +151,7 @@ Plans:
   3. `PB-CONTRACT.md` 写明“服务器 0.41.1 配 SDK 0.28.1”，并收录从本机真实实例录下的协议样本：登录、刷新令牌、读取、创建、更新、唯一索引冲突、401（只有 auth-refresh 返回；记录接口对无效令牌按未登录处理，返回空列表、404 或 400）和实时事件。契约自测证明，Node 侧假服务器对同一组请求的回应与样本一致。
   4. `AppHarness` 新增 cloud 模式：真实的 PocketBase SDK（同源提供、固定版本、记录 sha256）在浏览器里连到假服务器，能完成登录、读写和订阅，实时连接由页面侧的假 `EventSource` 承接。请求假服务器以外的任何地址都会让用例失败，这道护栏有故意违规的自检。`context.setOffline` 是否派发 `online`/`offline` 事件，由探针确认并写进 `tests/PROBES.md`。
   5. v1 的 154 条用例照旧通过；cloud 用例有单独的入口（如 `npm run test:cloud`），同样低优先级、1 个 worker 运行。
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans executed
 Plans:
 **Wave 1**
 - [x] 08-01-PLAN.md — users 加固和 journey_docs 的迁移（只有结构）、node:vm 静态检查与规则快照、篡改自检；先修正 ROADMAP 和研究文档的过时内容（D-02、D-04、D-05、D-06）
@@ -168,7 +168,7 @@ Plans:
 - [x] 08-06-PLAN.md — 协议样本录制与归一化（28 个场景，三道自检）、隐私检查器可被 import、PB-CONTRACT.md
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 08-07-PLAN.md — 契约自测：假服务器逐场景对齐真实样本；阶段收尾的完整 test:cloud（默认 npm test 由阶段回归门运行）
+- [x] 08-07-PLAN.md — 契约自测：假服务器逐场景对齐真实样本；阶段收尾的完整 test:cloud（默认 npm test 由阶段回归门运行）
 **UI hint**: no
 **Research:** 需要（`/gsd-plan-phase --research-phase 8`）— 要在真实实例上确认几个 MEDIUM 项：`:isset` 组合规则、订阅的 `fields` 是否裁剪载荷、新建 `users` 的默认规则、令牌有效期的设置方法。
 **Notes:**
@@ -283,7 +283,7 @@ Plans:
 | 5. 时间线、导入与窄屏 | v1.0 | 4/4 | Complete | 2026-11-05 |
 | 6. 采购与中美可达性实测 | v2.0 | 10/10 | Complete    | 2026-11-08 |
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
-| 8. PocketBase 规则、隔离与假服务器 | v2.0 | 6/7 | In Progress | - |
+| 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | In Progress | - |
 | 9. 登录与云端存储 | v2.0 | 0/TBD | Not started | - |
 | 10. 离线与实时同步 | v2.0 | 0/TBD | Not started | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
