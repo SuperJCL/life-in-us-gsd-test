@@ -154,6 +154,10 @@ test('SYNC-05 clicks, keys and drags on editing controls during the reconcile ch
   await expect(entry).toHaveCount(1);
   const editorOpen = page.locator('dialog#editor');
   const pressedBefore = await page.locator('#wkComp [data-ccat^="w|"][aria-pressed="true"]').getAttribute('data-ccat');
+  // 门控开始时本机 state 缓存的整条记录（含 dirty 和 seq）：第 6、7 步之后它必须原样不变
+  const stateKey = `usj:v2:${app.fake.users[0].id}:state`;
+  const readStateCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), stateKey);
+  const cacheBefore = await readStateCache();
 
   // 1 点类别按钮（已 disabled，force 也点不动）
   await page.locator('#wkComp [data-ccat="w|专业"]').click({ force: true });
@@ -196,6 +200,11 @@ test('SYNC-05 clicks, keys and drags on editing controls during the reconcile ch
   await expect(editorOpen).not.toBeVisible();
   // 推过复盘的防抖窗口：如果守卫失效，防抖里的保存已经改了 state
   await page.clock.runFor(2000);
+
+  // 守卫真的拦下了第 6、7 步的合成事件：必须在放行之前读本机缓存。守卫失效时 input、change 会走到 persist()，
+  // 缓存被写成 dirty:true 且序号加一；放行之后对账用服务器数据整体替换 state，页面值和服务器都会恢复，那时再看就掩盖了这一点
+  expect(cacheBefore?.dirty).toBe(false);
+  expect(await readStateCache()).toEqual(cacheBefore);
 
   await hold.release();
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
