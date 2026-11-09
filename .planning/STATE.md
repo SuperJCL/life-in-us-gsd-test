@@ -6,10 +6,10 @@ current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: verifying
 stopped_at: "Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)"
-last_updated: "2026-11-09T10:39:32.857Z"
+last_updated: "2026-11-09T12:22:01.144Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: ed63dc407c9a5ac0171b700bb8aaa1bb669c6ebf
+state_head: 8a8f026416146398e8eadb887635620ceb3a3933
 progress:
   total_phases: 8
   completed_phases: 3
@@ -251,6 +251,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 | 1 | 把 .claude/CLAUDE.md 的 Project 段同步到 v2.0（只重新生成 Project 段，其余段落不变） | 2026-11-06 | e6c8c2c | — |
 | 2 | privacy-check --push 加窄例外清单，放行已在 0fa5cea 修正的示例地址（2 处，规则 H），自检 193 项通过 | 2026-11-08 | cae2c04 | — |
 | 3 | redact.mjs 私有文件存在但没有值时也拒绝输出（06-REVIEW WR-06），自检 33 项 | 2026-11-08 | dcfc987 | — |
+| 4 | 修 09-UI-REVIEW 的 4 条 CSS 警告：375px 下云端 toast 宽度、新界面按钮 14px、等待卡片进度条外边距、换账号确认框正文颜色（8a8f026） | 2026-11-09 | 8a8f026 | — |
 
 ## Deferred Items
 
