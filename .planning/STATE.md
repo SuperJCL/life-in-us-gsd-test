@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-11-PLAN.md
-last_updated: "2026-11-09T09:56:34.582Z"
+stopped_at: Completed 09-12-PLAN.md
+last_updated: "2026-11-09T10:07:30.486Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 890ae5f3cd966190a38113c5464be41013016a15
+state_head: e602fd8591aa21b30625c9ffb21d4fda2ae6ebf4
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 12 of 14
+Plan: 13 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -121,6 +121,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P09 | 6 min | 2 tasks | 6 files |
 | Phase 09 P10 | 25 min | 2 tasks | 2 files |
 | Phase 09 P11 | 25 min | 2 tasks | 6 files |
+| Phase 09 P12 | 25 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -205,6 +206,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-09: a snapshot that cannot be stored shows only the snapfail warn banner (no toast, no download button) and the upload still proceeds; 70 percent capacity warning is dismissed per page session via an in-memory flag; over CLOUD_MAX nothing is sent and the edit stays dirty in the local cache
 - [Phase 09]: 09-10: no application change needed; reconcile already selects documents by kind and never writes a plan document when usePlan rejects it
 - [Phase 09]: 09-11: expired login (authRefresh 401 or local token exp) shows a warn notice on the login card, clears only the token and keeps all usj:v2 caches; same-account re-login uploads kept edits
+- [Phase 09]: 09-12: login busy is released right after authWithPassword settles (before enterApp); aria-invalid only on the password box for a 400; lastEmail stored from the trimmed typed email and never for an abandoned late success
 
 ### Pending Todos
 
@@ -255,8 +257,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T09:56:33.502Z
-Stopped at: Completed 09-11-PLAN.md
+Last session: 2026-11-09T10:07:29.526Z
+Stopped at: Completed 09-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
