@@ -41,7 +41,7 @@
 **仍未验证**（留给后续修 bug 的里程碑，即 REQUIREMENTS.md 的 FIX-01，或 v2）：
 
 - N1 的拖拽和改抵达日期两种触发。
-- B3：加载完成前的编辑被丢弃，需要 mock 的加载延迟（v2 的 ERR-04）。
+- B3：加载完成前的编辑被丢弃，需要 mock 的加载延迟（v2 的 ERR-04）。云端路径由 09-CONTEXT 的 D-01 门控修复，用例 `SYNC-05 clicks, keys and drags on editing controls during the reconcile change nothing and send no write`；旧路径维持现状，B3 与 B5 在旧路径的修复不在本里程碑。
 - B5：保存失败不重试。
 - B6（导入 XSS）和 B7（CSV 公式注入）：对应 v2 的 XTRA-03。
 - B8：导入校验过浅，例如日志缺 date。

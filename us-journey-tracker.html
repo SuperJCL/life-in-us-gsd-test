@@ -631,6 +631,15 @@ function setGate(mode){
     if(g.includes("g"))el.setAttribute("draggable","true");
     el.removeAttribute("data-gated")});
 }
+/* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
+const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn]";
+function gateGuard(e){
+  if(!document.body.dataset.gate)return;
+  const t=e.target;if(!t||!t.closest||!t.closest(".wrap"))return;
+  if(e.type==="keydown"&&e.key!=="Enter"&&e.key!==" ")return;
+  if(t.closest(GATE_BLOCK)||!t.closest(GATE_ALLOW+",.day")){e.stopImmediatePropagation();e.preventDefault()}
+}
+["click","keydown","dragstart","drop","change","input"].forEach(n=>window.addEventListener(n,gateGuard,true));
 async function enterApp(refresh){
   me=pb.authStore.record.id;
   try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
