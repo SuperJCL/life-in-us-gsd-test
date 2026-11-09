@@ -5,39 +5,39 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "退出登录只检查本标签页的未保存状态，另一个标签页没上传的修改被静默清掉"
   - id: CR-02
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "计划文档不合格时回落到示例计划，随后第一次保存会把状态里的任务进度永久改写到服务器"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`cloudSave` 把自己的写入误判成他人覆盖，会冲掉真正的留底，并且在覆盖成功之前就报“已被覆盖”"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "SDK 首次加载失败后再登录，`onAuthChange` 从未注册，跨标签页登出和换账号重载都失效"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "留底下载在 `a.click()` 之后立即销毁 blob 地址并删除本机唯一副本"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "退出登录对 `realtime.unsubscribe()` 没有超时，Phase 10 接上实时之后会卡死退出并让 `authQuiet` 一直为真"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`persist()` 忽略缓存写入失败，“修改仍在本机”的提示可能不是真的"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "令牌过期（401）分支绕过 `resetSession()`，状态和界面残留，原始错误文字会漏到状态行"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "“SYNC-05 clicks, keys and drags…” 的第 6、7 步在守卫失效时也会通过，用例没有证明标题声称的内容"
   - id: IN-01
     severity: info
@@ -63,7 +63,7 @@ findings:
     severity: info
     disposition: open
     title: "字体链接从应用里移除，传统路径（Claude Artifact）的标题字体也变了"
-open: 15
+open: 6
 total: 15
 recorded: 2026-11-09T10:55:33.454Z
 ---
@@ -72,15 +72,15 @@ recorded: 2026-11-09T10:55:33.454Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| CR-02 | critical | open | - |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
+| CR-01 | critical | fixed | 6fd7aa9 (09-REVIEW-FIX.md) |
+| CR-02 | critical | fixed | ac5f9c7 (09-REVIEW-FIX.md) |
+| WR-01 | warning | fixed | f53301c (09-REVIEW-FIX.md) |
+| WR-02 | warning | fixed | c19d942 (09-REVIEW-FIX.md) |
+| WR-03 | warning | fixed | ae708b3 (09-REVIEW-FIX.md) |
+| WR-04 | warning | fixed | a37d082 (09-REVIEW-FIX.md) |
+| WR-05 | warning | fixed | fd806c9 (09-REVIEW-FIX.md) |
+| WR-06 | warning | fixed | a110311 (09-REVIEW-FIX.md) |
+| WR-07 | warning | fixed | 6112669 (09-REVIEW-FIX.md) |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
