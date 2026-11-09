@@ -23,7 +23,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 云端存储、离线与实时同步（SYNC）
 
-- [ ] **SYNC-01**：用户的记录、复盘、任务进度和力量历史存在服务器上；换一台设备登录，看到的是同一份数据。
+- [x] **SYNC-01**：用户的记录、复盘、任务进度和力量历史存在服务器上；换一台设备登录，看到的是同一份数据。
 - [ ] **SYNC-02**：同一账号在另一台设备上的修改，几秒内自动出现在这台设备上，并且不打断正在输入的草稿或打开的编辑框。
 - [ ] **SYNC-03**：断网时照样可以记录，界面显示待上传的数量；联网后自动上传。
 - [ ] **SYNC-04**：状态栏如实显示当前状态：已同步、保存中、离线、失败重试、登录过期。
@@ -32,7 +32,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 个人计划（PLAN）
 
-- [ ] **PLAN-01**：每个账号的个人计划都存在自己的账号里，包括目标组、任务、力量项、每周健身目标和预设标签；应用代码里只剩一份合成的示例计划。
+- [x] **PLAN-01**：每个账号的个人计划都存在自己的账号里，包括目标组、任务、力量项、每周健身目标和预设标签；应用代码里只剩一份合成的示例计划。
 - [ ] **PLAN-02**：用户可以在“编辑计划”页增删改目标组、任务、力量项、每周健身目标和基础预设标签，并调整顺序。
 - [ ] **PLAN-03**：删除已经有进度的目标组、任务或力量项时，改为归档，日历和时间线里已完成的记录不会消失。
 - [ ] **PLAN-04**：编辑计划用草稿方式，点保存才生效，可以取消；离开时如有未保存的修改会提示；保存后其他设备同步。
@@ -107,13 +107,13 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | ACCT-03 | Phase 8 | Complete |
 | ACCT-04 | Phase 8 | Complete |
 | ACCT-05 | Phase 10 | Pending |
-| SYNC-01 | Phase 9 | Pending |
+| SYNC-01 | Phase 9 | Complete |
 | SYNC-02 | Phase 10 | Pending |
 | SYNC-03 | Phase 10 | Pending |
 | SYNC-04 | Phase 10 | Pending |
 | SYNC-05 | Phase 9 | Complete |
 | SYNC-06 | Phase 10 | Pending |
-| PLAN-01 | Phase 9 | Pending |
+| PLAN-01 | Phase 9 | Complete |
 | PLAN-02 | Phase 12 | Pending |
 | PLAN-03 | Phase 12 | Pending |
 | PLAN-04 | Phase 12 | Pending |
