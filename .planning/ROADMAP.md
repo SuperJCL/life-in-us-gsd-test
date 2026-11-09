@@ -187,7 +187,49 @@ Plans:
   3. 账号 A 在一台设备上记一笔、写复盘、勾选任务、保存力量值后，在另一台设备登录 A，看到同一份数据，四个视图按 A 自己的计划显示。账号 B 登录后看到的是 B 自己的计划和记录。
   4. 联网打开应用时，与服务器对账完成之前不能编辑（通常不超过约 3 秒）。本机缓存比服务器旧时以服务器为准，旧缓存不会被上传。真冲突时以最后保存的为准，被覆盖的那一版留在本机，用户可以下载。
   5. 打开云端版时，浏览器只向同源发请求：Google 字体的 `<link>` 已去掉，PocketBase SDK 从同源加载、版本固定。v1 的 154 条用例仍然通过，字体相关的探针和护栏随之调整。
-**Plans:** TBD
+**Plans:** 14 plans
+Plans:
+**Wave 1**
+- [ ] 09-01-PLAN.md — 云端 tracer（USJ_CONFIG 开关、同源 SDK 加 SRI、登录、按 kind 读取文档、云端保存），首次登录补建文档与启动时 authRefresh
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 09-02-PLAN.md — INFRA-03 收口：去掉 Google 字体、cloud 策略把字体主机记为违规、改写 v1 护栏和探针、同源与 SRI 用例
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 09-03-PLAN.md — 假服务器的显式错误注入开关（refuse、status、hold、revokeTokens、beforeNext、dropDocs）与各自自检
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 09-04-PLAN.md — 第二台设备的测试设施（openDevice、共享假服务器与护栏），跨设备读到同一份数据
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 09-05-PLAN.md — 本机缓存、对账表前几行、编辑门控与安全网、对账更新提示（D-01、D-04），B3 在云端路径修复
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 09-06-PLAN.md — 对账的时间推进：横幅、3 秒变慢、15 秒只读加重试、首次登录等待卡片、窗口内静默重试（D-02、D-03）
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 09-07-PLAN.md — 对账表其余行：缓存脏上传、用缓存重建、首次创建竞争、连刷幂等
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 09-08-PLAN.md — 真冲突留底与下载、单份替换、启动时冲突（D-08、D-09、D-10、D-11）
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 09-09-PLAN.md — 留底存不下、下载失败的如实告知与容量保护（SYNC-05 收口）
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 09-10-PLAN.md — 按账号计划、跨设备四个视图、不合格计划不被改写（SYNC-01、PLAN-01 收口）
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 09-11-PLAN.md — 登录过期保留本机修改、本地过期判定、重开浏览器保持登录
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 09-12-PLAN.md — 登录表单全部状态、上次邮箱预填、显示密码（ACCT-01 收口）
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 09-13-PLAN.md — 退出登录（D-06、D-07）、重复点击与离线退出、工具栏账号、跨标签页退出、README 总览
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 09-14-PLAN.md — 退出确认框（D-05）、保存中退出、换账号确认（ACCT-02 收口），阶段收尾的完整 test:cloud
 **UI hint**: yes
 **Research:** 不需要专项研究。需要 UI 设计契约（`/gsd-ui-phase 9`）：登录页，以及状态栏五种状态（已同步、保存中、离线、失败重试、登录过期）和远端更新提示的文案与位置，Phase 10 直接沿用这份契约。
 **Notes:**

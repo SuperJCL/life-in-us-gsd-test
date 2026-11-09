@@ -199,7 +199,7 @@ Accent reserved for（新界面里只有这些地方用 accent）：
 .status[data-state]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
 .status[data-state="synced"]{--tone:var(--c-lang)}
 .status[data-state="saving"],.status[data-state="reconciling"]{--tone:var(--muted)}
-.status[data-state="offline"],.status[data-state="retrying"],.status[data-state="slow"],.status[data-state="expired"]{--tone:var(--c-job)}
+.status[data-state="offline"],.status[data-state="retrying"],.status[data-state="savefailed"],.status[data-state="slow"],.status[data-state="expired"]{--tone:var(--c-job)}
 .status[data-state="unreachable"],.status[data-state="toolarge"]{--tone:var(--red)}
 .status button{background:none;border:0;color:var(--ink);text-decoration:underline;padding:4px 8px;font-size:12px}
 ```
@@ -216,6 +216,7 @@ Accent reserved for（新界面里只有这些地方用 accent）：
 | `saving` | `保存中…` | 不显示 | SYNC-04，Phase 10 |
 | `offline` | `离线，修改已存在本机，联网后自动上传`；有数量时 `离线，{n} 项修改已存在本机，联网后自动上传` | 不显示（离线时用户仍可编辑，不需要打断） | SYNC-03/04，Phase 10 |
 | `retrying` | `保存失败，修改仍在本机，{s} 秒后自动重试` 并内含行内按钮 `立即重试` | 不显示 | SYNC-06，Phase 10 |
+| `savefailed` | `保存失败：修改仍在本机，下次修改或重新打开时会再上传` | 不显示（Phase 9 没有自动重试，不打断用户；修改仍留在本机缓存，下次修改或重新打开时会再上传） | Phase 9 的临时状态（非容量原因的云端保存失败）；Phase 10 做 SYNC-06 自动重试时由 `retrying` 取代，不再使用 |
 | `expired` | `登录已过期，请重新登录` | 显示，`warn`，带“重新登录”按钮：`登录已过期，本机的修改还在，重新登录后会继续上传。`（按钮：重新登录） | SYNC-04/ACCT-05，Phase 10（Phase 9 启动时的过期直接进登录页，见 S1） |
 | `toolarge` | `保存失败：数据超过容量上限（4 MB）` | 显示，`error`：`数据超过了云端容量上限，新修改存不上了，请联系管理员。` | 本阶段容量保护 |
 
