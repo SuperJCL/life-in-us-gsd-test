@@ -3,90 +3,90 @@ phase: 09
 review: 09-REVIEW.md
 titles: json
 findings:
-  - id: CR-01
-    severity: critical
-    disposition: fixed
-    title: "退出登录只检查本标签页的未保存状态，另一个标签页没上传的修改被静默清掉"
-  - id: CR-02
-    severity: critical
-    disposition: fixed
-    title: "计划文档不合格时回落到示例计划，随后第一次保存会把状态里的任务进度永久改写到服务器"
   - id: WR-01
     severity: warning
-    disposition: fixed
-    title: "`cloudSave` 把自己的写入误判成他人覆盖，会冲掉真正的留底，并且在覆盖成功之前就报“已被覆盖”"
+    disposition: open
+    title: "重新打开页面之后，自己上一次页面的写入会被当成“另一台设备”，并替换掉可能真正有用的留底"
   - id: WR-02
     severity: warning
-    disposition: fixed
-    title: "SDK 首次加载失败后再登录，`onAuthChange` 从未注册，跨标签页登出和换账号重载都失效"
-  - id: WR-03
-    severity: warning
-    disposition: fixed
-    title: "留底下载在 `a.click()` 之后立即销毁 blob 地址并删除本机唯一副本"
-  - id: WR-04
-    severity: warning
-    disposition: fixed
-    title: "退出登录对 `realtime.unsubscribe()` 没有超时，Phase 10 接上实时之后会卡死退出并让 `authQuiet` 一直为真"
-  - id: WR-05
-    severity: warning
-    disposition: fixed
-    title: "`persist()` 忽略缓存写入失败，“修改仍在本机”的提示可能不是真的"
-  - id: WR-06
-    severity: warning
-    disposition: fixed
-    title: "令牌过期（401）分支绕过 `resetSession()`，状态和界面残留，原始错误文字会漏到状态行"
-  - id: WR-07
-    severity: warning
-    disposition: fixed
-    title: "“SYNC-05 clicks, keys and drags…” 的第 6、7 步在守卫失效时也会通过，用例没有证明标题声称的内容"
+    disposition: open
+    title: "云端保存没有超时，一个挂住的 PATCH 会让后面的保存全部排队，`resetSession()` 也不重置 `saving`"
   - id: IN-01
     severity: info
     disposition: open
-    title: "`SB_ORDER` 里的 `expired`、`remote` 没有任何地方设置"
+    title: "对账里先弹“已被覆盖”的 toast，随后可能被“已更新为其他设备上的最新内容”替换掉"
   - id: IN-02
     severity: info
     disposition: open
-    title: "`strings.ts` 里有两个只定义、没人用的常量"
+    title: "`cloudSave` 里的 `cur` 声明在 try 外面但只在 try 里用"
   - id: IN-03
     severity: info
     disposition: open
-    title: "`tests/support/app.ts` 顶部的注释块贴错了位置"
+    title: "上一轮未处理的 INFO 仍然存在"
   - id: IN-04
     severity: info
     disposition: open
-    title: "几条用例的标题强于它们实际证明的内容"
+    title: "对账里“超限且服务器文档已被删除”的情况下，之后每次保存都读不到记录，直到重新打开"
   - id: IN-05
     severity: info
     disposition: open
-    title: "`session.spec.ts` 同一用例里混用 `clock.install` 和 `setFixedTime`"
+    title: "过期标记键没有失效时间"
+  - id: CR-01
+    severity: critical
+    disposition: fixed
+    title: "logout only checked this tab's unsaved state"
+  - id: CR-02
+    severity: critical
+    disposition: fixed
+    title: "invalid plan document made normalize drop task progress, and the first save uploaded it"
+  - id: WR-03
+    severity: warning
+    disposition: fixed
+    title: "blob address revoked on the next tick after the click"
+  - id: WR-04
+    severity: warning
+    disposition: fixed
+    title: "no timeout on realtime.unsubscribe() during logout"
+  - id: WR-05
+    severity: warning
+    disposition: fixed
+    title: "persist() ignored cache write failures"
+  - id: WR-06
+    severity: warning
+    disposition: fixed
+    title: "the 401 branch bypassed resetSession and other tabs misreported an expiry"
+  - id: WR-07
+    severity: warning
+    disposition: fixed
+    title: "the gate test passed with the capture guard removed"
   - id: IN-06
     severity: info
     disposition: open
     title: "字体链接从应用里移除，传统路径（Claude Artifact）的标题字体也变了"
-open: 6
+open: 8
 total: 15
-recorded: 2026-11-09T10:55:33.454Z
+recorded: 2026-11-09T23:07:24.228Z
 ---
 
 # Phase 09: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 6fd7aa9 (09-REVIEW-FIX.md) |
-| CR-02 | critical | fixed | ac5f9c7 (09-REVIEW-FIX.md) |
-| WR-01 | warning | fixed | f53301c (09-REVIEW-FIX.md) |
-| WR-02 | warning | fixed | c19d942 (09-REVIEW-FIX.md) |
-| WR-03 | warning | fixed | ae708b3 (09-REVIEW-FIX.md) |
-| WR-04 | warning | fixed | a37d082 (09-REVIEW-FIX.md) |
-| WR-05 | warning | fixed | fd806c9 (09-REVIEW-FIX.md) |
-| WR-06 | warning | fixed | a110311 (09-REVIEW-FIX.md) |
-| WR-07 | warning | fixed | 6112669 (09-REVIEW-FIX.md) |
+| WR-01 | warning | open | - |
+| WR-02 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
 | IN-05 | info | open | - |
-| IN-06 | info | open | - |
+| CR-01 | critical | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| CR-02 | critical | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| WR-03 | warning | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| WR-04 | warning | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| WR-05 | warning | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| WR-06 | warning | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| WR-07 | warning | fixed | 09-REVIEW-FIX.md (not in the current review) |
+| IN-06 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
