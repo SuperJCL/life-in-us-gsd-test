@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-07-PLAN.md
-last_updated: "2026-11-09T09:18:57.448Z"
+stopped_at: Completed 09-08-PLAN.md
+last_updated: "2026-11-09T09:27:11.589Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 4962f3d263d146926dd7d8c5d56df4dd3ae5aa51
+state_head: 3c3b0693569d2892df6d4aab048f329065585209
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 31
+  completed_plans: 32
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 8 of 14
+Plan: 9 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -117,6 +117,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P05 | 12 min | 2 tasks | 5 files |
 | Phase 09 P06 | 10 min | 2 tasks | 4 files |
 | Phase 09 P07 | 6 min | 2 tasks | 3 files |
+| Phase 09 P08 | 25 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -197,6 +198,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-06: SLOW_MS 3000, FAIL_MS 15000, RETRY_MS 5000; a run makes at most 3 attempts and the 15 s deadline always wins; late or replaced responses are dropped by run identity plus AbortController
 - [Phase 09]: 09-06: banner priority expired > unreachable > slow > toolarge > snapfail > remote > sizewarn, one banner at a time; a retry keeps the unreachable banner with a disabled retrying button
 - [Phase 09]: 09-07: reconcile table complete; dirty cache uploads (keepConflict hook empty until 09-08), missing docs recreated from cache, validation_not_unique create race re-reads server; each cached document is handed to the reconcile separately
+- [Phase 09]: 09-08: real conflict = cloudSave getOne(updated) differs from local base; overwritten server version kept as single usj:v2:<id>:snapshot { kind, data }; download via Blob removes it; file name has no account identifier
 
 ### Pending Todos
 
@@ -247,8 +249,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T09:18:56.493Z
-Stopped at: Completed 09-07-PLAN.md
+Last session: 2026-11-09T09:27:10.610Z
+Stopped at: Completed 09-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
