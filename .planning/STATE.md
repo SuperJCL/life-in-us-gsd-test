@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 9
+current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Phase 9 UI-SPEC approved
-last_updated: "2026-11-09T08:09:42.060Z"
-last_activity: 2026-11-08
-last_activity_desc: Phase 08 complete, transitioned to Phase 9
-state_head: 62fff6430bf5a871e1514bdb9fbbd0bfcf9bfc65
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-11-09T08:21:00.241Z"
+last_activity: 2026-11-09
+last_activity_desc: Phase 09 execution started
+state_head: 409a5d6bd0d3e18b2c88ee0b246bfcdd4be408a0
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 24
+  completed_plans: 25
   percent: 38
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 9 — 登录与云端存储（Login & Cloud Storage）
+**Current focus:** Phase 09 — 登录与云端存储（Login & Cloud Storage）
 
 ## Current Position
 
-Phase: 9 (登录与云端存储（Login & Cloud Storage）) — READY TO EXECUTE
-Plan: Not started
+Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
+Plan: 2 of 14
 Status: Ready to execute
-Last activity: 2026-11-08 — Phase 08 complete, transitioned to Phase 9
+Last activity: 2026-11-09 — Phase 09 execution started
 
 Progress: [████░░░░░░] 38%
 
@@ -110,6 +110,7 @@ Progress: [████░░░░░░] 38%
 | Phase 08 P05 | 50min | 3 tasks | 4 files |
 | Phase 08 P06 | 45min | 3 tasks | 7 files |
 | Phase 08 P07 | 30min | 2 tasks | 4 files |
+| Phase 09 P01 | 7 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - 默认套件 175 条，cloud 入口 44 条。
 
 - [Phase 08]: WR-01 定论：真实 0.41.1 上新建文档带修饰符键不能跨账号（ACCT04-27，48/48）；kind+ 只能在本人账号内把类型从 plan 改成 state，规则语法无法禁止，所有者 2026-11-08 判定无害、接受并记录（不加 pb_hooks）
+- [Phase 09]: Cloud switch convention: USJ_CONFIG.backend literal pocketbase, address is location.origin, Phase 13 deployment supplies the line; SDK_SRI sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8= verified against SHA256SUMS; single state store (no makeDocStore(kind)) until plans are saved
 
 ### Pending Todos
 
@@ -230,9 +232,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T05:41:25.611Z
-Stopped at: Phase 9 UI-SPEC approved
-Resume file: .planning/phases/09-login-cloud-storage/09-UI-SPEC.md
+Last session: 2026-11-09T08:20:58.709Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
