@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-08 after Phase 6)
+See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 08 — PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）
+**Current focus:** Phase 9 — 登录与云端存储（Login & Cloud Storage）
 
 ## Current Position
 
@@ -173,14 +173,20 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 08]: 08-06: 录制客户端是 sdk-vm（真实 SDK 0.28.1 在 node:vm 里运行成功）；样本归一化时对象键按字典序处理，三次录制逐字节相同；隐私检查器入口保护 fail closed
 - [Phase 08]: 08-07: 契约自测没有登记任何有意偏差；4 处差异（列表顺序、三种字段错误的 params 和消息）都改假服务器对齐样本
 - [Phase 08]: 08-07: TEST-02 在 Phase 8 只完成基础部分，保持 Pending；Phase 9-12 补用例，Phase 13 收口
+Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
+- 账号隔离在真实本机 PocketBase 0.41.1 上 48/48（`npm run pb:isolation`），ACCT-03、ACCT-04、TEST-04 完成；TEST-02 只完成基础，保持 Pending，Phase 9–12 补用例，Phase 13 收口。
+- D-05 修订：自助只能改密码，邮箱只有超级用户能改；令牌有效期 90 天，SDK 0.28.1 不会自动续期，Phase 9 必须调用 `authRefresh`。
+- 失效或过期令牌按匿名处理，只有 `authRefresh` 返回 401；`setOffline` 管不到假服务器，网络故障要用假服务器开关；应用按 `kind` 取状态和计划，不依赖列表顺序。
+- 默认套件 175 条，cloud 入口 44 条。
+
 - [Phase 08]: WR-01 定论：真实 0.41.1 上新建文档带修饰符键不能跨账号（ACCT04-27，48/48）；kind+ 只能在本人账号内把类型从 plan 改成 state，规则语法无法禁止，所有者 2026-11-08 判定无害、接受并记录（不加 pb_hooks）
 
 ### Pending Todos
 
+- Phase 8 安全审计待做：`workflow.security_enforcement` 为 true，`08-SECURITY.md` 还不存在，需要运行 `/gsd-secure-phase 8`。
 所有者操作（Claude 不代办）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
-- Phase 8：批准下载 PocketBase 二进制（放临时目录，只用合成数据）。
-- Phase 8、9（来自 Phase 6 D-15）：前端 SDK 不用 0.28.2，改用 0.28.1（探针页已用 0.28.1 并固定文件哈希，见 tools/probe/page/vendor/README.md）；Phase 8 规划时把 ROADMAP 共同约束、Phase 8 成功标准 3 和 .planning/research/STACK.md 里的 0.28.2 一起改。
+- Phase 9（来自 Phase 6 D-15）：前端 SDK 不用 0.28.2，改用 0.28.1（Phase 8 已把页面同源 SDK 固定为 0.28.1 并核对哈希，Phase 9 接入时沿用）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
 
@@ -198,6 +204,10 @@ Phase 6 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，但 TEST-02 仍是 Pending；登录、云端存取、离线、实时同步、导入导出和编辑计划的 cloud 用例要在 Phase 9–12 随功能补齐，Phase 13 全量收口。
+- [Phase 9/10，来自 Phase 8]: 令牌 90 天且 SDK 0.28.1 不自动续期，启动时必须调用 `authRefresh`；失效令牌表现为匿名（列表 200 空、查看 404、创建 400），只有 `authRefresh` 返回 401，登录过期要靠它检测；Phase 10 的网络失败、5xx 和 SSE 断开用假服务器开关制造（`setOffline` 管不到）。
+- [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
+- [Phase 8 安全]: `/gsd-secure-phase 8` 尚未运行。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
@@ -220,11 +230,11 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T00:37:17.376Z
+Last session: 2026-11-09T03:10:19.000Z
 Stopped at: Phase 08 complete, ready to plan Phase 9
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 6 已完成并转场（2026-11-08），安全审查已通过（`06-SECURITY.md`）；Phase 8 讨论已完成（`08-CONTEXT.md`），下一步 `/gsd-plan-phase --research-phase 8` 先调研再规划
-- 下一阶段：`/gsd-discuss-phase 8`（PocketBase 规则、隔离与假服务器；需要所有者批准下载 PocketBase 二进制，前端 SDK 改用 0.28.1）
+- Phase 8 已完成并转场（2026-11-08）；`08-SECURITY.md` 还没有，先运行 `/gsd-secure-phase 8`
+- 下一阶段：`/gsd-discuss-phase 9`（登录与云端存储；需要 UI 设计契约，登录页和状态栏五种状态）
