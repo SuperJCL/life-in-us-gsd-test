@@ -4,6 +4,7 @@
 import { test, expect } from '../support/test';
 import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
+import { composer } from '../support/composer';
 import { gotoGoals } from '../support/goals';
 import { expectToast } from '../support/toast';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
@@ -17,6 +18,7 @@ import {
   BTN_RETRY,
   BTN_RETRYING,
   STATUS_RECONCILING,
+  STATUS_SAVE_FAILED_CLOUD,
   STATUS_SLOW,
   STATUS_UNREACHABLE,
   TAB_LABELS,
@@ -424,5 +426,47 @@ test('SYNC-05 a server error inside the window is retried quietly and never repo
   const seen: string[] = await page.evaluate(() => (window as any).__seen);
   expect(seen).toContain('reconciling');
   expect(seen).not.toContain('unreachable');
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+const hasText = (logs: Array<{ text: string }> | undefined, text: string) => (logs ?? []).some((l) => l.text === text);
+
+test('SYNC-05 an edit kept in the cache on top of the current server version is uploaded by the reconcile', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 保存被拒：记一条，推过防抖，状态行报保存失败，本机缓存留着这条没上传的修改（dirty）
+  const f = app.fake.fault({ method: 'PATCH', path: /\/api\/collections\/journey_docs\/records\/[^/]+$/, mode: 'refuse' });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-0907 kept entry');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect(page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+  expect(f.hits).toBe(1);
+  const cached = await page.evaluate((key) => {
+    const raw = localStorage.getItem(key);
+    return raw === null ? null : JSON.parse(raw);
+  }, `usj:v2:${app.fake.users[0].id}:state`);
+  expect(cached).not.toBeNull();
+  expect(cached.dirty).toBe(true);
+  expect(hasText(cached.data.logs, 'SYNTH-0907 kept entry')).toBe(true);
+  expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0907 kept entry')).toBe(false);
+
+  // 服务器版本没有变：重新打开，对账把这条修改上传
+  await app.fake.clearFaults();
+  const before = app.fake.requests.length;
+  await app.reload();
+
+  await expect(page.locator('#days').getByText('SYNTH-0907 kept entry')).toBeVisible();
+  expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0907 kept entry')).toBe(true);
+  const patches = app.fake.requests.slice(before).filter((r) => r.method === 'PATCH');
+  expect(patches).toEqual([{ method: 'PATCH', path: `${LIST_PATH}/${app.fake.docId(0, 'state')}`, status: 200 }]);
+  await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
   expect(app.fake.fulfillErrors).toEqual([]);
 });

@@ -728,7 +728,7 @@ function startReconcile(mode,retrying){
 async function enterApp(refresh){
   me=pb.authStore.record.id;
   try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
-  const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cached?cp:null,state:cached?cs:null};
+  const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cp,state:cs};
   if(cached){
     usePlan(cp.data);state=normalize(cs.data);
     docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0};
@@ -743,27 +743,39 @@ async function reconcileOnce(r){
   if(r.mode.refresh){await pb.collection("users").authRefresh(sg);live()}
   const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);live();
   const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
-  /* reconcile table (plan first, then state): server only -> server; clean cache with the same updated -> cache (= server);
-     clean cache and newer server -> server, nothing uploaded; no server document -> create. A dirty cache is 09-07 and is never uploaded here.
-     Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
+  /* reconcile table, one kind at a time (plan first, then state):
+     server only -> server; clean cache with the same updated -> cache (= server); clean cache and newer server -> server, nothing uploaded;
+     dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict(), then upload the local version;
+     no server document -> create. Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
-  const pd=list.find(d=>d.kind==="plan")||await mk("plan",normalizePlan(DEFAULT_PLAN));
-  const sd=list.find(d=>d.kind==="state")||await mk("state",normalize({}));
+  const resolve=async kind=>{
+    const c=old[kind],sv=list.find(d=>d.kind===kind);
+    if(!sv){const d=await mk(kind,kind==="plan"?normalizePlan(DEFAULT_PLAN):normalize({}));return {sv:d,data:d.data,c}}
+    if(c&&c.dirty&&canon(c.data)!==canon(sv.data)){
+      if(c.base!==sv.updated)keepConflict(kind,sv);
+      const u=await coll.update(sv.id,{data:c.data,writer:WRITER},sg);live();
+      return {sv:u,data:c.data,c};
+    }
+    return {sv,data:same(c,sv)?c.data:sv.data,c};
+  };
+  const pr=await resolve("plan"),sr=await resolve("state");
   live();
-  usePlan(same(old.plan,pd)?old.plan.data:pd.data);
-  state=normalize(same(old.state,sd)?old.state.data:sd.data);
+  usePlan(pr.data);
+  state=normalize(sr.data);
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
-  const changed=differs(old.plan,pd,plan)||differs(old.state,sd,state);
-  const settle=(k,sv,data,c)=>{const rec={id:sv.id,base:sv.updated,dirty:false,seq:(c&&c.seq)||0,data};
-    if(!(c&&c.dirty))cachePut(k,rec);
+  const changed=differs(old.plan,pr.sv,plan)||differs(old.state,sr.sv,state);
+  const settle=(k,x,data)=>{const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
+    cachePut(k,rec);
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
-  docs.plan=settle("plan",pd,plan,old.plan);docs.state=settle("state",sd,state,old.state);
+  docs.plan=settle("plan",pr,plan);docs.state=settle("state",sr,state);
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
   setGate(null);setStatus("已同步","synced");renderAll();
   if(changed)toast("已更新为其他设备上的最新内容",null,4000);
 }
+/* 09-08 keeps a copy of the server version here and tells the user; until then the local version simply wins (last saved wins) */
+function keepConflict(kind,serverDoc){return false}
 async function cloudSave(s){
   const seq=docs.state.seq||0;let r;
   try{r=await pb.collection("journey_docs").update(docs.state.id,{data:s,writer:WRITER})}
