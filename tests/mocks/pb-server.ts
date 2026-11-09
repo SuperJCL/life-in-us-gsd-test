@@ -7,6 +7,8 @@
 //  - REST 由 context.route 接应用来源下的 /api/，页面里的真实 SDK 原样运行；
 //    门面与 v1 的 MockBackend 同名同义：reads、writes、downloads、seed()、lastState()。
 //  - 令牌和口令只在运行时生成，源码里没有字面量（隐私规则 F、G）。
+//  - 错误注入开关（fault 等，Phase 9）只作用于页面请求：由 attach 的路由处理函数在调用 handle() 之前匹配；
+//    handle() 和 request() 不受影响，契约自测照旧直接调用 handle()。注入的状态码只是错误注入，不是真实服务器的契约。
 //  - 假时钟从 FROZEN_NOW 起，每次写入前进 1 毫秒，不读 Node 的真实时间：
 //    页面的 Date.now() 被固定在 FROZEN_NOW，两边的时间对不上会让令牌过期判断取决于运行日期。
 import { randomBytes } from 'node:crypto';
@@ -29,6 +31,17 @@ export type PbRequest = {
   authorization: string | null;
   body: unknown;
 };
+
+// 错误注入开关（Phase 9，不属于录制契约）：
+//  refuse：网络层拒绝连接（route.abort('connectionrefused')），页面里的 fetch 以网络错误失败；
+//  status：不经过 handle()，直接回 status 指定的状态码和 PocketBase 形状的错误正文；
+//  hold：请求一直挂着，直到句柄的 release() 或 clearFaults()，之后才照常交给 handle()。
+// times 缺省表示一直生效，命中 times 次之后自动失效。
+export type PbFaultMode = 'refuse' | 'status' | 'hold';
+export type PbFault = { method: string; path: string | RegExp; mode: PbFaultMode; status?: number; times?: number };
+export type PbFaultHandle = { readonly hits: number; release(): Promise<void>; remove(): void };
+
+type FaultRule = { fault: PbFault; hits: number; active: boolean };
 
 // 实时推送给某个页面连接的一条事件
 export type PbDelivery = { connectionId: string; name: string; data: string; lastEventId: string };
@@ -104,6 +117,8 @@ export class FakePbServer {
   fulfillErrors: Array<{ path: string; message: string }> = [];
   // 推送给页面失败的异常文本（例如页面已关闭）
   deliveryErrors: string[] = [];
+  // 每次错误注入命中：refuse 的 status 记 0；不进 requests（requests 只记 handle() 处理过的请求）
+  faultHits: Array<{ method: string; path: string; mode: PbFaultMode; status: number }> = [];
 
   private docs: PbDoc[] = [];
   private tokens = new Map<string, { userId: string; exp: number }>();
@@ -114,6 +129,7 @@ export class FakePbServer {
   private attachedContexts = new WeakSet<BrowserContext>();
   private watchedPages = new WeakSet<Page>();
   private pendingNavigations = new Set<Promise<void>>();
+  private faultRules: FaultRule[] = [];
 
   // 添加第 n 个合成账号：邮箱 user-a@example.com、user-b@example.com……
   addUser(): PbUser {
@@ -235,6 +251,21 @@ export class FakePbServer {
     return this.connections.size;
   }
 
+  // 登记一条错误注入规则，返回它的句柄。规则按注册顺序匹配，第一条仍有效且方法、路径都相同的生效。
+  fault(f: PbFault): PbFaultHandle {
+    const rule: FaultRule = { fault: { ...f, method: f.method.toUpperCase() }, hits: 0, active: true };
+    this.faultRules.push(rule);
+    return {
+      get hits() {
+        return rule.hits;
+      },
+      release: async () => {},
+      remove: () => {
+        rule.active = false;
+      },
+    };
+  }
+
   // 接管应用来源下的 /api/。护栏的 **/* route 在 fixture 里先注册，这里后注册所以先匹配；
   // 未实现的路径经 route.fallback() 回到护栏，在 cloud 策略下记为违规（08-03 收紧）。
   async attach(context: BrowserContext): Promise<void> {
@@ -261,6 +292,21 @@ export class FakePbServer {
       async (route) => {
         const request = route.request();
         const url = new URL(request.url());
+        // 错误注入先于 handle()：命中的请求不进 requests，也不改变假服务器的状态
+        const rule = this.matchFault(request.method(), url.pathname);
+        if (rule) {
+          rule.hits++;
+          if (rule.fault.times !== undefined && rule.hits >= rule.fault.times) rule.active = false;
+          if (rule.fault.mode === 'refuse') {
+            this.faultHits.push({ method: request.method(), path: url.pathname, mode: 'refuse', status: 0 });
+            try {
+              await route.abort('connectionrefused');
+            } catch (e) {
+              this.fulfillErrors.push({ path: url.pathname, message: String(e) });
+            }
+            return;
+          }
+        }
         const query: Record<string, string> = {};
         url.searchParams.forEach((value, key) => {
           query[key] = value;
@@ -304,6 +350,15 @@ export class FakePbServer {
   }
 
   // ---------- 内部 ----------
+
+  private matchFault(method: string, path: string): FaultRule | null {
+    for (const rule of this.faultRules) {
+      if (!rule.active || rule.fault.method !== method.toUpperCase()) continue;
+      const p = rule.fault.path;
+      if (typeof p === 'string' ? p === path : p.test(path)) return rule;
+    }
+    return null;
+  }
 
   // 逐条推给页面里的假 EventSource；页面已关闭等异常记进 deliveryErrors，不吞掉
   private async deliver(deliveries: PbDelivery[]): Promise<void> {
