@@ -187,7 +187,7 @@ Plans:
   3. 账号 A 在一台设备上记一笔、写复盘、勾选任务、保存力量值后，在另一台设备登录 A，看到同一份数据，四个视图按 A 自己的计划显示。账号 B 登录后看到的是 B 自己的计划和记录。
   4. 联网打开应用时，与服务器对账完成之前不能编辑（通常不超过约 3 秒）。本机缓存比服务器旧时以服务器为准，旧缓存不会被上传。真冲突时以最后保存的为准，被覆盖的那一版留在本机，用户可以下载。
   5. 打开云端版时，浏览器只向同源发请求：Google 字体的 `<link>` 已去掉，PocketBase SDK 从同源加载、版本固定。v1 的 154 条用例仍然通过，字体相关的探针和护栏随之调整。
-**Plans:** 12/14 plans executed
+**Plans:** 13/14 plans executed
 Plans:
 **Wave 1**
 - [x] 09-01-PLAN.md — 云端 tracer（USJ_CONFIG 开关、同源 SDK 加 SRI、登录、按 kind 读取文档、云端保存），首次登录补建文档与启动时 authRefresh
@@ -226,7 +226,7 @@ Plans:
 - [x] 09-12-PLAN.md — 登录表单全部状态、上次邮箱预填、显示密码（ACCT-01 收口）
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 09-13-PLAN.md — 退出登录（D-06、D-07）、重复点击与离线退出、工具栏账号、跨标签页退出、README 总览
+- [x] 09-13-PLAN.md — 退出登录（D-06、D-07）、重复点击与离线退出、工具栏账号、跨标签页退出、README 总览
 
 **Wave 14** *(blocked on Wave 13 completion)*
 - [ ] 09-14-PLAN.md — 退出确认框（D-05）、保存中退出、换账号确认（ACCT-02 收口），阶段收尾的完整 test:cloud
@@ -326,7 +326,7 @@ Plans:
 | 6. 采购与中美可达性实测 | v2.0 | 10/10 | Complete    | 2026-11-08 |
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
-| 9. 登录与云端存储 | v2.0 | 12/14 | In Progress | - |
+| 9. 登录与云端存储 | v2.0 | 13/14 | In Progress | - |
 | 10. 离线与实时同步 | v2.0 | 0/TBD | Not started | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
