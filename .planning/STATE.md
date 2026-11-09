@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-11-09T08:29:50.082Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-11-09T08:39:11.019Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 7427f15ca5d15c03866fcc14aac8584b13a4caa6
+state_head: 4fe8601e46a1534545d3bd96d099199134a4f0ba
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 26
+  completed_plans: 27
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 3 of 14
+Plan: 4 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -112,6 +112,7 @@ Progress: [████░░░░░░] 38%
 | Phase 08 P07 | 30min | 2 tasks | 4 files |
 | Phase 09 P01 | 7 min | 2 tasks | 9 files |
 | Phase 09 P02 | 6 min | 2 tasks | 10 files |
+| Phase 09 P03 | 7 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -185,6 +186,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: Cloud switch convention: USJ_CONFIG.backend literal pocketbase, address is location.origin, Phase 13 deployment supplies the line; SDK_SRI sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8= verified against SHA256SUMS; single state store (no makeDocStore(kind)) until plans are saved
 - [Phase 09]: 09-02: Google Fonts and preconnect removed from the app; serif falls back to Songti SC, STSong, Georgia. cloud guard policy records font hosts as violations while v1 keeps the font branch.
 - [Phase 09]: 09-02: SAFE-01, SAFE-04 and PROBE-2c rewritten to stay at least as strict (self-proved font branch, own font noise, zero font-host connections asserted); AppHarness.open gained sdkRefused for the tampered-SDK case.
+- [Phase 09]: 09-03: hold release() also stops holding later requests (refuse/status release is a no-op); hold records faultHits status 0; injected codes never enter INTENTIONAL_DEVIATIONS
 
 ### Pending Todos
 
@@ -235,8 +237,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T08:29:48.505Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-11-09T08:39:09.440Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
