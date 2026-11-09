@@ -65,6 +65,8 @@ export const RULES = {
 
 const DB_EXT_RE = /\.(db|db-wal|db-shm|db-journal|sqlite|sqlite3)$/i;
 const ARCHIVE_EXT_RE = /\.(zip|tar|tgz|gz|bz2|xz|7z|rar)$/i;
+// 改名前的旧导出文件还留在本机，所以新旧两个前缀都拦
+const EXPORT_PREFIXES = ['在美国的日子-', '计划手记-'];
 
 export function checkPath(path) {
   const norm = String(path).replace(/\\/g, '/');
@@ -74,7 +76,7 @@ export function checkPath(path) {
   if (base === APP_FILE) return norm === APP_FILE ? null : '应用文件只能放在仓库根目录';
   if (base.startsWith('us-journey-tracker') && base.endsWith('.html')) return '应用文件的副本只能留在 private/，不能进入仓库';
   if (base.includes('备份') && base.endsWith('.json')) return '真实备份文件不能进入仓库';
-  if (base.startsWith('在美国的日子-') && (base.endsWith('.json') || base.endsWith('.csv'))) {
+  if (EXPORT_PREFIXES.some((x) => base.startsWith(x)) && (base.endsWith('.json') || base.endsWith('.csv'))) {
     return '应用导出文件含真实数据，不能进入仓库';
   }
   if (segments.includes('private')) return 'private 目录只留在本机，不能进入仓库';
@@ -769,6 +771,8 @@ function runSelfTest() {
   const pathPos = [
     `sub/${APP_FILE}`, 'x备份y.json', 'private/notes.md', 'a/private/b.txt',
     '.claude/settings.local.json', '.env', '.env.local', 'config/.env.production', '在美国的日子-x.csv',
+    '计划手记-日历.csv', '计划手记-留底-2026-03-18.json', '计划手记-计划留底-2026-03-18.json', 'sub/计划手记-x.json',
+    '在美国的日子-留底-2026-03-18.json',
     'us-journey-tracker.original.html', 'backup/us-journey-tracker.v1.html',
     '.agents/skills/x/SKILL.md', '.codex/agents/x.toml', 'AGENTS.md',
     'pb_data/data.db', 'x/pb_data/logs.txt', 'pb_backups/a.json', 'data.db', 'data.db-wal', 'data.db-shm',
@@ -781,6 +785,7 @@ function runSelfTest() {
     'docs/AGENTS.md', 'docs/.agents-notes.md', 'src/codex/x.ts',
     'tests/fixtures/legacy-positional-backup.json', 'pb_migrations/1_init.js', 'pb_hooks/main.pb.js', 'pb_public/index.html',
     'tools/probe/server/pocketbase.service', 'tools/probe/page/vendor/pocketbase.iife.js', 'docs/database.md',
+    'docs/计划手记-说明.md',
   ];
   for (const p of pathNeg) expect(`规则 A 反例 ${p}`, checkPath(p) === null);
 

@@ -14,7 +14,7 @@
 | 内容 | 原因 |
 |------|------|
 | 应用文件的改名副本 `us-journey-tracker.*.html`（原件副本只放 `private/`） | 可能带着原来的个人计划（D-12） |
-| 真实备份 `*备份*.json`，以及应用导出的 `在美国的日子-*.json`、`在美国的日子-*.csv` | 含真实数据 |
+| 真实备份 `*备份*.json`，以及应用导出的 `计划手记-*.json`、`计划手记-*.csv` 和改名前的 `在美国的日子-*.json`、`在美国的日子-*.csv` | 含真实数据 |
 | `private/` 目录 | 本机私有内容，例如 `private/denylist.txt`、`private/plan-seed.json`（原计划种子）和 `private/us-journey-tracker.original.html`（原应用的副本） |
 | `.claude/settings.local.json` 和 GSD 安装文件 | 本机设置；`.claude/` 下只跟踪 `.claude/CLAUDE.md`（D-12） |
 | `.agents/`、`.codex/` 和根目录的 `AGENTS.md` | 其他 AI 工具的安装文件，里面有含本机用户名的绝对路径；`.gitignore` 忽略它们，规则 A 也会拦下强行暂存的这些路径 |

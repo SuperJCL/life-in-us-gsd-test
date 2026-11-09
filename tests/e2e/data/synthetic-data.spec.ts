@@ -215,9 +215,10 @@ test('DATA-02 malformed import payloads stay in memory, carry the synthetic mark
 
   const isPlainObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
   for (const m of MALFORMED_IMPORTS) {
-    // 名字不像备份或应用导出文件，磁盘上也没有同名文件
+    // 名字不像备份，也不像改名前后的应用导出文件，磁盘上也没有同名文件
     expect(m.name.includes('备份'), m.name).toBe(false);
     expect(m.name.startsWith('在美国的日子-'), m.name).toBe(false);
+    expect(m.name.startsWith('计划手记-'), m.name).toBe(false);
     expect(fs.existsSync(path.join(fixturesDir, m.name)), `${m.name} 不应落盘`).toBe(false);
 
     if (m.kind === 'not-json') {

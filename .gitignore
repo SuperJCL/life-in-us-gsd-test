@@ -8,6 +8,9 @@
 *备份*.json
 在美国的日子-*.json
 在美国的日子-*.csv
+# 应用改名后的导出文件名；上面两行旧名保留，因为旧导出文件还留在本机
+计划手记-*.json
+计划手记-*.csv
 
 # --- 本地私有目录（private/denylist.txt、private/plan-seed.json 是 D-10 的种子、private/us-journey-tracker.original.html 是 D-12 的原件副本）---
 private/
