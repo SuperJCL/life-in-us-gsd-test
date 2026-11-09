@@ -235,3 +235,13 @@ export const LOGIN_ERR_CREDENTIALS = '邮箱或密码不对，请检查后重试
 
 // 登录页错误区：连不上服务器（09-UI-SPEC Copywriting 逐字复制）
 export const LOGIN_ERR_UNREACHABLE = '连不上服务器，请检查网络后重试';
+
+// 云端路径对账中的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 reconciling
+export const STATUS_RECONCILING = '正在和服务器对账…';
+
+// 对账后用服务器版本替换了本机缓存、且两者确实不同时的 toast（09-UI-SPEC S5 D-04 逐字复制，4000 ms）
+export const TOAST_REMOTE_UPDATED = '已更新为其他设备上的最新内容';
+
+// 云端保存失败时的状态行文案（09-UI-SPEC S2 的 savefailed 行逐字复制）；#status 的 data-state 同时为 savefailed。
+// Phase 10 做自动重试（SYNC-06）时由 retrying 取代，到那时本常量随之删除
+export const STATUS_SAVE_FAILED_CLOUD = '保存失败：修改仍在本机，下次修改或重新打开时会再上传';

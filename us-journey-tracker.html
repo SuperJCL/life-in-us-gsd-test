@@ -205,6 +205,12 @@ ul.items li{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-r
 .toast.on{opacity:1}
 .toast.act{pointer-events:auto}
 .toast button{background:none;border:0;color:var(--c-lang-s);font-weight:700;padding:0;text-decoration:underline}
+.toast[data-cloud] button{font-weight:600}
+body[data-gate] :is(button,input,select,textarea):disabled{opacity:.55;cursor:not-allowed}
+body[data-gate] .primary:disabled{opacity:.4}
+body[data-gate] .ghost[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+body[data-gate] [aria-disabled="true"]{cursor:default}
+body[data-gate] .ent[aria-disabled="true"]:hover,body[data-gate] .editable[aria-disabled="true"]:hover{filter:none;box-shadow:none}
 dialog#editor{border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink)}
 dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 @media (max-width:560px){dialog#editor{margin:auto 0 0;width:100vw;max-width:100vw;border-radius:14px 14px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
@@ -536,10 +542,11 @@ function normalize(s){
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false;
-function persist(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+function persist(){dirty=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cachePut("state",{...docs.state,data:state})}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 async function flush(){
+  if(CLOUD&&document.body.hasAttribute("data-gate"))return;
   if(!store||saving||!dirty)return;saving=true;dirty=false;
-  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label,store.state)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"))}
+  try{await store.save(JSON.parse(JSON.stringify(state)));setStatus(store.label,store.state)}catch(e){setStatus("保存失败："+(e&&e.message||"未知错误"),e&&e.state)}
   saving=false;if(dirty)flush();
 }
 function setStatus(t,st){const e=$("status");e.textContent=t;if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
@@ -580,7 +587,7 @@ function loadSdk(){return new Promise((ok,no)=>{
   document.head.appendChild(s);
 })}
 function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false)}
-function showLogin(err){document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
+function showLogin(err){setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err}
 async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
@@ -588,9 +595,7 @@ async function cloudInit(){
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
   if(!pb.authStore.isValid){showLogin("");return}
-  try{await pb.collection("users").authRefresh()}
-  catch(e){if(e&&e.status===401){pb.authStore.clear();showLogin("")}else showLogin(ERR_NET);return}
-  try{await enterApp()}catch(e){showLogin(ERR_NET)}
+  try{await enterApp(true)}catch(e){showLogin(ERR_NET)}
 }
 async function onLogin(e){
   e.preventDefault();
@@ -601,19 +606,74 @@ async function onLogin(e){
   $("loginPw").value="";
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
 }
-async function enterApp(){
-  me=pb.authStore.record.id;
-  const coll=pb.collection("journey_docs"),list=await coll.getFullList();
-  let planDoc=list.find(d=>d.kind==="plan"),stateDoc=list.find(d=>d.kind==="state");
-  if(!planDoc)planDoc=await coll.create({owner:me,kind:"plan",data:normalizePlan(DEFAULT_PLAN),writer:WRITER});
-  if(!stateDoc)stateDoc=await coll.create({owner:me,kind:"state",data:normalize({}),writer:WRITER});
-  usePlan(planDoc.data);state=normalize(stateDoc.data);
-  docs.plan={id:planDoc.id,base:planDoc.updated};docs.state={id:stateDoc.id,base:stateDoc.updated};
-  store={label:"已同步",state:"synced",load:async()=>null,save:cloudSave};
-  $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
-  setStatus("已同步","synced");renderAll();
+/* local cache: usj:v2:<user id>:<plan|state> = { id, base, dirty, seq, data }; base is the server-issued updated stamp */
+const LAST_USER_KEY="usj:v2:lastUser";
+const cacheKey=k=>"usj:v2:"+me+":"+k;
+function cacheGet(k){try{const r=JSON.parse(localStorage.getItem(cacheKey(k)));return r&&typeof r==="object"&&r.data&&typeof r.data==="object"?r:null}catch(e){return null}}
+function cachePut(k,rec){try{localStorage.setItem(cacheKey(k),JSON.stringify(rec));return true}catch(e){return false}}
+function canon(v){return JSON.stringify(v,(k,x)=>x&&typeof x==="object"&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(y=>[y,x[y]])):x)}
+const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null,save:cloudSave});
+/* edit gate: body[data-gate] is the only switch; the legacy path never has it */
+const GATE_ALLOW="nav.tabs [data-tab],#wkPrev,#wkNow,#wkNext,#prev,#todayBtn,#next,.filters button,.cell,#syncbar button,#logoutBtn,#snapshotBtn";
+function markGate(el,t){const g=(el.getAttribute("data-gated")||"").split(" ").filter(Boolean);if(!g.includes(t))g.push(t);el.setAttribute("data-gated",g.join(" "))}
+function applyGate(){
+  if(!document.body.dataset.gate)return;
+  document.querySelectorAll(".wrap button,.wrap input,.wrap select,.wrap textarea").forEach(el=>{if(el.disabled||el.matches(GATE_ALLOW))return;el.disabled=true;markGate(el,"d")});
+  document.querySelectorAll("[data-edit],[data-edittask]").forEach(el=>{el.setAttribute("aria-disabled","true");el.setAttribute("tabindex","-1");markGate(el,"a")});
+  document.querySelectorAll('[draggable="true"]').forEach(el=>{el.setAttribute("draggable","false");markGate(el,"g")});
 }
-async function cloudSave(s){const r=await pb.collection("journey_docs").update(docs.state.id,{data:s,writer:WRITER});docs.state.base=r.updated}
+function setGate(mode){
+  if(mode){document.body.dataset.gate=mode;applyGate();return}
+  delete document.body.dataset.gate;
+  document.querySelectorAll("[data-gated]").forEach(el=>{const g=el.getAttribute("data-gated").split(" ");
+    if(g.includes("d"))el.disabled=false;
+    if(g.includes("a")){el.removeAttribute("aria-disabled");el.setAttribute("tabindex","0")}
+    if(g.includes("g"))el.setAttribute("draggable","true");
+    el.removeAttribute("data-gated")});
+}
+async function enterApp(refresh){
+  me=pb.authStore.record.id;
+  try{localStorage.setItem(LAST_USER_KEY,me)}catch(e){}
+  const cp=cacheGet("plan"),cs=cacheGet("state"),old={plan:null,state:null};
+  if(cp&&cs){
+    old.plan=cp;old.state=cs;
+    usePlan(cp.data);state=normalize(cs.data);
+    docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0};
+    store=cloudStore();
+    $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
+    setGate("reconciling");setStatus("正在和服务器对账…","reconciling");renderAll();
+  }
+  if(refresh){
+    try{await pb.collection("users").authRefresh()}
+    catch(e){if(e&&e.status===401){pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("");return}throw e}
+  }
+  const coll=pb.collection("journey_docs"),list=await coll.getFullList();
+  const mk=(kind,data)=>coll.create({owner:me,kind,data,writer:WRITER});
+  /* reconcile table (plan first, then state): server only -> server; clean cache with the same updated -> cache (= server);
+     clean cache and newer server -> server, nothing uploaded; no server document -> create. A dirty cache is 09-07 and is never uploaded here. */
+  const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
+  const pd=list.find(d=>d.kind==="plan")||await mk("plan",normalizePlan(DEFAULT_PLAN));
+  usePlan(same(old.plan,pd)?old.plan.data:pd.data);
+  const sd=list.find(d=>d.kind==="state")||await mk("state",normalize({}));
+  state=normalize(same(old.state,sd)?old.state.data:sd.data);
+  const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
+  const changed=differs(old.plan,pd,plan)||differs(old.state,sd,state);
+  const settle=(k,sv,data,c)=>{const rec={id:sv.id,base:sv.updated,dirty:false,seq:(c&&c.seq)||0,data};
+    if(!(c&&c.dirty))cachePut(k,rec);
+    return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
+  docs.plan=settle("plan",pd,plan,old.plan);docs.state=settle("state",sd,state,old.state);
+  store=cloudStore();
+  $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
+  setGate(null);setStatus("已同步","synced");renderAll();
+  if(changed)toast("已更新为其他设备上的最新内容",null,4000);
+}
+async function cloudSave(s){
+  const seq=docs.state.seq||0;let r;
+  try{r=await pb.collection("journey_docs").update(docs.state.id,{data:s,writer:WRITER})}
+  catch(e){const er=new Error("修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
+  docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
+  cachePut("state",{...docs.state,data:state});
+}
 
 /* ---------- shared ---------- */
 function eventsOn(date){
@@ -674,7 +734,7 @@ function bindComposer(root,p,getDate){
 function rerenderComp(p){if(p==="w")renderWkComp();else renderDay()}
 
 /* ---------- render ---------- */
-function renderAll(){renderHeader();renderWeek();renderCal();renderDay();renderGoals();renderTimeline()}
+function renderAll(){renderHeader();renderWeek();renderCal();renderDay();renderGoals();renderTimeline();applyGate()}
 function renderHeader(){
   $("arrival").value=state.arrival||"";
   const c=$("counter");
@@ -707,7 +767,7 @@ function renderWeek(){
     return `<div class="day ${d===t?"today":""} ${d===wsel?"sel":""}" data-wday="${d}" tabindex="0" role="button" aria-label="${md(d)}，${ents.length} 项，点击选为记录日期">
       <div class="dh">周${WD[parse(d).getDay()]} <b>${+d.slice(8)}</b></div>${ents.join("")}</div>`}).join("");
   const rv=$("review");if(document.activeElement!==rv)rv.value=state.reviews[wk]||"";
-  renderWkComp();
+  renderWkComp();applyGate();
 }
 function renderWkComp(){
   const box=$("wkComp");
@@ -738,7 +798,7 @@ function renderDay(){
     ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${esc(l.id)}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${esc(l.id)}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
     ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${esc(t.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
     ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
-  bindComposer(box,"c",()=>sel);
+  bindComposer(box,"c",()=>sel);applyGate();
 }
 
 function renderGoals(){
@@ -760,7 +820,7 @@ function renderGoals(){
       return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
       <span class="meta">${s.done?`完成于 ${md(s.doneDate)}`:`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
-    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给${esc(g.id)}添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("");
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给${esc(g.id)}添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("");applyGate();
 }
 
 function renderTimeline(){
@@ -774,7 +834,7 @@ function renderTimeline(){
   let html="",m="";
   items.forEach(it=>{const mm=it.date.slice(0,7);if(mm!==m){m=mm;html+=`<div class="tl-month">${esc(mm.slice(0,4))} 年 ${+mm.slice(5)} 月</div>`}
     html+=`<div class="tl-item k-${it.k} editable" ${it.attr} tabindex="0" role="button"><span class="tl-date">${+it.date.slice(5,7)}/${+it.date.slice(8)}</span><span class="tag">${esc(it.tag)}</span><span class="li-text">${esc(it.text)}</span></div>`});
-  $("timeline").innerHTML=html;
+  $("timeline").innerHTML=html;applyGate();
 }
 
 /* ---------- events ---------- */
@@ -794,6 +854,7 @@ document.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;c
 const dlg=$("editor"),form=$("ed-form");
 form.addEventListener("submit",e=>e.preventDefault());
 function openEditor(id){
+  if(document.body.dataset.gate)return;
   const l=state.logs.find(x=>x.id===id);if(!l)return;let cat=l.cat;
   const draw=()=>{form.innerHTML=`<div class="ed-h"><h3 id="ed-title">编辑记录</h3></div>
     <div class="ed-grid">
@@ -817,6 +878,7 @@ function openEditor(id){
   const ta=$("ed-text");ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
 }
 function openTaskEditor(id){
+  if(document.body.dataset.gate)return;
   const t=allTasks().find(x=>x.id===id);if(!t)return;const s=tstate(id);
   form.innerHTML=`<div class="ed-h"><h3 id="ed-title">完成的计划</h3></div>
     <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${esc(t.group)}</span> ${esc(t.text)}</div>
@@ -894,10 +956,10 @@ $("importJson").addEventListener("change",e=>{const f=e.target.files[0];if(!f)re
   r.onload=()=>{try{const j=JSON.parse(r.result),bad=importProblem(j);if(bad)throw new Error(bad);const s=normalize(j);if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist();renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
   r.readAsText(f)});
 
-let tt;function toast(m,act){const t=$("toast");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);
+let tt;function toast(m,act,ms){const t=$("toast");if(ms!=null)t.setAttribute("data-cloud","");else t.removeAttribute("data-cloud");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);
   t.classList.toggle("act",!!act);
   if(act){const b=document.createElement("button");b.type="button";b.textContent=act.label;b.onclick=()=>{clearTimeout(tt);t.classList.remove("on","act");act.fn()};t.appendChild(b)}
-  t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on","act"),act?5000:1800)}
+  t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on","act"),ms!=null?ms:act?5000:1800)}
 window.addEventListener("pagehide",flush);
 init();
 })();
