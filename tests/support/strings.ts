@@ -262,3 +262,11 @@ export const BANNER_UNREACHABLE = '连不上服务器，现在只能查看上次
 // 横幅和等待卡片里的重试按钮文字（09-UI-SPEC S4 按钮列），点击后立即换成 BTN_RETRYING 并 disabled（S2 规则）
 export const BTN_RETRY = '重试';
 export const BTN_RETRYING = '正在重试…';
+
+// 没有缓存（第一次登录或重新登录）时的等待卡片文案（09-UI-SPEC S10 逐字复制）：加载中的标题和副文字
+export const BOOT_TITLE_LOADING = '正在加载你的数据…';
+export const BOOT_SUB_LOADING = '第一次登录需要先从服务器取数据';
+
+// 等待卡片约 15 秒仍未完成时的标题和副文字（09-UI-SPEC S10 逐字复制）；卡片里只剩一个重试按钮
+export const BOOT_TITLE_UNREACHABLE = '连不上服务器';
+export const BOOT_SUB_UNREACHABLE = '请检查网络，然后重试';

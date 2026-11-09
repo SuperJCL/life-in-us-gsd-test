@@ -6,9 +6,13 @@ import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
 import { gotoGoals } from '../support/goals';
 import { expectToast } from '../support/toast';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
 import {
   BANNER_SLOW,
+  BOOT_SUB_UNREACHABLE,
+  BOOT_TITLE_LOADING,
+  BOOT_TITLE_UNREACHABLE,
   BANNER_UNREACHABLE,
   BTN_RETRY,
   BTN_RETRYING,
@@ -316,4 +320,109 @@ test('SYNC-05 a reconcile not finished after about 15 seconds turns read-only wi
   }
   expect(app.fake.fulfillErrors.length).toBeLessThanOrEqual(1);
   test.info().annotations.push({ type: 'observed', description: 'fulfillErrors=' + app.fake.fulfillErrors.length });
+});
+
+test('SYNC-05 a first sign-in that cannot reach the server shows only the retry card with no account content', async ({
+  app,
+  page,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  // 不登录：这台设备没有该账号的缓存，登录后只能先显示等待卡片
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const boot = page.locator('#boot');
+  const title = page.locator('#bootTitle');
+
+  const hold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await app.submitLogin(0);
+  await expect(boot).toBeVisible();
+  await expect(title).toHaveText(BOOT_TITLE_LOADING);
+  await expect(page.locator('.wrap')).toBeHidden();
+  await expect(page.locator('#bootBar')).toBeVisible();
+  await expect(page.locator('#bootRetry')).toBeHidden();
+  await expect.poll(() => hold.hits).toBe(1);
+
+  // 3 秒：标题改成变慢的那一句
+  await page.clock.runFor(3_000);
+  await expect(title).toHaveText(STATUS_SLOW);
+
+  // 15 秒：只剩“连不上服务器”和一个重试按钮，没有退出登录，也没有任何账号内容
+  await page.clock.runFor(12_000);
+  await expect(title).toHaveText(BOOT_TITLE_UNREACHABLE);
+  await expect(page.locator('#bootSub')).toHaveText(BOOT_SUB_UNREACHABLE);
+  await expect(page.locator('#bootBar')).toBeHidden();
+  await expect(boot.locator('button:visible')).toHaveCount(1);
+  await expect(boot.locator('button:visible')).toHaveText(BTN_RETRY);
+  await expect(page.locator('.wrap')).toBeHidden();
+  await expect(page.getByText('退出登录')).toHaveCount(0);
+  await expect(page.getByText('合成记录')).toHaveCount(0);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'unreachable');
+
+  // 服务器恢复（被中止的第一个请求此时才被放行，响应被丢弃），点重试后对账完成，应用外壳出现
+  await app.fake.clearFaults();
+  await page.locator('#bootRetry').click();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('.wrap')).toBeVisible();
+  await expect(boot).toBeHidden();
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+  await expect(page.locator('#toast')).not.toHaveClass(/on/);
+  for (const e of app.fake.fulfillErrors) {
+    expect(e.path).toBe(LIST_PATH);
+  }
+  expect(app.fake.fulfillErrors.length).toBeLessThanOrEqual(1);
+  test.info().annotations.push({ type: 'observed', description: 'fulfillErrors=' + app.fake.fulfillErrors.length });
+});
+
+test('SYNC-05 a server error inside the window is retried quietly and never reported as unreachable', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 记下刷新之后状态行出现过的每个 data-state，以及应用设置过的全部 setTimeout 延时
+  await page.addInitScript(() => {
+    const w = window as any;
+    w.__seen = [] as string[];
+    w.__delays = [] as number[];
+    const orig = w.setTimeout.bind(w);
+    w.setTimeout = (fn: any, ms?: number, ...rest: any[]) => {
+      w.__delays.push(ms ?? 0);
+      return orig(fn, ms, ...rest);
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      const el = document.getElementById('status')!;
+      new MutationObserver(() => {
+        const v = el.getAttribute('data-state');
+        if (v) w.__seen.push(v);
+      }).observe(el, { attributes: true, attributeFilter: ['data-state'] });
+    });
+  });
+
+  const f = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'status', status: 503, times: 1 });
+  await page.reload();
+  await acknowledgeConsoleErrors(guard, { 'status of 503 ': 1 });
+  expect(f.hits).toBe(1);
+
+  // 第一次失败之后：状态仍是对账中，横幅没有出现，下一次尝试已经排在 5 秒之后
+  await expect.poll(() => page.evaluate(() => (window as any).__delays.filter((d: number) => d === 5000).length)).toBe(1);
+  await expect(page.locator('#status')).toHaveText(STATUS_RECONCILING);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'reconciling');
+  await expect(page.locator('#syncbar')).not.toBeVisible();
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+
+  // 5 秒：静默重试成功
+  await page.clock.runFor(5_000);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('#syncbar')).not.toBeVisible();
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+
+  // 整个过程没有出现过连不上。推过 5 秒时会经过 3 秒的变慢提示，所以 slow 出现是对的（状态保持对账中或网络较慢）
+  const seen: string[] = await page.evaluate(() => (window as any).__seen);
+  expect(seen).toContain('reconciling');
+  expect(seen).not.toContain('unreachable');
+  expect(app.fake.fulfillErrors).toEqual([]);
 });

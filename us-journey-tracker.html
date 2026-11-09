@@ -257,6 +257,15 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 .syncbar[data-tone="info"]{--tone:var(--c-lang)}
 .syncbar .sb-msg{flex:1 1 220px;min-width:0;word-break:break-word}
 .syncbar button{min-height:36px;padding:4px 12px}
+/* first sign-in wait card */
+#boot{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px max(20px,env(safe-area-inset-right)) 48px max(20px,env(safe-area-inset-left))}
+#boot h2{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0}
+#bootSub{color:var(--muted);margin:8px 0 0}
+#boot .bar i{width:40%;background:var(--c-lang);animation:bootslide 1.4s ease-in-out infinite}
+@keyframes bootslide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+#boot .primary{width:100%;margin-top:16px}
+@media (max-width:560px){#boot .primary{min-height:44px}}
+@media (prefers-reduced-motion:reduce){#boot .bar i{animation:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 </head>
@@ -274,6 +283,14 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
       <button type="submit" class="primary" id="loginBtn">登录</button>
     </form>
     <p class="fine">账号由管理员开通。忘记密码请联系管理员。</p>
+  </div>
+</section>
+<section id="boot" class="hidden">
+  <div class="gate-card" role="status">
+    <h2 id="bootTitle">正在加载你的数据…</h2>
+    <p id="bootSub">第一次登录需要先从服务器取数据</p>
+    <div class="bar" id="bootBar"><i></i></div>
+    <button type="button" class="primary hidden" id="bootRetry">重试</button>
   </div>
 </section>
 <div class="wrap">
@@ -605,6 +622,7 @@ async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
   $("loginForm").addEventListener("submit",onLogin);
+  $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
   if(!pb.authStore.isValid){showLogin("");return}
@@ -666,32 +684,43 @@ function drawBar(){
 function showBar(key,b){sbs[key]=b;drawBar()}
 function hideBar(key){if(sbs[key]){delete sbs[key];drawBar()}}
 /* reconcile run: exactly one is current; a run that was abandoned at the deadline, replaced by a retry or superseded by a login never touches the page again */
-const SLOW_MS=3000,FAIL_MS=15000;
+const SLOW_MS=3000,FAIL_MS=15000,RETRY_MS=5000;
 const T_RECON="正在和服务器对账…",T_SLOW="网络较慢，还在连…",T_UNREACH="连不上服务器，暂时只能查看，不能修改",T_RETRYING="正在重试…";
 const STALE=new Error("stale");
 let run=null;
 function endRun(r){if(!r)return;r.live=false;r.timers.forEach(clearTimeout);r.timers=[];try{r.ctrl.abort()}catch(e){}}
-function clearRunUI(){hideBar("slow");hideBar("unreachable")}
+function clearRunUI(){hideBar("slow");hideBar("unreachable");$("boot").classList.add("hidden")}
+function bootUI(kind,busy){
+  const fail=kind==="fail",b=$("bootRetry");
+  $("bootTitle").textContent=fail?"连不上服务器":kind==="slow"?T_SLOW:"正在加载你的数据…";
+  $("bootSub").textContent=fail?"请检查网络，然后重试":"第一次登录需要先从服务器取数据";
+  $("bootBar").classList.toggle("hidden",fail);
+  b.classList.toggle("hidden",!fail);b.disabled=!!busy;b.textContent=busy?T_RETRYING:"重试";
+}
 const unreachBar=(r,busy)=>({tone:"error",msg:"连不上服务器，现在只能查看上次的内容，不能修改。",btns:[{text:busy?T_RETRYING:"重试",cls:"primary",disabled:busy,fn:()=>onRetry(r.mode)}]});
 /* a retry is only possible once the previous run was abandoned; a click while a run is live (the button is already disabled) does nothing */
 function onRetry(mode){if(run&&run.live)return;startReconcile(mode,true)}
 function startReconcile(mode,retrying){
   endRun(run);
-  const r={ctrl:new AbortController(),live:true,timers:[],mode};run=r;
+  const r={ctrl:new AbortController(),live:true,timers:[],tries:0,mode};run=r;
   const alive=()=>r.live&&run===r,cached=mode.cached;
   const later=(fn,ms)=>{r.timers.push(setTimeout(()=>{if(alive())fn()},ms))};
   setStatus(T_RECON,"reconciling");
   if(cached){setGate("reconciling");if(retrying)showBar("unreachable",unreachBar(r,true))}
-  later(()=>{setStatus(T_SLOW,"slow");if(cached)showBar("slow",{tone:"warn",msg:"网络较慢，还在连…现在还不能修改。"})},SLOW_MS);
+  else{$("login").classList.add("hidden");document.querySelector(".wrap").classList.add("hidden");$("boot").classList.remove("hidden");if(retrying)bootUI("fail",true);else bootUI("load")}
+  later(()=>{setStatus(T_SLOW,"slow");if(cached)showBar("slow",{tone:"warn",msg:"网络较慢，还在连…现在还不能修改。"});else if(!retrying)bootUI("slow")},SLOW_MS);
   later(()=>{
     endRun(r);setStatus(T_UNREACH,"unreachable");
     if(cached){hideBar("slow");setGate("readonly");showBar("unreachable",unreachBar(r,false))}
+    else bootUI("fail",false);
   },FAIL_MS);
   const attempt=async()=>{
+    r.tries++;
     try{await reconcileOnce(r)}
     catch(e){
       if(!alive())return;
       if(e&&e.status===401){endRun(r);pb.authStore.clear();me=null;docs={state:null,plan:null};showLogin("");return}
+      if(r.tries<3)later(attempt,RETRY_MS);
     }
   };
   return attempt();
