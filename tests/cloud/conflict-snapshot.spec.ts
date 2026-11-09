@@ -126,6 +126,57 @@ test('SYNC-05 downloading the kept version saves a state-shaped JSON file withou
   }
 });
 
+test('SYNC-05 the download address of the kept version stays valid after the click and is released much later', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
+  // 设备二用 manual 时钟：下载地址的回收计时器由测试推进，不真的等
+  const second = await openDevice({ browser, guard, fake: app.fake, acceptDownloads: true, clock: 'none' });
+  try {
+    // 测试装置只装在设备二：记下每次回收下载地址的调用
+    await second.page.addInitScript(() => {
+      const revoked: string[] = [];
+      (window as unknown as { __revoked: string[] }).__revoked = revoked;
+      const original = URL.revokeObjectURL;
+      URL.revokeObjectURL = function (url: string) {
+        revoked.push(String(url));
+        return original.call(URL, url);
+      };
+    });
+    await second.page.clock.install({ time: FROZEN_NOW });
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const revokedCount = () => second.page.evaluate(() => (window as unknown as { __revoked: string[] }).__revoked.length);
+
+    const one = composer(page, 'w');
+    await one.type('SYNTH-0912 first');
+    await one.submit();
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
+      .toBe(true);
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0912 second');
+    await two.submit();
+    await second.page.clock.runFor(1_000);
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+
+    const [download] = await Promise.all([second.page.waitForEvent('download'), second.page.locator('#snapshotBtn').click()]);
+    expect(download.suggestedFilename()).toBe(FILENAME_SNAPSHOT_FROZEN);
+    // 点击之后地址还没有回收（下载请求发出时它必须还有效）；本机副本按 D-10 已经删除
+    expect(await revokedCount()).toBe(0);
+    await second.page.clock.runFor(29_000);
+    expect(await revokedCount()).toBe(0);
+    await second.page.clock.runFor(2_000);
+    expect(await revokedCount()).toBe(1);
+    expect(await second.page.evaluate((k) => localStorage.getItem(k), `usj:v2:${app.fake.users[0].id}:snapshot`)).toBeNull();
+  } finally {
+    await second.context.close();
+  }
+});
+
 test('SYNC-05 a newer conflict replaces the single kept version', async ({ app, page, browser, guard }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
   const second = await openDevice({ browser, guard, fake: app.fake });

@@ -930,7 +930,8 @@ function snapDownload(){
     if(url)try{URL.revokeObjectURL(url)}catch(x){}
     toast("留底生成失败，本机副本仍然保留",null,4000);return;
   }
-  setTimeout(()=>URL.revokeObjectURL(url),0);
+  /* the blob address must outlive the click: the browser may still be asking whether to allow the download; it is revoked much later (D-10 still deletes the kept copy on the click) */
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
   try{localStorage.removeItem(snapKey())}catch(e){}
   snapShow();
   toast("已开始下载留底，本机不再保留副本",null,3000);
