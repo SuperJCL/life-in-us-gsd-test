@@ -235,14 +235,14 @@ dialog#editor::backdrop{background:rgba(10,16,30,.45)}
 #login .lead{color:var(--muted);text-align:center;margin:8px 0 24px}
 .gate-card{width:min(400px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px}
 #login label.f{display:block;margin:0 0 4px}
-#login input{font-size:16px;line-height:1.55;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper)}
+#login input{font-size:16px;line-height:1.55;width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper)}
 #login .pw-row{position:relative}
 #login .pw-row input{padding-right:64px}
 #login .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:12px}
 #login #loginForm>input{margin-bottom:16px}
 #login button{font-size:14px}
 #login .primary{width:100%}
-#login-err{color:var(--red);margin:8px 0 0}
+#login-err{color:var(--red);margin:8px 0 0;overflow-wrap:anywhere}
 #login-err:empty{display:none}
 #login #login-err+.primary{margin-top:16px}
 #login .fine{font-size:12px;color:var(--muted);text-align:center;margin:16px 0 0}
@@ -638,12 +638,27 @@ function loginNotice(kind){
   [T_EXPIRED].concat(hasUnsent()?[T_EXPIRED_UNSENT]:[]).forEach(t=>{const p=document.createElement("p");p.textContent=t;n.appendChild(p)});
   n.setAttribute("data-tone","warn");n.classList.remove("hidden");
 }
-function showLogin(err,notice){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err;loginNotice(notice)}
+function showLogin(err,notice){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err;loginNotice(notice);prefillLogin()}
+/* D-07: the login page always prefills the email of the last successful sign-in (also after a logout); the password is never prefilled and is always hidden again */
+const LAST_EMAIL_KEY="usj:v2:lastEmail",ERR_EMPTY="请填写邮箱和密码";
+function setPwShown(on){
+  const i=$("loginPw"),b=document.querySelector("#login .pw-toggle");
+  i.type=on?"text":"password";b.textContent=on?"隐藏":"显示";
+  b.setAttribute("aria-pressed",on?"true":"false");b.setAttribute("aria-label",on?"隐藏密码":"显示密码");
+}
+function prefillLogin(){
+  let last="";try{last=localStorage.getItem(LAST_EMAIL_KEY)||""}catch(e){}
+  const em=$("loginEmail");em.value=last;$("loginPw").value="";setPwShown(false);
+  ["loginEmail","loginPw"].forEach(id=>$(id).removeAttribute("aria-invalid"));
+  (last?$("loginPw"):em).focus();
+}
 async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
   $("importJson").parentNode.classList.add("hidden");
   $("loginForm").addEventListener("submit",onLogin);
   ["loginEmail","loginPw"].forEach(id=>$(id).addEventListener("input",clearLoginErr));
+  document.querySelector("#login .pw-toggle").addEventListener("click",()=>setPwShown($("loginPw").type==="password"));
+  window.addEventListener("pagehide",()=>setPwShown(false));
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
@@ -667,6 +682,7 @@ async function onLogin(e){
   if(loginBusy)return;
   const email=$("loginEmail").value.trim(),pw=$("loginPw").value;
   clearLoginErr();
+  if(!email||!pw){$("login-err").textContent=ERR_EMPTY;(email?$("loginPw"):$("loginEmail")).focus();return}
   setLoginBusy(true);
   const ctrl=new AbortController();let gaveUp=false,msg="",status=0;
   const timer=setTimeout(()=>{gaveUp=true;ctrl.abort()},FAIL_MS);
@@ -684,7 +700,8 @@ async function onLogin(e){
     if(msg===ERR_CRED){const p=$("loginPw");p.value="";p.setAttribute("aria-invalid","true");p.focus()}
     return;
   }
-  $("loginPw").value="";loginNotice(null);
+  $("loginPw").value="";setPwShown(false);loginNotice(null);
+  try{localStorage.setItem(LAST_EMAIL_KEY,email)}catch(err){}
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
 }
 /* local cache: usj:v2:<user id>:<plan|state> = { id, base, dirty, seq, data }; base is the server-issued updated stamp */

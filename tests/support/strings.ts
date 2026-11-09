@@ -242,6 +242,15 @@ export const LOGIN_ERR_RATE = '尝试次数太多，请过几分钟再试';
 // 登录按钮在提交中的文字（09-UI-SPEC Copywriting 逐字复制）；按钮同时 disabled、aria-busy 为 true
 export const LOGIN_BUSY = '登录中…';
 
+// 登录页错误区：有字段为空，点登录时只在本地检查（09-UI-SPEC Copywriting 逐字复制）
+export const LOGIN_ERR_EMPTY = '请填写邮箱和密码';
+
+// 登录页显示密码按钮的文字与 aria-label（09-UI-SPEC S1 逐字复制）：隐藏状态与明文状态各一组
+export const PW_SHOW = '显示';
+export const PW_HIDE = '隐藏';
+export const PW_SHOW_LABEL = '显示密码';
+export const PW_HIDE_LABEL = '隐藏密码';
+
 // 云端路径对账中的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 reconciling
 export const STATUS_RECONCILING = '正在和服务器对账…';
 

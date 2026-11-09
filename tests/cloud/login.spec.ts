@@ -12,8 +12,13 @@ import { FROZEN_NOW } from '../support/constants';
 import {
   LOGIN_BUSY,
   LOGIN_ERR_CREDENTIALS,
+  LOGIN_ERR_EMPTY,
   LOGIN_ERR_RATE,
   LOGIN_ERR_UNREACHABLE,
+  PW_HIDE,
+  PW_HIDE_LABEL,
+  PW_SHOW,
+  PW_SHOW_LABEL,
   STATUS_CLOUD_SYNCED,
 } from '../support/strings';
 
@@ -230,5 +235,85 @@ test('ACCT-01 submitting twice sends one sign-in request', async ({ app, page })
   await expect(page.locator('.wrap')).toBeVisible();
   expect(app.fake.requests.filter((r) => r.method === 'POST' && r.path === AUTH_PATH)).toHaveLength(1);
   expect(hold.hits).toBe(1);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 the login page has no registration or password-reset entry and prefills the last signed-in email', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN });
+  const [user] = app.fake.users;
+
+  // 首次打开：没有链接，只有“显示”和“登录”两个按钮；没有上次邮箱，邮箱为空且焦点在邮箱框
+  await expect(page.locator('#login')).toBeVisible();
+  await expect(page.locator('#login a')).toHaveCount(0);
+  await expect(page.locator('#login button')).toHaveText([PW_SHOW, '登录']);
+  await expect(page.locator('#loginEmail')).toHaveValue('');
+  await expect(page.locator('#loginEmail')).toBeFocused();
+
+  // 登录成功后删掉令牌再刷新：邮箱预填、焦点在密码框、密码框为空
+  await app.login(0);
+  await page.evaluate(() => window.localStorage.removeItem('pocketbase_auth'));
+  await page.reload();
+  await expect(page.locator('#login')).toBeVisible();
+  await expect(page.locator('#loginEmail')).toHaveValue(user.email);
+  await expect(page.locator('#loginPw')).toBeFocused();
+  await expect(page.locator('#loginPw')).toHaveValue('');
+  await expect(page.locator('#login a')).toHaveCount(0);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 empty fields are reported locally and focus the first empty field', async ({ app, page }) => {
+  await app.open({ mode: 'cloud' });
+  const [user] = app.fake.users;
+  const err = page.locator('#login-err');
+
+  // 两项都空：焦点移到邮箱框
+  await page.locator('#loginBtn').click();
+  await expect(err).toHaveText(LOGIN_ERR_EMPTY);
+  await expect(page.locator('#loginEmail')).toBeFocused();
+  await expect(page.locator('#loginBtn')).toBeEnabled();
+  await expect(page.locator('#loginBtn')).toHaveText('登录');
+
+  // 只填邮箱：同一错误，焦点移到密码框
+  await page.locator('#loginEmail').fill(user.email);
+  await expect(err).toHaveText('');
+  await page.locator('#loginBtn').click();
+  await expect(err).toHaveText(LOGIN_ERR_EMPTY);
+  await expect(page.locator('#loginPw')).toBeFocused();
+  await expect(page.locator('#loginEmail')).toHaveValue(user.email);
+
+  // 本地检查不发请求
+  expect(app.fake.requests.filter((r) => r.path.endsWith('/auth-with-password'))).toEqual([]);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('ACCT-01 the password can be shown and is hidden again after a submit', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN });
+  const pw = page.locator('#loginPw');
+  const toggle = page.locator('#login .pw-toggle');
+  await expect(pw).toHaveAttribute('type', 'password');
+  await expect(toggle).toHaveText(PW_SHOW);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveAttribute('aria-label', PW_SHOW_LABEL);
+
+  await toggle.click();
+  await expect(pw).toHaveAttribute('type', 'text');
+  await expect(toggle).toHaveText(PW_HIDE);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveAttribute('aria-label', PW_HIDE_LABEL);
+
+  // 再点一次回到隐藏，再显示，然后提交
+  await toggle.click();
+  await expect(pw).toHaveAttribute('type', 'password');
+  await toggle.click();
+  await expect(pw).toHaveAttribute('type', 'text');
+
+  await app.login(0);
+  await expect(pw).toHaveAttribute('type', 'password');
+  await expect(toggle).toHaveText(PW_SHOW);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveAttribute('aria-label', PW_SHOW_LABEL);
   expect(app.fake.fulfillErrors).toEqual([]);
 });
