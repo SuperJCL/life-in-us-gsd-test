@@ -596,7 +596,7 @@ async function flush(){
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
   if(!store||saving||!dirty)return;saving=true;dirty=false;
   const ep=sessionEpoch;
-  try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(e&&e.message||"未知错误"),e&&e.state)}
+  try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(CLOUD&&!(e&&e.state)?"未知错误":(e&&e.message||"未知错误")),e&&e.state)}
   saving=false;if(dirty)flush();
 }
 function setStatus(t,st){const e=$("status");e.textContent=t;if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
@@ -642,9 +642,19 @@ function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation
    (that tab already cleared them); another tab signing in as a different account reloads this tab; a refreshed token of the same account changes nothing.
    authQuiet is true while this tab clears the token itself (logout, a 401 on refresh), so those are never mistaken for another tab. */
 let authQuiet=false;
+/* an expiry clears the same shared token as a logout does; EXPIRED_KEY, written first, tells the other tabs which of the two it was (they would otherwise report an expiry as a logout in another tab);
+   it is removed by the next successful sign-in */
+const EXPIRED_KEY="usj:v2:authExpired";
+function expireToken(){
+  try{localStorage.setItem(EXPIRED_KEY,"1")}catch(e){}
+  authQuiet=true;pb.authStore.clear();authQuiet=false;
+}
 function onAuthChange(){
   if(authQuiet||!me)return;
-  if(!pb.authStore.token){resetSession();showLogin("","other-tab");return}
+  if(!pb.authStore.token){
+    let expired=false;try{expired=localStorage.getItem(EXPIRED_KEY)==="1"}catch(e){}
+    resetSession();showLogin("",expired?"expired":"other-tab");return;
+  }
   const rec=pb.authStore.record;
   if(rec&&rec.id!==me)location.reload();
 }
@@ -692,7 +702,7 @@ async function cloudInit(){
   startPb();
   if(!pb.authStore.token){showLogin("");return}
   /* a stored token whose own exp has passed is expired without asking the server; only this device-local check or an authRefresh 401 ever means expired */
-  if(!pb.authStore.isValid){pb.authStore.clear();showLogin("","expired");return}
+  if(!pb.authStore.isValid){expireToken();showLogin("","expired");return}
   try{await enterApp(true)}catch(e){showLogin(ERR_NET)}
 }
 /* login form: one submit at a time; a sign-in with no answer after FAIL_MS is abandoned (aborted) and a success arriving after that is discarded */
@@ -749,6 +759,7 @@ async function onLogin(e){
   }
   setLoginBusy(false);
   $("loginPw").value="";setPwShown(false);loginNotice(null);
+  try{localStorage.removeItem(EXPIRED_KEY)}catch(err){}
   try{localStorage.setItem(LAST_EMAIL_KEY,email)}catch(err){}
   try{await enterApp()}catch(err){showLogin(ERR_NET)}
 }
@@ -844,7 +855,7 @@ function startReconcile(mode,retrying){
     try{await reconcileOnce(r)}
     catch(e){
       if(!alive())return;
-      if(e&&e.status===401){endRun(r);authQuiet=true;pb.authStore.clear();authQuiet=false;me=null;docs={state:null,plan:null};showLogin("","expired");return}
+      if(e&&e.status===401){endRun(r);expireToken();resetSession();showLogin("","expired");return}
       if(r.tries<3)later(attempt,RETRY_MS);
     }
   };

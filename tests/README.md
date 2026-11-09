@@ -161,7 +161,7 @@ Phase 9 的云端用例（登录、会话、对账、留底、容量、退出）
 - **注入开关：** `app.fake.fault({ method, path, mode })`、`clearFaults()`、`revokeTokens`、`beforeNext`、`dropDocs`，由用例显式打开；服务器连不上一律用这些开关制造，不用计时器，也不用 `context.setOffline`。
 - **`acknowledgeConsoleErrors(guard, { 片段: 条数 })`：** 故意制造的被拒连接和 4xx 会让浏览器各写一条 console.error，先按精确片段和条数确认，其他 console.error 仍会让用例失败。
 - **manual 时钟：** 涉及 3 秒（网络较慢提示）和 15 秒（放弃等待、转为只读或重试）的用例用 `test.use({ clockMode: 'manual' })`，`page.clock.install` 加 `pauseAt`，再用 `runFor` 推进，不真的等。
-- **本机缓存键（应用在 localStorage 里写的键）：** `usj:v2:<id>:state` 和 `usj:v2:<id>:plan` 是这个账号的记录缓存和计划缓存（含基准、是否有没上传的修改、序号）；`usj:v2:<id>:snapshot` 是冲突时留下的另一台设备上的旧版本；`usj:v2:lastUser` 是最近一次登录的账号 id，用来判断本机有没有没上传的修改；`usj:v2:lastEmail` 是最近一次登录用的邮箱，登录页用它预填（退出后也保留，所有者选定的行为）。退出登录会删掉该账号的前三类键和 `lastUser`，最后清令牌，只留 `lastEmail`。
+- **本机缓存键（应用在 localStorage 里写的键）：** `usj:v2:<id>:state` 和 `usj:v2:<id>:plan` 是这个账号的记录缓存和计划缓存（含基准、是否有没上传的修改、序号）；`usj:v2:<id>:snapshot` 是冲突时留下的另一台设备上的旧版本；`usj:v2:lastUser` 是最近一次登录的账号 id，用来判断本机有没有没上传的修改；`usj:v2:lastEmail` 是最近一次登录用的邮箱，登录页用它预填（退出后也保留，所有者选定的行为）。退出登录会删掉该账号的前三类键和 `lastUser`，最后清令牌，只留 `lastEmail`。`usj:v2:authExpired` 是登录过期的标记：发现过期的标签页先写它再清令牌，其他标签页据此显示“登录已过期”而不是“已在另一个标签页退出登录”；下一次登录成功时删除。过期不清账号的缓存。
 - **范围：** v1 四个视图的整套用例映射到 `test:cloud` 不在 Phase 9，留给 Phase 13 的 TEST-02 收口。
 
 ## 14. 已知 bug

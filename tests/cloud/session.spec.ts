@@ -9,9 +9,15 @@ import { composer } from '../support/composer';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openDevice } from '../support/devices';
 import { FROZEN_NOW } from '../support/constants';
-import type { AppHarness } from '../support/app';
+import { AppHarness } from '../support/app';
 import type { GuardHandle } from '../support/test';
-import { LOGIN_EXPIRED, LOGIN_EXPIRED_UNSENT, STATUS_CLOUD_SYNCED, STATUS_SAVE_FAILED_CLOUD } from '../support/strings';
+import {
+  LOGIN_EXPIRED,
+  LOGIN_EXPIRED_UNSENT,
+  NOTICE_OTHER_TAB,
+  STATUS_CLOUD_SYNCED,
+  STATUS_SAVE_FAILED_CLOUD,
+} from '../support/strings';
 
 test.use({ clockMode: 'manual' });
 
@@ -134,5 +140,56 @@ test('ACCT-01 a session survives closing and reopening the browser', async ({ ap
     expect(refreshes.map((r) => r.status)).toEqual([200]);
   } finally {
     await second.context.close();
+  }
+});
+
+test('ACCT-01 an expiry found by one tab resets that tab and is shown as an expiry, not as a sign-out, in the other tab', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userA = app.fake.users[0];
+
+  // 同一个浏览器的第二个标签页，以已有会话打开，显示着账号 A 的内容
+  const page2 = await page.context().newPage();
+  try {
+    await page2.clock.setFixedTime(FROZEN_NOW);
+    const app2 = new AppHarness(page2, { fake: app.fake });
+    await app2.open({ mode: 'cloud', login: 'session' });
+    await expect(page2.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
+
+    // 服务器端令牌失效，标签页一重新打开：authRefresh 得到 401（缓存先渲染了内容，随后被重置）
+    app.fake.revokeTokens(0);
+    await page.reload();
+    await expect(page.locator('#login')).toBeVisible();
+    await expect(page.locator('#loginNotice p').first()).toHaveText(LOGIN_EXPIRED);
+    await acknowledgeConsoleErrors(guard, { 'status of 401 ': 1 });
+    // 页面状态和界面都按退出重置过：上一个账号的记录不再留在页面里，等待对账的计时器和门控也没有残留
+    const html = await page.content();
+    expect(html).not.toContain('合成记录 a');
+    expect(html).not.toContain('synthetic-a');
+    await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+    await expect(page.locator('#status')).not.toHaveText(/Cannot read|TypeError/);
+
+    // 标签页二：显示的是登录过期，不是“已在另一个标签页退出登录”
+    await expect(page2.locator('#login')).toBeVisible();
+    await expect(page2.locator('.wrap')).toBeHidden();
+    const notice = page2.locator('#loginNotice');
+    await expect(notice).toHaveAttribute('data-tone', 'warn');
+    await expect(notice.locator('p').first()).toHaveText(LOGIN_EXPIRED);
+    await expect(notice).not.toContainText(NOTICE_OTHER_TAB);
+
+    // 过期不清本机缓存（账号 A 的缓存仍在，同一账号重新登录后照常对账）
+    expect(await page.evaluate((k) => localStorage.getItem(k), `usj:v2:${userA.id}:state`)).not.toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('pocketbase_auth'))).toBeNull();
+
+    // 重新登录之后过期标记被清掉：之后另一个标签页的主动退出仍然显示成退出
+    await app.login(0);
+    expect(await page.evaluate(() => localStorage.getItem('usj:v2:authExpired'))).toBeNull();
+  } finally {
+    await page2.close();
   }
 });
