@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 09
 current_phase_name: 登录与云端存储（Login & Cloud Storage）
 status: executing
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-11-09T08:39:11.019Z"
+stopped_at: Completed 09-04-PLAN.md
+last_updated: "2026-11-09T08:45:16.845Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 09 execution started
-state_head: 4fe8601e46a1534545d3bd96d099199134a4f0ba
+state_head: 9dd399d264fc6037a54f5ff02d90a7ab4eb78296
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 38
-  completed_plans: 27
+  completed_plans: 28
   percent: 38
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
 ## Current Position
 
 Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 4 of 14
+Plan: 5 of 14
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 09 execution started
 
@@ -113,6 +113,7 @@ Progress: [████░░░░░░] 38%
 | Phase 09 P01 | 7 min | 2 tasks | 9 files |
 | Phase 09 P02 | 6 min | 2 tasks | 10 files |
 | Phase 09 P03 | 7 min | 2 tasks | 4 files |
+| Phase 09 P04 | 15 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -187,6 +188,7 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-02: Google Fonts and preconnect removed from the app; serif falls back to Songti SC, STSong, Georgia. cloud guard policy records font hosts as violations while v1 keeps the font branch.
 - [Phase 09]: 09-02: SAFE-01, SAFE-04 and PROBE-2c rewritten to stay at least as strict (self-proved font branch, own font noise, zero font-host connections asserted); AppHarness.open gained sdkRefused for the tampered-SDK case.
 - [Phase 09]: 09-03: hold release() also stops holding later requests (refuse/status release is a no-op); hold records faultHits status 0; injected codes never enter INTENTIONAL_DEVIATIONS
+- [Phase 09]: 09-04: openDevice closes its context itself if setup fails; the caller owns it on success and closes it in finally
 
 ### Pending Todos
 
@@ -237,8 +239,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T08:39:09.440Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-11-09T08:45:15.232Z
+Stopped at: Completed 09-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
