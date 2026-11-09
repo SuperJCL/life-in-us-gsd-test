@@ -21,13 +21,16 @@
 //
 // 退出码：0 通过；1 发现问题；2 参数错误或内部错误（fail closed，同样会阻止提交）。
 //
+// 被 import 时只提供纯函数，不运行命令行入口；作为脚本运行（包括 pre-commit、pre-push）时照常运行。
+//
 // 本文件自身必须能通过 --staged 和 --all，且不靠豁免自己：
 // 所有会命中规则 B、C 的样本都在运行时拼接，源码里不出现完整的命中字面量。
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ---------- 常量 ----------
 
@@ -1149,12 +1152,31 @@ async function main() {
   return 0;
 }
 
-main().then(
-  (code) => {
-    process.exitCode = code;
-  },
-  (err) => {
-    process.stderr.write(`隐私检查出错（已阻止）：${err instanceof Error ? err.message : String(err)}\n`);
-    process.exitCode = 2;
-  },
-);
+// 只有作为入口脚本运行时才执行命令行入口（被 import 时不读 process.argv、不改 exitCode）。
+// 判断失败时 fail closed：宁可多运行入口，也不能让钩子静默放行，所以只有“确认是被 import”才跳过。
+function isEntryScript() {
+  try {
+    if (!process.argv[1]) return false;
+    let self = realpathSync(fileURLToPath(import.meta.url));
+    let entry = realpathSync(resolve(process.argv[1]));
+    if (process.platform === 'win32') {
+      self = self.toLowerCase();
+      entry = entry.toLowerCase();
+    }
+    return self === entry;
+  } catch {
+    return true;
+  }
+}
+
+if (isEntryScript()) {
+  main().then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (err) => {
+      process.stderr.write(`隐私检查出错（已阻止）：${err instanceof Error ? err.message : String(err)}\n`);
+      process.exitCode = 2;
+    },
+  );
+}

@@ -1,0 +1,74 @@
+{
+  "_synthetic": true,
+  "meta": {
+    "server": "0.41.1",
+    "sdk": "0.28.1",
+    "exeSha256": "f44191176f90382d5a03290496b23b333cf64cf6cb2024893cb39f3c10e46f7e",
+    "sdkSha256": "94c1e032b783952f6989ff74256ec97440d0ecf0c24edb9575f8c8716cb04a9f",
+    "recordedOn": "2026-11-08",
+    "client": "sdk-vm",
+    "sdkIsValidOnRealToken": true,
+    "tool": "tools/pb/record-samples.mjs"
+  },
+  "scenarios": [
+    {
+      "id": "auth-ok",
+      "setup": {
+        "users": [
+          "A"
+        ],
+        "docs": []
+      },
+      "steps": [
+        {
+          "as": "anon",
+          "expect": 200,
+          "request": {
+            "method": "POST",
+            "path": "/api/collections/users/auth-with-password",
+            "hasAuth": false,
+            "bodyKeys": [
+              "identity",
+              "password"
+            ],
+            "body": {
+              "identity": "user-a@example.com",
+              "password": "<PASSWORD>"
+            }
+          },
+          "response": {
+            "status": 200,
+            "bodyKeys": [
+              "record",
+              "token"
+            ],
+            "body": {
+              "record": {
+                "collectionId": "<USERS_COLLECTION_ID>",
+                "collectionName": "users",
+                "created": "<TS>",
+                "email": "user-a@example.com",
+                "emailVisibility": false,
+                "id": "<ID:1>",
+                "updated": "<TS>",
+                "verified": true
+              },
+              "token": "<JWT>"
+            }
+          },
+          "tokenClaims": {
+            "keys": [
+              "collectionId",
+              "exp",
+              "id",
+              "refreshable",
+              "type"
+            ],
+            "type": "auth",
+            "expInSeconds": 7776000
+          }
+        }
+      ]
+    }
+  ]
+}
