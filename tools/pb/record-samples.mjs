@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
+import { isEntry } from './lib/entry.mjs';
 import { PB_EXE_SHA256, verifyExe, withInstance } from './lib/instance.mjs';
 import { openSse } from './lib/sse-client.mjs';
 
@@ -565,8 +566,7 @@ async function main() {
   return 2;
 }
 
-const isEntry = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isEntry) {
+if (isEntry(import.meta.url)) {
   main().then(
     (code) => {
       process.exitCode = code;

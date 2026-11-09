@@ -19,7 +19,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isEntry } from './lib/entry.mjs';
 import { PB_EXE_PATH, PB_EXE_SHA256 } from './lib/instance.mjs';
 
 export const PB_VERSION = '0.41.1';
@@ -210,8 +210,7 @@ async function approvedRun() {
   }
 }
 
-const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (isMain) {
+if (isEntry(import.meta.url)) {
   const arg = process.argv[2];
   if (arg === '--self-test' && process.argv.length === 3) {
     process.exit(selfTest() ? 0 : 1);

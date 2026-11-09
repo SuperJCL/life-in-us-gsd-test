@@ -20,7 +20,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isEntry } from './entry.mjs';
 import { diffSnapshots, snapshotFromLive } from './rules-snapshot.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -363,8 +364,7 @@ async function smoke() {
   return allOk ? 0 : 1;
 }
 
-const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (isMain) {
+if (isEntry(import.meta.url)) {
   const arg = process.argv[2];
   if (arg === '--self-test') {
     process.exit((await selfTestAsync()) ? 0 : 1);

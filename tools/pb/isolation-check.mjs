@@ -24,7 +24,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import http from 'node:http';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isEntry } from './lib/entry.mjs';
 import { verifyExe, withInstance } from './lib/instance.mjs';
 import { diffSnapshots, snapshotFromLive, stable } from './lib/rules-snapshot.mjs';
 import { openSse, subscribe } from './lib/sse-client.mjs';
@@ -1248,8 +1249,7 @@ async function selfTest() {
   return all;
 }
 
-const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
-if (isMain) {
+if (isEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   if (argv.includes('--self-test')) {
     process.exit((await selfTest()) ? 0 : 1);

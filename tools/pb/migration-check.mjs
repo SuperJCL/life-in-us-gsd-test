@@ -19,8 +19,9 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { isEntry } from './lib/entry.mjs';
 import { diffSnapshots, snapshotFromSaved, stable } from './lib/rules-snapshot.mjs';
 
 const DEFAULT_MIGRATIONS = fileURLToPath(new URL('../../pb/pb_migrations/', import.meta.url));
@@ -300,6 +301,6 @@ export function main(argv) {
 }
 
 // 只在直接运行时执行入口，被 import 时不执行
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isEntry(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
 }
