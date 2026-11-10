@@ -2,14 +2,25 @@
 // 服务器连不上、5xx、挂起一律用假服务器的开关（refuse、status、hold）制造；
 // context.setOffline 只用来改变 navigator.onLine 并派发 online 事件（PROBE-9a），从不用来让服务器连不上。
 // 全部用例在 manual 时钟下运行：open 之前 install，登录完成后 pauseAt(FROZEN_NOW + 60_000)，只在需要时 runFor。
-import { test, expect } from '../support/test';
-import { syntheticState } from '../support/cloud-data';
+import { test, expect, type Page } from '../support/test';
+import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
 import { openDevice } from '../support/devices';
+import { gotoGoals } from '../support/goals';
+import { expectToast } from '../support/toast';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
 import { installOnlineSwitch, setPageOnline } from '../support/online';
-import { BTN_RETRY_NOW, STATUS_CLOUD_SYNCED, STATUS_SAVING, statusOffline, statusRetrying } from '../support/strings';
+import {
+  BTN_DOWNLOAD_SNAPSHOT,
+  BTN_RETRY_NOW,
+  STATUS_CLOUD_SYNCED,
+  STATUS_SAVING,
+  TOAST_CONFLICT,
+  TOAST_REMOTE_UPDATED,
+  statusOffline,
+  statusRetrying,
+} from '../support/strings';
 
 test.use({ clockMode: 'manual' });
 
@@ -229,4 +240,207 @@ test('SYNC-03 opening the app with a cache while the browser reports offline all
   expect(countOnServer(app, 'SYNTH-1003 offline at open')).toBe(1);
   // 被拒连接：按列表故障实际命中的次数确认（后台每次尝试一条 console.error）
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: refused.hits });
+});
+
+// 按所有者的 D-08 验证 ROADMAP Phase 10 SC1 的“断网期间刷新”：服务器连不上、页面文档仍可从本机静态服务器加载。
+// 真正断网时刷新需要页面本身离线可用，由 Phase 13 的 Service Worker 提供，不在这里验证。
+// “联网时 15 秒后转离线”的刷新路径由 reconcile-gate.spec.ts 里改写后的 15 秒用例覆盖。
+test('SYNC-03 an offline edit survives a reload with its pending count and is uploaded later', async ({ app, page, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const key = `usj:v2:${app.fake.users[0].id}:state`;
+  const readCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+
+  const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1006 kept over reload');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(1));
+
+  // 刷新：页面仍从本机静态服务器加载，服务器仍被开关拒绝，浏览器在线状态由初始化脚本报告为断网（不用 setOffline(true)，它会让页面文档本身也加载不出来）
+  await page.addInitScript(installOnlineSwitch, { online: false });
+  await page.reload();
+
+  // 不推进时钟：待上传的数量还在，可以编辑，这条记录可见
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(1));
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  await expect(page.locator('#w-text')).toBeEnabled();
+  const cached = await readCache();
+  const local = (cached.data.logs as Array<{ id: string; text: string }>).find((l) => l.text === 'SYNTH-1006 kept over reload');
+  expect(local).toBeTruthy();
+  expect(cached.dirty).toBe(true);
+  expect(cached.touched).toEqual([`log:${local!.id}`]);
+  await expect(page.locator(`#days [data-edit="${local!.id}"]`)).toBeVisible();
+
+  // 恢复联网：撤掉故障，页面报告联网并派发 online，上传后数量归零
+  await app.fake.clearFaults();
+  await setPageOnline(page, true);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+  expect(countOnServer(app, 'SYNTH-1006 kept over reload')).toBe(1);
+  await expect.poll(async () => (await readCache()).dirty, { message: '等待缓存收尾' }).toBe(false);
+  expect((await readCache()).touched).toEqual([]);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+});
+
+// 目标页上是否出现某段文字：只读回布尔，失败输出里不带页面文字
+const goalsHave = (page: Page, text: string) =>
+  page.evaluate((t) => (document.querySelector('#goals')?.textContent ?? '').includes(t), text);
+
+// 另一个参与者（另一个写入方）改了服务器上的计划：某个任务名后面加后缀
+async function otherWriterEditsPlan(app: { fake: any }, suffix: string) {
+  const data = app.fake.lastPlan(0);
+  data.groups[0].tasks[0].text += suffix;
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, { data, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+}
+
+test('SYNC-05 an offline edit over a newer server version is uploaded and the other version is kept here (D-03)', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: syntheticPlan('o', 1), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+  try {
+    await second.page.clock.install({ time: FROZEN_NOW });
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+    // 设备二离线（只有它的请求被拒）：记一笔，状态 offline
+    const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context: second.context });
+    const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse', context: second.context });
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-1005 second offline');
+    await two.submit();
+    await second.page.clock.runFor(1_000);
+    await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
+    await expect(second.page.locator('#status')).toHaveText(statusOffline(1));
+
+    // 设备一随后保存并上传，另一个写入方又改了服务器上的计划
+    const one = composer(page, 'w');
+    await one.type('SYNTH-1005 first');
+    await one.submit();
+    await page.clock.runFor(1_000);
+    await expect
+      .poll(() => countOnServer(app, 'SYNTH-1005 first'), { message: '等待设备一的记录上传' })
+      .toBe(1);
+    await otherWriterEditsPlan(app, ' SYNTH-1005 remote edit');
+
+    // 设备二联网：撤掉它的故障，派发 online
+    listFault.remove();
+    patchFault.remove();
+    await second.context.setOffline(true);
+    await second.context.setOffline(false);
+
+    await expect
+      .poll(() => countOnServer(app, 'SYNTH-1005 second offline') === 1 && countOnServer(app, 'SYNTH-1005 first') === 0, {
+        message: '等待设备二的离线修改成为服务器上的最新版本',
+      })
+      .toBe(true);
+    // 冲突提示留在屏幕上（没有被“已更新”替换），带下载入口，留底含设备一的版本
+    await expectToast(second.page, TOAST_CONFLICT);
+    await expect(second.page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+    await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+    const snap = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:snapshot`);
+    expect(snap?.kind).toBe('state');
+    expect((snap.data.logs as Array<{ text: string }>).some((l) => l.text === 'SYNTH-1005 first')).toBe(true);
+    await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'synced');
+    // 计划按服务器更新
+    await gotoGoals(second.page);
+    await expect.poll(() => goalsHave(second.page, 'SYNTH-1005 remote edit')).toBe(true);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-05 a conflict notice found while opening the app is not replaced by the updated notice (IN-01)', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: syntheticPlan('o', 1), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1010 local');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'offline');
+  await expect(page.locator('#status')).toHaveText(statusOffline(1));
+
+  // 另一个写入方先改服务器上的 state（多一条记录），再改计划
+  const state = app.fake.lastState(0);
+  state.logs.push({ id: 'synthetic-other-1010', date: '2026-03-17', cat: '语言', text: 'SYNTH-1010 other' });
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'state')}`, { data: state, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+  await otherWriterEditsPlan(app, ' SYNTH-1010 remote edit');
+
+  // 去掉故障后刷新：启动对账发现 state 真冲突、计划是干净的服务器更新
+  await app.fake.clearFaults();
+  await page.reload();
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+
+  await expectToast(page, TOAST_CONFLICT);
+  await expect(page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+  await expect(page.locator('#snapshotBtn')).toBeVisible();
+  const snap = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:snapshot`);
+  expect((snap.data.logs as Array<{ text: string }>).some((l) => l.text === 'SYNTH-1010 other')).toBe(true);
+  expect(countOnServer(app, 'SYNTH-1010 local')).toBe(1);
+  await gotoGoals(page);
+  await expect.poll(() => goalsHave(page, 'SYNTH-1010 remote edit')).toBe(true);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+});
+
+test('SYNC-03 a background sync takes in a newer server version when nothing is waiting to be uploaded and says so', async ({ app, page, context }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const from = app.fake.requests.length;
+
+  // 另一台设备把服务器上的 state 改成了更新的版本；这台设备没有待上传的修改，online 事件触发后台对账
+  app.fake.seed(syntheticState('newer'), { userIndex: 0 });
+  await context.setOffline(true);
+  await context.setOffline(false);
+
+  await expect(page.locator('#days [data-edit="synthetic-newer"]')).toHaveCount(1);
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toHaveCount(0);
+  await expectToast(page, TOAST_REMOTE_UPDATED);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  const writes = app.fake.requests.slice(from).filter((r) => r.method === 'POST' || r.method === 'PATCH');
+  expect(writes.filter((r) => r.path.startsWith(LIST_PATH))).toEqual([]);
+});
+
+test('SYNC-01 a background sync whose server state document is gone creates it again from the local content', async ({ app, page }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  app.fake.dropDocs(0, 'state');
+  const from = app.fake.requests.length;
+
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1007 after the document was lost');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  expect(countOnServer(app, 'SYNTH-1007 after the document was lost')).toBe(1);
+  expect(countOnServer(app, '合成记录 a')).toBe(1);
+  const posts = app.fake.requests.slice(from).filter((r) => r.method === 'POST' && r.path === LIST_PATH);
+  expect(posts.map((r) => r.status)).toEqual([200]);
 });

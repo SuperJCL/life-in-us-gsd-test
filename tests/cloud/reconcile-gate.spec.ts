@@ -14,12 +14,10 @@ import {
   BOOT_SUB_UNREACHABLE,
   BOOT_TITLE_LOADING,
   BOOT_TITLE_UNREACHABLE,
-  BANNER_UNREACHABLE,
   BTN_RETRY,
-  BTN_RETRYING,
+  STATUS_CLOUD_SYNCED,
   STATUS_RECONCILING,
   STATUS_SLOW,
-  STATUS_UNREACHABLE,
   TAB_LABELS,
   TOAST_REMOTE_UPDATED,
   statusOffline,
@@ -264,7 +262,7 @@ test('SYNC-05 a reconcile still running after about 3 seconds shows the slow not
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
-test('SYNC-05 a reconcile not finished after about 15 seconds turns read-only with a retry that restores editing once it succeeds', async ({
+test('SYNC-03 a reconcile not finished after about 15 seconds with a cache turns to offline editing and uploads the edits made meanwhile (B3)', async ({
   app,
   page,
 }) => {
@@ -282,49 +280,40 @@ test('SYNC-05 a reconcile not finished after about 15 seconds turns read-only wi
   // 列表请求已经到了（被挂起），截止时被中止的就是它
   await expect.poll(() => f.hits).toBe(1);
 
-  // 15 秒：判连不上，转为只读，横幅带重试，缓存的内容仍然看得到
-  await page.clock.runFor(15_000);
-  await expect(status).toHaveText(STATUS_UNREACHABLE);
-  await expect(status).toHaveAttribute('data-state', 'unreachable');
-  await expect(page.locator('body')).toHaveAttribute('data-gate', 'readonly');
-  await expect(bar).toBeVisible();
-  await expect(bar).toHaveAttribute('data-tone', 'error');
-  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_UNREACHABLE);
-  await expect(bar.locator('button')).toHaveCount(1);
-  await expect(bar.locator('button')).toHaveText(BTN_RETRY);
-  await expect(bar.locator('button')).toBeEnabled();
-  await expect(entry).toBeVisible();
-  await expect(page.locator('#w-text')).toBeDisabled();
+  // 3 秒：仍是“网络较慢”横幅和门控
+  await page.clock.runFor(3_000);
+  await expect(status).toHaveText(STATUS_SLOW);
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_SLOW);
 
-  // 点重试：按钮立即 disabled 并显示“正在重试…”，重新发起一次对账（第二个列表请求被新的挂起规则拦住）
-  f.remove();
-  const f2 = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
-  await bar.getByRole('button', { name: BTN_RETRY, exact: true }).click();
-  const busy = bar.locator('button');
-  await expect(busy).toBeDisabled();
-  await expect(busy).toHaveText(BTN_RETRYING);
-  await expect(status).toHaveText(STATUS_RECONCILING);
-  await expect.poll(() => f2.hits).toBe(1);
-  // 连点：禁用的按钮不会再发起对账（force 跳过可点击检查）
-  await busy.click({ force: true });
-  expect(f2.hits).toBe(1);
-
-  // 重试的请求得到回应：对账完成，放开编辑
-  await f2.release();
-  await expect(status).toHaveAttribute('data-state', 'synced');
-  await expect(bar).not.toBeVisible();
+  // 15 秒：转为离线可编辑（D-01），没有只读、没有连不上横幅，缓存的内容仍然看得到
+  await page.clock.runFor(12_000);
   await expect(page.locator('body')).not.toHaveAttribute('data-gate');
-  await expect(page.locator('#w-text')).toBeEnabled();
-  expect(f2.hits, '连点之后仍然只有一次新的对账请求').toBe(1);
-  expect(app.fake.requests.slice(before).filter((r) => r.method === 'GET' && r.path === LIST_PATH)).toHaveLength(1);
-
-  // 第一个（已被中止的）请求现在才被放行：它的响应一律丢弃，页面不变，也不多出任何写入
-  await f.release();
-  await expect(status).toHaveAttribute('data-state', 'synced');
   await expect(bar).not.toBeVisible();
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(0));
+  await expect(page.locator('#w-text')).toBeEnabled();
+  await expect(entry).toBeVisible();
+
+  // 期间记一笔（B3）：先存本机，状态行带数量
+  const mine = composer(page, 'w');
+  await mine.type('SYNTH-1004 during outage');
+  await mine.submit();
+  await expect(status).toHaveText(statusOffline(1));
+
+  // 服务器恢复：撤掉挂起规则并放行挂起的请求（被中止的旧请求的迟到响应一律丢弃），走过下一次退避等待
+  f.remove();
+  await f.release();
+  await page.clock.runFor(2_000);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
   await expect(entry).toHaveCount(1);
-  expect(writesSince(app, before)).toEqual([]);
-  expect(app.fake.lastState(0)).toEqual(syntheticState('a'));
+  const logs = (app.fake.lastState(0)?.logs ?? []) as Array<{ text: string }>;
+  expect(logs.filter((l) => l.text === 'SYNTH-1004 during outage')).toHaveLength(1);
+  expect(logs.some((l) => l.text === '合成记录 a')).toBe(true);
+  expect(writesSince(app, before).map((r) => r.status)).toEqual([200]);
+  const snapshot = await page.evaluate((k) => localStorage.getItem(k), `usj:v2:${app.fake.users[0].id}:snapshot`);
+  expect(snapshot).toBeNull();
   // 被中止的请求能否走到 fulfill 抛错取决于时序（同 cloud-harness.spec.ts 里被 SDK 取消的请求）：至多一条，而且只能是列表
   for (const e of app.fake.fulfillErrors) {
     expect(e.path).toBe(LIST_PATH);

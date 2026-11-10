@@ -853,9 +853,9 @@ function startReconcile(mode,retrying){
   else{$("login").classList.add("hidden");document.querySelector(".wrap").classList.add("hidden");$("boot").classList.remove("hidden");if(retrying)bootUI("fail",true);else bootUI("load")}
   later(()=>{setStatus(T_SLOW,"slow");if(cached)showBar("slow",{tone:"warn",msg:"网络较慢，还在连…现在还不能修改。"});else if(!retrying)bootUI("slow")},SLOW_MS);
   later(()=>{
-    endRun(r);setStatus(T_UNREACH,"unreachable");
-    if(cached){hideBar("slow");setGate("readonly");showBar("unreachable",unreachBar(r,false))}
-    else bootUI("fail",false);
+    /* D-01: with a cache, no answer by the deadline means editing opens (offline); only a first sign-in without a cache keeps the retry card */
+    if(cached){goBootOffline(r);return}
+    endRun(r);setStatus(T_UNREACH,"unreachable");bootUI("fail",false);
   },FAIL_MS);
   const attempt=async()=>{
     r.tries++;
@@ -891,8 +891,10 @@ async function enterApp(refresh){
   snapShow();
   return startReconcile({refresh:!!refresh,cached,old});
 }
+const uniqErr=e=>{const d=e&&e.status===400&&e.response&&e.response.data;return !!d&&["kind","owner"].some(k=>d[k]&&d[k].code==="validation_not_unique")};
 async function reconcileOnce(r){
   const sg={signal:r.ctrl.signal},live=()=>{if(!(r.live&&run===r))throw STALE},old=r.mode.old;
+  cfShown=false;
   if(r.mode.refresh){await pb.collection("users").authRefresh(sg);live()}
   const coll=pb.collection("journey_docs");let list=await coll.getFullList(sg);live();
   const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
@@ -903,7 +905,7 @@ async function reconcileOnce(r){
      unique index (400 validation_not_unique: another device created it first) re-reads the list and continues from the same table with the server document.
      Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
-  const uniq=e=>{const d=e&&e.status===400&&e.response&&e.response.data;return !!d&&["kind","owner"].some(k=>d[k]&&d[k].code==="validation_not_unique")};
+  const uniq=uniqErr;
   const resolve=async kind=>{
     const c=old[kind];let sv=list.find(d=>d.kind===kind);
     /* capacity (same limit as a save): an over-limit local version is not sent; it stays dirty in the cache with its old base and the page shows the over-limit state, not "unreachable" */
@@ -944,7 +946,7 @@ async function reconcileOnce(r){
   setGate(null);
   if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
   renderAll();snapShow();
-  if(changed)toast("已更新为其他设备上的最新内容",null,4000);
+  if(changed&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
 const snapKey=()=>cacheKey("snapshot");
@@ -955,8 +957,10 @@ function keepConflict(kind,doc){
   const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
   try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}));return true}catch(e){return false}
 }
+let cfShown=false;/* true once a conflict notice was raised in the current sync pass or startup reconcile: the "updated" notice must not replace it (IN-01) */
 let snapPending=null;/* null = nothing waiting for a notice; true / false = a copy was kept / could not be kept, announced after the next successful upload */
 function conflictNotice(kept){
+  cfShown=true;
   if(!kept){
     showBar("snapfail",{tone:"warn",msg:"另一台设备上的修改被覆盖了，但本机空间不够，没能留底。请到另一台设备上核对被覆盖的内容。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("snapfail")}]});
     return;
@@ -1039,7 +1043,7 @@ async function syncOnce(){
   const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
   let timedOut=false,authing=false;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
-  trying=true;
+  trying=true;cfShown=false;
   /* a retry that is under way says so; a background attempt while offline leaves the line alone (no flicker) */
   if(net==="retrying")showSync();
   try{
@@ -1047,20 +1051,61 @@ async function syncOnce(){
     if(needRefresh){authing=true;await pb.collection("users").authRefresh(sg);authing=false;if(ep!==sessionEpoch)return;needRefresh=false}
     const seq=docs.state.seq||0,isDirty=!!docs.state.dirty;
     if(isDirty)sizeCheck(state);
-    const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);
+    const coll=pb.collection("journey_docs");let list=await coll.getFullList(sg);
     if(ep!==sessionEpoch)return;
-    const sv=list.find(d=>d.kind==="state");
-    if(!sv){const er=new Error("missing");er.status=404;throw er}
-    if(isDirty){
-      /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
-         the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
-      const body=JSON.parse(JSON.stringify(state));
-      if(sv.updated!==docs.state.base&&sv.writer!==WRITER&&canon(sv.data)!==canon(body))snapPending=keepConflict("state",sv);
-      const r=await coll.update(sv.id,{data:body,writer:WRITER},sg);
-      if(ep!==sessionEpoch)return;
-      /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
-      if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
-      docs.state.base=r.updated;
+    /* the background reconcile table, plan first and then state (the same table as the startup reconcile):
+       no server document -> create it from the local content (a create that hits the unique index re-reads the list and continues with the server document);
+       plan: a server version with another updated replaces the local plan (nothing of the plan is uploaded here), the state is then normalized again;
+       state: dirty -> upload the local version, after keepConflict() when the server version is newer, was written by another page and differs (D-03);
+              clean and a newer server version -> replace the local state; clean and unchanged -> nothing.
+       merged = a remote version whose content really differs was taken in; the "updated" notice comes once at the end, unless a conflict notice already is on screen (cfShown). */
+    let merged=false,replaced=false;
+    const make=async(kind,data)=>{
+      try{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);if(ep!==sessionEpoch)throw STALE;return {d,made:true}}
+      catch(e){if(e===STALE||!uniqErr(e))throw e;list=await coll.getFullList(sg);if(ep!==sessionEpoch)throw STALE;const d=list.find(x=>x.kind===kind);if(!d)throw e;return {d,made:false}}
+    };
+    let psv=list.find(d=>d.kind==="plan");
+    if(!psv){
+      const pc=cacheGet("plan"),m=await make("plan",keepOrphans&&pc?pc.data:plan);
+      psv=m.d;
+      if(m.made){docs.plan={id:psv.id,base:psv.updated,dirty:false,seq:docs.plan.seq||0};if(!cachePut("plan",{...docs.plan,data:psv.data}))dropCache("plan")}
+    }
+    if(psv.updated!==docs.plan.base&&!docs.plan.dirty){
+      const pc=cacheGet("plan"),prev=pc?pc.data:plan;
+      const ok=usePlan(psv.data);keepOrphans=!ok;
+      const pdata=ok?plan:psv.data;
+      docs.plan={id:psv.id,base:psv.updated,dirty:false,seq:docs.plan.seq||0};
+      if(!cachePut("plan",{...docs.plan,data:pdata}))dropCache("plan");
+      if(canon(pdata)!==canon(prev))merged=true;
+      state=normalize(state);replaced=true;
+    }
+    let ssv=list.find(d=>d.kind==="state"),up=null;
+    if(!ssv){
+      sizeCheck(state);
+      const m=await make("state",JSON.parse(JSON.stringify(state)));
+      ssv=m.d;if(m.made)up=ssv;
+    }
+    docs.state.id=ssv.id;
+    if(!up){
+      if(isDirty){
+        /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
+           the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
+        const body=JSON.parse(JSON.stringify(state));
+        if(ssv.updated!==docs.state.base&&ssv.writer!==WRITER&&canon(ssv.data)!==canon(body))snapPending=keepConflict("state",ssv);
+        up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
+        if(ep!==sessionEpoch)return;
+        /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
+        if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
+      }else if(ssv.updated!==docs.state.base&&!docs.state.dirty&&(docs.state.seq||0)===seq){
+        /* clean and the server version is newer: take it in (an edit made while the list was on its way makes the state dirty, and the next pass handles it as a dirty one) */
+        const nv=normalize(ssv.data);
+        if(canon(nv)!==canon(state))merged=true;
+        state=nv;docs.state.base=ssv.updated;docs.state.touched=[];replaced=true;
+        if(!cachePut("state",{...docs.state,dirty:false,data:state}))dropCache("state");
+      }
+    }
+    if(up){
+      docs.state.base=up.updated;
       if((docs.state.seq||0)===seq){docs.state.dirty=false;docs.state.touched=[]}
       if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
       if(!docs.state.dirty)cacheNote(true);
@@ -1068,7 +1113,9 @@ async function syncOnce(){
     net="ok";retryIdx=0;stopRetry();trying=false;
     if(bootOffline){bootOffline=false;snapShow()}
     if(docs.state.dirty)syncAgain=true;
+    if(replaced){renderAll();snapShow()}
     showSync();
+    if(merged&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
   }catch(e){
     if(ep!==sessionEpoch)return;
     trying=false;
