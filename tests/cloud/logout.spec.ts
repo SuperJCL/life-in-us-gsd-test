@@ -24,7 +24,7 @@ import {
   CONFIRM_LOGOUT_UNSAVED,
   CONFIRM_SWITCH_TITLE,
   NOTICE_OTHER_TAB,
-  STATUS_SAVE_FAILED_CLOUD,
+  statusOffline,
   switchBody,
 } from '../support/strings';
 
@@ -210,9 +210,11 @@ test('ACCT-02 logging out in one tab asks first when the other tab holds an unse
   // 同一个 context 的第二个标签页：共用 localStorage 和令牌，以已有会话打开
   const page2 = await page.context().newPage();
   try {
-    await page2.clock.setFixedTime(FROZEN_NOW);
+    // 第二个标签页用 manual 时钟：被拒的上传不会自己重试，console.error 的条数保持精确
+    await page2.clock.install({ time: FROZEN_NOW });
     const app2 = new AppHarness(page2, { fake: app.fake });
     await app2.open({ mode: 'cloud', login: 'session' });
+    await page2.clock.pauseAt(FROZEN_NOW + 60_000);
     await expect(page2.locator('#days [data-edit="synthetic-a"]')).toHaveCount(1);
     // 第二个标签页留下一条没上传的修改：保存被拒，修改以 dirty 缓存留在两个标签页共用的 localStorage 里；
     // 标签页一自己没有任何未保存的状态，只能从共用缓存里看到它（CR-01）
@@ -220,7 +222,9 @@ test('ACCT-02 logging out in one tab asks first when the other tab holds an unse
     const entry = composer(page2, 'w');
     await entry.type('SYNTH-0913 pending in the other tab');
     await entry.submit();
-    await expect(page2.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await page2.clock.runFor(1_000);
+    await expect(page2.locator('#status')).toHaveText(statusOffline(1));
+    await expect(page2.locator('#status')).toHaveAttribute('data-state', 'offline');
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
     const cached = await page2.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `${PREFIX}${userA.id}:state`);
     expect(cached?.dirty).toBe(true);
@@ -265,6 +269,7 @@ test('ACCT-02 logging out in one tab asks first when the other tab holds an unse
 // ---- 09-14：退出确认框（D-05）、保存进行中退出、未下载留底、换账号登录确认 ----
 
 const RECORD = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
+const LIST = '/api/collections/journey_docs/records';
 
 test.describe('logout confirmation with the clock under test control', () => {
   test.use({ clockMode: 'manual' });
@@ -329,14 +334,16 @@ test.describe('logout confirmation with the clock under test control', () => {
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const [userA, userB] = app.fake.users;
 
-    // A 带着一条没上传的修改走到令牌失效：保存和读单条记录都被拒，记一条，推过防抖
+    // A 带着一条没上传的修改走到令牌失效：保存先读文档列表再更新单条记录，两个请求都被拒，记一条，推过防抖
     app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse' });
-    app.fake.fault({ method: 'GET', path: RECORD, mode: 'refuse' });
+    app.fake.fault({ method: 'GET', path: LIST, mode: 'refuse' });
     const entry = composer(page, 'w');
     await entry.type('SYNTH-0914 kept for A');
     await entry.submit();
     await page.clock.runFor(1_000);
-    await expect(page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await expect(page.locator('#status')).toHaveText(statusOffline(1));
+    await expect(page.locator('#status')).toHaveAttribute('data-state', 'offline');
+    // 列表读取被拒一次，PATCH 没有发出；manual 时钟没有再 runFor，自动重试不会自行触发
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
     await app.fake.clearFaults();
     app.fake.revokeTokens(0);

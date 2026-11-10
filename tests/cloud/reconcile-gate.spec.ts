@@ -18,11 +18,11 @@ import {
   BTN_RETRY,
   BTN_RETRYING,
   STATUS_RECONCILING,
-  STATUS_SAVE_FAILED_CLOUD,
   STATUS_SLOW,
   STATUS_UNREACHABLE,
   TAB_LABELS,
   TOAST_REMOTE_UPDATED,
+  statusOffline,
 } from '../support/strings';
 
 test.use({ clockMode: 'manual' });
@@ -450,13 +450,14 @@ test('SYNC-05 an edit kept in the cache on top of the current server version is 
   await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: SEED_PLAN, login: 0 });
   await page.clock.pauseAt(FROZEN_NOW + 60_000);
 
-  // 保存被拒：记一条，推过防抖，状态行报保存失败，本机缓存留着这条没上传的修改（dirty）
+  // 保存被拒：记一条，推过防抖，状态行报离线（1 项修改），本机缓存留着这条没上传的修改（dirty）
   const f = app.fake.fault({ method: 'PATCH', path: /\/api\/collections\/journey_docs\/records\/[^/]+$/, mode: 'refuse' });
   const entry = composer(page, 'w');
   await entry.type('SYNTH-0907 kept entry');
   await entry.submit();
   await page.clock.runFor(1_000);
-  await expect(page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+  await expect(page.locator('#status')).toHaveText(statusOffline(1));
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'offline');
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
   expect(f.hits).toBe(1);
   const cached = await page.evaluate((key) => {

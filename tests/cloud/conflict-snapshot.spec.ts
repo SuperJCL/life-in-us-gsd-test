@@ -14,10 +14,10 @@ import {
   BTN_ACK,
   BTN_DOWNLOAD_SNAPSHOT,
   FILENAME_SNAPSHOT_FROZEN,
-  STATUS_SAVE_FAILED_CLOUD,
   TOAST_CONFLICT,
   TOAST_SNAPSHOT_DOWNLOADED,
   TOAST_SNAPSHOT_FAILED,
+  statusOffline,
 } from '../support/strings';
 
 type Log = { id: string; text: string };
@@ -383,9 +383,12 @@ test('SYNC-05 a conflict is kept silently before the upload and announced only a
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  // 设备二用 manual 时钟：被拒或丢了答复的上传不会自己重试，之后的成功上传由 runFor 触发，console.error 的条数保持精确
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
   try {
+    await second.page.clock.install({ time: FROZEN_NOW });
     await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
     const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
 
     const one = composer(page, 'w');
@@ -400,7 +403,9 @@ test('SYNC-05 a conflict is kept silently before the upload and announced only a
     const two = composer(second.page, 'w');
     await two.type('SYNTH-0912 second');
     await two.submit();
-    await expect(second.page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await second.page.clock.runFor(1_000);
+    await expect(second.page.locator('#status')).toHaveText(statusOffline(1));
+    await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
     expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first')).toBe(true);
     const silent = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
@@ -418,6 +423,7 @@ test('SYNC-05 a conflict is kept silently before the upload and announced only a
     const again = composer(second.page, 'w');
     await again.type('SYNTH-0912 third');
     await again.submit();
+    await second.page.clock.runFor(1_000);
     await expect
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 third') && !hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), {
         message: '等待设备二的保存成为服务器上的最新版本',
@@ -439,9 +445,12 @@ test('SYNC-05 a conflict whose overwrite reached the server but whose answer was
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  // 设备二用 manual 时钟：被拒或丢了答复的上传不会自己重试，之后的成功上传由 runFor 触发，console.error 的条数保持精确
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
   try {
+    await second.page.clock.install({ time: FROZEN_NOW });
     await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
     const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
 
     const one = composer(page, 'w');
@@ -456,7 +465,9 @@ test('SYNC-05 a conflict whose overwrite reached the server but whose answer was
     const two = composer(second.page, 'w');
     await two.type('SYNTH-0912 second');
     await two.submit();
-    await expect(second.page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
+    await second.page.clock.runFor(1_000);
+    await expect(second.page.locator('#status')).toHaveText(statusOffline(1));
+    await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_RESET: 1 });
     expect(lost.hits).toBe(1);
     await expect
@@ -477,6 +488,7 @@ test('SYNC-05 a conflict whose overwrite reached the server but whose answer was
     const again = composer(second.page, 'w');
     await again.type('SYNTH-0912 third');
     await again.submit();
+    await second.page.clock.runFor(1_000);
     await expect
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 third'), { message: '等待设备二的下一次保存到达服务器' })
       .toBe(true);

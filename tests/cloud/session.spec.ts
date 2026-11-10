@@ -16,7 +16,7 @@ import {
   LOGIN_EXPIRED_UNSENT,
   NOTICE_OTHER_TAB,
   STATUS_CLOUD_SYNCED,
-  STATUS_SAVE_FAILED_CLOUD,
+  statusOffline,
 } from '../support/strings';
 
 test.use({ clockMode: 'manual' });
@@ -27,8 +27,9 @@ const hasText = (logs: Log[] | undefined, text: string) => (logs ?? []).some((l)
 
 const KEPT = 'SYNTH-0911 kept through expiry';
 const RECORD = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
+const LIST = '/api/collections/journey_docs/records';
 
-// 带着一条没上传的修改走到“令牌在服务器端失效”：保存和读单条记录都被拒，记一条，推过防抖，状态行是保存失败；
+// 带着一条没上传的修改走到“令牌在服务器端失效”：保存先读文档列表再更新单条记录，这两个请求都被拒，记一条，推过防抖，状态行是离线（1 项修改）；
 // 然后撤销这个账号的令牌，下一次启动时 authRefresh 会得到 401
 async function leaveUnsentEditThenRevoke(app: AppHarness, page: Page, guard: GuardHandle) {
   await page.clock.install({ time: FROZEN_NOW });
@@ -36,13 +37,14 @@ async function leaveUnsentEditThenRevoke(app: AppHarness, page: Page, guard: Gua
   await page.clock.pauseAt(FROZEN_NOW + 60_000);
 
   app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse' });
-  app.fake.fault({ method: 'GET', path: RECORD, mode: 'refuse' });
+  app.fake.fault({ method: 'GET', path: LIST, mode: 'refuse' });
   const entry = composer(page, 'w');
   await entry.type(KEPT);
   await entry.submit();
   await page.clock.runFor(1_000);
-  await expect(page.locator('#status')).toHaveText(STATUS_SAVE_FAILED_CLOUD);
-  // 保存前先读单条记录，被拒的连接只有这一次（PATCH 没有发出）
+  await expect(page.locator('#status')).toHaveText(statusOffline(1));
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'offline');
+  // 保存先读文档列表，被拒的连接只有这一次（PATCH 没有发出）；manual 时钟没有 runFor，自动重试不会自行触发
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
 
   await app.fake.clearFaults();

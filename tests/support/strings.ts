@@ -291,10 +291,6 @@ export const STATUS_RECONCILING = '正在和服务器对账…';
 // 对账后用服务器版本替换了本机缓存、且两者确实不同时的 toast（09-UI-SPEC S5 D-04 逐字复制，4000 ms）
 export const TOAST_REMOTE_UPDATED = '已更新为其他设备上的最新内容';
 
-// 云端保存失败时的状态行文案（09-UI-SPEC S2 的 savefailed 行逐字复制）；#status 的 data-state 同时为 savefailed。
-// Phase 10 做自动重试（SYNC-06）时由 retrying 取代，到那时本常量随之删除
-export const STATUS_SAVE_FAILED_CLOUD = '保存失败：修改仍在本机，下次修改或重新打开时会再上传';
-
 // 本机缓存写不进去（localStorage 配额不够）时：横幅正文（warn，带 BTN_ACK）和云端保存也失败时的状态行文案。
 // 此时修改只在内存里，不能再说“修改仍在本机”；09-UI-SPEC 没有这两句，是审查修复（WR-05）补的
 export const BANNER_CACHE_FULL = '本机空间不够，没能在本机保存这次修改。上传成功之前请别关闭或刷新页面。';
