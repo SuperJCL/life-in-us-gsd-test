@@ -603,7 +603,7 @@ let ops=[],opsOk=true;
 /* a remote version never goes into the working state or plan by itself: syncOnce puts it into the waiting slot pendRemote ({plan,state}, each {data,updated} or null) and every render function keeps reading
    the working state, so whatever the user sees stays as it was until the update is applied. takeRemote() is the only way in (applyView, and commit at its start, D-04); remoteView = a waiting slot really differs from what is shown */
 const POLL_MS=60000;
-let pendRemote={plan:null,state:null},remoteView=false,pollTimer=null;
+let pendRemote={plan:null,state:null},remoteView=false,pollTimer=null,rt="off";
 function commit(keys,fn){takeRemote();fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys);if(remoteView)applyView(true)}
 async function flush(){
   savePending=false;
@@ -980,7 +980,7 @@ async function reconcileOnce(r){
   setGate(null);
   if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
   pendRemote={plan:null,state:null};remoteView=false;hideBar("remote");
-  renderAll();snapShow();startPoll();
+  renderAll();snapShow();startPoll();ensureRealtime();
   if(changed&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
@@ -1242,6 +1242,44 @@ document.addEventListener("visibilitychange",()=>{
   if(document.hidden){stopPoll();return}
   startPoll();requestSync("visible");if(remoteView)maybeApplyView();
 });
+/* realtime (SYNC-02): a push only says "something changed", it never carries the document. The subscription starts after the first reconcile (and only while rt is "off", so a topic is never subscribed twice: the SDK adds one listener per subscribe);
+   every event or (re)connect that is not our own echo goes through requestSync, i.e. the same whole-document reconcile and the same waiting-slot rules as the 60 s pull, which stays on as the baseline.
+   rt: "off" | "connecting" | "live" (body[data-rt]); live = the subscription is in place and the catch-up reconcile that closes the gap between the first read and the subscription has finished */
+function setRt(v){rt=v;document.body.dataset.rt=v}
+function rtUnsub(){try{Promise.resolve(pb.realtime.unsubscribe()).catch(()=>{})}catch(e){}}
+/* a session change in the middle of startup: resetSession has already unsubscribed everything; only a start that left nothing owned by a newer session unsubscribes again */
+function rtStale(ep){if(ep===sessionEpoch)return false;if(rt==="off")rtUnsub();return true}
+async function startRealtime(){
+  const ep=sessionEpoch;
+  setRt("connecting");
+  try{
+    await pb.collection("journey_docs").subscribe("*",onDocEvent,{fields:"id,kind,writer,updated"});
+    if(rtStale(ep))return;
+    await pb.realtime.subscribe("PB_CONNECT",onPbConnect);
+    if(rtStale(ep))return;
+    await requestSync("connect");
+    if(rtStale(ep))return;
+    setRt("live");
+  }catch(e){
+    if(rtStale(ep))return;
+    /* the first connection failed: the SDK keeps the listeners it registered and does not retry (PROBE-10b), so they are cleared here; the pull keeps the page current */
+    rtUnsub();setRt("off");
+  }
+}
+function ensureRealtime(){if(CLOUD&&me&&rt==="off")startRealtime()}
+function stopRealtime(){rtUnsub();rt="off";delete document.body.dataset.rt}
+/* the record in an event only has id, kind, writer and updated: it is never applied, it only decides whether to reconcile. Our own write (writer) and a version we already hold (updated equals the base) are ignored */
+function onDocEvent(e){
+  const r=e&&e.record;
+  if(!r||e.action==="delete"||r.writer===WRITER)return;
+  const d=docs[r.kind];
+  if(d&&r.updated===d.base)return;
+  requestSync("event");
+}
+function onPbConnect(){
+  const ep=sessionEpoch;
+  requestSync("connect").then(()=>{if(ep===sessionEpoch&&rt!=="off")setRt("live")});
+}
 /* the layout of normalize depends on the plan: with a plan from the slot it is normalized under that plan, and the working plan is back before anything can render or await */
 function normUnder(ps,data){
   if(!ps)return normalize(data);
@@ -1347,6 +1385,7 @@ function resetSession(){
   sessionEpoch++;
   clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
   clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
+  if(pb)stopRealtime();
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};

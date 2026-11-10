@@ -69,6 +69,8 @@ export class AppHarness {
   private view: 'login' | 'app' = 'login';
   // cloud：用例故意让 SDK 加载失败（被篡改或被拦），登录页就绪时页面里不会有 PocketBase（INFRA-03 篡改对照）
   private sdkRefused = false;
+  // cloud 应用视图：是否等实时订阅就绪（body 的 data-rt 为 live）。缺省 true；用例让这台设备的实时连接被拒绝或故意不要实时时传 realtime: false
+  private realtime = true;
   // 本地模式 open() 写进 localStorage 的种子原文；没有种子时为 null（saved() 用它区分“种子”和“应用写回”）
   private seedJson: string | null = null;
 
@@ -100,6 +102,9 @@ export class AppHarness {
       login?: number | 'session';
       // cloud：用例故意让 SDK 加载失败（例如被篡改、integrity 不符），就绪只等登录页，不等页面里出现 PocketBase
       sdkRefused?: boolean;
+      // cloud：这台设备是否带实时订阅（缺省 true）。false 时 ready() 不等 data-rt 为 live，
+      // 用于用例要让它“听不到”另一台设备（先 refuseRealtime），使拉取、回到前台、重新联网这些触发成为唯一途径
+      realtime?: boolean;
     } = {},
   ) {
     // 账户 mock 用 Object.defineProperty 装 window.claude（不可配置），第二个 init script 会抛
@@ -123,6 +128,7 @@ export class AppHarness {
       this.cloudApp = (opts.backend === undefined ? 'pocketbase' : opts.backend) === 'pocketbase';
       this.view = opts.login === 'session' ? 'app' : 'login';
       this.sdkRefused = opts.sdkRefused === true;
+      this.realtime = opts.realtime !== false;
       if (this.cloudApp) {
         const context = this.page.context();
         if (!configuredContexts.has(context)) {
@@ -184,7 +190,7 @@ export class AppHarness {
   // 只看状态栏会抢跑：应用在 setStatus 之后还要再 await use("downloads") 才显示导出按钮。
   // cloud 且 backend 为 pocketbase（Phase 9 起应用自己同源加载 SDK）：
   //   期望视图是登录页时，等 #login 可见且页面里有 PocketBase 函数；
-  //   期望视图是应用时，等 #status 的 data-state 为 synced、文字是已同步，且 .wrap 可见。
+  //   期望视图是应用时，等 #status 的 data-state 为 synced、文字是已同步，且 .wrap 可见；realtime 为真时再等 body 的 data-rt 为 live。
   // cloud 且 backend 为 null（Phase 8 设施用法）：应用走本地路径，状态栏是本地文案；harness 自己同源注入真实 SDK，等到页面里有 PocketBase。
   async ready() {
     if (this.store === 'cloud' && this.cloudApp) {
@@ -198,6 +204,8 @@ export class AppHarness {
         await expect(status).toHaveAttribute('data-state', 'synced');
         await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
         await expect(this.page.locator('.wrap')).toBeVisible();
+        // 实时订阅成功后还要补一次整份对账（关闭“读取之后、订阅之前”的空窗）；它完成之前，用例的下一步可能与这次对账竞争，所以 data-rt 为 live 才算就绪
+        if (this.realtime) await expect(this.page.locator('body')).toHaveAttribute('data-rt', 'live');
       }
     } else if (this.store === 'cloud') {
       await expect(this.page.locator('#status')).toHaveText(STATUS_LOCAL);
