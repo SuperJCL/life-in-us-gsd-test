@@ -7,11 +7,24 @@ import { test, expect, type Page } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import type { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
+import { makeOneEditOfEachKind } from '../support/edits';
 import { editor } from '../support/editor';
 import { gotoGoals } from '../support/goals';
 import { openDevice, type Device } from '../support/devices';
 import { expectToast } from '../support/toast';
-import { CATEGORY_NAMES, BANNER_REMOTE, BTN_APPLY_NOW, TAB_LABELS, TOAST_LOG_READDED, TOAST_REMOTE_UPDATED } from '../support/strings';
+import {
+  BANNER_REMOTE,
+  BTN_APPLY_NOW,
+  BTN_DOWNLOAD_SNAPSHOT,
+  CATEGORY_NAMES,
+  STATUS_CLOUD_SYNCED,
+  TAB_LABELS,
+  TOAST_CONFLICT,
+  TOAST_LOG_READDED,
+  TOAST_REMOTE_UPDATED,
+  statusOffline,
+} from '../support/strings';
 import { FROZEN_NOW, WEEK_START_FROZEN } from '../support/constants';
 
 test.use({ clockMode: 'manual' });
@@ -368,4 +381,222 @@ test('SYNC-02 update now applies the waiting change and keeps both drafts and th
   } finally {
     await second.context.close();
   }
+});
+
+// ---- 10-07：上传等待期间发现服务器有更新时，先放进挂起槽，再重做尚未上传的本机操作（opsOk 为真）；opsOk 为假时仍是 D-03 ----
+const LIST_PATH = '/api/collections/journey_docs/records';
+const RECORD = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
+type Log = { id: string; text: string; date?: string; cat?: string };
+const logsOnServer = (app: App) => serverLogs(app) as Log[];
+const countText = (app: App, text: string) => logsOnServer(app).filter((l) => l.text === text).length;
+const distinct = (ids: string[]) => new Set(ids).size === ids.length;
+const OTHER = 'synth-other-writer';
+
+// “另一个参与者”以另一个写入方改服务器上的 state：mutate 在 lastState 的拷贝上改，再整份写回
+async function otherWriterEdits(app: App, mutate: (st: any) => void) {
+  const st = app.fake.lastState(0);
+  mutate(st);
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'state')}`, { data: st, writer: OTHER });
+  expect(res.status).toBe(200);
+}
+const addLogOnServer = (st: any, id: string, text: string) => st.logs.push({ id, date: '2026-03-17', cat: CATEGORY_NAMES[0], text });
+const cacheOf = (p: Page, userId: string, kind: string) => p.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${userId}:${kind}`);
+
+test("SYNC-02 an edit on a device that had not yet seen another device's change keeps both edits without a kept version", async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  const second = await openBoth(app, page, browser, guard);
+  try {
+    const sp = second.page;
+    const userId = app.fake.users[0].id;
+    const firstId = await writeOnOne(app, page, 'SYNTH-1012 first');
+    // 设备二还没拉到 first：它记 second，上传时发现服务器有更新
+    const entry = composer(sp, 'w');
+    await entry.type('SYNTH-1012 second');
+    await entry.submit();
+    await sp.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await sp.clock.runFor(1_000);
+    await expect.poll(() => countText(app, 'SYNTH-1012 second'), { message: '等待设备二的记录上传' }).toBe(1);
+    expect(countText(app, 'SYNTH-1012 first')).toBe(1);
+    expect(distinct(logsOnServer(app).map((l) => l.id))).toBe(true);
+
+    // 没有留底、没有冲突提示；界面空闲时显示 first，并提示已更新
+    expect(await cacheOf(sp, userId, 'snapshot')).toBeNull();
+    await expect(sp.locator('#snapshotBtn')).toBeHidden();
+    await expect(sp.locator(`#days [data-edit="${firstId}"]`)).toBeVisible();
+    await expectToast(sp, TOAST_REMOTE_UPDATED);
+    await expect(sp.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+  } finally {
+    await second.context.close();
+  }
+});
+
+test("SYNC-02 an edit made while an earlier upload is in flight is replayed alone when another device's change arrives, with no duplicate entries", async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userId = app.fake.users[0].id;
+  const S = 'synthetic-a';
+
+  // 第一次上传（记 E、把 S 改成 S local）被挂住；挂住期间又记 F
+  const held = app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'hold', times: 1 });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1013 E');
+  await entry.submit();
+  const ed = editor(page);
+  await ed.openLog(page.locator(`#tab-wk [data-edit="${S}"]`));
+  await ed.setText('SYNTH-1013 S local');
+  await ed.save();
+  await ed.expectClosed();
+  await page.clock.runFor(1_000);
+  await expect.poll(() => held.hits, { message: '等待第一次上传被挂起' }).toBe(1);
+  await entry.type('SYNTH-1013 F');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  // 放行后紧接着的同步读列表之前，另一个参与者加 X、把 S 改成 S remote（此时服务器已含 E 和 S local）
+  app.fake.beforeNext('GET', LIST_PATH, async () => {
+    const st = app.fake.lastState(0);
+    expect(st.logs.some((l: Log) => l.text === 'SYNTH-1013 E')).toBe(true);
+    expect(st.logs.find((l: Log) => l.id === S)?.text).toBe('SYNTH-1013 S local');
+    await otherWriterEdits(app, (x) => {
+      addLogOnServer(x, 'synthetic-other-1013', 'SYNTH-1013 X');
+      x.logs.find((l: Log) => l.id === S).text = 'SYNTH-1013 S remote';
+    });
+  });
+  await held.release();
+  await expect.poll(() => countText(app, 'SYNTH-1013 F'), { message: '等待重做后的上传' }).toBe(1);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+
+  const expectFinal = (logs: Log[]) => {
+    expect(distinct(logs.map((l) => l.id))).toBe(true);
+    for (const t of ['SYNTH-1013 E', 'SYNTH-1013 F', 'SYNTH-1013 X']) expect(logs.filter((l) => l.text === t), t).toHaveLength(1);
+    expect(logs.find((l) => l.id === S)?.text).toBe('SYNTH-1013 S remote');
+    expect(logs.some((l) => l.text === 'SYNTH-1013 S local')).toBe(false);
+  };
+  expectFinal(logsOnServer(app));
+  expect(await cacheOf(page, userId, 'snapshot')).toBeNull();
+  await expect(page.locator('#snapshotBtn')).toBeHidden();
+
+  // 另一台设备登录后看到同样的结果
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    const sp = second.page;
+    for (const t of ['SYNTH-1013 E', 'SYNTH-1013 F', 'SYNTH-1013 X', 'SYNTH-1013 S remote']) {
+      await expect(sp.locator('#days [data-edit]', { hasText: t }), t).toHaveCount(1);
+    }
+    await expect(sp.locator('#days [data-edit]', { hasText: 'SYNTH-1013 S local' })).toHaveCount(0);
+    const cached = await cacheOf(sp, userId, 'state');
+    expect(distinct((cached.data.logs as Log[]).map((l) => l.id))).toBe(true);
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-02 replaying edits whose upload timed out but reached the server adds nothing twice', async ({ app, page, browser, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: syntheticPlan('t', 1), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userId = app.fake.users[0].id;
+
+  // 七类修改进入同一次上传，上传被挂住、约 15 秒后放弃
+  const held = app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'hold', times: 1 });
+  const made = await makeOneEditOfEachKind(page, 'SYNTH-1014');
+  await page.clock.runFor(1_000);
+  await expect.poll(() => held.hits, { message: '等待上传被挂起' }).toBe(1);
+  // 在重试读列表之前：先放行被挂住的请求（服务器处理这次上传，页面这时已经放弃它），再让另一个参与者加 X
+  const from = app.fake.requests.length;
+  let hooked = false;
+  app.fake.beforeNext('GET', LIST_PATH, async () => {
+    hooked = true;
+    await held.release();
+    await otherWriterEdits(app, (x) => addLogOnServer(x, 'synthetic-other-1014', 'SYNTH-1014 X'));
+  });
+  // 约 15 秒后上传被放弃，一个退避等待之后重试；一秒一步推进，直到钩子已经执行并且已同步
+  const status = page.locator('#status');
+  for (let i = 0; i < 40 && !(hooked && (await status.getAttribute('data-state')) === 'synced'); i++) await page.clock.runFor(1_000);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  expect(hooked).toBe(true);
+  // 服务器的三次写入：被放弃的那次上传、另一个参与者的写入、重试时重做后的上传（重试之前没有别的上传）
+  expect(app.fake.requests.slice(from).filter((r) => r.method === 'PATCH')).toHaveLength(3);
+
+  const check = (st: any) => {
+    const logs = st.logs as Log[];
+    expect(distinct(logs.map((l) => l.id)), '记录 id 互不相同').toBe(true);
+    expect(distinct((st.custom as Array<{ id: string }>).map((c) => c.id)), '自定义待办 id 互不相同').toBe(true);
+    for (const t of [made.aText, made.bText, 'SYNTH-1014 X']) expect(logs.filter((l) => l.text === t), t).toHaveLength(1);
+    expect(logs.some((l) => l.text === 'SYNTH-1014 A')).toBe(false);
+  };
+  const server = app.fake.lastState(0);
+  check(server);
+  expect(server.custom.filter((c: { text: string; group: string }) => c.text === made.customText && c.group === made.customGroup)).toHaveLength(1);
+  expect(server.presets[made.presetCat].add.filter((t: string) => t === made.presetText)).toHaveLength(1);
+  expect(server.tasks[made.taskId]?.done ?? false).toBe(false);
+  const hist = server.lifts[made.liftId].hist as Array<{ date: string; v: number }>;
+  expect(hist.filter((h) => h.date === '2026-03-18')).toHaveLength(1);
+  expect(hist[hist.length - 1].v).toBe(made.liftValue);
+  expect(server.lifts[made.liftId].cur).toBe(made.liftValue);
+  expect(server.reviews[WEEK_START_FROZEN]).toBe(made.reviewText);
+  expect(server.arrival).toBe(made.arrival);
+  expect(await cacheOf(page, userId, 'snapshot')).toBeNull();
+
+  // 另一台设备登录：记录 id 不重复，A 和 B 各恰好一条
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    const cached = await cacheOf(second.page, userId, 'state');
+    check(cached.data);
+  } finally {
+    await second.context.close();
+  }
+});
+
+test("SYNC-05 an edit whose sync failed at the list request keeps the other device's version here after reconnecting (D-03)", async ({
+  app,
+  page,
+  context,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userId = app.fake.users[0].id;
+
+  // 只拒绝列表请求（PATCH 不加故障）：同步在列表这一步就失败，上传没有发出
+  const from = app.fake.requests.length;
+  const list = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1015 local');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'offline');
+  await expect(page.locator('#status')).toHaveText(statusOffline(1));
+  expect(app.fake.requests.slice(from).filter((r) => r.method === 'PATCH')).toHaveLength(0);
+
+  // 断网期间另一台设备改了同一文档
+  await otherWriterEdits(app, (x) => addLogOnServer(x, 'synthetic-other-1015', 'SYNTH-1015 other'));
+
+  // 联网：这一次走 D-03（整份以本机为准，另一台设备的版本留底），不是重做
+  await app.fake.clearFaults();
+  await context.setOffline(true);
+  await context.setOffline(false);
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect.poll(() => countText(app, 'SYNTH-1015 local'), { message: '等待本机版本上传' }).toBe(1);
+  expect(countText(app, 'SYNTH-1015 other')).toBe(0);
+  const snap = await cacheOf(page, userId, 'snapshot');
+  expect(snap).not.toBeNull();
+  expect((snap.data.logs as Log[]).some((l) => l.text === 'SYNTH-1015 other')).toBe(true);
+  await expectToast(page, TOAST_CONFLICT);
+  await expect(page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+  await expect(page.locator('#snapshotBtn')).toBeVisible();
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: list.hits });
 });

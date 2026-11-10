@@ -1146,10 +1146,19 @@ async function syncOnce(){
       if(isDirty){
         /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
            the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
-        const body=JSON.parse(JSON.stringify(docAfter()));sentOps=ops.length;
-        if(ssv.updated!==docs.state.base&&ssv.writer!==WRITER&&canon(ssv.data)!==canon(body))snapPending=keepConflict("state",ssv);
+        let body=JSON.parse(JSON.stringify(docAfter()));sentOps=ops.length;
+        const clash=ssv.updated!==docs.state.base&&ssv.writer!==WRITER&&canon(ssv.data)!==canon(body);
+        let slot=null;
+        if(clash&&opsOk){
+          /* ops is whole (no step failed offline since the base, no reload): the other device's version goes into the waiting slot and the local operations not yet uploaded are done again on it (D-04), then uploaded in this same pass;
+             the working state and the screen change only by the waiting-slot rules (idle, or an action of the user) */
+          slot=rebaseState(ssv);
+          body=JSON.parse(JSON.stringify(docAfter()));sentOps=ops.length;
+        }else if(clash)snapPending=keepConflict("state",ssv);
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
+        /* the slot still holds the version this upload was based on (nobody took it meanwhile): from now on it holds what is on the server, so the local operations that come after are done on that */
+        if(slot&&pendRemote.state===slot){pendRemote.state={data:body,updated:up.updated};gotRemote=true}
         /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
         if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
       }else if(ssv.updated!==docs.state.base&&!docs.state.dirty&&(docs.state.seq||0)===seq){
@@ -1239,6 +1248,14 @@ function normUnder(ps,data){
   const kp=plan,kt=planTasks,ki=planIds,kc=planCat,ko=keepOrphans;
   try{const ok=usePlan(ps.data);keepOrphans=!ok;return normalize(data)}
   finally{plan=kp;planTasks=kt;planIds=ki;planCat=kc;keepOrphans=ko}
+}
+/* the redo branch of syncOnce (a dirty state, a newer server version written by another page, ops whole): the server version waits in the slot, the base moves to it, and the cache keeps the result of the redo (still dirty)
+   until the upload has succeeded. Only the operations still in ops are done again: the ones already uploaded left ops with their upload (sentOps), and every run is idempotent. No merge of logs by id, no field-level merge. */
+function rebaseState(sv){
+  pendRemote.state={data:sv.data,updated:sv.updated};
+  docs.state.base=sv.updated;
+  cacheNote(cachePut("state",{...docs.state,data:docAfter()}));
+  return pendRemote.state;
 }
 /* what this device should now contain: the waiting server state with every local operation still in ops done on it again (D-04); with no waiting state it is the working state itself.
    Uploads and the state cache are built from it. */
