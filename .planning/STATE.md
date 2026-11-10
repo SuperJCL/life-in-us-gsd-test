@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-11-10T06:37:46.019Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-11-10T07:14:53.916Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 09 complete, transitioned to Phase 10
-state_head: 5ab62fc7532283ece3b78766bd04c4164497f211
+last_activity_desc: Phase 10 execution started
+state_head: 401e58df1b17f2847683c803175957f350924458
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 38
+  completed_plans: 39
   percent: 50
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 
 ## Current Position
 
-Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — READY TO EXECUTE
-Plan: Not started
+Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-11-09 — Phase 09 complete, transitioned to Phase 10
+Last activity: 2026-11-09 — Phase 10 execution started
 
 Progress: [█████░░░░░] 50%
 
@@ -125,6 +125,7 @@ Progress: [█████░░░░░] 50%
 | Phase 09 P12 | 25 min | 2 tasks | 4 files |
 | Phase 09 P13 | 33 min | 2 tasks | 5 files |
 | Phase 09 P14 | 36 min | 2 tasks | 6 files |
+| Phase 10 P01 | 21 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -220,6 +221,8 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - 对账 3 秒“较慢”、15 秒“连不上”，只有手动重试；自动退避和重连是 Phase 10 的事。
 - 验收中途应用改名为「计划手记」（quick 261109-inq），数据字段和存储键不变。
 - 默认套件 176 条，cloud 入口 114 条。
+- [Phase 10]: 10-01: save failures classify as offline (status 0, not our timeout) or retrying (5xx, 429, other 4xx, 15 s no answer, unknown errors); backoff 1/2/5/10/30/60 s never gives up and never clears dirty (B5 fixed)
+- [Phase 10]: 10-01: requestSync is the single-threaded sync entry (merged requests, promise settles after the covering pass, epoch-guarded loop); touched set lives in the cache record, only log:<id> wired so far (rest in 10-04)
 
 ### Pending Todos
 
@@ -273,9 +276,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T04:24:44.493Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-offline-realtime-sync/10-CONTEXT.md
+Last session: 2026-11-10T07:14:52.112Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

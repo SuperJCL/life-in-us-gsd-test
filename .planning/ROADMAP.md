@@ -248,10 +248,10 @@ Plans:
   3. 实时连接断开再重连、页面回到前台、重新联网时，都会整份对账，断开期间别的设备做的修改不会漏掉。
   4. 状态栏在已同步、保存中、离线、失败重试、登录过期五种状态之间如实切换，每种状态都有用例在假服务器上触发并检查文案。服务器暂时出错时保存会自动退避重试，修改不会被悄悄丢掉（修 B5）；应用加载完成之前做的修改也不会丢（修 B3）。
   5. 登录过期时状态栏提示重新登录，本机未上传的修改保留。用同一账号重新登录后继续上传，服务器上的数据包含过期期间的修改。
-**Plans:** 9 plans
+**Plans:** 1/9 plans executed
 Plans:
 **Wave 1**
-- [ ] 10-01-PLAN.md — 离线先存与自动重试 tracer：单线程同步入口（Promise 在覆盖本次请求的同步结束后才 resolve）、offline 与待上传数量、retrying 倒计时与立即重试、15 秒超时（B5、WR-02）；移除旧保存函数和 cloudStore 的 save 字段；Phase 9 保存失败用例迁移；完整默认 npm test
+- [x] 10-01-PLAN.md — 离线先存与自动重试 tracer：单线程同步入口（Promise 在覆盖本次请求的同步结束后才 resolve）、offline 与待上传数量、retrying 倒计时与立即重试、15 秒超时（B5、WR-02）；移除旧保存函数和 cloudStore 的 save 字段；Phase 9 保存失败用例迁移；完整默认 npm test
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 10-02-PLAN.md — 假服务器的实时断开、实时拒绝、按设备的故障和写入方记录；PROBE-10 用本地来源回答调研问题（与 10-01 文件不重叠，但都跑 test:cloud，按单 worker、不并发排在其后）
@@ -357,7 +357,7 @@ Plans:
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
-| 10. 离线与实时同步 | v2.0 | 0/9 | Not started | - |
+| 10. 离线与实时同步 | v2.0 | 1/9 | In Progress | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |
