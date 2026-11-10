@@ -1,11 +1,16 @@
 // Phase 9 的真冲突与留底用例（D-08 到 D-11）：只在 npm run test:cloud 里运行，只用合成账号和合成数据。
-// 两台设备是同一个假服务器上的两个独立浏览器上下文，登录同一个账号；后保存的那台上传前发现服务器版本更新，
-// 留底被覆盖的版本、上传本机版本、弹提示。下载用例只给第二台设备开 acceptDownloads。
+// 两台设备是同一个假服务器上的两个独立浏览器上下文，登录同一个账号。
+// 10-07 起在线时晚一步的保存不再冲突（重做分支，见 remote-update.spec.ts）；真冲突只在离线重连时出现（D-03）：
+// 设备二的列表请求就以网络错误失败（opsOk 为假），设备一保存之后设备二重新联网，整份以设备二为准上传，设备一的版本留底、弹提示。
+// 这个构造在 makeOfflineConflict 里；设备二一律是 manual 时钟（openSecond），被拒连接的 console.error 按故障命中次数精确确认。
+// 下载用例只给第二台设备开 acceptDownloads。
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '../support/test';
 import { syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
-import { openDevice } from '../support/devices';
+import { openDevice, type Device } from '../support/devices';
+import type { AppHarness } from '../support/app';
+import type { Page } from '../support/test';
 import { expectToast } from '../support/toast';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
@@ -25,6 +30,58 @@ type Log = { id: string; text: string };
 const hasText = (logs: Log[] | undefined, text: string) => (logs ?? []).some((l) => l.text === text);
 
 const RECORD = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
+const LIST_PATH = '/api/collections/journey_docs/records';
+
+// 设备二：manual 时钟（open 之前 install，登录后 pauseAt），init 在导航之前装测试装置
+async function openSecond(
+  app: AppHarness,
+  browser: Parameters<typeof openDevice>[0]['browser'],
+  guard: Parameters<typeof openDevice>[0]['guard'],
+  o: { acceptDownloads?: boolean; init?: (p: Page) => Promise<void> } = {},
+): Promise<Device> {
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none', acceptDownloads: o.acceptDownloads });
+  try {
+    if (o.init) await o.init(second.page);
+    await second.page.clock.install({ time: FROZEN_NOW });
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
+  } catch (error) {
+    await second.context.close();
+    throw error;
+  }
+  return second;
+}
+
+// 设备一经界面记一笔，等到服务器 state 里出现它
+async function oneSaves(app: AppHarness, page: Page, text: string) {
+  const one = composer(page, 'w');
+  await one.type(text);
+  await one.submit();
+  await expect.poll(() => hasText(app.fake.lastState(0)?.logs, text), { message: `等待设备一的记录上传：${text}` }).toBe(true);
+}
+
+// Phase 9 的“设备二基线过期后直接保存”换成 D-03 的离线构造：
+// 设备二的列表请求被拒（10-02 的 context 故障）→ 设备二记一笔、推过防抖，状态 offline（任何一步离线失败都使 opsOk 为假）→ 设备一保存（oneSaves）
+// → 撤掉故障（可选：只对设备二的下一次单条 PATCH 再加一个故障）并派发 online → 设备二读到更新的服务器版本，走整份覆盖加留底（不是重做）。
+// 返回两个故障句柄，调用方用 hits 确认被拒连接的 console.error 条数。
+async function makeOfflineConflict(
+  app: AppHarness,
+  second: Device,
+  o: { secondText: string; oneSaves: () => Promise<void>; patch?: 'refuse' | 'lose-answer' },
+) {
+  const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context: second.context });
+  const two = composer(second.page, 'w');
+  await two.type(o.secondText);
+  await two.submit();
+  await second.page.clock.runFor(1_000);
+  await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
+  await o.oneSaves();
+  await app.fake.clearFaults();
+  const patchFault = o.patch ? app.fake.fault({ method: 'PATCH', path: RECORD, mode: o.patch, times: 1, context: second.context }) : null;
+  await second.context.setOffline(true);
+  await second.context.setOffline(false);
+  return { listFault, patchFault };
+}
 
 test('SYNC-05 a save over a newer server version keeps the last save, keeps the overwritten version on this device and says so', async ({
   app,
@@ -33,20 +90,13 @@ test('SYNC-05 a save over a newer server version keeps the last save, keeps the 
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  const second = await openSecond(app, browser, guard);
   try {
-    await second.app.open({ mode: 'cloud', login: 0 });
-
-    // 设备一先保存；设备二的基线还是旧的，随后保存
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0908 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0908 second');
-    await two.submit();
+    // 设备二先离线记一笔，设备一保存，设备二重新联网：整份以设备二为准
+    const { listFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0908 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0908 first'),
+    });
 
     await expect
       .poll(
@@ -73,6 +123,7 @@ test('SYNC-05 a save over a newer server version keeps the last save, keeps the 
     expect(hasText(snap.data.logs, 'SYNTH-0908 second')).toBe(false);
 
     await expect(page.locator('#snapshotBtn')).toBeHidden();
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
@@ -85,19 +136,12 @@ test('SYNC-05 downloading the kept version saves a state-shaped JSON file withou
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake, acceptDownloads: true });
+  const second = await openSecond(app, browser, guard, { acceptDownloads: true });
   try {
-    await second.app.open({ mode: 'cloud', login: 0 });
-
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0908 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0908 second');
-    await two.submit();
+    const { listFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0908 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0908 first'),
+    });
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
 
     const user = app.fake.users[0];
@@ -121,6 +165,7 @@ test('SYNC-05 downloading the kept version saves a state-shaped JSON file withou
       .toBeNull();
     await expect(second.page.locator('#snapshotBtn')).toBeHidden();
     await expectToast(second.page, TOAST_SNAPSHOT_DOWNLOADED);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
@@ -133,34 +178,27 @@ test('SYNC-05 the download address of the kept version stays valid after the cli
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  // 设备二用 manual 时钟：下载地址的回收计时器由测试推进，不真的等
-  const second = await openDevice({ browser, guard, fake: app.fake, acceptDownloads: true, clock: 'none' });
+  // 设备二用 manual 时钟：下载地址的回收计时器由测试推进，不真的等；测试装置只装在设备二：记下每次回收下载地址的调用
+  const second = await openSecond(app, browser, guard, {
+    acceptDownloads: true,
+    init: (p) =>
+      p.addInitScript(() => {
+        const revoked: string[] = [];
+        (window as unknown as { __revoked: string[] }).__revoked = revoked;
+        const original = URL.revokeObjectURL;
+        URL.revokeObjectURL = function (url: string) {
+          revoked.push(String(url));
+          return original.call(URL, url);
+        };
+      }),
+  });
   try {
-    // 测试装置只装在设备二：记下每次回收下载地址的调用
-    await second.page.addInitScript(() => {
-      const revoked: string[] = [];
-      (window as unknown as { __revoked: string[] }).__revoked = revoked;
-      const original = URL.revokeObjectURL;
-      URL.revokeObjectURL = function (url: string) {
-        revoked.push(String(url));
-        return original.call(URL, url);
-      };
-    });
-    await second.page.clock.install({ time: FROZEN_NOW });
-    await second.app.open({ mode: 'cloud', login: 0 });
-    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
     const revokedCount = () => second.page.evaluate(() => (window as unknown as { __revoked: string[] }).__revoked.length);
 
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0912 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0912 second');
-    await two.submit();
-    await second.page.clock.runFor(1_000);
+    const { listFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0912 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0912 first'),
+    });
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
 
     const [download] = await Promise.all([second.page.waitForEvent('download'), second.page.locator('#snapshotBtn').click()]);
@@ -172,6 +210,7 @@ test('SYNC-05 the download address of the kept version stays valid after the cli
     await second.page.clock.runFor(2_000);
     expect(await revokedCount()).toBe(1);
     expect(await second.page.evaluate((k) => localStorage.getItem(k), `usj:v2:${app.fake.users[0].id}:snapshot`)).toBeNull();
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
@@ -179,9 +218,8 @@ test('SYNC-05 the download address of the kept version stays valid after the cli
 
 test('SYNC-05 a newer conflict replaces the single kept version', async ({ app, page, browser, guard }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  const second = await openSecond(app, browser, guard);
   try {
-    await second.app.open({ mode: 'cloud', login: 0 });
     const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
     const readKeys = () =>
       second.page.evaluate(
@@ -194,28 +232,30 @@ test('SYNC-05 a newer conflict replaces the single kept version', async ({ app, 
 
     // 第一次冲突：设备二的 first 被覆盖，留底含 first，不下载
     const one = composer(page, 'w');
-    await one.type('SYNTH-0908 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0908 second');
-    await two.submit();
+    const { listFault: list1 } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0908 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0908 first'),
+    });
     await expect
       .poll(async () => hasText((await readKeys()).snap?.data.logs, 'SYNTH-0908 first'), { message: '等待第一份留底' })
       .toBe(true);
-
-    // 设备一重新打开，取到设备二保存的版本（不算冲突），再记 third；设备二再记 fourth，第二次冲突
-    await app.reload();
-    await one.type('SYNTH-0908 third');
-    await one.submit();
     await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 third'), { message: '等待设备一的第二条记录上传' })
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 second'), { message: '等待设备二的保存成为服务器上的最新版本' })
       .toBe(true);
-    await expect(page.locator('#snapshotBtn')).toBeHidden();
-    await two.type('SYNTH-0908 fourth');
-    await two.submit();
+
+    // 第二次冲突：设备二再离线记 fourth；设备一重新打开，取到设备二保存的版本（不算冲突），再记 third；设备二重新联网
+    const { listFault: list2 } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0908 fourth',
+      oneSaves: async () => {
+        await app.reload();
+        await one.type('SYNTH-0908 third');
+        await one.submit();
+        await expect
+          .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 third'), { message: '等待设备一的第二条记录上传' })
+          .toBe(true);
+        await expect(page.locator('#snapshotBtn')).toBeHidden();
+      },
+    });
     await expect
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0908 fourth'), { message: '等待设备二的保存成为最新版本' })
       .toBe(true);
@@ -228,6 +268,7 @@ test('SYNC-05 a newer conflict replaces the single kept version', async ({ app, 
     expect(hasText(snap.data.logs, 'SYNTH-0908 first')).toBe(false);
     expect(hasText(snap.data.logs, 'SYNTH-0908 fourth')).toBe(false);
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: list1.hits + list2.hits });
   } finally {
     await second.context.close();
   }
@@ -240,27 +281,22 @@ test('SYNC-05 a kept version that does not fit in browser storage is reported by
   guard,
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  // 测试装置只装在设备二、只针对留底键：写留底时抛 QuotaExceededError，其他键照常写
+  const second = await openSecond(app, browser, guard, {
+    init: (p) =>
+      p.addInitScript(() => {
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key: string, value: string) {
+          if (String(key).endsWith(':snapshot')) throw new DOMException('quota exceeded', 'QuotaExceededError');
+          return original.call(this, key, value);
+        };
+      }),
+  });
   try {
-    // 测试装置只装在设备二、只针对留底键：写留底时抛 QuotaExceededError，其他键照常写
-    await second.page.addInitScript(() => {
-      const original = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key: string, value: string) {
-        if (String(key).endsWith(':snapshot')) throw new DOMException('quota exceeded', 'QuotaExceededError');
-        return original.call(this, key, value);
-      };
+    const { listFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0909 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0909 first'),
     });
-    await second.app.open({ mode: 'cloud', login: 0 });
-
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0909 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0909 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0909 second');
-    await two.submit();
 
     // 服务器仍以后保存的为准
     await expect
@@ -291,6 +327,7 @@ test('SYNC-05 a kept version that does not fit in browser storage is reported by
 
     await bar.locator('button').click();
     await expect(bar).toBeHidden();
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
@@ -298,25 +335,20 @@ test('SYNC-05 a kept version that does not fit in browser storage is reported by
 
 test('SYNC-05 a failed download keeps the kept version and says so', async ({ app, page, browser, guard }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  // 测试装置只装在设备二：生成下载地址时抛错
+  const second = await openSecond(app, browser, guard, {
+    init: (p) =>
+      p.addInitScript(() => {
+        URL.createObjectURL = () => {
+          throw new Error('blob failed');
+        };
+      }),
+  });
   try {
-    // 测试装置只装在设备二：生成下载地址时抛错
-    await second.page.addInitScript(() => {
-      URL.createObjectURL = () => {
-        throw new Error('blob failed');
-      };
+    const { listFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0909 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0909 first'),
     });
-    await second.app.open({ mode: 'cloud', login: 0 });
-
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0909 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0909 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0909 second');
-    await two.submit();
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
 
     await second.page.locator('#snapshotBtn').click();
@@ -327,6 +359,7 @@ test('SYNC-05 a failed download keeps the kept version and says so', async ({ ap
     expect(snap).not.toBeNull();
     expect(hasText(snap.data.logs, 'SYNTH-0909 first')).toBe(true);
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
@@ -384,29 +417,20 @@ test('SYNC-05 a conflict is kept silently before the upload and announced only a
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
   // 设备二用 manual 时钟：被拒或丢了答复的上传不会自己重试，之后的成功上传由 runFor 触发，console.error 的条数保持精确
-  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+  const second = await openSecond(app, browser, guard);
   try {
-    await second.page.clock.install({ time: FROZEN_NOW });
-    await second.app.open({ mode: 'cloud', login: 0 });
-    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
     const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
 
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0912 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-
-    // 设备二的基线是旧的：它的第一次上传被拒绝，服务器版本没有被覆盖。上传之前已经静默留底（T-09-18），但还没有提示、没有下载入口
-    app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'refuse', times: 1 });
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0912 second');
-    await two.submit();
-    await second.page.clock.runFor(1_000);
+    // 设备二重新联网时读到更新的服务器版本（D-03），它的第一次上传被拒绝，服务器版本没有被覆盖。上传之前已经静默留底（T-09-18），但还没有提示、没有下载入口
+    const { listFault, patchFault } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0912 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0912 first'),
+      patch: 'refuse',
+    });
+    await expect.poll(() => patchFault!.hits, { message: '等待设备二重新联网后的上传被拒' }).toBe(1);
     await expect(second.page.locator('#status')).toHaveText(statusOffline(1));
     await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
-    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault!.hits });
     expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first')).toBe(true);
     const silent = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
     expect(silent?.kind).toBe('state');
@@ -446,30 +470,20 @@ test('SYNC-05 a conflict whose overwrite reached the server but whose answer was
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
   // 设备二用 manual 时钟：被拒或丢了答复的上传不会自己重试，之后的成功上传由 runFor 触发，console.error 的条数保持精确
-  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+  const second = await openSecond(app, browser, guard);
   try {
-    await second.page.clock.install({ time: FROZEN_NOW });
-    await second.app.open({ mode: 'cloud', login: 0 });
-    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
     const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
 
-    const one = composer(page, 'w');
-    await one.type('SYNTH-0912 first');
-    await one.submit();
-    await expect
-      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 first'), { message: '等待设备一的记录上传' })
-      .toBe(true);
-
-    // 设备二的基线是旧的：它的上传在服务器上生效了（设备一的版本已被覆盖），但答复丢了，页面报保存失败
-    const lost = app.fake.fault({ method: 'PATCH', path: RECORD, mode: 'lose-answer', times: 1 });
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0912 second');
-    await two.submit();
-    await second.page.clock.runFor(1_000);
+    // 设备二重新联网（D-03）：它的上传在服务器上生效了（设备一的版本已被覆盖），但答复丢了，页面报保存失败
+    const { listFault, patchFault: lost } = await makeOfflineConflict(app, second, {
+      secondText: 'SYNTH-0912 second',
+      oneSaves: () => oneSaves(app, page, 'SYNTH-0912 first'),
+      patch: 'lose-answer',
+    });
+    await expect.poll(() => lost!.hits, { message: '等待设备二的上传答复被丢掉' }).toBe(1);
     await expect(second.page.locator('#status')).toHaveText(statusOffline(1));
     await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
-    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_RESET: 1 });
-    expect(lost.hits).toBe(1);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits, ERR_CONNECTION_RESET: 1 });
     await expect
       .poll(() => {
         const logs = app.fake.lastState(0)?.logs;

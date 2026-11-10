@@ -457,20 +457,34 @@ test('ACCT-02 logout with a kept version that was not downloaded names it in the
 }) => {
   await app.open({ mode: 'cloud', seed: syntheticState('base'), login: 0 });
   const userA = app.fake.users[0];
-  const second = await openDevice({ browser, guard, fake: app.fake });
+  // 设备二用 manual 时钟（10-07：在线晚一步的保存不再冲突，真冲突只在离线重连时出现，D-03）
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
   try {
+    await second.page.clock.install({ time: FROZEN_NOW });
     await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
 
-    // 设备一先保存；设备二的基线还是旧的，随后保存：设备二留底了被覆盖的版本
+    // 设备二的列表请求被拒，记一笔（离线）；设备一保存；设备二重新联网：整份以设备二为准，设备二留底了被覆盖的版本
+    const listFault = app.fake.fault({
+      method: 'GET',
+      path: '/api/collections/journey_docs/records',
+      mode: 'refuse',
+      context: second.context,
+    });
+    const two = composer(second.page, 'w');
+    await two.type('SYNTH-0914 second');
+    await two.submit();
+    await second.page.clock.runFor(1_000);
+    await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
     const one = composer(page, 'w');
     await one.type('SYNTH-0914 first');
     await one.submit();
     await expect
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0914 first'), { message: '等待设备一的记录上传' })
       .toBe(true);
-    const two = composer(second.page, 'w');
-    await two.type('SYNTH-0914 second');
-    await two.submit();
+    await app.fake.clearFaults();
+    await second.context.setOffline(true);
+    await second.context.setOffline(false);
     await expect
       .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0914 second'), { message: '等待设备二的保存成为服务器上的最新版本' })
       .toBe(true);
@@ -495,6 +509,7 @@ test('ACCT-02 logout with a kept version that was not downloaded names it in the
     const keys = await storageKeys(second.page);
     expect(keys.filter((k) => k.startsWith(`${PREFIX}${userA.id}:`))).toEqual([]);
     expect(keys).not.toContain('pocketbase_auth');
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
   } finally {
     await second.context.close();
   }
