@@ -43,7 +43,7 @@
 - [x] **Phase 6: 采购与中美可达性实测（Procurement & Reachability Probe）** - 所有者买好香港服务器和域名，最小站点用 HTTPS 打开，晚高峰从大陆三网和美国实测；服务器地址和域名先被隐私检查挡住（所有者并行轨道） (completed 2026-11-08)
 - [x] **Phase 7: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）** - 个人计划移出代码、只留合成示例计划，冻结任务 id，统一转义；154 条 v1 用例全过，去个人化的应用文件进入公开仓库 (completed 2026-11-07)
 - [x] **Phase 8: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）** - 用迁移文件定义集合和规则，在一次性本机 PocketBase 上证明账号隔离；按真实协议样本做出假服务器和 cloud 测试模式 (completed 2026-11-08)
-- [ ] **Phase 9: 登录与云端存储（Login & Cloud Storage）** - 登录、退出、会话保持；记录和个人计划按账号存在服务器上；先对账再允许编辑；页面只加载同源资源
+- [x] **Phase 9: 登录与云端存储（Login & Cloud Storage）** - 登录、退出、会话保持；记录和个人计划按账号存在服务器上；先对账再允许编辑；页面只加载同源资源 (completed 2026-11-09)
 - [ ] **Phase 10: 离线与实时同步（Offline & Realtime Sync）** - 断网先存、联网自动上传；同账号多设备几秒内同步且不毁草稿；状态栏五种状态；保存失败和登录过期都不丢数据
 - [ ] **Phase 11: 导出、导入与迁移（Export, Import & Migration）** - 按账号导出 JSON 和 CSV；导入先识别、摘要确认、快照可撤销；修 N3、B2；旧 Artifact 备份的迁移先用合成文件演练
 - [ ] **Phase 12: 编辑计划页（Plan Editor）** - 在应用里增删改、排序和归档个人计划，草稿式保存，跨设备同步
@@ -187,7 +187,7 @@ Plans:
   3. 账号 A 在一台设备上记一笔、写复盘、勾选任务、保存力量值后，在另一台设备登录 A，看到同一份数据，四个视图按 A 自己的计划显示。账号 B 登录后看到的是 B 自己的计划和记录。
   4. 联网打开应用时，与服务器对账完成之前不能编辑（通常不超过约 3 秒）。本机缓存比服务器旧时以服务器为准，旧缓存不会被上传。真冲突时以最后保存的为准，被覆盖的那一版留在本机，用户可以下载。
   5. 打开云端版时，浏览器只向同源发请求：Google 字体的 `<link>` 已去掉，PocketBase SDK 从同源加载、版本固定。v1 的 154 条用例仍然通过，字体相关的探针和护栏随之调整。
-**Plans:** 14/14 plans executed
+**Plans:** 14/14 plans complete
 Plans:
 **Wave 1**
 - [x] 09-01-PLAN.md — 云端 tracer（USJ_CONFIG 开关、同源 SDK 加 SRI、登录、按 kind 读取文档、云端保存），首次登录补建文档与启动时 authRefresh
@@ -326,7 +326,7 @@ Plans:
 | 6. 采购与中美可达性实测 | v2.0 | 10/10 | Complete    | 2026-11-08 |
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
-| 9. 登录与云端存储 | v2.0 | 14/14 | In Progress | - |
+| 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 0/TBD | Not started | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |

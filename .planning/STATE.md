@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 09
-current_phase_name: 登录与云端存储（Login & Cloud Storage）
-status: verifying
-stopped_at: "Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)"
-last_updated: "2026-11-09T21:56:00.474Z"
+current_phase: 10
+current_phase_name: 离线与实时同步（Offline & Realtime Sync）
+status: planning
+stopped_at: Phase 09 complete, ready to plan Phase 10
+last_updated: "2026-11-10T03:55:20.923Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 09 execution started
-state_head: 4a5ab159a7645cfe6c052006f30bd0f872a2ec71
+last_activity_desc: Phase 09 complete, transitioned to Phase 10
+state_head: eb72ec779eed1bc2a47f1b8f0e76348e7257a869
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 38
   completed_plans: 38
-  percent: 38
+  percent: 50
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-08 after Phase 8)
+See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 09 — 登录与云端存储（Login & Cloud Storage）
+**Current focus:** Phase 10 — 离线与实时同步（Offline & Realtime Sync）
 
 ## Current Position
 
-Phase: 09 (登录与云端存储（Login & Cloud Storage）) — EXECUTING
-Plan: 14 of 14
-Status: Phase complete — ready for verification
-Last activity: 2026-11-09 - Completed quick task 261109-inq: 应用改名为“计划手记”，页面里的美国字样改成通用说法
+Phase: 10 — 离线与实时同步（Offline & Realtime Sync）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-09 — Phase 09 complete, transitioned to Phase 10
 
-Progress: [████░░░░░░] 38%
+Progress: [█████░░░░░] 50%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44
+- Total plans completed: 58
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -56,6 +56,7 @@ Progress: [████░░░░░░] 38%
 | 7 | 7 | - | - |
 | 06 | 10 | - | - |
 | 08 | 7 | - | - |
+| 09 | 14 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -199,8 +200,8 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-02: SAFE-01, SAFE-04 and PROBE-2c rewritten to stay at least as strict (self-proved font branch, own font noise, zero font-host connections asserted); AppHarness.open gained sdkRefused for the tampered-SDK case.
 - [Phase 09]: 09-03: hold release() also stops holding later requests (refuse/status release is a no-op); hold records faultHits status 0; injected codes never enter INTENTIONAL_DEVIATIONS
 - [Phase 09]: 09-04: openDevice closes its context itself if setup fails; the caller owns it on success and closes it in finally
-- [Phase 09]: Cache key usj:v2:<user id>:plan|state value { id, base, dirty, seq, data } (costly, Phase 10 reuses); reconcile rows 1-4 implemented; edit gate body[data-gate] with capture guard; applyGate also hooked in renderTimeline — Cache key usj:v2:<user id>:plan|state value { id, base, dirty, seq, data } (costly, Phase 10 reuses); reconcile rows 1-4 implemented; edit gate body[data-gate] with capture guard; applyGate also hooked in renderTimeline
-- [Phase 09]: authRefresh moved into enterApp so cached content and the gate render before the refresh; dirty cache rows are left to 09-07 (server version shown, nothing uploaded, dirty record untouched) — authRefresh moved into enterApp so cached content and the gate render before the refresh; dirty cache rows are left to 09-07 (server version shown, nothing uploaded, dirty record untouched)
+- [Phase 09]: Cache key usj:v2:<user id>:plan|state value { id, base, dirty, seq, data } (costly, Phase 10 reuses); reconcile rows 1-4 implemented; edit gate body[data-gate] with capture guard; applyGate also hooked in renderTimeline
+- [Phase 09]: authRefresh moved into enterApp so cached content and the gate render before the refresh; dirty cache rows are left to 09-07 (server version shown, nothing uploaded, dirty record untouched)
 - [Phase 09]: 09-06: SLOW_MS 3000, FAIL_MS 15000, RETRY_MS 5000; a run makes at most 3 attempts and the 15 s deadline always wins; late or replaced responses are dropped by run identity plus AbortController
 - [Phase 09]: 09-06: banner priority expired > unreachable > slow > toolarge > snapfail > remote > sizewarn, one banner at a time; a retry keeps the unreachable banner with a disabled retrying button
 - [Phase 09]: 09-07: reconcile table complete; dirty cache uploads (keepConflict hook empty until 09-08), missing docs recreated from cache, validation_not_unique create race re-reads server; each cached document is handed to the reconcile separately
@@ -212,13 +213,19 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 09]: 09-13: pb.authStore.clear() stays literally inside logout() so the D-06 order is source-checkable; another tab's sign-out resets memory only; own token clears (logout, 401 on refresh) set authQuiet so onChange ignores them
 - [Phase 09]: 09-14: logout confirm never waits for a running save; sessionEpoch stops a late save from writing the old account's cache
 - [Phase 09]: 09-14: a cancelled switch-account confirm clears the new token, keeps the typed email and empties the password
+Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
+- 登录、退出、会话保持、按账号存记录和计划、先对账再编辑、只加载同源资源都已完成（ACCT-01、ACCT-02、SYNC-01、SYNC-05、PLAN-01、INFRA-03）；人工验收 4/4 通过。
+- 云端开关是页面里的一行 `window.USJ_CONFIG = { backend: 'pocketbase' }`，地址取 `location.origin`；这行怎么注入由 Phase 13 决定。
+- 本机缓存 `usj:v2:<id>:state` 和 `:plan`，内容 `{ id, base, dirty, seq, data }`，Phase 10 沿用；真冲突只留一份留底，下载或取消保存框后删除（D-10）。
+- 对账 3 秒“较慢”、15 秒“连不上”，只有手动重试；自动退避和重连是 Phase 10 的事。
+- 验收中途应用改名为「计划手记」（quick 261109-inq），数据字段和存储键不变。
+- 默认套件 176 条，cloud 入口 114 条。
 
 ### Pending Todos
 
-- Phase 8 安全审计待做：`workflow.security_enforcement` 为 true，`08-SECURITY.md` 还不存在，需要运行 `/gsd-secure-phase 8`。
 所有者操作（Claude 不代办）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
-- Phase 9（来自 Phase 6 D-15）：前端 SDK 不用 0.28.2，改用 0.28.1（Phase 8 已把页面同源 SDK 固定为 0.28.1 并核对哈希，Phase 9 接入时沿用）。
+- Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
 
@@ -235,11 +242,13 @@ Phase 8 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 审查]: 24 条发现中 23 条未处理，WR-06 已在 dcfc987 修复（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
-- [Phase 9，来自 Phase 7]: 加载时丢弃孤儿进度键的修正，必须等账号的计划加载完才能运行，不能对着还没加载的计划或兜底的示例计划跑，否则会把真实进度当孤儿删掉。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，但 TEST-02 仍是 Pending；登录、云端存取、离线、实时同步、导入导出和编辑计划的 cloud 用例要在 Phase 9–12 随功能补齐，Phase 13 全量收口。
-- [Phase 9/10，来自 Phase 8]: 令牌 90 天且 SDK 0.28.1 不自动续期，启动时必须调用 `authRefresh`；失效令牌表现为匿名（列表 200 空、查看 404、创建 400），只有 `authRefresh` 返回 401，登录过期要靠它检测；Phase 10 的网络失败、5xx 和 SSE 断开用假服务器开关制造（`setOffline` 管不到）。
+- ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条 cloud 用例（登录、云端存取、对账、冲突、退出），TEST-02 仍是 Pending；离线、实时同步、导入导出和编辑计划的 cloud 用例在 Phase 10–12 随功能补齐，Phase 13 全量收口。
+- [Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造（`setOffline` 管不到）。启动时调用 `authRefresh`、用它的 401 判断登录过期这一半已在 Phase 9 完成。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
-- [Phase 8 安全]: `/gsd-secure-phase 8` 尚未运行。
+- [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
+- [Phase 9 安全]: `09-SECURITY.md` verified，未解决威胁 0；AR-02（T-09-36）待所有者确认。
+- [Phase 10，来自 Phase 9 复审]: WR-01 写入方 id 每次打开页面都重新生成，刷新后可能误弹“已被覆盖”并换掉唯一的留底（记录不丢；可改用 `sessionStorage`）；WR-02 `cloudSave` 没有超时或中止，`resetSession` 不复位 `saving`，保存卡住时没有失败提示（改动仍在本机缓存，随 SYNC-06 处理）。IN-01 到 IN-06 只记录（`09-REVIEW-DISPOSITION.md`）。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
@@ -264,11 +273,13 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-09T10:39:31.842Z
-Stopped at: Completed 09-14-PLAN.md (ACCT-02 not yet marked: confirming full test:cloud run pending)
+Last session: 2026-11-10T03:57:49Z
+Stopped at: Phase 9 complete, ready to plan Phase 10
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 8 已完成并转场（2026-11-08）；`08-SECURITY.md` 还没有，先运行 `/gsd-secure-phase 8`
-- 下一阶段：`/gsd-discuss-phase 9`（登录与云端存储；需要 UI 设计契约，登录页和状态栏五种状态）
+- Phase 9 已完成并转场（2026-11-09）：验收 4/4，验证 passed，安全报告未解决威胁 0
+- 本地提交还没推送，推送前要所有者确认
+- 所有者确认 AR-02（T-09-36）
+- 下一阶段：`/gsd-discuss-phase 10`（离线与实时同步；路线图标明需要阶段调研）
