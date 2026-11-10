@@ -391,3 +391,6 @@ export const switchBody = (email: string, parts: string[]) =>
 export const BANNER_REMOTE = '其他设备有新的修改，稍后会自动更新。';
 // 横幅上的按钮文字（09-UI-SPEC S4 按钮列、S6 逐字复制）
 export const BTN_APPLY_NOW = '现在更新';
+
+// D-06：编辑弹窗里的记录在另一台设备上被删除，用户点保存后按编辑框内容以同一个 id 加回时的提示（所有者 2026-11-10 确认的文案，4000 ms）
+export const TOAST_LOG_READDED = '这条记录在另一台设备上被删除，已按你的修改重新加回';
