@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-11-10T08:45:04.748Z"
+stopped_at: Completed 10-07-PLAN.md
+last_updated: "2026-11-10T09:07:08.821Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: 495ddb4b1feeb53c442481db61a9458a4dab4690
+state_head: 10c8cbd14a0f554a5d33a319909abbbe9ff72dc6
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 44
+  completed_plans: 45
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 ## Current Position
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 10 execution started
 
@@ -131,6 +131,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P04 | 14 min | 2 tasks | 4 files |
 | Phase 10 P05 | 14 min | 2 tasks | 5 files |
 | Phase 10 P06 | 55 min | 2 tasks | 4 files |
+| Phase 10 P07 | 18 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -240,6 +241,7 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-06: 远端版本先进挂起槽 pendRemote，只经 takeRemote() 并入工作 state；上传和 state 缓存一律经 docAfter() — 局部重绘读不到挂起内容，横幅期间屏幕保持挂起前；本机操作先并入再按 id 执行（D-04）
 - [Phase 10]: 10-06: pollTick 只在 net 为 ok、无同步在跑、无待保存、本机不脏时才拉取 — 有待保存修改、重试倒计时、离线各自会对账；否则登录后第一个 60 秒轮询会多发一次请求并打乱既有重试用例
 - [Phase 10]: 10-06: applyView 先置 remoteView=false 再画；commit 的 takeRemote 与 applyView 提前到任务 1 — 按钮被移除会同步触发 focusout 重入 drawBar；挂起槽存在而 commit 不先并入会覆盖远端修改
+- [Phase 10]: 10-07: 在线晚一步（opsOk 为真）重做：服务器版本进挂起槽、同一次同步上传 docAfter()；opsOk 为假仍走 D-03 留底；重做后上传失败时槽非空而本机脏，由 commit 的 takeRemote 以 docAfter() 并入
 
 ### Pending Todos
 
@@ -293,8 +295,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T08:45:03.312Z
-Stopped at: Completed 10-06-PLAN.md
+Last session: 2026-11-10T09:07:07.374Z
+Stopped at: Completed 10-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
