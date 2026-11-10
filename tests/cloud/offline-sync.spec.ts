@@ -3,7 +3,7 @@
 // context.setOffline 只用来改变 navigator.onLine 并派发 online 事件（PROBE-9a），从不用来让服务器连不上。
 // 全部用例在 manual 时钟下运行：open 之前 install，登录完成后 pauseAt(FROZEN_NOW + 60_000)，只在需要时 runFor。
 import { test, expect, type Page } from '../support/test';
-import { syntheticPlan, syntheticState } from '../support/cloud-data';
+import { bulkyState, syntheticPlan, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
 import { AppHarness } from '../support/app';
 import { openDevice } from '../support/devices';
@@ -223,6 +223,32 @@ test('SYNC-06 a save that gets no answer is abandoned after about 15 seconds and
   // 被中止的请求在服务器侧放行时答复可能写不回去，至多一条，且路径是单条记录
   expect(app.fake.fulfillErrors.length).toBeLessThanOrEqual(1);
   for (const e of app.fake.fulfillErrors) expect(ITEM_PATH.test(e.path)).toBe(true);
+});
+
+// 10 号阶段评审 WR-03：一轮同步要整份读两份文档再上传，超时随数据量放宽（每 100 KB 多 3 秒），小文档仍是 15 秒
+test('SYNC-06 a save of a large document gets a longer time limit than 15 seconds before it is abandoned', async ({ app, page }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: bulkyState('slow', 400_000), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  const hold = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'hold' });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1003 held large');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect.poll(() => hold.hits, { message: '等待保存请求被挂起' }).toBe(1);
+
+  // 约 400 KB：限制是 15 + 9 = 24 秒；过了 15 秒仍在保存中
+  const status = page.locator('#status');
+  await page.clock.runFor(15_000);
+  await expect(status).toHaveAttribute('data-state', 'saving');
+  // 再过 9 秒多：超时，转为失败重试
+  await page.clock.runFor(9_200);
+  await expect(status).toHaveAttribute('data-state', 'retrying');
+
+  await hold.release();
+  await page.clock.runFor(30_000);
+  await expect(status).toHaveAttribute('data-state', 'synced');
 });
 
 test('SYNC-04 a save shows saving and then synced', async ({ app, page }) => {

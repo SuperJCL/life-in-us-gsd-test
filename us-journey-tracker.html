@@ -1045,6 +1045,9 @@ function sizeCheck(s){
    the returned promise settles only after the pass that covers this request has ended (syncOnce handles its own failures, so it never rejects).
    A failed upload never clears the dirty flag (B5) and is retried forever with growing waits. */
 const SYNC_MS=FAIL_MS,RETRY_STEPS=[1,2,5,10,30,60];
+/* one pass reads both documents in full and uploads the state, so its time limit grows with the size of the data (3 s more per 100 KB, at most 60 s more) and with each pass in a row that ran out of time (up to 4 times the base); a small document keeps the plain SYNC_MS */
+let slowRuns=0;
+const syncLimit=()=>SYNC_MS*Math.min(4,1+slowRuns)+Math.min(60000,Math.floor(sizeOf(state)/102400)*3000);
 const T_SAVING="保存中…",T_SYNCED="已同步";
 const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自动上传":"离线，修改已存在本机，联网后自动上传";
 const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重试",T_RETRY_NOW="立即重试";
@@ -1103,7 +1106,7 @@ async function syncOnce(){
   if(!pb.authStore.isValid){goExpired();return}
   const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal};
   let timedOut=false,authing=false,sentOps=0;
-  const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
+  const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},syncLimit());
   trying=true;cfShown=false;
   /* a retry that is under way says so; a background attempt while offline leaves the line alone (no flicker) */
   if(net==="retrying")showSync();
@@ -1189,7 +1192,7 @@ async function syncOnce(){
       if(!cachePut("state",{...docs.state,data:docAfter()})&&!docs.state.dirty)dropCache("state");
       if(!docs.state.dirty)cacheNote(true);
     }
-    net="ok";retryIdx=0;stopRetry();trying=false;
+    net="ok";retryIdx=0;slowRuns=0;stopRetry();trying=false;
     if(bootOffline){bootOffline=false;snapShow()}
     if(docs.state.dirty)syncAgain=true;
     if(gotRemote){remoteView=remoteDiffers();if(!remoteView){pendRemote={plan:null,state:null};hideBar("remote")}}
@@ -1213,6 +1216,7 @@ async function syncOnce(){
     }
     /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
     net=!bootOffline&&(timedOut||!(e&&e.status===0))?"retrying":"offline";
+    if(timedOut)slowRuns++;
     /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */
     if(net==="offline")opsOk=false;
     scheduleRetry();showSync();
@@ -1432,7 +1436,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;abortSync();
   clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
-  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
+  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;slowRuns=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(pb)stopRealtime();
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
