@@ -262,8 +262,9 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 .status[data-state]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
 .status[data-state="synced"]{--tone:var(--c-lang)}
 .status[data-state="saving"],.status[data-state="reconciling"]{--tone:var(--muted)}
-.status[data-state="offline"],.status[data-state="retrying"],.status[data-state="savefailed"],.status[data-state="slow"],.status[data-state="expired"]{--tone:var(--c-job)}
+.status[data-state="offline"],.status[data-state="retrying"],.status[data-state="slow"],.status[data-state="expired"]{--tone:var(--c-job)}
 .status[data-state="unreachable"],.status[data-state="toolarge"]{--tone:var(--red)}
+.status button{background:none;border:0;color:var(--ink);text-decoration:underline;padding:4px 8px;font-size:12px}
 .syncbar{--tone:var(--c-job);display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0 0;padding:12px 16px;background:var(--surface);color:var(--ink);font-size:14px;line-height:1.55;border:1px solid var(--line);border-left:4px solid var(--tone);border-radius:10px}
 .syncbar[data-tone="error"]{--tone:var(--red)}
 .syncbar[data-tone="info"]{--tone:var(--c-lang)}
@@ -603,7 +604,7 @@ async function flush(){
   try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(CLOUD&&!(e&&e.state)?"未知错误":(e&&e.message||"未知错误")),e&&e.state)}
   saving=false;if(dirty)flush();
 }
-function setStatus(t,st){const e=$("status");e.textContent=t;if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
+function setStatus(t,st,btn){const e=$("status");e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.addEventListener("click",btn.fn);e.appendChild(b)}if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
@@ -993,14 +994,22 @@ function sizeCheck(s){
 const SYNC_MS=FAIL_MS,RETRY_STEPS=[1,2,5,10,30,60];
 const T_SAVING="保存中…",T_SYNCED="已同步";
 const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自动上传":"离线，修改已存在本机，联网后自动上传";
-let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null;
+const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重试",T_RETRY_NOW="立即重试";
+/* net: "ok" | "offline" (the request never reached the server) | "retrying" (the server answered with an error, or did not answer within SYNC_MS);
+   trying: a sync pass is running; cdLeft: seconds shown in the retrying line, driven by a 1 s interval (never by Date.now, which tests freeze) */
+let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null;
 function showSync(){
   if(!CLOUD||!me||!docs.state)return;
   const n=Array.isArray(docs.state.touched)?docs.state.touched.length:0;
-  if(net==="offline")setStatus(T_OFFLINE(n),"offline");
-  else if(docs.state.dirty)setStatus(T_SAVING,"saving");
+  /* when the edit did not reach the local cache, the line must not say it is kept on this device (the banner says so too) */
+  const full=cacheFull?"保存失败："+T_NOCACHE:null;
+  if(net==="offline")setStatus(full||T_OFFLINE(n),"offline");
+  else if(net==="retrying"&&!trying)setStatus(full||T_RETRY_IN(Math.max(1,cdLeft)),"retrying",full?null:{text:T_RETRY_NOW,fn:retryNow});
+  else if(docs.state.dirty||trying)setStatus(T_SAVING,"saving");
   else setStatus(T_SYNCED,"synced");
 }
+function stopRetry(){clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null}
+function retryNow(){stopRetry();requestSync("retry")}
 function requestSync(reason){
   if(!CLOUD||!me||!docs.state||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
   syncAgain=true;
@@ -1010,13 +1019,19 @@ function requestSync(reason){
   return syncDone;
 }
 function scheduleRetry(){
-  clearTimeout(retryTimer);
+  stopRetry();
   const s=RETRY_STEPS[Math.min(retryIdx,RETRY_STEPS.length-1)];retryIdx++;
-  retryTimer=setTimeout(()=>{retryTimer=null;requestSync("retry")},s*1000);
+  cdLeft=s;
+  retryTimer=setTimeout(()=>{retryTimer=null;clearInterval(cdTimer);cdTimer=null;requestSync("retry")},s*1000);
+  cdTimer=setInterval(()=>{if(cdLeft>0)cdLeft--;if(net==="retrying")showSync()},1000);
 }
 async function syncOnce(){
   const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
-  const tm=setTimeout(()=>ctrl.abort(),SYNC_MS);
+  let timedOut=false;
+  const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
+  trying=true;
+  /* a retry that is under way says so; a background attempt while offline leaves the line alone (no flicker) */
+  if(net==="retrying")showSync();
   try{
     const seq=docs.state.seq||0,isDirty=!!docs.state.dirty;
     if(isDirty)sizeCheck(state);
@@ -1038,16 +1053,19 @@ async function syncOnce(){
       if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
       if(!docs.state.dirty)cacheNote(true);
     }
-    net="ok";retryIdx=0;clearTimeout(retryTimer);retryTimer=null;
+    net="ok";retryIdx=0;stopRetry();trying=false;
     if(docs.state.dirty)syncAgain=true;
     showSync();
   }catch(e){
     if(ep!==sessionEpoch)return;
+    trying=false;
     if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
-    net="offline";scheduleRetry();showSync();
-  }finally{clearTimeout(tm)}
+    /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
+    net=timedOut||!(e&&e.status===0)?"retrying":"offline";
+    scheduleRetry();showSync();
+  }finally{clearTimeout(tm);if(ep===sessionEpoch)trying=false}
 }
-window.addEventListener("online",()=>{if(CLOUD&&me){clearTimeout(retryTimer);retryTimer=null;requestSync("online")}});
+window.addEventListener("online",()=>{if(CLOUD&&me){stopRetry();requestSync("online")}});
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
    sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
 /* confirmBox: one shared dialog (logout confirm, switch-account confirm); text is written with textContent, the cancel button is the default focus,
@@ -1083,7 +1101,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;
   clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
-  clearTimeout(retryTimer);retryTimer=null;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;
+  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};

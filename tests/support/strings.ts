@@ -256,6 +256,14 @@ export function statusOffline(n: number): string {
   return n > 0 ? `离线，${n} 项修改已存在本机，联网后自动上传` : '离线，修改已存在本机，联网后自动上传';
 }
 
+// 云端保存失败（服务器回 5xx、429、其他 4xx 或请求约 15 秒没有答复）时的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；
+// #status 的 data-state 同时为 retrying，不显示横幅。{s} 是距离下次自动重试的秒数（向上取整，最小 1）。
+// 状态行是“这句话 + 一个行内按钮”：句子是 #status 的第一个文字节点，按钮文字是 BTN_RETRY_NOW
+export function statusRetrying(s: number): string {
+  return `保存失败，修改仍在本机，${s} 秒后自动重试`;
+}
+export const BTN_RETRY_NOW = '立即重试';
+
 // 登录页错误区：邮箱或密码不对（09-UI-SPEC Copywriting 逐字复制）
 export const LOGIN_ERR_CREDENTIALS = '邮箱或密码不对，请检查后重试';
 

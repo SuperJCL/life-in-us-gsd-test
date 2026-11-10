@@ -4,14 +4,13 @@
 import { test, expect } from '../support/test';
 import { bulkyState, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
-import { PB_DOC_MAX_BYTES } from '../support/constants';
+import { FROZEN_NOW, PB_DOC_MAX_BYTES } from '../support/constants';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import {
   BANNER_CACHE_FULL,
   BANNER_TOO_LARGE,
   BANNER_UNREACHABLE,
   BTN_ACK,
-  STATUS_SAVE_FAILED_CLOUD,
   STATUS_SAVE_FAILED_NO_CACHE,
   STATUS_TOO_LARGE,
   STATUS_UNREACHABLE,
@@ -170,58 +169,69 @@ test('SYNC-01 an over-limit unsent cache whose server document is gone is not cr
   expect(hasText(cached.data.logs, text)).toBe(true);
 });
 
-test('SYNC-01 an edit that could not be written to the local cache is reported and never described as kept on this device', async ({
-  app,
-  page,
-  guard,
-}) => {
-  // 测试装置：写 state 缓存键时按开关抛 QuotaExceededError；登录对账期间开关是关的，其他键不受影响
-  await page.addInitScript(() => {
-    const flag = { full: false };
-    (window as unknown as { __quota: { full: boolean } }).__quota = flag;
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key: string, value: string) {
-      if (flag.full && String(key).endsWith(':state')) throw new DOMException('quota exceeded', 'QuotaExceededError');
-      return original.call(this, key, value);
-    };
+// 被拒的上传会自动重试；这条用例用 manual 时钟，只在需要时 runFor，让 console.error 的条数保持精确
+test.describe('cache full with a refused upload', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('SYNC-01 an edit that could not be written to the local cache is reported and never described as kept on this device', async ({
+    app,
+    page,
+    guard,
+  }) => {
+    // 测试装置：写 state 缓存键时按开关抛 QuotaExceededError；登录对账期间开关是关的，其他键不受影响
+    await page.addInitScript(() => {
+      const flag = { full: false };
+      (window as unknown as { __quota: { full: boolean } }).__quota = flag;
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (flag.full && String(key).endsWith(':state')) throw new DOMException('quota exceeded', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+    });
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const key = `usj:v2:${app.fake.users[0].id}:state`;
+    const setFull = (full: boolean) =>
+      page.evaluate((f) => {
+        (window as unknown as { __quota: { full: boolean } }).__quota.full = f;
+      }, full);
+
+    // 缓存写不进去，同时这次上传也被拒：横幅和状态行都不能说“修改仍在本机”
+    await setFull(true);
+    app.fake.fault({ method: 'PATCH', path: /\/api\/collections\/journey_docs\/records\/[^/]+$/, mode: 'refuse', times: 1 });
+    const entry = composer(page, 'w');
+    await entry.type('SYNTH-0912 no room');
+    await entry.submit();
+    await page.clock.runFor(1_000);
+
+    const bar = page.locator('#syncbar');
+    await expect(bar).toBeVisible();
+    await expect(bar).toHaveAttribute('data-tone', 'warn');
+    await expect(bar.locator('.sb-msg')).toHaveText(BANNER_CACHE_FULL);
+    await expect(bar.locator('button')).toHaveText(BTN_ACK);
+    const status = page.locator('#status');
+    await expect(status).toHaveText(STATUS_SAVE_FAILED_NO_CACHE);
+    // 修改没能进本机缓存，状态行不能说“已存在本机”或“仍在本机”；data-state 是所注入故障（被拒连接）的分类 offline
+    await expect(status).not.toContainText('已存在本机');
+    await expect(status).not.toContainText('修改仍在本机');
+    await expect(status).toHaveAttribute('data-state', 'offline');
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+    const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    expect(JSON.stringify(cached)).not.toContain('SYNTH-0912 no room');
+
+    // 空间恢复之后下一次修改上传成功：两条都到服务器，缓存是干净的，横幅收起
+    await setFull(false);
+    await entry.type('SYNTH-0912 room again');
+    await entry.submit();
+    await page.clock.runFor(1_000);
+    await expect
+      .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 room again'), { message: '等待下一次保存到达服务器' })
+      .toBe(true);
+    expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 no room')).toBe(true);
+    await expect(bar).toBeHidden();
+    await expect
+      .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null')?.dirty, key), { message: '等待缓存收尾' })
+      .toBe(false);
   });
-  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
-  const key = `usj:v2:${app.fake.users[0].id}:state`;
-  const setFull = (full: boolean) =>
-    page.evaluate((f) => {
-      (window as unknown as { __quota: { full: boolean } }).__quota.full = f;
-    }, full);
-
-  // 缓存写不进去，同时这次上传也被拒：横幅和状态行都不能说“修改仍在本机”
-  await setFull(true);
-  app.fake.fault({ method: 'PATCH', path: /\/api\/collections\/journey_docs\/records\/[^/]+$/, mode: 'refuse', times: 1 });
-  const entry = composer(page, 'w');
-  await entry.type('SYNTH-0912 no room');
-  await entry.submit();
-
-  const bar = page.locator('#syncbar');
-  await expect(bar).toBeVisible();
-  await expect(bar).toHaveAttribute('data-tone', 'warn');
-  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_CACHE_FULL);
-  await expect(bar.locator('button')).toHaveText(BTN_ACK);
-  const status = page.locator('#status');
-  await expect(status).toHaveText(STATUS_SAVE_FAILED_NO_CACHE);
-  await expect(status).not.toHaveText(STATUS_SAVE_FAILED_CLOUD);
-  await expect(status).toHaveAttribute('data-state', 'savefailed');
-  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
-  const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
-  expect(JSON.stringify(cached)).not.toContain('SYNTH-0912 no room');
-
-  // 空间恢复之后下一次修改上传成功：两条都到服务器，缓存是干净的，横幅收起
-  await setFull(false);
-  await entry.type('SYNTH-0912 room again');
-  await entry.submit();
-  await expect
-    .poll(() => hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 room again'), { message: '等待下一次保存到达服务器' })
-    .toBe(true);
-  expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-0912 no room')).toBe(true);
-  await expect(bar).toBeHidden();
-  await expect
-    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null')?.dirty, key), { message: '等待缓存收尾' })
-    .toBe(false);
 });
