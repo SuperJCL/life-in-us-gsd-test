@@ -1046,6 +1046,10 @@ const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自�
 const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重试",T_RETRY_NOW="立即重试";
 /* net: "ok" | "offline" (the request never reached the server) | "retrying" (the server answered with an error, or did not answer within SYNC_MS) | "expired" (the login ran out in the middle of the session: no sync request is made until the user signs in again);
    trying: a sync pass is running; cdLeft: seconds shown in the retrying line, driven by a 1 s interval (never by Date.now, which tests freeze) */
+/* every request controller of a running sync pass: a sign-out or a session reset aborts them all, so a late authRefresh answer cannot store the token again nor announce an expiry after the user has left */
+const syncCtrls=new Set();
+function mkCtrl(){const c=new AbortController();syncCtrls.add(c);return c}
+function abortSync(){syncCtrls.forEach(c=>{try{c.abort()}catch(e){}});syncCtrls.clear()}
 let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null,bootOffline=false,needRefresh=false;
 function showSync(){
   if(!CLOUD||!me||!docs.state)return;
@@ -1061,11 +1065,11 @@ function showSync(){
 function stopRetry(){clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null}
 function retryNow(){stopRetry();requestSync("retry")}
 function requestSync(reason){
-  if(!CLOUD||!me||!docs.state||net==="expired"||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
+  if(!CLOUD||!me||!docs.state||loggingOut||net==="expired"||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
   syncAgain=true;
   if(syncing)return syncDone;
   syncing=true;const ep=sessionEpoch;
-  syncDone=(async()=>{try{while(syncAgain&&ep===sessionEpoch){syncAgain=false;await syncOnce()}}finally{if(ep===sessionEpoch)syncing=false}})();
+  syncDone=(async()=>{try{while(syncAgain&&ep===sessionEpoch&&!loggingOut){syncAgain=false;await syncOnce()}}finally{if(ep===sessionEpoch)syncing=false}})();
   return syncDone;
 }
 function scheduleRetry(){
@@ -1077,10 +1081,10 @@ function scheduleRetry(){
 }
 /* a login that runs out in the middle of the session (ACCT-05): only an authRefresh 401 or the local exp of the token says so, never the status of a record request (PB-CONTRACT §9).
    Nothing local is touched: state, caches, touched, ops and the kept version stay, the user keeps recording, and no sync request is made until the user signs in again (relogin) */
-async function checkAuth(signal){
+async function checkAuth(signal,ep){
   try{await pb.collection("users").authRefresh({signal})}
-  catch(e){if(e&&e.status===401){goExpired();return false}throw e}
-  return true;
+  catch(e){if(e&&e.status===401&&ep===sessionEpoch&&!loggingOut){goExpired();return false}throw e}
+  return ep===sessionEpoch;
 }
 function goExpired(){
   expireToken();
@@ -1093,7 +1097,7 @@ function goExpired(){
 function relogin(){resetSession();showLogin("","expired")}
 async function syncOnce(){
   if(!pb.authStore.isValid){goExpired();return}
-  const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
+  const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal};
   let timedOut=false,authing=false,sentOps=0;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
   trying=true;cfShown=false;
@@ -1108,7 +1112,7 @@ async function syncOnce(){
     if(ep!==sessionEpoch)return;
     /* a token the server no longer knows reads as an empty list (PB-CONTRACT §9): a missing document is believed only after an authRefresh has shown the token is good (T-10-12) */
     if(!list.some(d=>d.kind==="plan")||!list.some(d=>d.kind==="state")){
-      authing=true;const good=await checkAuth(ctrl.signal);authing=false;
+      authing=true;const good=await checkAuth(ctrl.signal,ep);authing=false;
       if(ep!==sessionEpoch||!good)return;
     }
     /* the background reconcile table, plan first and then state (the same table as the startup reconcile):
@@ -1191,24 +1195,24 @@ async function syncOnce(){
     /* the "updated" notice belongs to applyView (it stays off when this pass already raised a conflict notice, IN-01) */
     if(remoteView)maybeApplyView();
   }catch(e){
-    if(ep!==sessionEpoch)return;
+    if(ep!==sessionEpoch||loggingOut)return;
     trying=false;
     if(authing&&e&&e.status===401){goExpired();return}
     if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
     /* a 4xx on a record request that is neither capacity nor rate limiting (a 404 on update, a 400 on create) may be a token that is no longer valid: rule that out first (IN-04, T-10-12);
        with a good token the next pass lists again and creates a document that really is gone */
     if(e&&e.status>=400&&e.status<500&&e.status!==413&&e.status!==429&&!authing){
-      const c2=new AbortController(),t2=setTimeout(()=>c2.abort(),SYNC_MS);let good=true;
-      try{good=await checkAuth(c2.signal)}catch(x){}
-      clearTimeout(t2);
-      if(ep!==sessionEpoch||!good)return;
+      const c2=mkCtrl(),t2=setTimeout(()=>c2.abort(),SYNC_MS);let good=true;
+      try{good=await checkAuth(c2.signal,ep)}catch(x){}
+      clearTimeout(t2);syncCtrls.delete(c2);
+      if(ep!==sessionEpoch||loggingOut||!good)return;
     }
     /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
     net=!bootOffline&&(timedOut||!(e&&e.status===0))?"retrying":"offline";
     /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */
     if(net==="offline")opsOk=false;
     scheduleRetry();showSync();
-  }finally{clearTimeout(tm);if(ep===sessionEpoch)trying=false}
+  }finally{clearTimeout(tm);syncCtrls.delete(ctrl);if(ep===sessionEpoch)trying=false}
 }
 window.addEventListener("online",()=>{if(CLOUD&&me){stopRetry();requestSync("online")}});
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
@@ -1422,7 +1426,7 @@ function showWho(){
   w.textContent=em;w.title=em;w.classList.toggle("hidden",!em);$("logoutBtn").classList.remove("hidden");
 }
 function resetSession(){
-  sessionEpoch++;
+  sessionEpoch++;abortSync();
   clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
   clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(pb)stopRealtime();
@@ -1445,7 +1449,7 @@ function resetSession(){
 let loggingOut=false;const UNSUB_MS=3000;
 async function logout(){
   if(loggingOut||!me)return;
-  loggingOut=true;authQuiet=true;
+  loggingOut=true;authQuiet=true;abortSync();
   const btn=$("logoutBtn"),ep=sessionEpoch;btn.disabled=true;btn.textContent="正在退出…";
   /* unsubscribing asks the server; with no answer logout still goes on after UNSUB_MS (offline logout must work) */
   try{await Promise.race([pb.realtime.unsubscribe(),new Promise(r=>setTimeout(r,UNSUB_MS))])}catch(e){}

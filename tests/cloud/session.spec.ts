@@ -286,3 +286,53 @@ test('ACCT-05 a token that passes its local expiry during the session is reporte
   expect(cached.dirty).toBe(true);
   expect(hasText(cached.data.logs, 'SYNTH-1007 after local expiry')).toBe(true);
 });
+
+// 10 号阶段评审 WR-01：退出登录时后台同步里的 authRefresh 还在路上，它的迟到应答既不能把令牌重新存回来，也不能在登录页上冒出“登录已过期”。
+// 触发办法：服务器上的 state 文档被删，后台同步读到缺文档后先 authRefresh（排除令牌失效），这条请求被挂起；挂起期间退出，再放行。
+const AUTH_REFRESH = '/api/collections/users/auth-refresh';
+
+async function signOutWhileAuthRefreshIsHeld(app: AppHarness, page: Page, revoke: boolean) {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  app.fake.dropDocs(0, 'state');
+  const hold = app.fake.fault({ method: 'POST', path: AUTH_REFRESH, mode: 'hold' });
+  // online 事件让后台同步立刻跑一轮（不需要改本地数据，所以退出时没有确认框）
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => hold.hits, { message: '等待 authRefresh 被挂起' }).toBe(1);
+
+  await page.locator('#logoutBtn').click();
+  await expect(page.locator('#login')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('pocketbase_auth'))).toBeNull();
+
+  // 迟到的应答：令牌有效时是 200 带新令牌，已被撤销时是 401
+  if (revoke) app.fake.revokeTokens(0);
+  await hold.release();
+  // 页面一侧收到（或没收到）应答需要几个往返；请求已被中止的话，假服务器写回应答时失败，只可能是这一条
+  for (let i = 0; i < 5; i++) await page.evaluate(() => 0);
+  await page.waitForTimeout(200);
+  for (const e of app.fake.fulfillErrors) expect(e.path).toBe(AUTH_REFRESH);
+  expect(app.fake.fulfillErrors.length).toBeLessThanOrEqual(1);
+}
+
+test('ACCT-02 a late authRefresh answer after signing out does not store the token again', async ({ app, page }) => {
+  await signOutWhileAuthRefreshIsHeld(app, page, false);
+
+  expect(await page.evaluate(() => localStorage.getItem('pocketbase_auth'))).toBeNull();
+  await expect(page.locator('#login')).toBeVisible();
+  // 刷新页面仍是登录页，没有被悄悄撤销的退出
+  await page.reload();
+  await expect(page.locator('#login')).toBeVisible();
+  await expect(page.locator('.wrap')).toBeHidden();
+});
+
+test('ACCT-05 a late 401 after signing out does not show the expired notice or mark the token expired', async ({ app, page }) => {
+  await signOutWhileAuthRefreshIsHeld(app, page, true);
+
+  await expect(page.locator('#login')).toBeVisible();
+  await expect(page.locator('#loginNotice')).toBeHidden();
+  await expect(page.locator('#syncbar')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('usj:v2:authExpired'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('pocketbase_auth'))).toBeNull();
+});
