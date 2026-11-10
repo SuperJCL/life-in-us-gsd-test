@@ -1150,9 +1150,10 @@ async function syncOnce(){
     }
     let ssv=list.find(d=>d.kind==="state"),up=null;
     if(!ssv){
-      sizeCheck(state);
+      const cb=JSON.parse(JSON.stringify(docAfter()));
+      sizeCheck(cb);
       sentOps=ops.length;
-      const m=await make("state",JSON.parse(JSON.stringify(docAfter())));
+      const m=await make("state",cb);
       ssv=m.d;if(m.made)up=ssv;
     }
     docs.state.id=ssv.id;
@@ -1169,6 +1170,8 @@ async function syncOnce(){
           slot=rebaseState(ssv);
           body=JSON.parse(JSON.stringify(docAfter()));sentOps=ops.length;
         }else if(clash)snapPending=keepConflict("state",ssv);
+        /* what is uploaded may differ in size from the working state (the waiting server version plus the operations not yet uploaded): the limit applies to the body */
+        sizeCheck(body);
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
         /* the slot still holds the version this upload was based on (nobody took it meanwhile): from now on it holds what is on the server, so the local operations that come after are done on that */

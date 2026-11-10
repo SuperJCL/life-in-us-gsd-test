@@ -235,3 +235,36 @@ test.describe('cache full with a refused upload', () => {
       .toBe(false);
   });
 });
+
+// 10 号阶段评审 IN-03：上传的内容是“服务器上的新版本 + 本机还没上传的操作”，大小可能和本机工作数据不同；
+// 本机数据不大、但这份内容超限时，不发 PATCH，页面停在“超过容量上限”，而不是当成服务器出错一直重试
+test('SYNC-01 an upload whose content is over the limit because of a newer server version is not sent and shows the over-limit state', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  // 另一台设备把一份接近上限的内容存到了服务器上（本机还不知道）
+  app.fake.seed(bulkyState('edge', PB_DOC_MAX_BYTES - 2_000));
+  const requestsBefore = app.fake.requests.length;
+
+  // 本机只记一条约 15 KB 的小记录：本机工作数据远小于上限，但叠到服务器版本上就超限
+  const text = `SYNTH-0909 over by rebase ${'超'.repeat(5_000)}`;
+  const entry = composer(page, 'w');
+  await entry.type(text);
+  await entry.submit();
+
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'toolarge');
+  await expect(status).toHaveText(STATUS_TOO_LARGE);
+  const bar = page.locator('#syncbar');
+  await expect(bar).toBeVisible();
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_TOO_LARGE);
+
+  const after = app.fake.requests.slice(requestsBefore);
+  expect(after.filter((r) => r.method === 'PATCH')).toEqual([]);
+  expect(hasText(app.fake.lastState(0)?.logs, text)).toBe(false);
+  // 修改仍在本机，标记为未上传
+  const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${app.fake.users[0].id}:state`);
+  expect(cached.dirty).toBe(true);
+  expect(hasText(cached.data.logs, text)).toBe(true);
+});
