@@ -10,6 +10,8 @@
 //  - 错误注入开关（fault、clearFaults、revokeTokens、beforeNext、dropDocs，Phase 9）只作用于页面请求：
 //    由 attach 的路由处理函数在调用 handle() 之前匹配；handle() 和 request() 不受影响，契约自测照旧直接调用 handle()。
 //    注入的状态码只是错误注入，不是真实服务器的契约（见 PB-CONTRACT.md §10）。
+//  - Phase 10 再加三个开关：dropRealtime、refuseRealtime（实时断开和拒绝）和 fault 的 context 选项（只让一个上下文的请求失败），
+//    同样只是测试设施，不是真实服务器的契约。
 //  - 假时钟从 FROZEN_NOW 起，每次写入前进 1 毫秒，不读 Node 的真实时间：
 //    页面的 Date.now() 被固定在 FROZEN_NOW，两边的时间对不上会让令牌过期判断取决于运行日期。
 import { randomBytes } from 'node:crypto';
@@ -39,8 +41,16 @@ export type PbRequest = {
 //  hold：请求一直挂着，直到句柄的 release() 或 clearFaults()，之后才照常交给 handle()；
 //  lose-answer：请求照常交给 handle()（服务器上的写入已经生效、推送照常送出），但页面收不到答复：route.abort('connectionreset')，页面里的 fetch 以网络错误失败。
 // times 缺省表示一直生效，命中 times 次之后自动失效。
+// context（Phase 10）：只匹配这个浏览器上下文发出的请求，用来制造“只有一台设备连不上服务器”；缺省匹配所有上下文。
 export type PbFaultMode = 'refuse' | 'status' | 'hold' | 'lose-answer';
-export type PbFault = { method: string; path: string | RegExp; mode: PbFaultMode; status?: number; times?: number };
+export type PbFault = {
+  method: string;
+  path: string | RegExp;
+  mode: PbFaultMode;
+  status?: number;
+  times?: number;
+  context?: BrowserContext;
+};
 export type PbFaultHandle = { readonly hits: number; release(): Promise<void>; remove(): void };
 
 // waiting：hold 模式下挂起的请求；open 放行它，done 在这条请求处理完（响应已 fulfill、推送已送出）之后 resolve
@@ -128,8 +138,9 @@ function segment(value: unknown): string {
 export class FakePbServer {
   // 每条被返回或读取的文档，路径形如 journey_docs:state，按到达顺序
   reads: string[] = [];
-  // 每次成功的创建或更新：路径形如 journey_docs:state，data 是文档的 data 字段（深拷贝）
-  writes: Array<{ path: string; data: any }> = [];
+  // 每次成功的创建或更新：路径形如 journey_docs:state，data 是文档的 data 字段（深拷贝），
+  // writer 是这次请求里带的 writer 字符串（没有时为空串；Phase 10，测试设施，不是录制契约）
+  writes: Array<{ path: string; data: any; writer: string }> = [];
   // 与 MockBackend 同名同义；Phase 8 恒为空，导出在 Phase 11 才会写入
   downloads: Array<{ filename: string; data: string }> = [];
   // 合成账号；口令运行时随机生成，只在内存里
@@ -154,6 +165,9 @@ export class FakePbServer {
   private pendingNavigations = new Set<Promise<void>>();
   private faultRules: FaultRule[] = [];
   private beforeHooks: BeforeNextHook[] = [];
+  // 拒绝实时握手的目标（Phase 10）：'all' 表示全部页面，否则是被拒绝的 Page 或 BrowserContext
+  private realtimeRefusalTargets: Array<'all' | Page | BrowserContext> = [];
+  private refusalCount = 0;
 
   // 添加第 n 个合成账号：邮箱 user-a@example.com、user-b@example.com……
   addUser(): PbUser {
@@ -275,6 +289,35 @@ export class FakePbServer {
     return this.connections.size;
   }
 
+  // 被 refuseRealtime 拒绝的实时握手次数（只读计数，供断言；Phase 10，测试设施，不是录制契约）
+  get realtimeRefusals(): number {
+    return this.refusalCount;
+  }
+
+  // 断开实时连接（Phase 10，测试设施）：target 是 Page、BrowserContext，缺省表示全部页面连接。
+  // 对每个匹配的连接先从登记表注销（之后的写入和 emit 不再投给它，不补发），再在页面里触发 error，
+  // 真实 SDK 的 onerror 走它自己的重连。返回被断开的连接数；页面已关闭等异常记进 deliveryErrors，不吞掉。
+  async dropRealtime(target?: Page | BrowserContext): Promise<number> {
+    const hit = [...this.connections.values()].filter((c) => c.page !== null && this.targetMatches(target, c.page));
+    for (const c of hit) this.connections.delete(c.id);
+    for (const c of hit) {
+      try {
+        await c.page!.evaluate((id) => (window as any).__pbEsFail(id) as boolean, c.id);
+      } catch (e) {
+        this.deliveryErrors.push(String(e));
+      }
+    }
+    return hit.length;
+  }
+
+  // 打开或撤销“拒绝实时握手”（Phase 10，测试设施）：打开期间目标页面的 es.open 不登记连接，
+  // 页面里的假 EventSource 收到 refused 后触发 error，不派发 PB_CONNECT。target 缺省表示全部页面。
+  refuseRealtime(on: boolean, target?: Page | BrowserContext): void {
+    const key = target ?? 'all';
+    this.realtimeRefusalTargets = this.realtimeRefusalTargets.filter((t) => t !== key);
+    if (on) this.realtimeRefusalTargets.push(key);
+  }
+
   // 登记一条错误注入规则，返回它的句柄。规则按注册顺序匹配，第一条仍有效且方法、路径都相同的生效。
   // hits：命中次数；remove()：立即撤掉规则（已挂起的请求不受影响，仍需 release）；
   // release()：hold 规则放行已挂起的请求并不再拦截之后的请求，返回的 Promise 在这些请求都处理完之后 resolve；其他模式立即返回。
@@ -301,6 +344,7 @@ export class FakePbServer {
     const rules = this.faultRules;
     this.faultRules = [];
     for (const rule of rules) rule.active = false;
+    this.realtimeRefusalTargets = [];
     for (const rule of rules) await this.openGates(rule);
   }
 
@@ -351,7 +395,13 @@ export class FakePbServer {
     // 页面侧假 EventSource 经 context.exposeBinding 往返 Node：source.page 区分是哪个页面调用的
     await context.exposeBinding(PB_ES_BINDING_NAME, (source, op: string, json: string) => {
       const arg = JSON.parse(json);
-      if (op === 'es.open') return JSON.stringify(this.openConnection(source.page, typeof arg.docToken === 'string' ? arg.docToken : null));
+      if (op === 'es.open') {
+        if (this.realtimeRefusalTargets.some((t) => this.targetMatches(t === 'all' ? undefined : t, source.page))) {
+          this.refusalCount++;
+          return JSON.stringify({ refused: true });
+        }
+        return JSON.stringify(this.openConnection(source.page, typeof arg.docToken === 'string' ? arg.docToken : null));
+      }
       if (op === 'es.close') {
         this.closeConnection(arg.connectionId);
         return 'null';
@@ -367,7 +417,8 @@ export class FakePbServer {
         const url = new URL(request.url());
         // 错误注入先于 handle()：refuse 和 status 的请求不进 requests，也不改变假服务器的状态；
         // hold 的请求挂起，放行之后才照常进入 handle()
-        const rule = this.matchFault(request.method(), url.pathname);
+        // 路由是按 context 注册的，所以发起请求的上下文就是 attach 的这个 context
+        const rule = this.matchFault(request.method(), url.pathname, context);
         let finish: () => void = () => {};
         if (rule) {
           rule.hits++;
@@ -420,10 +471,24 @@ export class FakePbServer {
 
   // ---------- 内部 ----------
 
-  private matchFault(method: string, path: string): FaultRule | null {
+  // 规则带 context 时只匹配同一上下文发出的请求；不带 context 的规则行为不变
+  private matchFault(method: string, path: string, context?: BrowserContext): FaultRule | null {
     return (
-      this.faultRules.find((r) => r.active && r.fault.method === method.toUpperCase() && pathMatches(r.fault.path, path)) ?? null
+      this.faultRules.find(
+        (r) =>
+          r.active &&
+          r.fault.method === method.toUpperCase() &&
+          pathMatches(r.fault.path, path) &&
+          (r.fault.context === undefined || r.fault.context === context),
+      ) ?? null
     );
+  }
+
+  // target 缺省匹配所有页面；Page 按同一页面，BrowserContext 按页面所在的上下文
+  private targetMatches(target: Page | BrowserContext | undefined, page: Page): boolean {
+    if (target === undefined) return true;
+    if ('newPage' in target) return page.context() === target;
+    return page === target;
   }
 
   // 放行一条规则下挂起的全部请求，并等它们都处理完
@@ -723,7 +788,7 @@ export class FakePbServer {
       }
       const doc = this.putDoc(identity, body.kind as string, body.data ?? null);
       if (typeof body.writer === 'string') doc.writer = body.writer;
-      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
+      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data), writer: typeof body.writer === 'string' ? body.writer : '' });
       return { ...this.respond(200, clone(doc)), deliveries: this.deliveriesFor(doc, 'create') };
     }
 
@@ -757,7 +822,7 @@ export class FakePbServer {
       if ('data' in body) doc.data = clone(body.data ?? null);
       if (typeof body.writer === 'string') doc.writer = body.writer;
       doc.updated = this.stamp();
-      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data) });
+      this.writes.push({ path: `journey_docs:${doc.kind}`, data: clone(doc.data), writer: typeof body.writer === 'string' ? body.writer : '' });
       return { ...this.respond(200, clone(doc)), deliveries: this.deliveriesFor(doc, 'update') };
     }
 

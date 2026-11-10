@@ -3,6 +3,7 @@
 import { test, expect, type Page } from '../support/test';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { APP_ORIGIN } from '../support/constants';
+import { openDevice } from '../support/devices';
 import { syntheticState } from '../support/cloud-data';
 import { LOGIN_ERR_UNREACHABLE } from '../support/strings';
 
@@ -312,4 +313,127 @@ test('TEST-02 a switch without times keeps firing until it is removed and the fa
     await other.close();
   }
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 2 });
+});
+
+// ---------- Phase 10：实时断开、实时拒绝、按上下文限定的故障、writes 的 writer ----------
+
+// 页面里登录，同时订阅 PB_CONNECT 和 journey_docs/*（并发订阅：SDK 只握手一次，一次 POST /api/realtime 带两个订阅串）。
+// window.__connects 数 PB_CONNECT 监听被调用的次数，window.__events 收集 journey_docs 事件
+async function signInAndWatchRealtime(page: Page, creds: Creds): Promise<string> {
+  return page.evaluate(
+    async ({ origin, email, password }) => {
+      const w = window as any;
+      const pb = new w.PocketBase(origin);
+      pb.autoCancellation(false);
+      w.__pb = pb;
+      w.__events = [];
+      w.__connects = 0;
+      await pb.collection('users').authWithPassword(email, password);
+      const [own] = await pb.collection('journey_docs').getFullList();
+      await Promise.all([
+        pb.realtime.subscribe('PB_CONNECT', () => {
+          w.__connects++;
+        }),
+        pb.collection('journey_docs').subscribe(
+          '*',
+          (e: any) => w.__events.push({ action: e.action as string, id: e.record.id as string }),
+          { fields: 'id,kind,writer,updated' },
+        ),
+      ]);
+      return own.id as string;
+    },
+    { origin: APP_ORIGIN, ...creds },
+  );
+}
+const connectsSeen = (page: Page) => page.evaluate(() => (window as any).__connects as number);
+const eventsSeen = (page: Page) => page.evaluate(() => (window as any).__events as Array<{ action: string; id: string }>);
+const realtimePosts204 = (app: { fake: { requests: Array<{ method: string; path: string; status: number }> } }) =>
+  app.fake.requests.filter((r) => r.method === 'POST' && r.path === '/api/realtime' && r.status === 204).length;
+
+test('TEST-02 dropping the realtime connection makes the SDK reconnect and resubmit its subscriptions', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
+  const [user] = app.fake.users;
+  const ownId = await signInAndWatchRealtime(page, user);
+  expect(app.fake.connectionCount()).toBe(1);
+  expect(await connectsSeen(page)).toBe(1);
+  expect(realtimePosts204(app)).toBe(1);
+
+  // 断开：连接数立即为 0（Node 侧先注销），随后真实 SDK 自己重连
+  expect(await app.fake.dropRealtime(page)).toBe(1);
+  expect(app.fake.connectionCount()).toBe(0);
+  await expect.poll(() => connectsSeen(page), { message: '等待 SDK 重连并再次调用 PB_CONNECT 监听' }).toBe(2);
+  await expect.poll(() => app.fake.connectionCount()).toBe(1);
+  expect(realtimePosts204(app)).toBe(2);
+
+  // 重连之后订阅已经生效：推送的一条事件恰好送达一次
+  await app.fake.emit(0, 'update', { id: ownId, kind: 'state', writer: 'after-reconnect', updated: 'z' });
+  await expect.poll(() => eventsSeen(page)).toHaveLength(1);
+  expect(await eventsSeen(page)).toEqual([{ action: 'update', id: ownId }]);
+  expect(app.fake.deliveryErrors).toEqual([]);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('TEST-02 refusing realtime keeps the SDK retrying until realtime is allowed again', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
+  const [user] = app.fake.users;
+  await signInAndWatchRealtime(page, user);
+  expect(app.fake.connectionCount()).toBe(1);
+  expect(app.fake.realtimeRefusals).toBe(0);
+
+  app.fake.refuseRealtime(true, page);
+  expect(await app.fake.dropRealtime(page)).toBe(1);
+  // SDK 在重试：每次被拒都再计一次，但没有握手成功，PB_CONNECT 监听没有再被调用
+  await expect.poll(() => app.fake.realtimeRefusals, { message: '等待 SDK 至少再试两次' }).toBeGreaterThanOrEqual(2);
+  expect(await connectsSeen(page)).toBe(1);
+  expect(app.fake.connectionCount()).toBe(0);
+
+  // 放开之后 SDK 的下一次重试握手成功
+  app.fake.refuseRealtime(false, page);
+  await expect.poll(() => connectsSeen(page)).toBe(2);
+  await expect.poll(() => app.fake.connectionCount()).toBe(1);
+  expect(app.fake.deliveryErrors).toEqual([]);
+});
+
+test('TEST-02 a fault limited to one browser context leaves the other context untouched', async ({ app, page, browser, guard }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
+  const [user] = app.fake.users;
+  await signIn(page, user);
+
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', backend: null });
+    await signIn(second.page, user);
+    const f = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context: second.context });
+
+    // 第二台设备的列表请求以网络错误失败；第一台设备同一请求成功（规则没有碰到它）
+    expect(await attempt(second.page, { kind: 'list' })).toMatchObject({ ok: false, status: 0 });
+    expect(await attempt(page, { kind: 'list' })).toMatchObject({ ok: true, count: 1 });
+    expect(f.hits).toBe(1);
+    expect(app.fake.faultHits).toEqual([{ method: 'GET', path: LIST_PATH, mode: 'refuse', status: 0 }]);
+    expect(app.fake.fulfillErrors).toEqual([]);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: 1 });
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('TEST-02 every write records the writer id it was sent with', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), backend: null });
+  const [user] = app.fake.users;
+  await signIn(page, user);
+  const id = app.fake.docId(0, 'state')!;
+
+  await page.evaluate(
+    (docId) =>
+      (window as any).__pb
+        .collection('journey_docs')
+        .update(docId, { data: { _synthetic: true, marker: 'writer-check' }, writer: 'synth-writer-1' })
+        .then(() => null),
+    id,
+  );
+
+  const last = app.fake.writes[app.fake.writes.length - 1];
+  expect(last.writer).toBe('synth-writer-1');
+  expect(last.path).toBe('journey_docs:state');
+  expect(app.fake.fulfillErrors).toEqual([]);
 });

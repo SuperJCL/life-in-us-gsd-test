@@ -5,6 +5,8 @@
 //    所以所有辅助函数都定义在函数体内，不引用模块里的任何变量，这个文件也没有 import 语句。
 //  - 连接状态在 Node 侧的 FakePbServer 里，页面里只登记“连接 id 到实例”，Node 通过 window.__pbEsDeliver 推事件。
 //  - 没有定时器：握手靠 binding 的 Promise，事件只在 Node 调用 __pbEsDeliver 时才派发。
+//  - Phase 10：握手被拒（refused）和 Node 主动断开（__pbEsFail）都派发 error，由真实 SDK 的 onerror 走它自己的重连；
+//    这两个入口只给测试设施用，不是真实 EventSource 的行为契约。
 
 export interface FakeEventSourceConfig {
   // context.exposeBinding 注册的 binding 名
@@ -45,6 +47,12 @@ export function installFakeEventSource(cfg: FakeEventSourceConfig): void {
       this.url = String(url);
       // 必须异步握手：SDK 在 new EventSource 返回之后才挂 PB_CONNECT 监听
       rpc('es.open', { url: this.url, docToken: w.__pbDocToken }).then((r) => {
+        if (r.refused) {
+          // 握手被拒：连接没有登记，不派发 PB_CONNECT，只触发 error（readyState 2 表示实例已不可用）
+          this.readyState = 2;
+          this.fireError();
+          return;
+        }
         if (this.readyState === 2) {
           // 握手期间已被关闭：通知 Node 注销，不再派发 PB_CONNECT
           rpc('es.close', { connectionId: r.connectionId });
@@ -65,6 +73,13 @@ export function installFakeEventSource(cfg: FakeEventSourceConfig): void {
       if (typeof handler === 'function') handler.call(this, ev);
     }
 
+    // 派发 error 事件，并手动调用 onerror 属性
+    fireError() {
+      const ev = new Event('error');
+      this.dispatchEvent(ev);
+      if (typeof this.onerror === 'function') this.onerror.call(this, ev);
+    }
+
     close() {
       this.readyState = 2;
       if (this.connectionId) {
@@ -82,6 +97,17 @@ export function installFakeEventSource(cfg: FakeEventSourceConfig): void {
     const target = live.get(connectionId);
     if (!target) return false;
     target.fire(name, data, lastEventId);
+    return true;
+  };
+
+  // Node 侧断开（Phase 10）：Node 已经注销了这个连接；这里把实例从 live 删掉并触发 error，
+  // SDK 随后调用 close() 时再发的 es.close 对已注销的 id 是无害的。找不到实例返回 false。
+  w.__pbEsFail = (connectionId: string): boolean => {
+    const target = live.get(connectionId);
+    if (!target) return false;
+    live.delete(connectionId);
+    target.readyState = 2;
+    target.fireError();
     return true;
   };
 }

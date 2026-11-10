@@ -86,7 +86,7 @@
 - `users` 记录的列表、查看、更新（包括改密码）、创建、删除。
 - 集合、设置、日志、备份等超级用户接口。
 - 文件、批量请求、OAuth2、OTP、MFA、邮件流程。
-- 网络失败、5xx 和挂起由 Phase 9 的注入开关提供（见 §10），SSE 断开、乱序事件留给 Phase 10。
+- 网络失败、5xx 和挂起由 Phase 9 的注入开关提供（见 §10），SSE 断开和拒绝由 Phase 10 的 `dropRealtime`、`refuseRealtime` 提供；乱序事件不模拟，应用每次都按服务器 `updated` 与基线比较并整份读取。
 - 未实现的路径一律交回护栏，由护栏报违规，不会悄悄返回一个看似正常的响应。
 
 ## 5. 假服务器的有意偏差
@@ -226,7 +226,11 @@
 | `revokeTokens(userIndex)` | 删掉该账号的全部令牌；之后 `auth-refresh` 是 401，记录接口把该令牌当匿名，重新登录得到新令牌 | 真实实例实测 TOK-2、D5-1（§7）：改密码或后台重置会轮换 tokenKey，旧令牌立即失效 |
 | `beforeNext(method, path, fn)` | 下一个匹配的页面请求在交给 `handle()` 之前先执行 `fn`，然后照常处理；一次性 | 响应来自 `handle()` 的真实逻辑，唯一索引冲突与 create-duplicate-kind 样本一致（400，`owner` 和 `kind` 都是 `validation_not_unique`） |
 | `dropDocs(userIndex, kind?)` | 删掉该账号的文档（给了 `kind` 只删那一种） | 等同超级用户在后台删除记录；客户端删除仍是 403（delete-own 样本） |
+| `dropRealtime(target?)`（Phase 10） | 先把目标页面或上下文（缺省全部）的实时连接从登记表注销，再在页面里让假 EventSource 触发 `error`，真实 SDK 走自己的重连；返回断开的连接数；断开期间的写入和 `emit` 不投给它，重连后也不补发 | 测试设施，没有录制样本：不补发是假服务器的简化，真实服务器的行为本地无法录制，所以应用不依赖它（每次 `PB_CONNECT` 都整份对账） |
+| `refuseRealtime(on, target?)`（Phase 10） | 打开期间目标页面的实时握手不登记连接，页面里的假 EventSource 触发 `error`、不派发 `PB_CONNECT`；`realtimeRefusals` 累计被拒次数；`refuseRealtime(false, target)` 或 `clearFaults()` 撤销 | 测试设施，没有录制样本：只是让实时连接建立不起来 |
+| `fault({ context })`（Phase 10） | 规则带 `context` 时只匹配该浏览器上下文发出的请求，用来制造“只有一台设备连不上服务器”；不带 `context` 的规则行为不变 | 测试设施，没有录制样本 |
+| `writes[].writer`（Phase 10） | 每次成功的创建或更新，`writes` 的最后一条带着请求里的 `writer` 字符串（没有时为空串） | 测试设施，没有录制样本：只是把请求里的 `writer` 记下来供断言 |
 
-另有只读的 `docId(userIndex, kind)`、`isAttached(context)` 和断言用的 `faultHits`（每次命中记方法、路径、模式和状态码，refuse 和 hold 记 0）。
+另有只读的 `docId(userIndex, kind)`、`isAttached(context)`、`realtimeRefusals` 和断言用的 `faultHits`（每次命中记方法、路径、模式和状态码，refuse 和 hold 记 0）。
 
 约定：注入的状态码永远不登记为 `INTENTIONAL_DEVIATIONS`，也不能在任何文档里写成真实服务器的行为；`pb-faults.spec.ts` 只证明开关本身按上表工作。
