@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Completed 10-07-PLAN.md
-last_updated: "2026-11-10T09:07:08.821Z"
+stopped_at: Completed 10-08-PLAN.md
+last_updated: "2026-11-10T09:23:32.512Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: 10c8cbd14a0f554a5d33a319909abbbe9ff72dc6
+state_head: c8e8d4205edecafbfba61f9dc5afd0ef252f3b93
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 45
+  completed_plans: 46
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 ## Current Position
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 10 execution started
 
@@ -132,6 +132,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P05 | 14 min | 2 tasks | 5 files |
 | Phase 10 P06 | 55 min | 2 tasks | 4 files |
 | Phase 10 P07 | 18 min | 2 tasks | 5 files |
+| Phase 10 P08 | 35min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -242,6 +243,7 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-06: pollTick 只在 net 为 ok、无同步在跑、无待保存、本机不脏时才拉取 — 有待保存修改、重试倒计时、离线各自会对账；否则登录后第一个 60 秒轮询会多发一次请求并打乱既有重试用例
 - [Phase 10]: 10-06: applyView 先置 remoteView=false 再画；commit 的 takeRemote 与 applyView 提前到任务 1 — 按钮被移除会同步触发 focusout 重入 drawBar；挂起槽存在而 commit 不先并入会覆盖远端修改
 - [Phase 10]: 10-07: 在线晚一步（opsOk 为真）重做：服务器版本进挂起槽、同一次同步上传 docAfter()；opsOk 为假仍走 D-03 留底；重做后上传失败时槽非空而本机脏，由 commit 的 takeRemote 以 docAfter() 并入
+- [Phase 10]: 10-08: realtime events only trigger requestSync (never applied directly); ensureRealtime is called at the end of the startup reconcile and subscribes only while rt is off; echo suppressed by writer and by updated==base
 
 ### Pending Todos
 
@@ -295,8 +297,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T09:07:07.374Z
-Stopped at: Completed 10-07-PLAN.md
+Last session: 2026-11-10T09:23:31.022Z
+Stopped at: Completed 10-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
