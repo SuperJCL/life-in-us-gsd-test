@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-11-10T07:42:36.506Z"
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-11-10T07:59:44.759Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: 07a991a40207cd5d7159e0cedfb058e87e368e13
+state_head: 33e238c52728bb822fdeb101d5da58846d44951f
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 41
+  completed_plans: 42
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 ## Current Position
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 10 execution started
 
@@ -128,6 +128,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P01 | 21 min | 3 tasks | 9 files |
 | Phase 10 P02 | 12 min | 2 tasks | 6 files |
 | Phase 10 P03 | 15 min | 2 tasks | 5 files |
+| Phase 10 P04 | 14 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -229,6 +230,8 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-02: fault 的 context 取 attach 的 context（路由按 context 注册）；同时订阅 PB_CONNECT 与 journey_docs/* 用 Promise.all 并发
 - [Phase 10]: 10-03: goBootOffline opens offline editing from navigator.onLine false (at once) or the 15 s deadline with a cache; the retry card stays only for a first sign-in without a cache
 - [Phase 10]: 10-03: syncOnce is the full background reconcile (plan then state, create missing docs, clean replace, dirty overwrite with kept copy); cfShown stops the updated notice from replacing a conflict notice (IN-01)
+- [Phase 10]: 10-04: commit(keys, fn) is the only entry that changes state; ops keeps {keys, fn} (cloud only), an upload removes only the prefix it carried (sentOps), opsOk turns false on any offline failure
+- [Phase 10]: 10-04: preset delete undo restores only its own tag (original index in add, or removes the tag it added to hide) instead of restoring the category snapshot
 
 ### Pending Todos
 
@@ -282,8 +285,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T07:42:35.173Z
-Stopped at: Completed 10-03-PLAN.md
+Last session: 2026-11-10T07:59:43.390Z
+Stopped at: Completed 10-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
