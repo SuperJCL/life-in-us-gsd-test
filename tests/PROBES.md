@@ -1,12 +1,12 @@
-# 运行时探针结论（PROBE-1 到 PROBE-9）
+# 运行时探针结论（PROBE-1 到 PROBE-10）
 
-这些探针验证后续阶段依赖的运行时假设。PROBE-1 到 PROBE-8 对应 `tests/e2e/platform/probes.spec.ts`，每次 `npm test` 都会运行；PROBE-9 起对应 `tests/cloud/probes-cloud.spec.ts`，在 `npm run test:cloud` 里运行。假设哪天不成立，用例会变红。
+这些探针验证后续阶段依赖的运行时假设。PROBE-1 到 PROBE-8 对应 `tests/e2e/platform/probes.spec.ts`，每次 `npm test` 都会运行；PROBE-9、PROBE-10 对应 `tests/cloud/probes-cloud.spec.ts`，在 `npm run test:cloud` 里运行。假设哪天不成立，用例会变红。
 
 ## 运行环境
 
 | 项目 | 值 |
 |------|----|
-| 记录日期 | 2026-11-02（PROBE-9 于 2026-11-08 记录，浏览器和 Playwright 版本不变） |
+| 记录日期 | 2026-11-02（PROBE-9 于 2026-11-08、PROBE-10 于 2026-11-10 记录，浏览器和 Playwright 版本不变） |
 | @playwright/test | 1.64.1（精确锁定） |
 | `browser.version()` | 156.0.4314.58（本机 Edge，`channel: 'msedge'`，无界面） |
 | Node 主版本 | 24 |
@@ -31,6 +31,9 @@
 | PROBE-9a | `context.setOffline` 对 `navigator.onLine` 和 online、offline 事件的影响 | `PROBE-9a what context.setOffline does to navigator.onLine and the online and offline events` | 通过 | 初始 onLine 为 true、两个计数 0；`setOffline(true)` 之后 onLine 为 false、offline 计数 1、online 计数 0；`setOffline(false)` 之后 onLine 为 true、online 计数 1、offline 计数 1 | 离线状态下 `navigator.onLine` 和两个事件都由 Playwright 真实改变和派发，应用的断网分支可以直接用 `setOffline` 触发 |
 | PROBE-9b | route 接住的同源 fetch 在离线时是否成功 | `PROBE-9b whether a route-fulfilled same-origin fetch still succeeds while the context is offline` | 通过（离线不影响 route） | 离线时对 `/api/collections/journey_docs/records` 的 fetch 为 `resolved:200`，假服务器收到了这条请求，没有 console.error 也没有违规记录 | 不能靠 `setOffline` 让假服务器的请求失败；网络失败要由假服务器自己的开关制造 |
 | PROBE-9c | 假 EventSource 在离线时是否仍然投递 | `PROBE-9c whether the fake EventSource still delivers while the context is offline` | 通过（离线不影响投递） | 离线时 Node 侧用第 0 个账号更新自己的文档，页面订阅回调收到恰好 1 条 `update`，投递错误为空 | 假 EventSource 由 Node 经 `page.evaluate` 投递，不走浏览器网络栈；SSE 断开必须由假服务器显式触发
+| PROBE-10a | SDK 每次重连后是否再次调用 `PB_CONNECT` 监听，回调触发时订阅是否已经生效 | `PROBE-10a the SDK calls PB_CONNECT listeners again after every reconnect` | 通过 | 连续两次 `dropRealtime` 之后监听共被调用 3 次，3 个 clientId 互不相同；每次回调触发时 `POST /api/realtime` 的 204 已经是第几次调用（回调时已得 204 的次数依次为 1、2、3），SDK 已提交的订阅里有 `journey_docs/*`；204 共 3 次 | 在 `PB_CONNECT` 回调里立即发起后台对账即可，那时订阅已经生效 |
+| PROBE-10b | 首次实时连接失败时 SDK 是否自己再试 | `PROBE-10b the SDK does not retry a first realtime connection that fails` | 通过（不重试） | `refuseRealtime` 期间订阅的 Promise 被 reject（`ClientResponseError`，status 0）；真实等 3 秒后被拒次数仍为 1、连接数为 0；放开之后不再订阅，再等 1.5 秒被拒次数仍为 1、连接数仍为 0 | 应用必须在之后一次成功的对账后自己重新订阅 |
+| PROBE-10c | 实时断开期间推送的事件重连后是否补发 | `PROBE-10c events sent while realtime is down are not replayed after the reconnect` | 通过（不补发） | 断开且被拒期间 `emit` 两条 update，页面一条没收到；放开后 PB_CONNECT 第二次到来、连接数回到 1，再等 0.5 秒页面仍是 0 条；之后新 `emit` 一条，恰好收到 1 条 | 每次 `PB_CONNECT` 都整份对账，不指望补发（假服务器不补发是简化，真实服务器的行为本地无法录制） |
 
 ## PROBE-1：Edge 无界面启动
 
@@ -135,6 +138,18 @@
   - 9a 证明 `setOffline` 能让应用看到真实的 `offline`、`online` 事件和 `navigator.onLine` 的变化，所以应用里“网络断开后的提示、恢复后重连”这类依赖浏览器在线状态的分支，可以用 `setOffline` 加假服务器的开关组合起来测；但这两者要分别触发，才能说清是哪一个导致的行为。
   - 9c 证明假 EventSource 不受影响，所以 SSE 断开和重连必须由假服务器显式触发（`app.fake` 上的开关），`setOffline` 不会让它断开。
 - **边界：** 结论只对本机 Edge 156 和 Playwright 1.64.1 成立；版本变化要重跑 PROBE-9。在 Phase 8 的其他用例里没有使用 `setOffline`，只有这三条探针用了。
+
+## PROBE-10：SDK 0.28.1 的实时重连（Phase 10 的本地调研）
+
+- **怎么测的：** 三条用例在 `tests/cloud/probes-cloud.spec.ts`，cloud 模式打开应用，harness 在页面里用真实 SDK 0.28.1 订阅（`backend: null` 的设施用法），实时连接由假服务器的 `dropRealtime`、`refuseRealtime` 断开或拒绝（见 `tests/mocks/PB-CONTRACT.md` §10），不使用 `setOffline`。10a 并发订阅 `PB_CONNECT` 和 `journey_docs/*`，包一层 `window.fetch` 数 `POST /api/realtime` 得到的 204，在每次 `PB_CONNECT` 回调里记下当时的 204 次数；10b 在首次订阅之前就拒绝实时；10c 在断开且被拒期间 `emit` 事件。观察值先记进 `probe` annotation 和终端，看清之后把断言写死。
+- **观察到什么：** 见上表。SDK 的重连间隔（200、300、500、1000、1200、1500、2000 毫秒，次数不限）和 `PB_CONNECT` 的处理顺序来自 `tools/probe/page/vendor/pocketbase.iife.js` 里 `RealtimeService` 的源码：`PB_CONNECT` 到来后先 `submitSubscriptions()`，成功之后才调用 `PB_CONNECT` 的监听；`connectErrorHandler` 在“没有 clientId 且重连次数为 0”时 reject 并 `disconnect()`，不重试。
+- **四个调研问题的本地答案（供 10-03 到 10-09 引用）：**
+  1. **SSE 断线后会不会补发错过的事件？** SDK 重连时新建 EventSource、拿到新的 clientId、重新提交订阅，源码里没有续传（10a 里三次连接的 clientId 互不相同）；假服务器不补发（10c）。真实服务器的行为本地无法录制，所以设计不依赖它：**每次 `PB_CONNECT` 都整份对账**，与 `06-PROBE-RESULTS` 的“重连后必须整份补拉”一致。
+  2. **`PB_CONNECT` 之后什么时候对账？** SDK 在订阅提交成功之后才调用 `PB_CONNECT` 监听（10a：回调触发时 204 已经得到、`journey_docs/*` 已在 SDK 已提交的订阅里），所以**在回调里立即发起一次后台对账**，就能关闭“读取之后、订阅之前”的空窗。订阅放在首次对账完成之后，由第一次 `PB_CONNECT` 触发的对账补上这个空窗（10-08 采用）。真实 0.41.1 接受 `PB_CONNECT` 订阅串的依据是 Phase 6 探针页（`tools/probe/page/probe.js`）在真实实例上的同样写法（`pb.realtime.subscribe('PB_CONNECT', …)`）。
+  3. **`fields` 对事件载荷的影响？** `PB-CONTRACT.md` §6 的 `realtime-update-fields` 样本和 §7 的 RT-4（`fields=id,kind,writer,updated`）证明更新事件的 record 只剩 `id`、`kind`、`writer`、`updated` 这 4 个键。应用只用这四个字段判断是否需要对账，整份数据一律用列表读取。
+  4. **断网和退避在 manual 时钟下怎么测？** SDK 的重连间隔（200 到 2000 毫秒）、应用的退避和 60 秒拉取都是页面定时器，manual 时钟下用 `runFor` 推进；服务器侧故障和 SSE 断开只用假服务器的开关（`dropRealtime`、`refuseRealtime`、按上下文限定的 `fault({ context })`、`refuse`、`status`、`hold`、`lose-answer`）；`context.setOffline` 只改 `navigator.onLine` 和 online、offline 事件（PROBE-9a），管不到假服务器的请求和假 EventSource（PROBE-9b、9c）。
+- **额外结论：** 首次连接失败时 SDK 不重试（10b）：订阅的 Promise 被 reject，SDK 之后不会自己再试，所以应用必须在之后一次成功的对账后自己重新订阅（10-09 采用）。已经连上之后的断开则由 SDK 自己无限次重试（10a、`pb-faults.spec.ts` 里 `refusing realtime` 那条自检）。
+- **边界：** 结论对本机 Edge 156、Playwright 1.64.1、SDK 0.28.1 成立；“不补发”在假服务器上是构造出来的，真实服务器是否补发无法本地验证，设计因此不依赖它（SYNC-02 保持为显式假设）。
 
 ## 未覆盖的事项
 
