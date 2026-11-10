@@ -90,3 +90,78 @@ test("SYNC-02 this device's own save never comes back as a remote update", async
   await expect(page.locator(`#days [data-edit="${id}"]`)).toBeVisible();
   expect(listsSince()).toBe(1);
 });
+
+test('SYNC-02 a realtime reconnect reconciles and picks up a change made while it was down', async ({ app, page, browser, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+  try {
+    await second.page.clock.install({ time: FROZEN_NOW });
+    await second.app.open({ mode: 'cloud', login: 0 });
+    const sp = second.page;
+    // 暂停在“现在”之后一点点：本用例要自己推进设备二的时钟，不能让它的 60 秒拉取（从登录那一刻起算）落进推进的范围
+    await sp.clock.pauseAt((await sp.evaluate(() => Date.now())) + 100);
+    await expect.poll(() => app.fake.connectionCount()).toBe(2);
+
+    // 设备二的实时断开并且重连被拒：SDK 在重连，页面不再是 live（SDK 的重连间隔是页面定时器，下面用 runFor 推进）
+    app.fake.refuseRealtime(true, sp);
+    await app.fake.dropRealtime(sp);
+    await expect(sp.locator('body')).toHaveAttribute('data-rt', 'connecting');
+    await expect.poll(() => app.fake.connectionCount()).toBe(1);
+
+    // 断开期间设备一记一笔并上传：设备二几秒的重连尝试里仍看不到（实时已断，也没有到 60 秒拉取）
+    const id = await recordAndUpload(app, page, 'SYNTH-1203 made while device two was down');
+    await sp.clock.runFor(3_000);
+    expect(app.fake.realtimeRefusals).toBeGreaterThan(0);
+    await expect(sp.locator(`#days [data-edit="${id}"]`)).toHaveCount(0);
+    await expect(sp.locator('body')).toHaveAttribute('data-rt', 'connecting');
+
+    // 放开之后 SDK 的下一次重连成功，PB_CONNECT 整份对账，断开期间的修改出现，回到 live（SDK 最长 2 秒试一次，每轮推进 2 秒）
+    app.fake.refuseRealtime(false, sp);
+    await expect(async () => {
+      await sp.clock.runFor(2_000);
+      await expect(sp.locator(`#days [data-edit="${id}"]`)).toBeVisible({ timeout: 500 });
+    }).toPass({ timeout: 15_000 });
+    await expect(sp.locator('body')).toHaveAttribute('data-rt', 'live');
+    await expect(sp.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+    await expect.poll(() => app.fake.connectionCount()).toBe(2);
+  } finally {
+    await second.context.close();
+  }
+});
+
+test('SYNC-02 a first realtime connection that fails is retried by the app', async ({ app, page, browser, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  // 登录之前就拒绝这个页面的实时连接：首次连接失败，SDK 不会自己再试（PROBE-10b）
+  app.fake.refuseRealtime(true, page);
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), realtime: false });
+  await app.submitLogin(0);
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+  await expect(page.locator('body')).toHaveAttribute('data-rt', 'off');
+  expect(app.fake.realtimeRefusals).toBeGreaterThan(0);
+  expect(app.fake.connectionCount()).toBe(0);
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 放开实时，再有一次成功的对账（回到前台）：应用自己重新订阅，只订阅一次
+  app.fake.refuseRealtime(false, page);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.locator('body')).toHaveAttribute('data-rt', 'live');
+  await expect.poll(() => app.fake.connectionCount()).toBe(1);
+
+  // 之后另一台设备的修改几秒内到达（这页的时钟已暂停，不可能来自 60 秒拉取）
+  const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+  try {
+    await second.page.clock.install({ time: FROZEN_NOW });
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const id = await recordAndUpload(app, second.page, 'SYNTH-1204 after the app resubscribed');
+    await expect(page.locator(`#days [data-edit="${id}"]`)).toBeVisible();
+    await expect(page.locator('body')).toHaveAttribute('data-rt', 'live');
+    expect(app.fake.connectionCount()).toBe(2);
+  } finally {
+    await second.context.close();
+  }
+});

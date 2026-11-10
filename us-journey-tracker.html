@@ -673,7 +673,7 @@ function loadSdk(){return new Promise((ok,no)=>{
   document.head.appendChild(s);
 })}
 /* the auth listener belongs to the client itself: it is registered wherever the client is created, including a first sign-in after the SDK failed to load at startup */
-function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false);pb.authStore.onChange(onAuthChange)}
+function startPb(){pb=new window.PocketBase(location.origin);pb.autoCancellation(false);pb.authStore.onChange(onAuthChange);pb.realtime.onDisconnect=onPbDisconnect}
 /* the token is shared by every tab of this browser through localStorage: another tab signing out (empty token) signs this tab out locally, without touching the caches again
    (that tab already cleared them); another tab signing in as a different account reloads this tab; a refreshed token of the same account changes nothing.
    authQuiet is true while this tab clears the token itself (logout, a 401 on refresh), so those are never mistaken for another tab. */
@@ -1085,6 +1085,8 @@ async function checkAuth(signal){
 function goExpired(){
   expireToken();
   net="expired";trying=false;stopRetry();stopPoll();cdLeft=0;
+  /* the token is gone: the subscription is closed too; the same account signing in again subscribes anew after its first reconcile */
+  stopRealtime();
   showBar("expired",{tone:"warn",msg:"登录已过期，本机的修改还在，重新登录后会继续上传。",btns:[{text:"重新登录",cls:"primary",fn:relogin}]});
   showSync();
 }
@@ -1184,6 +1186,8 @@ async function syncOnce(){
     if(docs.state.dirty)syncAgain=true;
     if(gotRemote){remoteView=remoteDiffers();if(!remoteView){pendRemote={plan:null,state:null};hideBar("remote")}}
     showSync();
+    /* the first connection failed (the SDK never retries it, PROBE-10b) or the page started offline: the first successful pass after that subscribes (only while rt is "off") */
+    ensureRealtime();
     /* the "updated" notice belongs to applyView (it stays off when this pass already raised a conflict notice, IN-01) */
     if(remoteView)maybeApplyView();
   }catch(e){
@@ -1248,7 +1252,7 @@ document.addEventListener("visibilitychange",()=>{
 function setRt(v){rt=v;document.body.dataset.rt=v}
 function rtUnsub(){try{Promise.resolve(pb.realtime.unsubscribe()).catch(()=>{})}catch(e){}}
 /* a session change in the middle of startup: resetSession has already unsubscribed everything; only a start that left nothing owned by a newer session unsubscribes again */
-function rtStale(ep){if(ep===sessionEpoch)return false;if(rt==="off")rtUnsub();return true}
+function rtStale(ep){if(ep===sessionEpoch&&net!=="expired")return false;if(rt==="off")rtUnsub();return true}
 async function startRealtime(){
   const ep=sessionEpoch;
   setRt("connecting");
@@ -1266,7 +1270,7 @@ async function startRealtime(){
     rtUnsub();setRt("off");
   }
 }
-function ensureRealtime(){if(CLOUD&&me&&rt==="off")startRealtime()}
+function ensureRealtime(){if(CLOUD&&me&&net!=="expired"&&rt==="off")startRealtime()}
 function stopRealtime(){rtUnsub();rt="off";delete document.body.dataset.rt}
 /* the record in an event only has id, kind, writer and updated: it is never applied, it only decides whether to reconcile. Our own write (writer) and a version we already hold (updated equals the base) are ignored */
 function onDocEvent(e){
@@ -1276,6 +1280,8 @@ function onDocEvent(e){
   if(d&&r.updated===d.base)return;
   requestSync("event");
 }
+/* the connection dropped after it had been up: the SDK reconnects by itself (200 to 2000 ms apart); until the PB_CONNECT that follows has reconciled, the page is not live */
+function onPbDisconnect(){if(rt==="live")setRt("connecting")}
 function onPbConnect(){
   const ep=sessionEpoch;
   requestSync("connect").then(()=>{if(ep===sessionEpoch&&rt!=="off")setRt("live")});
