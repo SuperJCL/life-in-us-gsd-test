@@ -8,6 +8,7 @@ import { composer } from '../support/composer';
 import { openDevice } from '../support/devices';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
+import { installOnlineSwitch, setPageOnline } from '../support/online';
 import { BTN_RETRY_NOW, STATUS_CLOUD_SYNCED, STATUS_SAVING, statusOffline, statusRetrying } from '../support/strings';
 
 test.use({ clockMode: 'manual' });
@@ -188,4 +189,44 @@ test('SYNC-04 a save shows saving and then synced', async ({ app, page }) => {
   await hold.release();
   await expect(status).toHaveAttribute('data-state', 'synced');
   await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+});
+
+test('SYNC-03 opening the app with a cache while the browser reports offline allows editing at once', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  // 刷新时浏览器显示断网、服务器也连不上：不推进时钟，应用就按离线可编辑打开（D-02），而不是等对账超时
+  await page.addInitScript(installOnlineSwitch, { online: false });
+  const refused = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  await page.reload();
+
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(0));
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+  await expect(page.locator('#w-text')).toBeEnabled();
+  await expect(page.locator('#syncbar')).not.toBeVisible();
+  await expect(page.locator('#days [data-edit="synthetic-a"]')).toBeVisible();
+
+  // 照常记一笔：先存本机，状态行带数量
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1003 offline at open');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(1));
+
+  // 联网：撤掉故障，页面报告联网并派发 online，后台对账上传，已同步
+  await app.fake.clearFaults();
+  await setPageOnline(page, true);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+  expect(countOnServer(app, 'SYNTH-1003 offline at open')).toBe(1);
+  // 被拒连接：按列表故障实际命中的次数确认（后台每次尝试一条 console.error）
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: refused.hits });
 });

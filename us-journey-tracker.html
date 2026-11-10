@@ -846,6 +846,8 @@ function startReconcile(mode,retrying){
   const r={ctrl:new AbortController(),live:true,timers:[],tries:0,mode};run=r;
   const alive=()=>r.live&&run===r,cached=mode.cached;
   const later=(fn,ms)=>{r.timers.push(setTimeout(()=>{if(alive())fn()},ms))};
+  /* D-02: a browser that says it is offline gets editing at once (with a cache); waiting for the reconcile deadline would only delay the same outcome */
+  if(cached&&navigator.onLine===false){goBootOffline(r);return Promise.resolve()}
   setStatus(T_RECON,"reconciling");
   if(cached){setGate("reconciling");if(retrying)showBar("unreachable",unreachBar(r,true))}
   else{$("login").classList.add("hidden");document.querySelector(".wrap").classList.add("hidden");$("boot").classList.remove("hidden");if(retrying)bootUI("fail",true);else bootUI("load")}
@@ -865,6 +867,14 @@ function startReconcile(mode,retrying){
     }
   };
   return attempt();
+}
+/* D-01 / D-02: open for editing without a finished reconcile. The edits are kept in the cache and uploaded by the background sync, which is also the first reconcile
+   (needRefresh: an authRefresh owed from startup is made by the first background pass); until one pass has succeeded every failure is shown as offline */
+function goBootOffline(r){
+  endRun(r);if(run===r)run=null;clearRunUI();setGate(null);renderAll();
+  bootOffline=true;net="offline";needRefresh=!!r.mode.refresh;
+  stopRetry();retryTimer=setTimeout(()=>{retryTimer=null;requestSync("boot")},RETRY_STEPS[0]*1000);retryIdx=1;
+  showSync();
 }
 async function enterApp(refresh){
   sessionEpoch++;
@@ -997,7 +1007,7 @@ const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自�
 const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重试",T_RETRY_NOW="立即重试";
 /* net: "ok" | "offline" (the request never reached the server) | "retrying" (the server answered with an error, or did not answer within SYNC_MS);
    trying: a sync pass is running; cdLeft: seconds shown in the retrying line, driven by a 1 s interval (never by Date.now, which tests freeze) */
-let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null;
+let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null,bootOffline=false,needRefresh=false;
 function showSync(){
   if(!CLOUD||!me||!docs.state)return;
   const n=Array.isArray(docs.state.touched)?docs.state.touched.length:0;
@@ -1027,12 +1037,14 @@ function scheduleRetry(){
 }
 async function syncOnce(){
   const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
-  let timedOut=false;
+  let timedOut=false,authing=false;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
   trying=true;
   /* a retry that is under way says so; a background attempt while offline leaves the line alone (no flicker) */
   if(net==="retrying")showSync();
   try{
+    /* the authRefresh owed from a boot without a reconcile (T-10-09): only its 401 means the token expired */
+    if(needRefresh){authing=true;await pb.collection("users").authRefresh(sg);authing=false;if(ep!==sessionEpoch)return;needRefresh=false}
     const seq=docs.state.seq||0,isDirty=!!docs.state.dirty;
     if(isDirty)sizeCheck(state);
     const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);
@@ -1054,14 +1066,16 @@ async function syncOnce(){
       if(!docs.state.dirty)cacheNote(true);
     }
     net="ok";retryIdx=0;stopRetry();trying=false;
+    if(bootOffline){bootOffline=false;snapShow()}
     if(docs.state.dirty)syncAgain=true;
     showSync();
   }catch(e){
     if(ep!==sessionEpoch)return;
     trying=false;
+    if(authing&&e&&e.status===401){expireToken();resetSession();showLogin("","expired");return}
     if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
     /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
-    net=timedOut||!(e&&e.status===0)?"retrying":"offline";
+    net=!bootOffline&&(timedOut||!(e&&e.status===0))?"retrying":"offline";
     scheduleRetry();showSync();
   }finally{clearTimeout(tm);if(ep===sessionEpoch)trying=false}
 }
@@ -1101,7 +1115,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;
   clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
-  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;
+  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
