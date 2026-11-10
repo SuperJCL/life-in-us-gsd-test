@@ -9,7 +9,8 @@ import { openDevice } from '../support/devices';
 import { gotoGoals } from '../support/goals';
 import { expectToast } from '../support/toast';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
-import { FROZEN_NOW } from '../support/constants';
+import { FROZEN_NOW, WEEK_START_FROZEN } from '../support/constants';
+import { makeOneEditOfEachKind } from '../support/edits';
 import { installOnlineSwitch, setPageOnline } from '../support/online';
 import {
   BTN_DOWNLOAD_SNAPSHOT,
@@ -495,4 +496,67 @@ test('SYNC-03 an edit made while an upload is in flight stays pending alone afte
   await expect.poll(async () => (await readCache()).dirty, { message: '等待缓存收尾' }).toBe(false);
   expect((await readCache()).touched).toEqual([]);
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
+});
+
+test('SYNC-03 the pending count counts each changed item once', async ({ app, page, context, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: syntheticPlan('t', 1), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const key = `usj:v2:${app.fake.users[0].id}:state`;
+  const readCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+
+  const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
+  const made = await makeOneEditOfEachKind(page, 'SYNTH-1012');
+  await page.clock.runFor(1_000);
+
+  // 八个条目（记录 A 改了文字、记录 B 删了又撤销、任务勾选后取消，都只算 1 项），七类前缀都出现
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(8));
+  const cached = await readCache();
+  const touched = cached.touched as string[];
+  expect(touched).toHaveLength(8);
+  expect(new Set(touched).size).toBe(8);
+  const kinds = new Set(touched.map((k) => k.split(':')[0]));
+  expect([...kinds].sort()).toEqual(['arrival', 'custom', 'lift', 'log', 'preset', 'review', 'task']);
+  expect(touched).toContain(`log:${made.aId}`);
+  expect(touched).toContain(`log:${made.bId}`);
+  expect(touched).toContain(`task:${made.taskId}`);
+  expect(touched).toContain(`lift:${made.liftId}`);
+  expect(touched).toContain(`review:${WEEK_START_FROZEN}`);
+  expect(touched).toContain(`preset:${made.presetCat}|${made.presetText}`);
+  expect(touched).toContain('arrival');
+  expect(cached.dirty).toBe(true);
+
+  // 联网：撤掉故障，派发 online，全部上传，数量归零
+  await app.fake.clearFaults();
+  await context.setOffline(true);
+  await context.setOffline(false);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+  await expect.poll(async () => (await readCache()).dirty, { message: '等待缓存收尾' }).toBe(false);
+  expect((await readCache()).touched).toEqual([]);
+
+  const server = app.fake.lastState(0) as {
+    logs: Array<{ id: string; text: string }>;
+    reviews: Record<string, string>;
+    tasks: Record<string, { done?: boolean }>;
+    lifts: Record<string, { cur: number }>;
+    custom: Array<{ id: string; group: string; text: string }>;
+    presets: Record<string, { add?: string[] }>;
+    arrival: string;
+  };
+  const count = (text: string) => server.logs.filter((l) => l.text === text).length;
+  expect(count(made.aText)).toBe(1);
+  expect(count(made.bText)).toBe(1);
+  expect(count(`SYNTH-1012 A`)).toBe(0);
+  expect(server.reviews[WEEK_START_FROZEN]).toBe(made.reviewText);
+  expect(server.tasks[made.taskId]?.done ?? false).toBe(false);
+  expect(server.lifts[made.liftId].cur).toBe(made.liftValue);
+  expect(server.custom.filter((c) => c.text === made.customText && c.group === made.customGroup)).toHaveLength(1);
+  expect(server.presets[made.presetCat].add).toEqual([made.presetText]);
+  expect(server.arrival).toBe(made.arrival);
+  // 被拒条数按列表故障的命中次数确认（单条 PATCH 从未发出，因为列表先失败）
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
 });

@@ -1232,7 +1232,8 @@ function eventsOn(date){
 function addLog(date,cat,text){const id=uid(),rec={id,date,text,cat};commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.push({...rec})});renderAll()}
 
 const compEdit={},compAdding={};
-function pstate(cat){const v=state.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
+function pstateOf(s,cat){const v=s.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
+function pstate(cat){return pstateOf(state,cat)}
 function presetsFor(cat){const C=CATS.find(c=>c.n===cat),s=pstate(cat);return (plan.presets[C.k]||[]).filter(x=>!s.hide.includes(x)).concat(s.add)}
 const fills=x=>/[：:]$/.test(x);
 function presetsHTML(p,C){
@@ -1266,18 +1267,17 @@ function bindComposer(root,p,getDate){
   root.querySelectorAll("[data-pedit]").forEach(b=>b.addEventListener("click",()=>{compEdit[p]=!compEdit[p];compAdding[p]=false;refresh()}));
   root.querySelectorAll("[data-padd]").forEach(b=>b.addEventListener("click",()=>{compAdding[p]=true;compEdit[p]=false;refresh(true)}));
   root.querySelectorAll("[data-pdel]").forEach(b=>b.addEventListener("click",()=>{
-    const x=tagOf(b.dataset.pdel),cat=compCat[p],before=JSON.stringify(state.presets[cat]||{}),s=pstate(cat);
-    if(s.add.includes(x))s.add=s.add.filter(y=>y!==x);else if(!s.hide.includes(x))s.hide=s.hide.concat([x]);
-    state.presets[cat]={add:s.add,hide:s.hide};persist();refresh();
-    toast("已删除标签："+x,{label:"撤销",fn:()=>{state.presets[cat]=JSON.parse(before);persist();renderAll()}})}));
+    const x=tagOf(b.dataset.pdel),cat=compCat[p],key="preset:"+cat+"|"+x,s0=pstate(cat),wasAdd=s0.add.includes(x),wasHide=s0.hide.includes(x),at=s0.add.indexOf(x);
+    commit([key],st=>{const q=pstateOf(st,cat);let add=q.add.filter(y=>y!==x),hide=q.hide;if(!wasAdd&&!hide.includes(x))hide=hide.concat([x]);st.presets[cat]={add,hide}});refresh();
+    toast("已删除标签："+x,{label:"撤销",fn:()=>{commit([key],st=>{const q=pstateOf(st,cat);let add=q.add,hide=q.hide;if(wasAdd&&!add.includes(x)){add=add.slice();add.splice(Math.min(at,add.length),0,x)}if(!wasAdd&&!wasHide)hide=hide.filter(y=>y!==x);st.presets[cat]={add,hide}});renderAll()}})}));
   const pa=root.querySelector("#"+p+"-padd");
-  if(pa){let done=false;const commit=()=>{if(done)return;done=true;const v=pa.value.trim();compAdding[p]=false;
-      if(v){const cat=compCat[p],s=pstate(cat);
+  if(pa){let done=false;const finish=()=>{if(done)return;done=true;const v=pa.value.trim();compAdding[p]=false;
+      if(v){const cat=compCat[p];
         if(presetsFor(cat).includes(v))toast("已经有这个标签了");
-        else{if(s.hide.includes(v))s.hide=s.hide.filter(y=>y!==v);else s.add=s.add.concat([v]);state.presets[cat]={add:s.add,hide:s.hide};persist();toast("已添加标签："+v)}}
+        else{commit(["preset:"+cat+"|"+v],st=>{const q=pstateOf(st,cat);let add=q.add,hide=q.hide;if(hide.includes(v))hide=hide.filter(y=>y!==v);else if(!add.includes(v))add=add.concat([v]);st.presets[cat]={add,hide}});toast("已添加标签："+v)}}
       refresh()};
-    pa.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();commit()}if(e.key==="Escape"){e.preventDefault();pa.value="";commit()}});
-    pa.addEventListener("blur",commit)}
+    pa.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();finish()}if(e.key==="Escape"){e.preventDefault();pa.value="";finish()}});
+    pa.addEventListener("blur",finish)}
 }
 function rerenderComp(p){if(p==="w")renderWkComp();else renderDay()}
 
@@ -1389,7 +1389,7 @@ function renderTimeline(){
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x===b));
   ["wk","cal","goal","tl"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==b.dataset.tab))});
-$("arrival").addEventListener("change",e=>{state.arrival=e.target.value;persist();renderAll()});
+$("arrival").addEventListener("change",e=>{const v=e.target.value;commit(["arrival"],s=>{s.arrival=v});renderAll()});
 function deleteLog(id){const i=state.logs.findIndex(l=>l.id===id);if(i<0)return;const gone=JSON.parse(JSON.stringify(state.logs[i]));commit(["log:"+id],s=>{s.logs=s.logs.filter(l=>l.id!==id)});renderAll();
   toast("已删除这条记录",{label:"撤销",fn:()=>{commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.splice(Math.min(i,s.logs.length),0,JSON.parse(JSON.stringify(gone)))});renderAll();toast("已恢复")}})}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-dellog]");if(!b)return;e.stopImmediatePropagation();e.preventDefault();deleteLog(b.dataset.dellog)},true);
@@ -1434,8 +1434,8 @@ function openTaskEditor(id){
     <div class="ed-foot"><button type="button" class="danger" id="ed-undone">标记为未完成</button><span class="sp"></span>
       <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
   $("ed-cancel").onclick=()=>dlg.close();
-  $("ed-undone").onclick=()=>{state.tasks[id]=Object.assign({},s,{done:false,doneDate:""});dlg.close();persist();renderAll();toast("已改回未完成")};
-  $("ed-save").onclick=()=>{const d=$("ed-date").value;if(d){state.tasks[id]=Object.assign({},s,{doneDate:d})}dlg.close();persist();renderAll();toast("已保存")};
+  $("ed-undone").onclick=()=>{dlg.close();commit(["task:"+id],st=>{st.tasks[id]=Object.assign({},st.tasks[id]||{},{done:false,doneDate:""})});renderAll();toast("已改回未完成")};
+  $("ed-save").onclick=()=>{const d=$("ed-date").value;dlg.close();if(d)commit(["task:"+id],st=>{st.tasks[id]=Object.assign({},st.tasks[id]||{},{doneDate:d})});renderAll();toast("已保存")};
   dlg.showModal();
 }
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
@@ -1457,7 +1457,7 @@ $("wkNow").onclick=()=>{wk=monday(today());wsel=today();renderWeek()};
 function pickDay(el){if(!el)return;wsel=el.dataset.wday;renderWeek();if(innerWidth<=900)$("wkComp").scrollIntoView({behavior:"smooth",block:"start"})}
 $("days").addEventListener("click",e=>{if(e.target.closest(".x"))return;pickDay(e.target.closest("[data-wday]"))});
 $("days").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset.wday){e.preventDefault();pickDay(e.target)}});
-let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvPending=true;rvT=setTimeout(()=>{rvPending=false;if(v.trim())state.reviews[w]=v;else delete state.reviews[w];persist()},800)});
+let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvPending=true;rvT=setTimeout(()=>{rvPending=false;commit(["review:"+w],s=>{if(v.trim())s.reviews[w]=v;else delete s.reviews[w]})},800)});
 // calendar
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);renderCal()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);renderCal()};
@@ -1467,19 +1467,19 @@ $("grid").addEventListener("click",e=>{const c=e.target.closest("[data-date]");i
 // goals
 $("goals").addEventListener("change",e=>{
   const c=e.target.dataset.task,du=e.target.dataset.due;
-  if(c){const s=Object.assign({},tstate(c));s.done=e.target.checked;s.doneDate=s.done?today():"";state.tasks[c]=s;persist();renderAll();if(s.done)toast("完成，已记到今天")}
-  if(du){const s=Object.assign({},tstate(du));s.due=e.target.value;state.tasks[du]=s;persist();renderAll()}
+  if(c){const on=e.target.checked,day=today();commit(["task:"+c],st=>{st.tasks[c]=Object.assign({},st.tasks[c]||{},{done:on,doneDate:on?day:""})});renderAll();if(on)toast("完成，已记到今天")}
+  if(du){const v=e.target.value;commit(["task:"+du],st=>{st.tasks[du]=Object.assign({},st.tasks[du]||{},{due:v})});renderAll()}
 });
 function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(inp.value);const L=plan.lifts.find(x=>x.id===lf);const s=lift(lf);
   if(isNaN(v)||v<0){renderGoals();return}
   if(v===s.cur){renderGoals();return}
-  s.cur=v;const h=s.hist.slice();if(h.length&&h[h.length-1].date===today())h[h.length-1]={date:today(),v};else h.push({date:today(),v});
-  s.hist=h.slice(-30);state.lifts[lf]=s;persist();renderGoals();toast(v>=L.target?L.n+"达标了":L.n+"已更新为 "+v+L.unit)}
+  const day=today();
+  commit(["lift:"+lf],st=>{const c=Object.assign({cur:L.def,hist:[]},st.lifts[lf]||{});const h=c.hist.slice();if(h.length&&h[h.length-1].date===day)h[h.length-1]={date:day,v};else h.push({date:day,v});st.lifts[lf]=Object.assign(c,{cur:v,hist:h.slice(-30)})});renderGoals();toast(v>=L.target?L.n+"达标了":L.n+"已更新为 "+v+L.unit)}
 $("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
   if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
-function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;state.custom.push({id:"c-"+uid(),group:g,text:v});persist();renderAll()}
+function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;const id="c-"+uid();commit(["custom:"+id],s=>{if(!s.custom.some(x=>x.id===id))s.custom.push({id,group:g,text:v})});renderAll()}
 $("goals").addEventListener("click",e=>{const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
-  if(a)addTask(a);if(d){state.custom=state.custom.filter(t=>t.id!==d);delete state.tasks[d];persist();renderAll()}});
+  if(a)addTask(a);if(d){commit(["custom:"+d],s=>{s.custom=s.custom.filter(t=>t.id!==d);delete s.tasks[d]});renderAll()}});
 $("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
 
@@ -1501,7 +1501,7 @@ async function save(filename,data){
   catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
 }
 $("importJson").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const j=JSON.parse(r.result),bad=importProblem(j);if(bad)throw new Error(bad);const s=normalize(j);if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist();renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
+  r.onload=()=>{try{const j=JSON.parse(r.result),bad=importProblem(j);if(bad)throw new Error(bad);const s=normalize(j);if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist("import");renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
   r.readAsText(f)});
 
 let tt;function toast(m,act,ms){const t=$("toast");if(ms!=null)t.setAttribute("data-cloud","");else t.removeAttribute("data-cloud");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);
