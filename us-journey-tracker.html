@@ -604,7 +604,7 @@ let ops=[],opsOk=true;
    the working state, so whatever the user sees stays as it was until the update is applied. takeRemote() is the only way in (applyView, and commit at its start, D-04); remoteView = a waiting slot really differs from what is shown */
 const POLL_MS=60000;
 let pendRemote={plan:null,state:null},remoteView=false,pollTimer=null;
-function commit(keys,fn){takeRemote();fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys);if(remoteView)applyView()}
+function commit(keys,fn){takeRemote();fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys);if(remoteView)applyView(true)}
 async function flush(){
   savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
@@ -1265,6 +1265,8 @@ function remoteDiffers(){
   return !!ss&&canon(docAfter())!==canon(state);
 }
 const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE_DONE="已更新为其他设备上的最新内容";
+/* D-06 (owner-confirmed wording): the record open in the editor was deleted on another device and the user saved it anyway */
+const T_LOG_READDED="这条记录在另一台设备上被删除，已按你的修改重新加回";
 /* busy = the user is in the middle of something an update must not disturb: an open dialog or confirm, a draft, an open new-tag input, the cursor in a text field (a checkbox or button does not count),
    a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
 function isBusy(...a){
@@ -1288,12 +1290,15 @@ function maybeApplyView(...a){
   }
   applyView();
 }
-function applyView(){
+/* fromCommit: the call comes from commit (D-04), whose handler shows its own notice right after (recorded, saved...): the update notice waits one microtask so that it is the one left on screen.
+   remoteView is cleared before anything is drawn: removing the focused "现在更新" button fires focusout at once, and that handler must find nothing left to apply */
+function applyView(fromCommit){
   if(!remoteView)return;
   /* an uncommitted weekly review is committed first by the same rule as its debounce; that commit takes the waiting version in and applies it, so there is nothing left to do here */
   if(rvPending&&rvJob){clearTimeout(rvT);rvJob();if(!remoteView)return}
-  takeRemote();renderKeep();hideBar("remote");remoteView=false;
-  if(!(syncing&&cfShown))toast(T_REMOTE_DONE,null,4000);
+  takeRemote();remoteView=false;renderKeep();hideBar("remote");
+  const note=()=>{if(!(syncing&&cfShown))toast(T_REMOTE_DONE,null,4000)};
+  if(fromCommit)queueMicrotask(note);else note();
 }
 /* a full render that keeps what the user has typed and not yet committed: both composer texts, the new-tag inputs, the to-do inputs, strength values with a visible save button, the focused element and its cursor;
    the composer categories and edit modes are module state and are not touched, like the week, month and filter */
@@ -1538,7 +1543,7 @@ document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x===b));
   ["wk","cal","goal","tl"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==b.dataset.tab))});
 $("arrival").addEventListener("change",e=>{const v=e.target.value;commit(["arrival"],s=>{s.arrival=v});renderAll()});
-function deleteLog(id){const i=state.logs.findIndex(l=>l.id===id);if(i<0)return;const gone=JSON.parse(JSON.stringify(state.logs[i]));commit(["log:"+id],s=>{s.logs=s.logs.filter(l=>l.id!==id)});renderAll();
+function deleteLog(id){takeRemote();const i=state.logs.findIndex(l=>l.id===id);if(i<0){if(remoteView)applyView();return}const gone=JSON.parse(JSON.stringify(state.logs[i]));commit(["log:"+id],s=>{s.logs=s.logs.filter(l=>l.id!==id)});renderAll();
   toast("已删除这条记录",{label:"撤销",fn:()=>{commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.splice(Math.min(i,s.logs.length),0,JSON.parse(JSON.stringify(gone)))});renderAll();toast("已恢复")}})}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-dellog]");if(!b)return;e.stopImmediatePropagation();e.preventDefault();deleteLog(b.dataset.dellog)},true);
 document.addEventListener("click",e=>{if(e.target.closest("dialog"))return;const a=e.target.closest("[data-edit]"),t=e.target.closest("[data-edittask]");
@@ -1568,8 +1573,12 @@ function openEditor(id){
   const close=()=>{delete form.dataset.keep;delete form.dataset.kdate;dlg.close()};
   const save=()=>{const v=$("ed-text").value.trim(),d=$("ed-date").value;
     if(!v){$("ed-text").focus();toast("内容不能为空，想删掉请点“删除”");return}
-    const moved=d&&d!==l.date,nd=d||l.date,nc=cat;close();commit(["log:"+id],s=>{const x=s.logs.find(y=>y.id===id);if(x){x.text=v;x.cat=nc;x.date=nd}});renderAll();
-    toast(moved?"已保存，移到 "+md(nd):"已保存")};
+    const moved=d&&d!==l.date,nd=d||l.date,nc=cat;close();
+    /* D-04 / D-06: a waiting remote version is taken in first, and only then is it asked whether this record still exists; if not, the same save adds it back with the same id and the editor's text, category and date */
+    takeRemote();const gone=CLOUD&&!state.logs.some(y=>y.id===id);
+    commit(["log:"+id],s=>{const x=s.logs.find(y=>y.id===id);if(x){x.text=v;x.cat=nc;x.date=nd}else s.logs.push({id,date:nd,text:v,cat:nc})});renderAll();
+    toast(moved?"已保存，移到 "+md(nd):"已保存");
+    if(gone)queueMicrotask(()=>toast(T_LOG_READDED,null,4000))};
   delete form.dataset.keep;delete form.dataset.kdate;draw();dlg.showModal();
   const ta=$("ed-text");ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
 }
