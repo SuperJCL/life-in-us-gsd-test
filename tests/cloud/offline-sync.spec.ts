@@ -5,6 +5,7 @@
 import { test, expect, type Page } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
+import { AppHarness } from '../support/app';
 import { openDevice } from '../support/devices';
 import { gotoGoals } from '../support/goals';
 import { expectToast } from '../support/toast';
@@ -566,4 +567,101 @@ test('SYNC-03 the pending count counts each changed item once', async ({ app, pa
   expect(server.arrival).toBe(made.arrival);
   // 被拒条数按列表故障的命中次数确认（单条 PATCH 从未发出，因为列表先失败）
   await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+});
+
+// 数每个页面里对 state 缓存键的写入次数（init script，必须自包含）：用来证明两个标签页不会互相来回写缓存
+function countStateWrites() {
+  const original = Storage.prototype.setItem;
+  (window as any).__stateWrites = 0;
+  Storage.prototype.setItem = function (k: string, v: string) {
+    if (/:state$/.test(k)) (window as any).__stateWrites += 1;
+    return original.call(this, k, v);
+  };
+}
+
+test("SYNC-06 two tabs editing offline at the same time keep each other's edits after one tab is closed", async ({
+  app,
+  page,
+  context,
+  guard,
+}) => {
+  await context.addInitScript(countStateWrites);
+  // 同一个 context 的两个标签页共用一个时钟（page.clock 就是 context.clock），所以只 install 一次，两页都登录之后再暂停
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  const tab1 = await context.newPage();
+  try {
+    await new AppHarness(tab1, { fake: app.fake }).open({ mode: 'cloud', login: 'session' });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const key = `usj:v2:${app.fake.users[0].id}:state`;
+    const snapKey = `usj:v2:${app.fake.users[0].id}:snapshot`;
+    const readCache = (p: Page) => p.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+    const writes = (p: Page) => p.evaluate(() => (window as any).__stateWrites as number);
+    const logOf = async (p: Page, text: string) =>
+      ((await readCache(p)).data.logs as Array<{ id: string; text: string }>).find((l) => l.text === text);
+
+    // 两个标签页都连不上服务器（这个 context 的列表读取和单条更新都被拒；不用 setOffline，它会让刷新时页面文档也加载不出来）
+    const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context });
+    const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse', context });
+
+    // 标签页一记 X
+    const entry1 = composer(tab1, 'w');
+    await entry1.type('SYNTH-1013 X from tab one');
+    await entry1.submit();
+    await page.clock.runFor(1_000);
+    await expect(tab1.locator('#status')).toHaveText(statusOffline(1));
+    const x = await logOf(tab1, 'SYNTH-1013 X from tab one');
+    expect(x).toBeTruthy();
+
+    // 标签页二经 storage 事件拿到 X 并显示出来（它自己还没试过上传，状态行不是离线，所以这里不断言文案）
+    await expect(page.locator(`#days [data-edit="${x!.id}"]`)).toBeVisible();
+
+    // 随后标签页二记 Y：它写出的缓存含 X 和 Y，不是只含它自己的内存
+    const entry2 = composer(page, 'w');
+    await entry2.type('SYNTH-1013 Y from tab two');
+    await entry2.submit();
+    await page.clock.runFor(1_000);
+    await expect(page.locator('#status')).toHaveText(statusOffline(2));
+    const y = await logOf(page, 'SYNTH-1013 Y from tab two');
+    expect(y).toBeTruthy();
+    const both = await readCache(page);
+    expect((both.data.logs as Array<{ id: string }>).map((l) => l.id)).toEqual(expect.arrayContaining([x!.id, y!.id]));
+    expect([...both.touched].sort()).toEqual([`log:${x!.id}`, `log:${y!.id}`].sort());
+    expect(both.dirty).toBe(true);
+    // 标签页一也收敛到并集：看得到 Y，数量也是 2
+    await expect(tab1.locator(`#days [data-edit="${y!.id}"]`)).toBeVisible();
+    await expect(tab1.locator('#status')).toHaveText(statusOffline(2));
+
+    // 两个标签页不会互相来回写缓存：稍等之后两页的写入次数都不再变化
+    const settled = [await writes(tab1), await writes(page)];
+    await page.waitForTimeout(600);
+    expect([await writes(tab1), await writes(page)]).toEqual(settled);
+
+    // 关掉标签页一，刷新标签页二（浏览器报告断网、服务器仍被拒、不推进时钟）：X、Y 和数量 2 都还在
+    await tab1.close();
+    await page.addInitScript(installOnlineSwitch, { online: false });
+    await page.reload();
+    const status = page.locator('#status');
+    await expect(status).toHaveAttribute('data-state', 'offline');
+    await expect(status).toHaveText(statusOffline(2));
+    await expect(page.locator(`#days [data-edit="${x!.id}"]`)).toBeVisible();
+    await expect(page.locator(`#days [data-edit="${y!.id}"]`)).toBeVisible();
+
+    // 联网：服务器上 X、Y 各恰好一条，没有留底，没有冲突提示
+    await app.fake.clearFaults();
+    await setPageOnline(page, true);
+    await expect(status).toHaveAttribute('data-state', 'synced');
+    await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+    expect(countOnServer(app, 'SYNTH-1013 X from tab one')).toBe(1);
+    expect(countOnServer(app, 'SYNTH-1013 Y from tab two')).toBe(1);
+    await expect.poll(async () => (await readCache(page)).dirty, { message: '等待缓存收尾' }).toBe(false);
+    expect((await readCache(page)).touched).toEqual([]);
+    expect(await page.evaluate((k) => localStorage.getItem(k), snapKey)).toBeNull();
+    expect(await page.evaluate(() => document.querySelector('#toast span')?.textContent ?? '')).not.toBe(TOAST_CONFLICT);
+    await expect(page.locator('#snapshotBtn')).toBeHidden();
+    // 被拒条数按故障的命中次数确认
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+  } finally {
+    if (!tab1.isClosed()) await tab1.close();
+  }
 });

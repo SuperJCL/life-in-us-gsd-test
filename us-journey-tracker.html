@@ -1246,6 +1246,40 @@ document.addEventListener("visibilitychange",()=>{
   if(document.hidden){stopPoll();return}
   startPoll();requestSync("visible");if(remoteView)maybeApplyView();
 });
+/* two tabs of one browser share the same cache: the storage event (sent to the OTHER tabs only) brings what the other tab wrote into this one. A plan cache change only asks for a sync (the plan comes from the server only);
+   a state cache record of this account is adopted as if it were a remote version (adoptTab). Only this account's records with this page's document id are looked at, and only while a session is open. */
+const TAB_UPLOAD_MS=5000;
+window.addEventListener("storage",e=>{
+  if(!CLOUD||!me||!e.key||e.storageArea!==localStorage)return;
+  if(e.key===cacheKey("plan")){requestSync("tab");return}
+  if(e.key!==cacheKey("state")||!e.newValue)return;
+  let rec=null;try{rec=JSON.parse(e.newValue)}catch(x){return}
+  if(!rec||typeof rec!=="object"||!rec.data||typeof rec.data!=="object"||!docs.state||rec.id!==docs.state.id)return;
+  adoptTab(rec);
+});
+/* the other tab's record goes into the waiting slot like a server version (base = the record's base); this tab's operations not yet uploaded are done again on it (docAfter), and the screen changes by the usual waiting-slot rules.
+   Both tabs then hold the union of both edits: the cache is written back only when the union differs from the record (so the other tab, which adopts that in turn, finds nothing to write: no ping-pong).
+   A dirty record carries edits that this tab's ops do not cover, so ops can no longer redo them on a newer server version (opsOk false: a later conflict is the D-03 overwrite with a kept copy).
+   seq moves on, so an upload already under way does not clear the dirty flag: the next pass uploads the union. A clean record that already contains everything means this tab's operations are on the server. */
+function adoptTab(rec){
+  const d=docs.state;
+  if(run&&run.live)return;
+  const keys=new Set((Array.isArray(rec.touched)?rec.touched:[]).filter(k=>typeof k==="string"));
+  ops.forEach(o=>o.keys.forEach(k=>keys.add(k)));
+  pendRemote.state={data:rec.data,updated:rec.base};
+  d.base=rec.base;d.touched=[...keys];d.dirty=!!rec.dirty||ops.length>0;d.seq=(d.seq||0)+1;
+  if(rec.dirty)opsOk=false;
+  const after=docAfter();
+  if(canon(after)!==canon(rec.data))cacheNote(cachePut("state",{...d,data:after}));
+  else if(!rec.dirty){ops=[];d.touched=[];d.dirty=false}
+  remoteView=remoteDiffers();
+  if(!remoteView){pendRemote.state=null;if(!pendRemote.plan)hideBar("remote")}
+  /* a dirty union the other tab may never upload (it can be closed any moment) is uploaded by this tab after a grace period, in which the other tab normally has done it and its clean record has cleared this one */
+  if(d.dirty){if(!savePending){savePending=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,TAB_UPLOAD_MS)}}
+  else{savePending=false;clearTimeout(saveTimer)}
+  if($("status").getAttribute("data-state")!=="toolarge")showSync();
+  if(remoteView)maybeApplyView();
+}
 /* realtime (SYNC-02): a push only says "something changed", it never carries the document. The subscription starts after the first reconcile (and only while rt is "off", so a topic is never subscribed twice: the SDK adds one listener per subscribe);
    every event or (re)connect that is not our own echo goes through requestSync, i.e. the same whole-document reconcile and the same waiting-slot rules as the 60 s pull, which stays on as the baseline.
    rt: "off" | "connecting" | "live" (body[data-rt]); live = the subscription is in place and the catch-up reconcile that closes the gap between the first read and the subscription has finished */
