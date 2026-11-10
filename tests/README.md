@@ -164,6 +164,31 @@ Phase 9 的云端用例（登录、会话、对账、留底、容量、退出）
 - **本机缓存键（应用在 localStorage 里写的键）：** `usj:v2:<id>:state` 和 `usj:v2:<id>:plan` 是这个账号的记录缓存和计划缓存（含基准、是否有没上传的修改、序号）；`usj:v2:<id>:snapshot` 是冲突时留下的另一台设备上的旧版本；`usj:v2:lastUser` 是最近一次登录的账号 id，用来判断本机有没有没上传的修改；`usj:v2:lastEmail` 是最近一次登录用的邮箱，登录页用它预填（退出后也保留，所有者选定的行为）。退出登录会删掉该账号的前三类键和 `lastUser`，最后清令牌，只留 `lastEmail`。`usj:v2:authExpired` 是登录过期的标记：发现过期的标签页先写它再清令牌，其他标签页据此显示“登录已过期”而不是“已在另一个标签页退出登录”；下一次登录成功时删除。过期不清账号的缓存。
 - **范围：** v1 四个视图的整套用例映射到 `test:cloud` 不在 Phase 9，留给 Phase 13 的 TEST-02 收口。
 
+### Phase 10 的云端用例
+
+Phase 10 的云端用例（离线、重试、远端更新、实时、写入方 id）同样只在 `npm run test:cloud` 里运行，只用合成账号和合成数据，全部在假服务器上做，不连任何真实服务器。
+
+- **新的 spec：**
+  - `tests/cloud/offline-sync.spec.ts`：连不上服务器时照常记录、状态行的离线数量（同一条目只算 1 项）、保存失败按递增间隔自动重试和“立即重试”、保存没有答复时约 15 秒放弃并重试、带缓存打开时浏览器报告断网就立即可编辑、断网期间刷新后数量还在、离线记录之后遇到别的设备的新版本按 D-03 整份覆盖加留底、同一浏览器两个标签页同时离线时收敛到双方修改的并集。
+  - `tests/cloud/remote-update.spec.ts`：另一台设备的修改在下一次拉取、回到前台、重新联网时到达；用户忙时先挂起、空闲后再应用；结束忙碌的操作先应用远端再重做（D-04）；点“现在更新”保留草稿（D-05）；编辑中的记录在别处被删（D-06）；上传途中到达的远端更新和 `rebaseState` 的重做。
+  - `tests/cloud/realtime-sync.spec.ts`：实时事件触发整份对账、自己的写入不回声、实时断开重连后补上断开期间的修改、首次实时连接失败后由应用在下一次成功对账后重新订阅。
+  - `tests/cloud/writer-id.spec.ts`：写入方 id 每个标签页一个、刷新后不变、复制标签页时重新生成。
+- **假服务器的新开关（`tests/mocks/pb-server.ts`，测试设施，不是录制契约）：** `dropRealtime(target?)` 断开目标页面的实时连接（SDK 自己重连）；`refuseRealtime(on, target?)` 打开或撤销“拒绝实时握手”，`realtimeRefusals` 是被拒次数，`connectionCount()` 是当前登记的连接数；`fault({ ..., context })` 只让一个浏览器上下文的请求失败（制造“只有一台设备连不上”）；`writes[].writer` 是每次写入带的写入方；`emit` 向订阅者推一条事件。`beforeNext(method, path, fn)` 的钩子里可以用 `app.fake.request(...)` 模拟“另一台设备抢先写入”：下一个匹配的页面请求先等钩子，再照常处理。
+- **`tests/support/online.ts`：** `installOnlineSwitch`（作为 init script 在任何页面脚本之前把 `navigator.onLine` 改成读一个页面变量）和 `setPageOnline(page, on)`（改变量并派发 online 或 offline 事件）。`context.setOffline` 只改在线状态并派发事件，管不到假服务器；而且在它的离线状态下刷新，页面文档本身也加载不出来。所以需要刷新页面的离线用例用 `installOnlineSwitch` 加按 context 的 fault。
+- **`tests/support/edits.ts`：** `makeOneEditOfEachKind(page, label)` 经界面把每种条目各改一次（记录、删除后撤销、任务勾选后取消、力量值、自定义待办、预设标签、开始日期、周复盘），返回每一项的 id 和值，用来核对“每个条目只算 1 项”和上传后服务器上的内容。
+- **`open({ realtime })` 与就绪等待：** cloud 应用视图的 `ready()` 在状态为已同步之外还等 `body` 的 `data-rt` 为 `live`（实时订阅成功、补对账完成）。要让这台设备“听不到”另一台设备时，先 `refuseRealtime(true, page)`，再用 `open({ ..., realtime: false })` 打开（`data-rt` 是 `off`，不等 live），这样拉取、回到前台、重新联网这些触发才是唯一的途径；离线构造里同样 `refuseRealtime` 加 `dropRealtime`，恢复时放开。
+- **manual 时钟下的写法：** `test.use({ clockMode: 'manual' })`，`page.clock.install({ time })` 在 open 之前，登录后 `pauseAt`，再用 `runFor` 推进：保存防抖 600 毫秒、重试退避 1、2、5、10、30、60 秒、60 秒拉取、SDK 重连间隔（200 到 2000 毫秒）都是页面定时器，都靠 `runFor`。60 秒拉取从登录那一刻起算，要自己推进时钟又不想让它落进范围时，把暂停点设在“现在”之后一点点。同一个 context 的两个标签页共用一个时钟（`page.clock` 就是 `context.clock`），只 install 一次。
+- **缓存记录的新字段：** `usj:v2:<id>:state` 的值现在是 `{ id, base, dirty, seq, touched, data }`，`touched` 是自上次上传成功以来改动过的条目键（如 `log:<记录 id>`，同一条目只出现一次），状态行离线数量就是它的长度；上传成功后清空。写入方 id 存在 `sessionStorage` 的 `usj:v2:writer`（每个标签页一个，刷新后不变）。
+- **远端更新的挂起槽：** 另一台设备的版本不会直接进入工作数据：对账把它放进挂起槽，屏幕在用户空闲、点“现在更新”或做完下一个本机操作之前保持不变；用例断言“远端版本在空闲前不出现在页面里”，用的就是这条不变式。
+- **同一浏览器两个标签页：** 两个标签页写同一份缓存，靠 `storage` 事件收敛：一个标签页把另一个写的记录当成远端版本放进挂起槽，叠加自己尚未上传的操作，并集和记录不同时才写回，所以不会来回写；用例用 `context.newPage()` 加 `login: 'session'` 打开第二个标签页，用 init script 数 state 缓存键的写入次数来证明不来回写。
+
+### Phase 10 的已知限制
+
+- **断网期间刷新（D-08）：** 按所有者 2026-11-10 确认的映射，本阶段的“断网期间刷新”用例在服务器连不上、页面文档仍从本机静态服务器加载、浏览器在线状态由初始化脚本模拟的条件下验证。真正断网时刷新需要页面文档本身离线可用，由 Phase 13 的 Service Worker 提供（ROADMAP 的 Phase 10 SC1 和 Phase 13 描述已写明）。
+- **标签页采纳了别的标签页尚未上传的修改之后：** 它的操作记录覆盖不了那些修改，所以这之后重新联网若遇到别的设备的新版本，一律按 D-03 整份覆盖加留底，不做“先应用远端再重做”（离线重连本来就按 D-03，CONTEXT 的 Deferred Ideas）。
+- **每次拉取和对账都整份读取两份文档：** REST 的 `fields` 参数没有录制样本，假服务器不支持，文档很大时流量较多；Phase 13 可用真实实例录样本后再优化。
+- **实时的“几秒内”只在本机假服务器上验证：** 真实网络下的延迟和真实服务器是否补发断线期间的事件无法本地验证，设计不依赖补发（每次 `PB_CONNECT` 都整份对账，60 秒拉取兜底），由 Phase 13 的真机验收确认。
+
 ## 14. 已知 bug
 
 已知 bug 在修复它的那个阶段之前保持现状，只在测试侧标记和登记（BUG-01）。
