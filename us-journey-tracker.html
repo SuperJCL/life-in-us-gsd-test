@@ -614,7 +614,11 @@ async function flush(){
   try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(CLOUD&&!(e&&e.state)?"未知错误":(e&&e.message||"未知错误")),e&&e.state)}
   saving=false;if(dirty)flush();
 }
-function setStatus(t,st,btn){const e=$("status");e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.addEventListener("click",btn.fn);e.appendChild(b)}if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
+function setStatus(t,st,btn){const e=$("status"),k=btn&&e.querySelector("button"),f=e.firstChild;
+  /* the same line with the same button (the retry countdown, every second): only the sentence changes, the button node stays, so keyboard focus and a click in progress are not lost */
+  if(k&&k.textContent===btn.text&&f&&f.nodeType===3&&e.childNodes.length===2){f.nodeValue=t;k.onclick=btn.fn}
+  else{e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.onclick=btn.fn;e.appendChild(b)}}
+  if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}

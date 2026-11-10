@@ -149,6 +149,48 @@ test('SYNC-06 a server error is retried automatically at growing intervals and t
   await acknowledgeConsoleErrors(guard, { 'status of 503 ': fault.hits });
 });
 
+// 10 号阶段评审 WR-02：倒计时每秒刷新状态行，但“立即重试”按钮必须是同一个节点（键盘焦点和按住中的点击不能被重建打断）
+test('SYNC-06 the retry countdown ticks without rebuilding the retry-now button', async ({ app, page, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  const fault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'status', status: 503 });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1002 button kept');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  const status = page.locator('#status');
+  const sentence = () => status.evaluate((el) => el.firstChild?.textContent ?? '');
+  await expect(status).toHaveAttribute('data-state', 'retrying');
+  // 第一次失败后等 1 秒；走完后第二次失败，等待变成 2 秒
+  await page.clock.runFor(1_000);
+  await expect.poll(() => fault.hits).toBe(2);
+  await expect.poll(sentence).toBe(statusRetrying(2));
+
+  // 给这个按钮做个记号，焦点放上去，再让倒计时走一秒
+  const button = status.locator('button');
+  await button.evaluate((b) => {
+    (window as unknown as { __retryBtn?: Element }).__retryBtn = b;
+    (b as HTMLButtonElement).focus();
+  });
+  await page.clock.runFor(1_000);
+  await expect.poll(sentence).toBe(statusRetrying(1));
+  const same = await page.evaluate(() => {
+    const b = document.querySelector('#status button');
+    return b !== null && b === (window as unknown as { __retryBtn?: Element }).__retryBtn && document.activeElement === b;
+  });
+  expect(same).toBe(true);
+
+  // 按钮仍然管用：去掉故障后点一下，已同步
+  fault.remove();
+  await button.click();
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  expect(countOnServer(app, 'SYNTH-1002 button kept')).toBe(1);
+  await acknowledgeConsoleErrors(guard, { 'status of 503 ': fault.hits });
+});
+
 test('SYNC-06 a save that gets no answer is abandoned after about 15 seconds and retried instead of hanging', async ({
   app,
   page,
