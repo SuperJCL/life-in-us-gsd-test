@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-11-10T07:14:53.916Z"
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-11-10T07:26:14.754Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: 401e58df1b17f2847683c803175957f350924458
+state_head: d60801c29eb8896873b127a5bb947b4c10b3e09a
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 39
+  completed_plans: 40
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 ## Current Position
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 10 execution started
 
@@ -126,6 +126,7 @@ Progress: [█████░░░░░] 50%
 | Phase 09 P13 | 33 min | 2 tasks | 5 files |
 | Phase 09 P14 | 36 min | 2 tasks | 6 files |
 | Phase 10 P01 | 21 min | 3 tasks | 9 files |
+| Phase 10 P02 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -223,6 +224,8 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - 默认套件 176 条，cloud 入口 114 条。
 - [Phase 10]: 10-01: save failures classify as offline (status 0, not our timeout) or retrying (5xx, 429, other 4xx, 15 s no answer, unknown errors); backoff 1/2/5/10/30/60 s never gives up and never clears dirty (B5 fixed)
 - [Phase 10]: 10-01: requestSync is the single-threaded sync entry (merged requests, promise settles after the covering pass, epoch-guarded loop); touched set lives in the cache record, only log:<id> wired so far (rest in 10-04)
+- [Phase 10]: 10-02: 每次 PB_CONNECT 都整份对账；PB_CONNECT 回调里立即后台对账；首次连接失败 SDK 不重试，应用在之后一次成功对账后自己重新订阅（PROBE-10a/10b/10c，真实服务器是否补发本地无法录制，设计不依赖它）
+- [Phase 10]: 10-02: fault 的 context 取 attach 的 context（路由按 context 注册）；同时订阅 PB_CONNECT 与 journey_docs/* 用 Promise.all 并发
 
 ### Pending Todos
 
@@ -276,8 +279,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T07:14:52.112Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-11-10T07:26:12.943Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
