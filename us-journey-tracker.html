@@ -711,7 +711,8 @@ async function cloudInit(){
   $("bootRetry").addEventListener("click",()=>{if(run)onRetry(run.mode)});
   try{await loadSdk()}catch(e){showLogin(ERR_NET);return}
   startPb();
-  if(!pb.authStore.token){showLogin("");return}
+  /* no token: a sign-out, or an expiry that cleared it (marker set first by expireToken, e.g. in the middle of the session before this reload): the page says which, and an expiry keeps its unsent edits in the cache */
+  if(!pb.authStore.token){let ex=false;try{ex=localStorage.getItem(EXPIRED_KEY)==="1"}catch(e){}showLogin("",ex?"expired":"");return}
   /* a stored token whose own exp has passed is expired without asking the server; only this device-local check or an authRefresh 401 ever means expired */
   if(!pb.authStore.isValid){expireToken();showLogin("","expired");return}
   try{await enterApp(true)}catch(e){showLogin(ERR_NET)}
@@ -1017,7 +1018,7 @@ const SYNC_MS=FAIL_MS,RETRY_STEPS=[1,2,5,10,30,60];
 const T_SAVING="保存中…",T_SYNCED="已同步";
 const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自动上传":"离线，修改已存在本机，联网后自动上传";
 const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重试",T_RETRY_NOW="立即重试";
-/* net: "ok" | "offline" (the request never reached the server) | "retrying" (the server answered with an error, or did not answer within SYNC_MS);
+/* net: "ok" | "offline" (the request never reached the server) | "retrying" (the server answered with an error, or did not answer within SYNC_MS) | "expired" (the login ran out in the middle of the session: no sync request is made until the user signs in again);
    trying: a sync pass is running; cdLeft: seconds shown in the retrying line, driven by a 1 s interval (never by Date.now, which tests freeze) */
 let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null,bootOffline=false,needRefresh=false;
 function showSync(){
@@ -1025,7 +1026,8 @@ function showSync(){
   const n=Array.isArray(docs.state.touched)?docs.state.touched.length:0;
   /* when the edit did not reach the local cache, the line must not say it is kept on this device (the banner says so too) */
   const full=cacheFull?"保存失败："+T_NOCACHE:null;
-  if(net==="offline")setStatus(full||T_OFFLINE(n),"offline");
+  if(net==="expired")setStatus(full||T_EXPIRED,"expired");
+  else if(net==="offline")setStatus(full||T_OFFLINE(n),"offline");
   else if(net==="retrying"&&!trying)setStatus(full||T_RETRY_IN(Math.max(1,cdLeft)),"retrying",full?null:{text:T_RETRY_NOW,fn:retryNow});
   else if(docs.state.dirty||trying)setStatus(T_SAVING,"saving");
   else setStatus(T_SYNCED,"synced");
@@ -1033,7 +1035,7 @@ function showSync(){
 function stopRetry(){clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null}
 function retryNow(){stopRetry();requestSync("retry")}
 function requestSync(reason){
-  if(!CLOUD||!me||!docs.state||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
+  if(!CLOUD||!me||!docs.state||net==="expired"||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
   syncAgain=true;
   if(syncing)return syncDone;
   syncing=true;const ep=sessionEpoch;
@@ -1047,7 +1049,22 @@ function scheduleRetry(){
   retryTimer=setTimeout(()=>{retryTimer=null;clearInterval(cdTimer);cdTimer=null;requestSync("retry")},s*1000);
   cdTimer=setInterval(()=>{if(cdLeft>0)cdLeft--;if(net==="retrying")showSync()},1000);
 }
+/* a login that runs out in the middle of the session (ACCT-05): only an authRefresh 401 or the local exp of the token says so, never the status of a record request (PB-CONTRACT §9).
+   Nothing local is touched: state, caches, touched, ops and the kept version stay, the user keeps recording, and no sync request is made until the user signs in again (relogin) */
+async function checkAuth(signal){
+  try{await pb.collection("users").authRefresh({signal})}
+  catch(e){if(e&&e.status===401){goExpired();return false}throw e}
+  return true;
+}
+function goExpired(){
+  expireToken();
+  net="expired";trying=false;stopRetry();cdLeft=0;
+  showBar("expired",{tone:"warn",msg:"登录已过期，本机的修改还在，重新登录后会继续上传。",btns:[{text:"重新登录",cls:"primary",fn:relogin}]});
+  showSync();
+}
+function relogin(){resetSession();showLogin("","expired")}
 async function syncOnce(){
+  if(!pb.authStore.isValid){goExpired();return}
   const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
   let timedOut=false,authing=false,sentOps=0;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
@@ -1061,6 +1078,11 @@ async function syncOnce(){
     if(isDirty)sizeCheck(state);
     const coll=pb.collection("journey_docs");let list=await coll.getFullList(sg);
     if(ep!==sessionEpoch)return;
+    /* a token the server no longer knows reads as an empty list (PB-CONTRACT §9): a missing document is believed only after an authRefresh has shown the token is good (T-10-12) */
+    if(!list.some(d=>d.kind==="plan")||!list.some(d=>d.kind==="state")){
+      authing=true;const good=await checkAuth(ctrl.signal);authing=false;
+      if(ep!==sessionEpoch||!good)return;
+    }
     /* the background reconcile table, plan first and then state (the same table as the startup reconcile):
        no server document -> create it from the local content (a create that hits the unique index re-reads the list and continues with the server document);
        plan: a server version with another updated replaces the local plan (nothing of the plan is uploaded here), the state is then normalized again;
@@ -1131,8 +1153,16 @@ async function syncOnce(){
   }catch(e){
     if(ep!==sessionEpoch)return;
     trying=false;
-    if(authing&&e&&e.status===401){expireToken();resetSession();showLogin("","expired");return}
+    if(authing&&e&&e.status===401){goExpired();return}
     if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
+    /* a 4xx on a record request that is neither capacity nor rate limiting (a 404 on update, a 400 on create) may be a token that is no longer valid: rule that out first (IN-04, T-10-12);
+       with a good token the next pass lists again and creates a document that really is gone */
+    if(e&&e.status>=400&&e.status<500&&e.status!==413&&e.status!==429&&!authing){
+      const c2=new AbortController(),t2=setTimeout(()=>c2.abort(),SYNC_MS);let good=true;
+      try{good=await checkAuth(c2.signal)}catch(x){}
+      clearTimeout(t2);
+      if(ep!==sessionEpoch||!good)return;
+    }
     /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
     net=!bootOffline&&(timedOut||!(e&&e.status===0))?"retrying":"offline";
     /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */

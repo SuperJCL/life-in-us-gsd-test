@@ -12,6 +12,8 @@ import { FROZEN_NOW } from '../support/constants';
 import { AppHarness } from '../support/app';
 import type { GuardHandle } from '../support/test';
 import {
+  BANNER_EXPIRED,
+  BTN_RELOGIN,
   LOGIN_EXPIRED,
   LOGIN_EXPIRED_UNSENT,
   NOTICE_OTHER_TAB,
@@ -194,4 +196,93 @@ test('ACCT-01 an expiry found by one tab resets that tab and is shown as an expi
   } finally {
     await page2.close();
   }
+});
+
+// ACCT-05：会话中途发现登录过期。保存时记录接口对失效令牌返回 200 空列表，应用先 authRefresh 排除令牌失效，401 才算过期（PB-CONTRACT §9）；
+// 过期后不跳到登录页：本机的修改保留、还能继续记、状态行和横幅提示重新登录，期间不再发请求
+test('ACCT-05 an expiry found while saving keeps editing here, shows the expired status and banner, and uploads after signing in again with the same account', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userA = app.fake.users[0];
+
+  app.fake.revokeTokens(0);
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1007 before expiry');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  const status = page.locator('#status');
+  await expect(status).toHaveText(LOGIN_EXPIRED);
+  await expect(status).toHaveAttribute('data-state', 'expired');
+  const bar = page.locator('#syncbar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAttribute('data-tone', 'warn');
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_EXPIRED);
+  await expect(bar.locator('button')).toHaveText([BTN_RELOGIN]);
+  // 没有跳到登录页，输入框仍然可用
+  await expect(page.locator('#login')).toBeHidden();
+  await expect(page.locator('#w-text')).toBeEnabled();
+
+  // 过期之后还能继续记：写进本机缓存，状态行保持过期
+  await entry.type('SYNTH-1007 during expiry');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect(status).toHaveAttribute('data-state', 'expired');
+  const key = `usj:v2:${userA.id}:state`;
+  const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+  expect(cached.dirty).toBe(true);
+  expect(hasText(cached.data.logs, 'SYNTH-1007 before expiry')).toBe(true);
+  expect(hasText(cached.data.logs, 'SYNTH-1007 during expiry')).toBe(true);
+
+  // 过期期间不再发起任何同步请求
+  const before = app.fake.requests.length;
+  await page.clock.runFor(60_000);
+  expect(app.fake.requests.length).toBe(before);
+  // 令牌失效只在 authRefresh 上表现为 401，只此一条
+  await acknowledgeConsoleErrors(guard, { 'status of 401 ': 1 });
+
+  // 点“重新登录”：登录页预填邮箱，过期提示两行
+  await bar.locator('button', { hasText: BTN_RELOGIN }).click();
+  await expect(page.locator('#login')).toBeVisible();
+  await expect(page.locator('#loginEmail')).toHaveValue(userA.email);
+  await expect(page.locator('#loginNotice p')).toHaveText([LOGIN_EXPIRED, LOGIN_EXPIRED_UNSENT]);
+
+  // 同一账号重新登录：过期前后的两条都上传，没有换账号确认
+  await app.login(0);
+  expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-1007 before expiry')).toBe(true);
+  expect(hasText(app.fake.lastState(0)?.logs, 'SYNTH-1007 during expiry')).toBe(true);
+  await expect(page.locator('dialog#confirm[open]')).toHaveCount(0);
+});
+
+test('ACCT-05 a token that passes its local expiry during the session is reported as expired without asking the server', async ({
+  app,
+  page,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const userA = app.fake.users[0];
+
+  // 会话进行中，90 天的令牌在第 91 天本地 exp 已过：下一次同步之前就判过期，不联系服务器
+  await page.clock.setSystemTime(FROZEN_NOW + 91 * 24 * 3600 * 1000);
+  const before = app.fake.requests.length;
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1007 after local expiry');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  const status = page.locator('#status');
+  await expect(status).toHaveText(LOGIN_EXPIRED);
+  await expect(status).toHaveAttribute('data-state', 'expired');
+  await expect(page.locator('#syncbar .sb-msg')).toHaveText(BANNER_EXPIRED);
+  await expect(page.locator('#syncbar button')).toHaveText([BTN_RELOGIN]);
+  expect(app.fake.requests.length).toBe(before);
+  const cached = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), `usj:v2:${userA.id}:state`);
+  expect(cached.dirty).toBe(true);
+  expect(hasText(cached.data.logs, 'SYNTH-1007 after local expiry')).toBe(true);
 });

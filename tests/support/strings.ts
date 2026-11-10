@@ -353,8 +353,13 @@ export const BANNER_TOO_LARGE = '数据超过了云端容量上限，新修改�
 export const bannerCapacity = (pct: number) =>
   `保存空间快满了：已用 ${pct}%（上限 4 MB）。超过上限后新修改就存不上了，请联系管理员。`;
 
-// 登录页顶部的登录过期提示（09-UI-SPEC S1 逐字复制）：authRefresh 返回 401 或本地令牌已过 exp 后进入登录页时显示，#loginNotice 的 data-tone 为 warn
+// 登录页顶部的登录过期提示（09-UI-SPEC S1 逐字复制）：authRefresh 返回 401 或本地令牌已过 exp 后进入登录页时显示，#loginNotice 的 data-tone 为 warn；
+// 会话中途发现过期时它也是状态行（data-state 为 expired）的文案（09-UI-SPEC S2）
 export const LOGIN_EXPIRED = '登录已过期，请重新登录';
+
+// 会话中途登录过期的横幅正文（09-UI-SPEC S4 逐字复制，#syncbar 的 data-tone 为 warn，只有一个按钮 BTN_RELOGIN）
+export const BANNER_EXPIRED = '登录已过期，本机的修改还在，重新登录后会继续上传。';
+export const BTN_RELOGIN = '重新登录';
 
 // 登录过期提示的第二行：这个账号在本机还有没上传的修改或留底时才有（09-UI-SPEC S1 逐字复制）
 export const LOGIN_EXPIRED_UNSENT = '本机还有没上传的修改，用同一账号登录后会自动上传。';
