@@ -19,16 +19,16 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 - [x] **ACCT-02**：用户可以退出登录；退出后，本机不留该账号的缓存数据。
 - [x] **ACCT-03**：账号只能由所有者在后台创建，网页上无法注册新账号。
 - [x] **ACCT-04**：每个账号只能读写自己的数据，用别的账号读不到、也改不了。这一点要在真实 PocketBase 上用合成账号验证。
-- [ ] **ACCT-05**：登录过期时，本机还没上传的修改不会丢；重新登录后继续上传。
+- [x] **ACCT-05**：登录过期时，本机还没上传的修改不会丢；重新登录后继续上传。
 
 ### 云端存储、离线与实时同步（SYNC）
 
 - [x] **SYNC-01**：用户的记录、复盘、任务进度和力量历史存在服务器上；换一台设备登录，看到的是同一份数据。
-- [ ] **SYNC-02**：同一账号在另一台设备上的修改，几秒内自动出现在这台设备上，并且不打断正在输入的草稿或打开的编辑框。
-- [ ] **SYNC-03**：断网时照样可以记录，界面显示待上传的数量；联网后自动上传。
-- [ ] **SYNC-04**：状态栏如实显示当前状态：已同步、保存中、离线、失败重试、登录过期。
+- [x] **SYNC-02**：同一账号在另一台设备上的修改，几秒内自动出现在这台设备上，并且不打断正在输入的草稿或打开的编辑框。
+- [x] **SYNC-03**：断网时照样可以记录，界面显示待上传的数量；联网后自动上传。
+- [x] **SYNC-04**：状态栏如实显示当前状态：已同步、保存中、离线、失败重试、登录过期。
 - [x] **SYNC-05**：打开应用时先和服务器对账，再允许编辑，免得过期缓存覆盖其他设备的新数据。真冲突时以最后保存的为准，被覆盖的那一版在本机留底，可以下载。
-- [ ] **SYNC-06**：保存失败会自动重试，不会悄悄丢掉（修 B5）；加载完成之前的编辑也不会被丢弃（修 B3）。
+- [x] **SYNC-06**：保存失败会自动重试，不会悄悄丢掉（修 B5）；加载完成之前的编辑也不会被丢弃（修 B3）。
 
 ### 个人计划（PLAN）
 
@@ -106,13 +106,13 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | ACCT-02 | Phase 9 | Complete |
 | ACCT-03 | Phase 8 | Complete |
 | ACCT-04 | Phase 8 | Complete |
-| ACCT-05 | Phase 10 | Pending |
+| ACCT-05 | Phase 10 | Complete |
 | SYNC-01 | Phase 9 | Complete |
-| SYNC-02 | Phase 10 | Pending |
-| SYNC-03 | Phase 10 | Pending |
-| SYNC-04 | Phase 10 | Pending |
+| SYNC-02 | Phase 10 | Complete |
+| SYNC-03 | Phase 10 | Complete |
+| SYNC-04 | Phase 10 | Complete |
 | SYNC-05 | Phase 9 | Complete |
-| SYNC-06 | Phase 10 | Pending |
+| SYNC-06 | Phase 10 | Complete |
 | PLAN-01 | Phase 9 | Complete |
 | PLAN-02 | Phase 12 | Pending |
 | PLAN-03 | Phase 12 | Pending |

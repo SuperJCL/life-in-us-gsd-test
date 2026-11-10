@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
-status: executing
-stopped_at: Completed 10-08-PLAN.md
-last_updated: "2026-11-10T09:23:32.512Z"
+status: verifying
+stopped_at: Completed 10-09-PLAN.md
+last_updated: "2026-11-10T09:49:25.538Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: c8e8d4205edecafbfba61f9dc5afd0ef252f3b93
+state_head: 41acced5c222ab151de616f9f45cb3c4f8bffe32
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 46
+  completed_plans: 47
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-09 — Phase 10 execution started
 
 Progress: [█████░░░░░] 50%
@@ -133,6 +133,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P06 | 55 min | 2 tasks | 4 files |
 | Phase 10 P07 | 18 min | 2 tasks | 5 files |
 | Phase 10 P08 | 35min | 2 tasks | 7 files |
+| Phase 10 P09 | 22 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -244,6 +245,8 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-06: applyView 先置 remoteView=false 再画；commit 的 takeRemote 与 applyView 提前到任务 1 — 按钮被移除会同步触发 focusout 重入 drawBar；挂起槽存在而 commit 不先并入会覆盖远端修改
 - [Phase 10]: 10-07: 在线晚一步（opsOk 为真）重做：服务器版本进挂起槽、同一次同步上传 docAfter()；opsOk 为假仍走 D-03 留底；重做后上传失败时槽非空而本机脏，由 commit 的 takeRemote 以 docAfter() 并入
 - [Phase 10]: 10-08: realtime events only trigger requestSync (never applied directly); ensureRealtime is called at the end of the startup reconcile and subscribes only while rt is off; echo suppressed by writer and by updated==base
+- [Phase 10]: 10-09: onDisconnect 只在 live 时置 connecting，每次成功 syncOnce 后 ensureRealtime（只在 off 时订阅），goExpired 退订且 ensureRealtime/rtStale 认 expired
+- [Phase 10]: 10-09: 两标签页靠 storage 事件 adoptTab 收敛（挂起槽加剩余 ops，内容不同才写回，不来回写）；脏记录采纳后 5 秒补传定时器，采纳后 opsOk 只在脏记录时置假
 
 ### Pending Todos
 
@@ -297,8 +300,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T09:23:31.022Z
-Stopped at: Completed 10-08-PLAN.md
+Last session: 2026-11-10T09:49:24.026Z
+Stopped at: Completed 10-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
