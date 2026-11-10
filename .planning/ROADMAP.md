@@ -248,23 +248,32 @@ Plans:
   3. 实时连接断开再重连、页面回到前台、重新联网时，都会整份对账，断开期间别的设备做的修改不会漏掉。
   4. 状态栏在已同步、保存中、离线、失败重试、登录过期五种状态之间如实切换，每种状态都有用例在假服务器上触发并检查文案。服务器暂时出错时保存会自动退避重试，修改不会被悄悄丢掉（修 B5）；应用加载完成之前做的修改也不会丢（修 B3）。
   5. 登录过期时状态栏提示重新登录，本机未上传的修改保留。用同一账号重新登录后继续上传，服务器上的数据包含过期期间的修改。
-**Plans:** 6 plans
+**Plans:** 9 plans
 Plans:
 **Wave 1**
-- [ ] 10-01-PLAN.md — 离线先存与自动重试 tracer：单线程同步入口、offline 与待上传数量、retrying 倒计时与立即重试、15 秒超时（B5、WR-02）；Phase 9 保存失败用例迁移
+- [ ] 10-01-PLAN.md — 离线先存与自动重试 tracer：单线程同步入口、offline 与待上传数量、retrying 倒计时与立即重试、15 秒超时（B5、WR-02）；Phase 9 保存失败用例迁移；完整默认 npm test
 - [ ] 10-02-PLAN.md — 假服务器的实时断开、实时拒绝、按设备的故障和写入方记录；PROBE-10 用本地来源回答调研问题
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 10-03-PLAN.md — 打开时连不上也能记（D-01、D-02）、离线后的真冲突留底（D-03）、刷新后数量仍在（B3）；每个修改都报告条目（D-07）
+- [ ] 10-03-PLAN.md — 打开时连不上也能记（D-01、D-02）、离线后的真冲突留底（D-03）、刷新后数量仍在（B3）；冲突提示不被替换（IN-01）
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 10-04-PLAN.md — 用着用着登录过期不丢、重新登录后上传（ACCT-05）；写入方 id 每个标签页一个（WR-01）
+- [ ] 10-04-PLAN.md — 每个修改经 commit 报告条目（D-07）；已上传的操作离开操作记录、run 幂等（重做的前提）；完整默认 npm test
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 10-05-PLAN.md — 远端更新：60 秒拉取与立即对账、忙碌挂起空闲应用、D-04 重做、D-05 现在更新、D-06 加回；在线晚一步保存两边都保留
+- [ ] 10-05-PLAN.md — 用着用着登录过期不丢、重新登录后上传（ACCT-05）；写入方 id 每个标签页一个（WR-01）
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 10-06-PLAN.md — 实时订阅：几秒内同步、回声抑制、重连整份对账；受影响用例收尾、README 与 KNOWN-BUGS，完整 test:cloud 和默认 npm test
+- [ ] 10-06-PLAN.md — 远端更新：60 秒拉取与立即对账、忙碌挂起空闲应用、D-04 重做、D-05 现在更新、D-06 加回
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 10-07-PLAN.md — 在线晚一步保存两边都保留（先应用远端再重做）；重做不重放已上传的操作（回归用例）；Phase 9 留底用例改为离线构造
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 10-08-PLAN.md — 实时订阅：几秒内同步、回声抑制；受实时影响的用例改为确定写法，完整 test:cloud
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 10-09-PLAN.md — 实时断开重连整份对账、首次连接失败后重新订阅、过期时退订；README 与 KNOWN-BUGS，完整 test:cloud 和默认 npm test
 
 **Cross-cutting constraints:**
 - 只改云端路径，旧路径和 v1 用例不变；每次改应用都在同一次提交里重新记录 APP_SHA256；测试一律低优先级、1 个 worker、不并发；服务器侧故障只用假服务器开关，`setOffline` 只派发 online/offline 事件
@@ -346,7 +355,7 @@ Plans:
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
-| 10. 离线与实时同步 | v2.0 | 0/6 | Not started | - |
+| 10. 离线与实时同步 | v2.0 | 0/9 | Not started | - |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |
