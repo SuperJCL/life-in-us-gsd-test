@@ -247,6 +247,15 @@ export const STATUS_BACKEND_UNSUPPORTED = '存储配置无效：这个版本还�
 // 云端路径下状态行在已同步时的文案（09-UI-SPEC 状态文案总表逐字复制）；#status 的 data-state 同时为 synced
 export const STATUS_CLOUD_SYNCED = '已同步';
 
+// 云端路径下保存进行中（防抖期间和请求进行中）的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 saving
+export const STATUS_SAVING = '保存中…';
+
+// 云端路径下请求没到达服务器时的状态行文案（09-UI-SPEC S2 状态文案总表逐字复制）；#status 的 data-state 同时为 offline，不显示横幅。
+// n 大于 0 用带数量的那句，否则用不带数量的那句；n 是本机待上传的条目数（缓存记录里的 touched 集合）
+export function statusOffline(n: number): string {
+  return n > 0 ? `离线，${n} 项修改已存在本机，联网后自动上传` : '离线，修改已存在本机，联网后自动上传';
+}
+
 // 登录页错误区：邮箱或密码不对（09-UI-SPEC Copywriting 逐字复制）
 export const LOGIN_ERR_CREDENTIALS = '邮箱或密码不对，请检查后重试';
 

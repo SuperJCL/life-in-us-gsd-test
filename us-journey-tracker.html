@@ -593,10 +593,11 @@ function normalize(s){
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
-function persist(){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;cacheNote(cachePut("state",{...docs.state,data:state}))}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+function persist(...keys){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;const t=Array.isArray(docs.state.touched)?docs.state.touched:[];keys.forEach(k=>{if(typeof k==="string"&&!t.includes(k))t.push(k)});docs.state.touched=t;cacheNote(cachePut("state",{...docs.state,data:state}));if($("status").getAttribute("data-state")!=="toolarge")showSync()}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 async function flush(){
   savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
+  if(CLOUD){requestSync("save");return}
   if(!store||saving||!dirty)return;saving=true;dirty=false;
   const ep=sessionEpoch;
   try{await store.save(JSON.parse(JSON.stringify(state)));if(ep===sessionEpoch)setStatus(store.label,store.state)}catch(e){if(ep===sessionEpoch)setStatus("保存失败："+(CLOUD&&!(e&&e.state)?"未知错误":(e&&e.message||"未知错误")),e&&e.state)}
@@ -782,7 +783,7 @@ function cacheNote(ok){
   showBar("cachefail",{tone:"warn",msg:"本机空间不够，没能在本机保存这次修改。上传成功之前请别关闭或刷新页面。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("cachefail")}]});
 }
 function canon(v){return JSON.stringify(v,(k,x)=>x&&typeof x==="object"&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(y=>[y,x[y]])):x)}
-const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null,save:cloudSave});
+const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null});
 /* edit gate: body[data-gate] is the only switch; the legacy path never has it */
 const GATE_ALLOW="nav.tabs [data-tab],#wkPrev,#wkNow,#wkNext,#prev,#todayBtn,#next,.filters button,.cell,#syncbar button,#logoutBtn,#snapshotBtn";
 function markGate(el,t){const g=(el.getAttribute("data-gated")||"").split(" ").filter(Boolean);if(!g.includes(t))g.push(t);el.setAttribute("data-gated",g.join(" "))}
@@ -871,7 +872,7 @@ async function enterApp(refresh){
   const cp=cacheGet("plan"),cs=cacheGet("state"),cached=!!(cp&&cs),old={plan:cp,state:cs};
   if(cached){
     keepOrphans=!usePlan(cp.data);state=normalize(cs.data);
-    docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0};
+    docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0,touched:Array.isArray(cs.touched)?cs.touched:[]};
     store=cloudStore();
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
     setGate("reconciling");renderAll();
@@ -920,10 +921,11 @@ async function reconcileOnce(r){
   const differs=(c,sv,data)=>!!c&&!c.dirty&&c.base!==sv.updated&&canon(data)!==canon(c.data);
   const changed=differs(old.plan,pr.sv,pdata)||differs(old.state,sr.sv,state);
   const settle=(k,x,data)=>{
-    if(x.held)return {id:x.sv.id,base:x.c.base,dirty:true,seq:x.c.seq||0};
-    const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,data};
+    const tc=k==="state"?(x.held&&Array.isArray(x.c.touched)?x.c.touched:[]):null;
+    if(x.held)return {id:x.sv.id,base:x.c.base,dirty:true,seq:x.c.seq||0,...(tc?{touched:tc}:{})};
+    const rec={id:x.sv.id,base:x.sv.updated,dirty:false,seq:(x.c&&x.c.seq)||0,...(tc?{touched:tc}:{}),data};
     if(!cachePut(k,rec))dropCache(k);
-    return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq}};
+    return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq,...(tc?{touched:tc}:{})}};
   docs.plan=settle("plan",pr,pdata);docs.state=settle("state",sr,state);
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
@@ -985,25 +987,67 @@ function sizeCheck(s){
   if(n>=CLOUD_MAX*0.7&&!sizeAck)showBar("sizewarn",{tone:"warn",msg:"保存空间快满了：已用 "+Math.floor(n*100/CLOUD_MAX)+"%（上限 4 MB）。超过上限后新修改就存不上了，请联系管理员。",btns:[{text:"知道了",cls:"ghost",fn:()=>{sizeAck=true;hideBar("sizewarn")}}]});
   else if(n<CLOUD_MAX*0.7)hideBar("sizewarn");
 }
-async function cloudSave(s){
-  sizeCheck(s);
-  const ep=sessionEpoch,seq=docs.state.seq||0,coll=pb.collection("journey_docs");let r,cur;
-  try{
-    cur=await coll.getOne(docs.state.id);
-    if(ep!==sessionEpoch)return;
-    /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
-       the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
-    if(cur.updated!==docs.state.base&&cur.writer!==WRITER&&canon(cur.data)!==canon(s))snapPending=keepConflict("state",cur);
-    r=await coll.update(docs.state.id,{data:s,writer:WRITER});
-  }
-  catch(e){const er=new Error(cacheFull?T_NOCACHE:"修改仍在本机，下次修改或重新打开时会再上传");er.state="savefailed";throw er}
-  if(ep!==sessionEpoch)return;
-  /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
-  if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
-  docs.state.base=r.updated;if((docs.state.seq||0)===seq)docs.state.dirty=false;
-  if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
-  if(!docs.state.dirty)cacheNote(true);
+/* sync entry: saving and the background reconcile share one single-threaded loop. A request that arrives while a sync runs is merged into one more pass;
+   the returned promise settles only after the pass that covers this request has ended (syncOnce handles its own failures, so it never rejects).
+   A failed upload never clears the dirty flag (B5) and is retried forever with growing waits. */
+const SYNC_MS=FAIL_MS,RETRY_STEPS=[1,2,5,10,30,60];
+const T_SAVING="保存中…",T_SYNCED="已同步";
+const T_OFFLINE=n=>n>0?"离线，"+n+" 项修改已存在本机，联网后自动上传":"离线，修改已存在本机，联网后自动上传";
+let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null;
+function showSync(){
+  if(!CLOUD||!me||!docs.state)return;
+  const n=Array.isArray(docs.state.touched)?docs.state.touched.length:0;
+  if(net==="offline")setStatus(T_OFFLINE(n),"offline");
+  else if(docs.state.dirty)setStatus(T_SAVING,"saving");
+  else setStatus(T_SYNCED,"synced");
 }
+function requestSync(reason){
+  if(!CLOUD||!me||!docs.state||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
+  syncAgain=true;
+  if(syncing)return syncDone;
+  syncing=true;const ep=sessionEpoch;
+  syncDone=(async()=>{try{while(syncAgain&&ep===sessionEpoch){syncAgain=false;await syncOnce()}}finally{if(ep===sessionEpoch)syncing=false}})();
+  return syncDone;
+}
+function scheduleRetry(){
+  clearTimeout(retryTimer);
+  const s=RETRY_STEPS[Math.min(retryIdx,RETRY_STEPS.length-1)];retryIdx++;
+  retryTimer=setTimeout(()=>{retryTimer=null;requestSync("retry")},s*1000);
+}
+async function syncOnce(){
+  const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
+  const tm=setTimeout(()=>ctrl.abort(),SYNC_MS);
+  try{
+    const seq=docs.state.seq||0,isDirty=!!docs.state.dirty;
+    if(isDirty)sizeCheck(state);
+    const coll=pb.collection("journey_docs"),list=await coll.getFullList(sg);
+    if(ep!==sessionEpoch)return;
+    const sv=list.find(d=>d.kind==="state");
+    if(!sv){const er=new Error("missing");er.status=404;throw er}
+    if(isDirty){
+      /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
+         the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
+      const body=JSON.parse(JSON.stringify(state));
+      if(sv.updated!==docs.state.base&&sv.writer!==WRITER&&canon(sv.data)!==canon(body))snapPending=keepConflict("state",sv);
+      const r=await coll.update(sv.id,{data:body,writer:WRITER},sg);
+      if(ep!==sessionEpoch)return;
+      /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
+      if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
+      docs.state.base=r.updated;
+      if((docs.state.seq||0)===seq){docs.state.dirty=false;docs.state.touched=[]}
+      if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
+      if(!docs.state.dirty)cacheNote(true);
+    }
+    net="ok";retryIdx=0;clearTimeout(retryTimer);retryTimer=null;
+    if(docs.state.dirty)syncAgain=true;
+    showSync();
+  }catch(e){
+    if(ep!==sessionEpoch)return;
+    if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
+    net="offline";scheduleRetry();showSync();
+  }finally{clearTimeout(tm)}
+}
+window.addEventListener("online",()=>{if(CLOUD&&me){clearTimeout(retryTimer);retryTimer=null;requestSync("online")}});
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
    sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
 /* confirmBox: one shared dialog (logout confirm, switch-account confirm); text is written with textContent, the cancel button is the default focus,
@@ -1039,6 +1083,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;
   clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
+  clearTimeout(retryTimer);retryTimer=null;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
@@ -1091,7 +1136,7 @@ function eventsOn(date){
   allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate===date)done.push(t);else if(!s.done&&s.due===date)due.push(t)});
   return {logs,due,done};
 }
-function addLog(date,cat,text){state.logs.push({id:uid(),date,text,cat});persist();renderAll()}
+function addLog(date,cat,text){const id=uid();state.logs.push({id,date,text,cat});persist("log:"+id);renderAll()}
 
 const compEdit={},compAdding={};
 function pstate(cat){const v=state.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
