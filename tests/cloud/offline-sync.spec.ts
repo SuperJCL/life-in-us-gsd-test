@@ -317,7 +317,9 @@ test('SYNC-05 an offline edit over a newer server version is uploaded and the ot
     await second.app.open({ mode: 'cloud', login: 0 });
     await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
 
-    // 设备二离线（只有它的请求被拒）：记一笔，状态 offline
+    // 设备二离线（只有它的请求被拒）：记一笔，状态 offline；它的实时连接同样断开并被拒，设备一的保存和另一个参与者的写入不会推事件给它
+    app.fake.refuseRealtime(true, second.page);
+    await app.fake.dropRealtime(second.page);
     const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context: second.context });
     const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse', context: second.context });
     const two = composer(second.page, 'w');
@@ -340,6 +342,7 @@ test('SYNC-05 an offline edit over a newer server version is uploaded and the ot
     // 设备二联网：撤掉它的故障，派发 online
     listFault.remove();
     patchFault.remove();
+    app.fake.refuseRealtime(false, second.page);
     await second.context.setOffline(true);
     await second.context.setOffline(false);
 
@@ -374,6 +377,9 @@ test('SYNC-05 a conflict notice found while opening the app is not replaced by t
   await app.open({ mode: 'cloud', seed: syntheticState('a'), plan: syntheticPlan('o', 1), login: 0 });
   await page.clock.pauseAt(FROZEN_NOW + 60_000);
 
+  // 离线期间本页听不到：另一个写入方的写入（app.fake.request）不推事件，多触发一次被拒的列表请求
+  app.fake.refuseRealtime(true, page);
+  await app.fake.dropRealtime(page);
   const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
   const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
   const entry = composer(page, 'w');
@@ -392,6 +398,7 @@ test('SYNC-05 a conflict notice found while opening the app is not replaced by t
 
   // 去掉故障后刷新：启动对账发现 state 真冲突、计划是干净的服务器更新
   await app.fake.clearFaults();
+  app.fake.refuseRealtime(false, page);
   await page.reload();
   const status = page.locator('#status');
   await expect(status).toHaveAttribute('data-state', 'synced');

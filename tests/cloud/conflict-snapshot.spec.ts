@@ -63,12 +63,16 @@ async function oneSaves(app: AppHarness, page: Page, text: string) {
 // Phase 9 的“设备二基线过期后直接保存”换成 D-03 的离线构造：
 // 设备二的列表请求被拒（10-02 的 context 故障）→ 设备二记一笔、推过防抖，状态 offline（任何一步离线失败都使 opsOk 为假）→ 设备一保存（oneSaves）
 // → 撤掉故障（可选：只对设备二的下一次单条 PATCH 再加一个故障）并派发 online → 设备二读到更新的服务器版本，走整份覆盖加留底（不是重做）。
+// 设备二离线期间它的实时连接同样断开并被拒（refuseRealtime 加 dropRealtime），设备一的保存不会推事件、多触发一次被拒的列表请求，
+// 所以被拒连接的 console.error 条数仍等于 REST 故障的 hits；恢复时放开，SDK 重连后的 PB_CONNECT 只会多一次普通对账。
 // 返回两个故障句柄，调用方用 hits 确认被拒连接的 console.error 条数。
 async function makeOfflineConflict(
   app: AppHarness,
   second: Device,
   o: { secondText: string; oneSaves: () => Promise<void>; patch?: 'refuse' | 'lose-answer' },
 ) {
+  app.fake.refuseRealtime(true, second.page);
+  await app.fake.dropRealtime(second.page);
   const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse', context: second.context });
   const two = composer(second.page, 'w');
   await two.type(o.secondText);
@@ -77,6 +81,7 @@ async function makeOfflineConflict(
   await expect(second.page.locator('#status')).toHaveAttribute('data-state', 'offline');
   await o.oneSaves();
   await app.fake.clearFaults();
+  app.fake.refuseRealtime(false, second.page);
   const patchFault = o.patch ? app.fake.fault({ method: 'PATCH', path: RECORD, mode: o.patch, times: 1, context: second.context }) : null;
   await second.context.setOffline(true);
   await second.context.setOffline(false);

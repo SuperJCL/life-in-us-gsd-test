@@ -1,5 +1,7 @@
 // Phase 10 的远端更新用例（SYNC-02、SYNC-03）：只在 npm run test:cloud 里运行，只用合成账号和合成数据。
 // 设备一是 fixture 里的页面，只负责经界面记东西并等上传；设备二是 openDevice 的第二台设备，是被测的一方。
+// 10-08 起实时订阅在线：需要证明“拉取、回到前台、重新联网”这些触发、或要让设备二保持过期的用例，用 openBoth 的 realtime: false（设备二先 refuseRealtime、以 realtime: false 打开），使这些触发是唯一的途径；
+// 其余用例保留实时（事件更早到达，断言仍然成立）；单设备用 app.fake.request 在离线期间模拟另一台设备写入的用例，离线期间对本页 refuseRealtime 加 dropRealtime，恢复时放开。
 // 设备二一律 openDevice({ clock: 'none' })，在页面上 install 时钟、登录后 pauseAt(FROZEN_NOW + 60_000)，需要拉取时 runFor(60_000)；
 // 设备一也在 manual 时钟下运行（open 之前 install，登录后 pauseAt），记完一笔后 runFor(1_000) 让保存防抖到期。
 // 服务器连不上、5xx 一律用假服务器的开关制造；context.setOffline 只用来派发 online 事件，从不用来让服务器连不上。
@@ -63,6 +65,7 @@ async function openBoth(
   browser: Parameters<typeof openDevice>[0]['browser'],
   guard: Parameters<typeof openDevice>[0]['guard'],
   plan?: unknown,
+  o: { realtime?: boolean } = {},
 ) {
   await page.clock.install({ time: FROZEN_NOW });
   await app.open({ mode: 'cloud', seed: syntheticState('a'), plan, login: 0 });
@@ -70,7 +73,9 @@ async function openBoth(
   const second: Device = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
   try {
     await second.page.clock.install({ time: FROZEN_NOW });
-    await second.app.open({ mode: 'cloud', login: 0 });
+    // 设备二听不到设备一：在它打开之前就拒绝它的实时连接（首次连接失败，应用退回只靠拉取）
+    if (o.realtime === false) app.fake.refuseRealtime(true, second.page);
+    await second.app.open({ mode: 'cloud', login: 0, realtime: o.realtime });
     await second.page.clock.pauseAt(FROZEN_NOW + 60_000);
   } catch (error) {
     await second.context.close();
@@ -80,7 +85,7 @@ async function openBoth(
 }
 
 test('SYNC-02 a change from another device is applied at the next poll when this device is idle', async ({ app, page, browser, guard }) => {
-  const second = await openBoth(app, page, browser, guard);
+  const second = await openBoth(app, page, browser, guard, undefined, { realtime: false });
   try {
     const sp = second.page;
     // 设备二空闲：切到上一周，时间线筛选设为“专业”
@@ -159,7 +164,7 @@ test('SYNC-02 a remote change waits with a notice while this device is busy and 
 });
 
 test('SYNC-03 coming back online or to the foreground reconciles at once', async ({ app, page, browser, guard }) => {
-  const second = await openBoth(app, page, browser, guard);
+  const second = await openBoth(app, page, browser, guard, undefined, { realtime: false });
   try {
     const sp = second.page;
     const one = await writeOnOne(app, page, 'SYNTH-1103 first');
@@ -189,7 +194,8 @@ test('SYNC-02 finishing an action while a remote change waits applies it first a
   browser,
   guard,
 }) => {
-  const second = await openBoth(app, page, browser, guard, syntheticPlan('o', 1));
+  // 设备二要保持过期，直到用例自己让它拉取（D-04 的挂起局面），所以它听不到设备一
+  const second = await openBoth(app, page, browser, guard, syntheticPlan('o', 1), { realtime: false });
   try {
     const sp = second.page;
     const bar = sp.locator('#syncbar');
@@ -408,7 +414,8 @@ test("SYNC-02 an edit on a device that had not yet seen another device's change 
   browser,
   guard,
 }) => {
-  const second = await openBoth(app, page, browser, guard);
+  // 设备二必须在“还没看到 first”时上传：听不到设备一
+  const second = await openBoth(app, page, browser, guard, undefined, { realtime: false });
   try {
     const sp = second.page;
     const userId = app.fake.users[0].id;
@@ -573,6 +580,9 @@ test("SYNC-05 an edit whose sync failed at the list request keeps the other devi
 
   // 只拒绝列表请求（PATCH 不加故障）：同步在列表这一步就失败，上传没有发出
   const from = app.fake.requests.length;
+  // 离线期间本页听不到：另一台设备的写入（下面的 app.fake.request）不会推一个事件、多触发一次被拒的列表请求
+  app.fake.refuseRealtime(true, page);
+  await app.fake.dropRealtime(page);
   const list = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
   const entry = composer(page, 'w');
   await entry.type('SYNTH-1015 local');
@@ -587,6 +597,7 @@ test("SYNC-05 an edit whose sync failed at the list request keeps the other devi
 
   // 联网：这一次走 D-03（整份以本机为准，另一台设备的版本留底），不是重做
   await app.fake.clearFaults();
+  app.fake.refuseRealtime(false, page);
   await context.setOffline(true);
   await context.setOffline(false);
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
