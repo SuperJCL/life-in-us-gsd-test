@@ -594,13 +594,17 @@ function normalize(s){
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
-function persist(...keys){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;const t=Array.isArray(docs.state.touched)?docs.state.touched:[];keys.forEach(k=>{if(typeof k==="string"&&!t.includes(k))t.push(k)});docs.state.touched=t;cacheNote(cachePut("state",{...docs.state,data:state}));if($("status").getAttribute("data-state")!=="toolarge")showSync()}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+function persist(...keys){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;const t=Array.isArray(docs.state.touched)?docs.state.touched:[];keys.forEach(k=>{if(typeof k==="string"&&!t.includes(k))t.push(k)});docs.state.touched=t;cacheNote(cachePut("state",{...docs.state,data:docAfter()}));if($("status").getAttribute("data-state")!=="toolarge")showSync()}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
 /* every change of state goes through commit(keys, fn): fn is applied to the current state at once; in the cloud version it is also kept in ops, with the keys of the items it touches,
    so that it can be done again on a newer server version (D-04). An fn must be idempotent and locate its target by id or key, never by array index or an old object reference;
    it reads no DOM, calls no persist, render or toast, and every value it writes (text, date, checked value, new id) was taken when the action happened and is carried in by its closure.
    opsOk: ops covers every local change made since the base (false once a sync step failed offline, and after a reload, which loses ops). */
 let ops=[],opsOk=true;
-function commit(keys,fn){fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys)}
+/* a remote version never goes into the working state or plan by itself: syncOnce puts it into the waiting slot pendRemote ({plan,state}, each {data,updated} or null) and every render function keeps reading
+   the working state, so whatever the user sees stays as it was until the update is applied. takeRemote() is the only way in (applyView, and commit at its start, D-04); remoteView = a waiting slot really differs from what is shown */
+const POLL_MS=60000;
+let pendRemote={plan:null,state:null},remoteView=false,pollTimer=null;
+function commit(keys,fn){takeRemote();fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys);if(remoteView)applyView()}
 async function flush(){
   savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
@@ -902,7 +906,7 @@ function goBootOffline(r){
   endRun(r);if(run===r)run=null;clearRunUI();setGate(null);renderAll();
   bootOffline=true;net="offline";needRefresh=!!r.mode.refresh;
   stopRetry();retryTimer=setTimeout(()=>{retryTimer=null;requestSync("boot")},RETRY_STEPS[0]*1000);retryIdx=1;
-  showSync();
+  showSync();startPoll();
 }
 async function enterApp(refresh){
   sessionEpoch++;
@@ -975,7 +979,8 @@ async function reconcileOnce(r){
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
   setGate(null);
   if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
-  renderAll();snapShow();
+  pendRemote={plan:null,state:null};remoteView=false;hideBar("remote");
+  renderAll();snapShow();startPoll();
   if(changed&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
@@ -1079,7 +1084,7 @@ async function checkAuth(signal){
 }
 function goExpired(){
   expireToken();
-  net="expired";trying=false;stopRetry();cdLeft=0;
+  net="expired";trying=false;stopRetry();stopPoll();cdLeft=0;
   showBar("expired",{tone:"warn",msg:"登录已过期，本机的修改还在，重新登录后会继续上传。",btns:[{text:"重新登录",cls:"primary",fn:relogin}]});
   showSync();
 }
@@ -1110,7 +1115,7 @@ async function syncOnce(){
        state: dirty -> upload the local version, after keepConflict() when the server version is newer, was written by another page and differs (D-03);
               clean and a newer server version -> replace the local state; clean and unchanged -> nothing.
        merged = a remote version whose content really differs was taken in; the "updated" notice comes once at the end, unless a conflict notice already is on screen (cfShown). */
-    let merged=false,replaced=false;
+    let gotRemote=false;
     const make=async(kind,data)=>{
       try{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);if(ep!==sessionEpoch)throw STALE;return {d,made:true}}
       catch(e){if(e===STALE||!uniqErr(e))throw e;list=await coll.getFullList(sg);if(ep!==sessionEpoch)throw STALE;const d=list.find(x=>x.kind===kind);if(!d)throw e;return {d,made:false}}
@@ -1122,19 +1127,18 @@ async function syncOnce(){
       if(m.made){docs.plan={id:psv.id,base:psv.updated,dirty:false,seq:docs.plan.seq||0};if(!cachePut("plan",{...docs.plan,data:psv.data}))dropCache("plan")}
     }
     if(psv.updated!==docs.plan.base&&!docs.plan.dirty){
-      const pc=cacheGet("plan"),prev=pc?pc.data:plan;
-      const ok=usePlan(psv.data);keepOrphans=!ok;
-      const pdata=ok?plan:psv.data;
+      /* a newer plan waits in the slot (the cache already holds it, clean, with its new base, so a reload in between shows the new plan with the new base); the working plan stays until takeRemote */
+      pendRemote.plan={data:psv.data,updated:psv.updated};
+      const np=normalizePlan(psv.data);
       docs.plan={id:psv.id,base:psv.updated,dirty:false,seq:docs.plan.seq||0};
-      if(!cachePut("plan",{...docs.plan,data:pdata}))dropCache("plan");
-      if(canon(pdata)!==canon(prev))merged=true;
-      state=normalize(state);replaced=true;
+      if(!cachePut("plan",{...docs.plan,data:np||psv.data}))dropCache("plan");
+      gotRemote=true;
     }
     let ssv=list.find(d=>d.kind==="state"),up=null;
     if(!ssv){
       sizeCheck(state);
       sentOps=ops.length;
-      const m=await make("state",JSON.parse(JSON.stringify(state)));
+      const m=await make("state",JSON.parse(JSON.stringify(docAfter())));
       ssv=m.d;if(m.made)up=ssv;
     }
     docs.state.id=ssv.id;
@@ -1142,18 +1146,19 @@ async function syncOnce(){
       if(isDirty){
         /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
            the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
-        const body=JSON.parse(JSON.stringify(state));sentOps=ops.length;
+        const body=JSON.parse(JSON.stringify(docAfter()));sentOps=ops.length;
         if(ssv.updated!==docs.state.base&&ssv.writer!==WRITER&&canon(ssv.data)!==canon(body))snapPending=keepConflict("state",ssv);
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
         /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
         if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
       }else if(ssv.updated!==docs.state.base&&!docs.state.dirty&&(docs.state.seq||0)===seq){
-        /* clean and the server version is newer: take it in (an edit made while the list was on its way makes the state dirty, and the next pass handles it as a dirty one) */
-        const nv=normalize(ssv.data);
-        if(canon(nv)!==canon(state))merged=true;
-        state=nv;docs.state.base=ssv.updated;docs.state.touched=[];replaced=true;
-        if(!cachePut("state",{...docs.state,dirty:false,data:state}))dropCache("state");
+        /* clean and the server version is newer: it waits in the slot, nothing shown changes (an edit made while the list was on its way makes the state dirty, and the next pass handles it as a dirty one);
+           the cache holds the server version, clean, with its base */
+        pendRemote.state={data:ssv.data,updated:ssv.updated};
+        docs.state.base=ssv.updated;docs.state.touched=[];
+        if(!cachePut("state",{...docs.state,dirty:false,data:normUnder(pendRemote.plan,ssv.data)}))dropCache("state");
+        gotRemote=true;
       }
     }
     if(up){
@@ -1162,15 +1167,16 @@ async function syncOnce(){
       ops.splice(0,sentOps);opsOk=true;
       docs.state.touched=[...new Set(ops.flatMap(o=>o.keys))];
       if((docs.state.seq||0)===seq)docs.state.dirty=false;
-      if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
+      if(!cachePut("state",{...docs.state,data:docAfter()})&&!docs.state.dirty)dropCache("state");
       if(!docs.state.dirty)cacheNote(true);
     }
     net="ok";retryIdx=0;stopRetry();trying=false;
     if(bootOffline){bootOffline=false;snapShow()}
     if(docs.state.dirty)syncAgain=true;
-    if(replaced){renderAll();snapShow()}
+    if(gotRemote){remoteView=remoteDiffers();if(!remoteView){pendRemote={plan:null,state:null};hideBar("remote")}}
     showSync();
-    if(merged&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
+    /* the "updated" notice belongs to applyView (it stays off when this pass already raised a conflict notice, IN-01) */
+    if(remoteView)maybeApplyView();
   }catch(e){
     if(ep!==sessionEpoch)return;
     trying=false;
@@ -1216,6 +1222,97 @@ function confirmBox(o){
     cfDlg.showModal();cancel.focus();
   });
 }
+/* ---------- remote updates (SYNC-02, SYNC-03) ---------- */
+/* the pull is the baseline: every POLL_MS while the page is visible, at once when the page becomes visible again, when the browser comes back online and when a retry is due; all go through requestSync, one sync at a time */
+function startPoll(){stopPoll();if(CLOUD&&!document.hidden)pollTimer=setInterval(pollTick,POLL_MS)}
+/* a tick only pulls when nothing else is already doing it: a pending save, a running sync or a retry timer reconcile by themselves */
+function pollTick(){if(net==="ok"&&!syncing&&!savePending&&docs.state&&!docs.state.dirty)requestSync("poll")}
+function stopPoll(){clearInterval(pollTimer);pollTimer=null}
+document.addEventListener("visibilitychange",()=>{
+  if(!CLOUD||!me)return;
+  if(document.hidden){stopPoll();return}
+  startPoll();requestSync("visible");if(remoteView)maybeApplyView();
+});
+/* the layout of normalize depends on the plan: with a plan from the slot it is normalized under that plan, and the working plan is back before anything can render or await */
+function normUnder(ps,data){
+  if(!ps)return normalize(data);
+  const kp=plan,kt=planTasks,ki=planIds,kc=planCat,ko=keepOrphans;
+  try{const ok=usePlan(ps.data);keepOrphans=!ok;return normalize(data)}
+  finally{plan=kp;planTasks=kt;planIds=ki;planCat=kc;keepOrphans=ko}
+}
+/* what this device should now contain: the waiting server state with every local operation still in ops done on it again (D-04); with no waiting state it is the working state itself.
+   Uploads and the state cache are built from it. */
+function docAfter(){
+  const ss=pendRemote.state;
+  if(!ss)return state;
+  const s=normUnder(pendRemote.plan,ss.data);
+  ops.forEach(o=>o.fn(s));
+  return s;
+}
+/* the only way a waiting remote version enters the working data: plan first, then state; the same synchronous code goes on to applyView, so "banner shown, working data already new" never spans a render or an await */
+function takeRemote(){
+  const ps=pendRemote.plan,ss=pendRemote.state;
+  if(!ps&&!ss)return false;
+  const ns=ss?docAfter():null;
+  if(ps){const ok=usePlan(ps.data);keepOrphans=!ok}
+  state=ss?ns:normalize(state);
+  pendRemote={plan:null,state:null};
+  return true;
+}
+function remoteDiffers(){
+  const ps=pendRemote.plan,ss=pendRemote.state;
+  if(ps){const np=normalizePlan(ps.data)||normalizePlan(DEFAULT_PLAN);if(canon(np)!==canon(plan))return true}
+  return !!ss&&canon(docAfter())!==canon(state);
+}
+const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE_DONE="已更新为其他设备上的最新内容";
+/* busy = the user is in the middle of something an update must not disturb: an open dialog or confirm, a draft, an open new-tag input, the cursor in a text field (a checkbox or button does not count),
+   a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
+function isBusy(...a){
+  if(dlg.open||cfDlg.open||rvPending)return true;
+  for(const id of ["w-text","c-text"]){const e=$(id);if(e&&e.value.trim())return true}
+  if(compAdding.w||compAdding.c)return true;
+  const f=a.length?a[0]:document.activeElement;
+  if(f&&f.closest&&f.closest(".wrap")){
+    const tg=f.tagName;
+    if(tg==="TEXTAREA"||(tg==="INPUT"&&["text","number","date","search","email","tel","url","password",""].includes(f.getAttribute("type")||"text")))return true;
+  }
+  if(document.querySelector("[data-liftsave]:not(.hidden)"))return true;
+  for(const e of document.querySelectorAll("[data-addto]"))if(e.value.trim())return true;
+  return false;
+}
+function maybeApplyView(...a){
+  if(!remoteView)return;
+  if(isBusy(...a)){
+    if(!sbs.remote)showBar("remote",{tone:"info",msg:T_REMOTE,btns:[{text:"现在更新",cls:"primary",fn:()=>applyView()}]});
+    return;
+  }
+  applyView();
+}
+function applyView(){
+  if(!remoteView)return;
+  /* an uncommitted weekly review is committed first by the same rule as its debounce; that commit takes the waiting version in and applies it, so there is nothing left to do here */
+  if(rvPending&&rvJob){clearTimeout(rvT);rvJob();if(!remoteView)return}
+  takeRemote();renderKeep();hideBar("remote");remoteView=false;
+  if(!(syncing&&cfShown))toast(T_REMOTE_DONE,null,4000);
+}
+/* a full render that keeps what the user has typed and not yet committed: both composer texts, the new-tag inputs, the to-do inputs, strength values with a visible save button, the focused element and its cursor;
+   the composer categories and edit modes are module state and are not touched, like the week, month and filter */
+function renderKeep(){
+  const act=document.activeElement,aid=act&&act.id&&act.closest&&act.closest(".wrap")?act.id:null;
+  let sa=null,sb=null;if(act&&act.tagName==="TEXTAREA"&&typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
+  const vals={};["w-text","c-text","w-padd","c-padd"].forEach(id=>{const e=$(id);if(e)vals[id]=e.value});
+  const add={};document.querySelectorAll("[data-addto]").forEach(e=>{if(e.value)add[e.dataset.addto]=e.value});
+  const lf={};document.querySelectorAll("[data-liftsave]:not(.hidden)").forEach(b=>{const i=$("lf-"+b.dataset.liftsave);if(i)lf[b.dataset.liftsave]=i.value});
+  renderAll();
+  Object.keys(vals).forEach(id=>{const e=$(id);if(!e||e.value===vals[id])return;e.value=vals[id];if(/-text$/.test(id))e.dispatchEvent(new Event("input"))});
+  document.querySelectorAll("[data-addto]").forEach(e=>{if(add[e.dataset.addto]!==undefined)e.value=add[e.dataset.addto]});
+  Object.keys(lf).forEach(k=>{const i=$("lf-"+k);if(i)i.value=lf[k];document.querySelectorAll("[data-liftsave]").forEach(b=>{if(b.dataset.liftsave===k)b.classList.remove("hidden")})});
+  const e=aid&&$(aid);
+  if(e&&e!==document.activeElement&&!e.disabled){e.focus();if(sa!==null&&e.tagName==="TEXTAREA")try{e.setSelectionRange(sa,sb)}catch(x){}}
+}
+cfDlg.addEventListener("close",()=>{if(remoteView)maybeApplyView()});
+document.addEventListener("focusout",e=>{if(remoteView)maybeApplyView(e.relatedTarget)});
+document.addEventListener("input",()=>{if(remoteView)maybeApplyView()});
 /* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce;
    the cache is shared by every tab of this browser, so logout also reads the dirty bit another tab left there (onLogoutClick adds unsentOf) */
 function hasUnsaved(){return savePending||saving||rvPending||!!(docs.state&&docs.state.dirty)||!!(docs.plan&&docs.plan.dirty)}
@@ -1226,7 +1323,7 @@ function showWho(){
 }
 function resetSession(){
   sessionEpoch++;
-  clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
+  clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
   clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
@@ -1490,6 +1587,7 @@ function openTaskEditor(id){
   dlg.showModal();
 }
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
+dlg.addEventListener("close",()=>{if(remoteView)maybeApplyView()});
 
 /* ---------- drag to another day ---------- */
 let dragId=null;
@@ -1508,7 +1606,7 @@ $("wkNow").onclick=()=>{wk=monday(today());wsel=today();renderWeek()};
 function pickDay(el){if(!el)return;wsel=el.dataset.wday;renderWeek();if(innerWidth<=900)$("wkComp").scrollIntoView({behavior:"smooth",block:"start"})}
 $("days").addEventListener("click",e=>{if(e.target.closest(".x"))return;pickDay(e.target.closest("[data-wday]"))});
 $("days").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.dataset.wday){e.preventDefault();pickDay(e.target)}});
-let rvT;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvPending=true;rvT=setTimeout(()=>{rvPending=false;commit(["review:"+w],s=>{if(v.trim())s.reviews[w]=v;else delete s.reviews[w]})},800)});
+let rvT,rvJob=null;$("review").addEventListener("input",e=>{clearTimeout(rvT);const v=e.target.value,w=wk;rvPending=true;rvJob=()=>{rvJob=null;rvPending=false;commit(["review:"+w],s=>{if(v.trim())s.reviews[w]=v;else delete s.reviews[w]})};rvT=setTimeout(rvJob,800)});
 // calendar
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);renderCal()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);renderCal()};

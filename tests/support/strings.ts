@@ -386,3 +386,8 @@ export const BTN_SWITCH_ANYWAY = '仍然登录';
 // parts：按实际情况出现的 没上传的修改、没下载的留底，两样都有时用 、 连接
 export const switchBody = (email: string, parts: string[]) =>
   `这台设备上还有 ${email} ${parts.join('、')}，换账号登录后会被清除。`;
+
+// 远端更新挂起时的横幅（09-UI-SPEC S4 的“远端更新待应用”行逐字复制；#syncbar 的 data-tone 为 info，只有一个按钮 BTN_APPLY_NOW）
+export const BANNER_REMOTE = '其他设备有新的修改，稍后会自动更新。';
+// 横幅上的按钮文字（09-UI-SPEC S4 按钮列、S6 逐字复制）
+export const BTN_APPLY_NOW = '现在更新';
