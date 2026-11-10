@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 10
 current_phase_name: 离线与实时同步（Offline & Realtime Sync）
 status: executing
-stopped_at: Completed 10-04-PLAN.md
-last_updated: "2026-11-10T07:59:44.759Z"
+stopped_at: Completed 10-05-PLAN.md
+last_updated: "2026-11-10T08:16:31.192Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 10 execution started
-state_head: 33e238c52728bb822fdeb101d5da58846d44951f
+state_head: 8302d269588d89bd8fdc89edf2fdd002ea63506a
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 47
-  completed_plans: 42
+  completed_plans: 43
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
 ## Current Position
 
 Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 10 execution started
 
@@ -129,6 +129,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P02 | 12 min | 2 tasks | 6 files |
 | Phase 10 P03 | 15 min | 2 tasks | 5 files |
 | Phase 10 P04 | 14 min | 2 tasks | 4 files |
+| Phase 10 P05 | 14 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -232,6 +233,9 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-03: syncOnce is the full background reconcile (plan then state, create missing docs, clean replace, dirty overwrite with kept copy); cfShown stops the updated notice from replacing a conflict notice (IN-01)
 - [Phase 10]: 10-04: commit(keys, fn) is the only entry that changes state; ops keeps {keys, fn} (cloud only), an upload removes only the prefix it carried (sentOps), opsOk turns false on any offline failure
 - [Phase 10]: 10-04: preset delete undo restores only its own tag (original index in add, or removes the tag it added to hide) instead of restoring the category snapshot
+- [Phase 10]: 写入方 id 每个标签页一个（sessionStorage usj:v2:writer），复制标签页经 BroadcastChannel hello/taken 发现重复后重新生成
+- [Phase 10]: 会话中途过期只看 authRefresh 的 401 或本地 exp；空列表和 4xx 先 authRefresh 排除令牌失效，goExpired 不清任何本机状态、过期期间 requestSync 不发请求
+- [Phase 10]: 没有令牌但有过期标记时登录页也显示登录过期提示，刷新后仍说明是过期并提示本机有未上传的修改
 
 ### Pending Todos
 
@@ -285,8 +289,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T07:59:43.390Z
-Stopped at: Completed 10-04-PLAN.md
+Last session: 2026-11-10T08:16:29.786Z
+Stopped at: Completed 10-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
