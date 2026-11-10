@@ -149,6 +149,33 @@ test('SYNC-06 a server error is retried automatically at growing intervals and t
   await acknowledgeConsoleErrors(guard, { 'status of 503 ': fault.hits });
 });
 
+// 10 号阶段评审 IN-02：服务器出错期间边记边失败，编辑触发的失败不消耗退避档位（第一次失败照常 1 秒，之后仍是 2 秒），不会被编辑次数推到顶
+test('SYNC-06 failed saves triggered by edits during an outage do not push the retry wait up', async ({ app, page, guard }) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+
+  const fault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'status', status: 503 });
+  const status = page.locator('#status');
+  const sentence = () => status.evaluate((el) => el.firstChild?.textContent ?? '');
+  const entry = composer(page, 'w');
+  for (let i = 1; i <= 4; i++) {
+    await entry.type(`SYNTH-1002 outage edit ${i}`);
+    await entry.submit();
+    await page.clock.runFor(700);
+    await expect.poll(() => fault.hits, { message: `第 ${i} 次编辑触发的保存失败` }).toBe(i);
+    await expect(status).toHaveAttribute('data-state', 'retrying');
+    // 第一次失败等 1 秒（用掉第一档）；之后每次编辑触发的失败都还是下一档 2 秒，不再往上走
+    await expect.poll(sentence).toBe(statusRetrying(i === 1 ? 1 : 2));
+  }
+
+  fault.remove();
+  await page.clock.runFor(3_000);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  for (let i = 1; i <= 4; i++) expect(countOnServer(app, `SYNTH-1002 outage edit ${i}`)).toBe(1);
+  await acknowledgeConsoleErrors(guard, { 'status of 503 ': fault.hits });
+});
+
 // 10 号阶段评审 WR-02：倒计时每秒刷新状态行，但“立即重试”按钮必须是同一个节点（键盘焦点和按住中的点击不能被重建打断）
 test('SYNC-06 the retry countdown ticks without rebuilding the retry-now button', async ({ app, page, guard }) => {
   await page.clock.install({ time: FROZEN_NOW });

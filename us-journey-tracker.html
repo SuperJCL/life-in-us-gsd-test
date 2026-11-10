@@ -1057,7 +1057,7 @@ const T_RETRY_IN=s=>"保存失败，修改仍在本机，"+s+" 秒后自动重�
 const syncCtrls=new Set();
 function mkCtrl(){const c=new AbortController();syncCtrls.add(c);return c}
 function abortSync(){syncCtrls.forEach(c=>{try{c.abort()}catch(e){}});syncCtrls.clear()}
-let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,trying=false,cdLeft=0,cdTimer=null,bootOffline=false,needRefresh=false;
+let syncing=false,syncAgain=false,syncDone=Promise.resolve(),net="ok",retryIdx=0,retryTimer=null,bumpReq=false,trying=false,cdLeft=0,cdTimer=null,bootOffline=false,needRefresh=false;
 function showSync(){
   if(!CLOUD||!me||!docs.state)return;
   const n=Array.isArray(docs.state.touched)?docs.state.touched.length:0;
@@ -1073,15 +1073,16 @@ function stopRetry(){clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTi
 function retryNow(){stopRetry();requestSync("retry")}
 function requestSync(reason){
   if(!CLOUD||!me||!docs.state||loggingOut||net==="expired"||(run&&run.live)||document.body.hasAttribute("data-gate"))return Promise.resolve();
-  syncAgain=true;
+  syncAgain=true;if(reason!=="save")bumpReq=true;
   if(syncing)return syncDone;
   syncing=true;const ep=sessionEpoch;
   syncDone=(async()=>{try{while(syncAgain&&ep===sessionEpoch&&!loggingOut){syncAgain=false;await syncOnce()}}finally{if(ep===sessionEpoch)syncing=false}})();
   return syncDone;
 }
-function scheduleRetry(){
+/* the wait steps (1, 2, 5, 10, 30, 60 s) are used up by the failures of the timer and of the retry-now button; a pass that an edit triggered ("save") that fails does not use up a step (the first failure always does), so editing during an outage does not push the wait to the top */
+function scheduleRetry(bump){
   stopRetry();
-  const s=RETRY_STEPS[Math.min(retryIdx,RETRY_STEPS.length-1)];retryIdx++;
+  const s=RETRY_STEPS[Math.min(retryIdx,RETRY_STEPS.length-1)];if(bump||retryIdx===0)retryIdx++;
   cdLeft=s;
   retryTimer=setTimeout(()=>{retryTimer=null;clearInterval(cdTimer);cdTimer=null;requestSync("retry")},s*1000);
   cdTimer=setInterval(()=>{if(cdLeft>0)cdLeft--;if(net==="retrying")showSync()},1000);
@@ -1104,7 +1105,7 @@ function goExpired(){
 function relogin(){resetSession();showLogin("","expired")}
 async function syncOnce(){
   if(!pb.authStore.isValid){goExpired();return}
-  const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal};
+  const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal},bump=bumpReq;bumpReq=false;
   let timedOut=false,authing=false,sentOps=0;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},syncLimit());
   trying=true;cfShown=false;
@@ -1219,7 +1220,7 @@ async function syncOnce(){
     if(timedOut)slowRuns++;
     /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */
     if(net==="offline")opsOk=false;
-    scheduleRetry();showSync();
+    scheduleRetry(bump);showSync();
   }finally{clearTimeout(tm);syncCtrls.delete(ctrl);if(ep===sessionEpoch)trying=false}
 }
 window.addEventListener("online",()=>{if(CLOUD&&me){stopRetry();requestSync("online")}});
@@ -1436,7 +1437,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;abortSync();
   clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
-  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;slowRuns=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
+  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;slowRuns=0;bumpReq=false;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(pb)stopRealtime();
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
