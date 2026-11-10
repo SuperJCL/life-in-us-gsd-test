@@ -637,7 +637,28 @@ async function init(){
 }
 
 /* ---------- cloud ---------- */
-const SDK_PATH="/vendor/pocketbase.iife.js",SDK_SRI="sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8=",WRITER=uid();
+const SDK_PATH="/vendor/pocketbase.iife.js",SDK_SRI="sha256-lMHgMreDlS9pif90JW7JdEDQ7PDCTtuVdfjIcWywSp8=";
+/* WR-01: the writer id names one tab. It lives in sessionStorage, so a reload keeps it (a write whose answer was lost is then still recognised as this page's own after the reload),
+   and two tabs of one browser never share it: a duplicated tab brings the same sessionStorage along, so every tab announces its id on a BroadcastChannel; a tab that hears its own id from
+   another tab answers "taken", and the announcing tab draws a new one (two copies that find each other at once both draw a new one). No timers are involved. Without sessionStorage the id is per load;
+   without BroadcastChannel a duplicated tab keeps the copied id (the 60 s pull still covers its edits). The legacy path never touches either. */
+const WRITER_KEY="usj:v2:writer";let WRITER=uid();
+if(CLOUD){
+  const keep=()=>{try{sessionStorage.setItem(WRITER_KEY,WRITER)}catch(e){}};
+  try{const w=sessionStorage.getItem(WRITER_KEY);if(w&&w.length<=40)WRITER=w;else keep()}catch(e){}
+  try{
+    if(typeof BroadcastChannel==="function"){
+      const ch=new BroadcastChannel(WRITER_KEY),nonce=uid()+Math.random().toString(36).slice(2,8);
+      const hello=()=>ch.postMessage({t:"hello",w:WRITER,n:nonce});
+      ch.onmessage=e=>{
+        const m=e.data;if(!m||m.n===nonce||m.w!==WRITER)return;
+        if(m.t==="hello")ch.postMessage({t:"taken",w:WRITER,n:nonce});
+        else if(m.t==="taken"){WRITER=uid();keep();hello()}
+      };
+      hello();
+    }
+  }catch(e){}
+}
 const ERR_NET="连不上服务器，请检查网络后重试",ERR_CRED="邮箱或密码不对，请检查后重试";
 let pb=null,me=null,docs={state:null,plan:null},sessionEpoch=0;
 function loadSdk(){return new Promise((ok,no)=>{
