@@ -595,6 +595,12 @@ function normalize(s){
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
 function persist(...keys){dirty=true;savePending=true;if(CLOUD&&me&&docs.state){docs.state.seq=(docs.state.seq||0)+1;docs.state.dirty=true;const t=Array.isArray(docs.state.touched)?docs.state.touched:[];keys.forEach(k=>{if(typeof k==="string"&&!t.includes(k))t.push(k)});docs.state.touched=t;cacheNote(cachePut("state",{...docs.state,data:state}));if($("status").getAttribute("data-state")!=="toolarge")showSync()}clearTimeout(saveTimer);saveTimer=setTimeout(flush,600)}
+/* every change of state goes through commit(keys, fn): fn is applied to the current state at once; in the cloud version it is also kept in ops, with the keys of the items it touches,
+   so that it can be done again on a newer server version (D-04). An fn must be idempotent and locate its target by id or key, never by array index or an old object reference;
+   it reads no DOM, calls no persist, render or toast, and every value it writes (text, date, checked value, new id) was taken when the action happened and is carried in by its closure.
+   opsOk: ops covers every local change made since the base (false once a sync step failed offline, and after a reload, which loses ops). */
+let ops=[],opsOk=true;
+function commit(keys,fn){fn(state);if(CLOUD&&me&&docs.state)ops.push({keys,fn});persist(...keys)}
 async function flush(){
   savePending=false;
   if(CLOUD&&document.body.hasAttribute("data-gate"))return;
@@ -884,6 +890,7 @@ async function enterApp(refresh){
   if(cached){
     keepOrphans=!usePlan(cp.data);state=normalize(cs.data);
     docs.plan={id:cp.id,base:cp.base,dirty:!!cp.dirty,seq:cp.seq||0};docs.state={id:cs.id,base:cs.base,dirty:!!cs.dirty,seq:cs.seq||0,touched:Array.isArray(cs.touched)?cs.touched:[]};
+    ops=[];opsOk=!docs.state.dirty;
     store=cloudStore();
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
     setGate("reconciling");renderAll();
@@ -940,6 +947,7 @@ async function reconcileOnce(r){
     if(!cachePut(k,rec))dropCache(k);
     return {id:rec.id,base:rec.base,dirty:false,seq:rec.seq,...(tc?{touched:tc}:{})}};
   docs.plan=settle("plan",pr,pdata);docs.state=settle("state",sr,state);
+  ops=[];opsOk=!docs.state.dirty;
   store=cloudStore();
   endRun(r);run=null;clearRunUI();
   $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
@@ -1041,7 +1049,7 @@ function scheduleRetry(){
 }
 async function syncOnce(){
   const ep=sessionEpoch,ctrl=new AbortController(),sg={signal:ctrl.signal};
-  let timedOut=false,authing=false;
+  let timedOut=false,authing=false,sentOps=0;
   const tm=setTimeout(()=>{timedOut=true;ctrl.abort()},SYNC_MS);
   trying=true;cfShown=false;
   /* a retry that is under way says so; a background attempt while offline leaves the line alone (no flicker) */
@@ -1082,6 +1090,7 @@ async function syncOnce(){
     let ssv=list.find(d=>d.kind==="state"),up=null;
     if(!ssv){
       sizeCheck(state);
+      sentOps=ops.length;
       const m=await make("state",JSON.parse(JSON.stringify(state)));
       ssv=m.d;if(m.made)up=ssv;
     }
@@ -1090,7 +1099,7 @@ async function syncOnce(){
       if(isDirty){
         /* a real conflict = the server version is newer than the base, was not written by this page (a write of its own whose answer was lost is not another device) and differs from what is about to be uploaded;
            the other device's version is kept silently BEFORE the upload (the upload may reach the server and lose its answer); the notice waits until an upload has succeeded */
-        const body=JSON.parse(JSON.stringify(state));
+        const body=JSON.parse(JSON.stringify(state));sentOps=ops.length;
         if(ssv.updated!==docs.state.base&&ssv.writer!==WRITER&&canon(ssv.data)!==canon(body))snapPending=keepConflict("state",ssv);
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
@@ -1106,7 +1115,10 @@ async function syncOnce(){
     }
     if(up){
       docs.state.base=up.updated;
-      if((docs.state.seq||0)===seq){docs.state.dirty=false;docs.state.touched=[]}
+      /* the operations in the uploaded snapshot leave ops (they must never be done again); what is left was made after the snapshot and is whole relative to the new base */
+      ops.splice(0,sentOps);opsOk=true;
+      docs.state.touched=[...new Set(ops.flatMap(o=>o.keys))];
+      if((docs.state.seq||0)===seq)docs.state.dirty=false;
       if(!cachePut("state",{...docs.state,data:state})&&!docs.state.dirty)dropCache("state");
       if(!docs.state.dirty)cacheNote(true);
     }
@@ -1123,6 +1135,8 @@ async function syncOnce(){
     if(e&&e.state==="toolarge"){setStatus("保存失败："+T_TOOLARGE,"toolarge");return}
     /* the request never reached the server (status 0, not our own timeout) -> offline; a server error, 429, any other 4xx or no answer in time -> retrying */
     net=!bootOffline&&(timedOut||!(e&&e.status===0))?"retrying":"offline";
+    /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */
+    if(net==="offline")opsOk=false;
     scheduleRetry();showSync();
   }finally{clearTimeout(tm);if(ep===sessionEpoch)trying=false}
 }
@@ -1162,7 +1176,7 @@ function showWho(){
 function resetSession(){
   sessionEpoch++;
   clearTimeout(saveTimer);clearTimeout(rvT);dirty=false;savePending=false;rvPending=false;
-  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;
+  clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
@@ -1215,7 +1229,7 @@ function eventsOn(date){
   allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate===date)done.push(t);else if(!s.done&&s.due===date)due.push(t)});
   return {logs,due,done};
 }
-function addLog(date,cat,text){const id=uid();state.logs.push({id,date,text,cat});persist("log:"+id);renderAll()}
+function addLog(date,cat,text){const id=uid(),rec={id,date,text,cat};commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.push({...rec})});renderAll()}
 
 const compEdit={},compAdding={};
 function pstate(cat){const v=state.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
@@ -1376,8 +1390,8 @@ document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x===b));
   ["wk","cal","goal","tl"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==b.dataset.tab))});
 $("arrival").addEventListener("change",e=>{state.arrival=e.target.value;persist();renderAll()});
-function deleteLog(id){const i=state.logs.findIndex(l=>l.id===id);if(i<0)return;const [gone]=state.logs.splice(i,1);persist();renderAll();
-  toast("已删除这条记录",{label:"撤销",fn:()=>{state.logs.splice(Math.min(i,state.logs.length),0,gone);persist();renderAll();toast("已恢复")}})}
+function deleteLog(id){const i=state.logs.findIndex(l=>l.id===id);if(i<0)return;const gone=JSON.parse(JSON.stringify(state.logs[i]));commit(["log:"+id],s=>{s.logs=s.logs.filter(l=>l.id!==id)});renderAll();
+  toast("已删除这条记录",{label:"撤销",fn:()=>{commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.splice(Math.min(i,s.logs.length),0,JSON.parse(JSON.stringify(gone)))});renderAll();toast("已恢复")}})}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-dellog]");if(!b)return;e.stopImmediatePropagation();e.preventDefault();deleteLog(b.dataset.dellog)},true);
 document.addEventListener("click",e=>{if(e.target.closest("dialog"))return;const a=e.target.closest("[data-edit]"),t=e.target.closest("[data-edittask]");
   if(a){e.stopPropagation();openEditor(a.dataset.edit)}else if(t){e.stopPropagation();openTaskEditor(t.dataset.edittask)}},true);
@@ -1406,8 +1420,8 @@ function openEditor(id){
   const close=()=>{delete form.dataset.keep;delete form.dataset.kdate;dlg.close()};
   const save=()=>{const v=$("ed-text").value.trim(),d=$("ed-date").value;
     if(!v){$("ed-text").focus();toast("内容不能为空，想删掉请点“删除”");return}
-    const moved=d&&d!==l.date;Object.assign(l,{text:v,cat,date:d||l.date});close();persist();renderAll();
-    toast(moved?"已保存，移到 "+md(l.date):"已保存")};
+    const moved=d&&d!==l.date,nd=d||l.date,nc=cat;close();commit(["log:"+id],s=>{const x=s.logs.find(y=>y.id===id);if(x){x.text=v;x.cat=nc;x.date=nd}});renderAll();
+    toast(moved?"已保存，移到 "+md(nd):"已保存")};
   delete form.dataset.keep;delete form.dataset.kdate;draw();dlg.showModal();
   const ta=$("ed-text");ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
 }
@@ -1435,7 +1449,7 @@ $("days").addEventListener("dragover",e=>{if(!dragId)return;const d=e.target.clo
   document.querySelectorAll(".day.drop").forEach(x=>x!==d&&x.classList.remove("drop"));d.classList.add("drop")});
 $("days").addEventListener("drop",e=>{const d=e.target.closest("[data-wday]");if(!d||!dragId)return;e.preventDefault();
   const l=state.logs.find(x=>x.id===dragId);dragId=null;if(!l||l.date===d.dataset.wday){renderWeek();return}
-  l.date=d.dataset.wday;persist();renderAll();toast("已移到 "+md(l.date))});
+  const lid=l.id,nd=d.dataset.wday;commit(["log:"+lid],s=>{const x=s.logs.find(y=>y.id===lid);if(x)x.date=nd});renderAll();toast("已移到 "+md(nd))});
 // week
 $("wkPrev").onclick=()=>{wk=addDays(wk,-7);wsel=wk;renderWeek()};
 $("wkNext").onclick=()=>{wk=addDays(wk,7);wsel=wk;renderWeek()};

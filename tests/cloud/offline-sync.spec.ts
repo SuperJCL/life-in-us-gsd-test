@@ -444,3 +444,55 @@ test('SYNC-01 a background sync whose server state document is gone creates it a
   const posts = app.fake.requests.slice(from).filter((r) => r.method === 'POST' && r.path === LIST_PATH);
   expect(posts.map((r) => r.status)).toEqual([200]);
 });
+
+test('SYNC-03 an edit made while an upload is in flight stays pending alone after that upload succeeds', async ({
+  app,
+  page,
+  context,
+  guard,
+}) => {
+  await page.clock.install({ time: FROZEN_NOW });
+  await app.open({ mode: 'cloud', seed: syntheticState('a'), login: 0 });
+  await page.clock.pauseAt(FROZEN_NOW + 60_000);
+  const key = `usj:v2:${app.fake.users[0].id}:state`;
+  const readCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
+
+  // 第一笔的上传被挂起；上传途中记第二笔
+  const held = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'hold', times: 1 });
+  const entry = composer(page, 'w');
+  await entry.type('SYNTH-1011 E');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+  await expect.poll(() => held.hits, { message: '等待第一笔的上传被挂起' }).toBe(1);
+  await entry.type('SYNTH-1011 F');
+  await entry.submit();
+  await page.clock.runFor(1_000);
+
+  // 放行之前让列表读取被拒：第一笔上传成功后紧接着的同步失败，第二笔还没上传
+  const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+  await held.release();
+
+  const status = page.locator('#status');
+  await expect(status).toHaveAttribute('data-state', 'offline');
+  await expect(status).toHaveText(statusOffline(1));
+  const cached = await readCache();
+  const idOf = (text: string) => (cached.data.logs as Array<{ id: string; text: string }>).find((l) => l.text === text)?.id;
+  const fId = idOf('SYNTH-1011 F');
+  expect(fId).toBeTruthy();
+  expect(cached.touched).toEqual([`log:${fId}`]);
+  expect(cached.dirty).toBe(true);
+  expect(countOnServer(app, 'SYNTH-1011 E')).toBe(1);
+  expect(countOnServer(app, 'SYNTH-1011 F')).toBe(0);
+
+  // 联网：撤掉故障，派发 online，第二笔上传，两笔各恰好一条
+  await app.fake.clearFaults();
+  await context.setOffline(true);
+  await context.setOffline(false);
+  await expect(status).toHaveAttribute('data-state', 'synced');
+  await expect(status).toHaveText(STATUS_CLOUD_SYNCED);
+  expect(countOnServer(app, 'SYNTH-1011 E')).toBe(1);
+  expect(countOnServer(app, 'SYNTH-1011 F')).toBe(1);
+  await expect.poll(async () => (await readCache()).dirty, { message: '等待缓存收尾' }).toBe(false);
+  expect((await readCache()).touched).toEqual([]);
+  await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits });
+});
