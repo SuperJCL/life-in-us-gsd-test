@@ -44,7 +44,7 @@
 - [x] **Phase 7: 计划外置、稳定 id 与转义（Plan Extraction, Stable IDs & Escaping）** - 个人计划移出代码、只留合成示例计划，冻结任务 id，统一转义；154 条 v1 用例全过，去个人化的应用文件进入公开仓库 (completed 2026-11-07)
 - [x] **Phase 8: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）** - 用迁移文件定义集合和规则，在一次性本机 PocketBase 上证明账号隔离；按真实协议样本做出假服务器和 cloud 测试模式 (completed 2026-11-08)
 - [x] **Phase 9: 登录与云端存储（Login & Cloud Storage）** - 登录、退出、会话保持；记录和个人计划按账号存在服务器上；先对账再允许编辑；页面只加载同源资源 (completed 2026-11-09)
-- [ ] **Phase 10: 离线与实时同步（Offline & Realtime Sync）** - 断网先存、联网自动上传；同账号多设备几秒内同步且不毁草稿；状态栏五种状态；保存失败和登录过期都不丢数据
+- [x] **Phase 10: 离线与实时同步（Offline & Realtime Sync）** - 断网先存、联网自动上传；同账号多设备几秒内同步且不毁草稿；状态栏五种状态；保存失败和登录过期都不丢数据 (completed 2026-11-10)
 - [ ] **Phase 11: 导出、导入与迁移（Export, Import & Migration）** - 按账号导出 JSON 和 CSV；导入先识别、摘要确认、快照可撤销；修 N3、B2；旧 Artifact 备份的迁移先用合成文件演练
 - [ ] **Phase 12: 编辑计划页（Plan Editor）** - 在应用里增删改、排序和归档个人计划，草稿式保存，跨设备同步
 - [ ] **Phase 13: 部署、加固与验收（Deploy, Hardening & Acceptance）** - 正式部署、重启自恢复、每日异地备份和恢复演练、CSP 与后台加固、冷启动离线（含断网刷新）；两台真实设备在大陆和美国验收
@@ -248,7 +248,7 @@ Plans:
   3. 实时连接断开再重连、页面回到前台、重新联网时，都会整份对账，断开期间别的设备做的修改不会漏掉。
   4. 状态栏在已同步、保存中、离线、失败重试、登录过期五种状态之间如实切换，每种状态都有用例在假服务器上触发并检查文案。服务器暂时出错时保存会自动退避重试，修改不会被悄悄丢掉（修 B5）；应用加载完成之前做的修改也不会丢（修 B3）。
   5. 登录过期时状态栏提示重新登录，本机未上传的修改保留。用同一账号重新登录后继续上传，服务器上的数据包含过期期间的修改。
-**Plans:** 9/9 plans executed
+**Plans:** 9/9 plans complete
 Plans:
 **Wave 1**
 - [x] 10-01-PLAN.md — 离线先存与自动重试 tracer：单线程同步入口（Promise 在覆盖本次请求的同步结束后才 resolve）、offline 与待上传数量、retrying 倒计时与立即重试、15 秒超时（B5、WR-02）；移除旧保存函数和 cloudStore 的 save 字段；Phase 9 保存失败用例迁移；完整默认 npm test
@@ -357,7 +357,7 @@ Plans:
 | 7. 计划外置、稳定 id 与转义 | v2.0 | 7/7 | Complete    | 2026-11-07 |
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
-| 10. 离线与实时同步 | v2.0 | 9/9 | In Progress | - |
+| 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
 | 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |

@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 10
-current_phase_name: 离线与实时同步（Offline & Realtime Sync）
-status: verifying
-stopped_at: Completed 10-09-PLAN.md
-last_updated: "2026-11-10T09:49:25.538Z"
-last_activity: 2026-11-09
-last_activity_desc: Phase 10 execution started
-state_head: 41acced5c222ab151de616f9f45cb3c4f8bffe32
+current_phase: 11
+current_phase_name: 导出、导入与迁移（Export, Import & Migration）
+status: planning
+stopped_at: Phase 10 complete, ready to plan Phase 11
+last_updated: "2026-11-10T18:35:09.365Z"
+last_activity: 2026-11-10
+last_activity_desc: Phase 10 complete, transitioned to Phase 11
+state_head: 7ce88ec36563efe1438b40b41ea449bf6f6436f3
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 47
   completed_plans: 47
-  percent: 50
+  percent: 63
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-09 after Phase 9)
+See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 10 — 离线与实时同步（Offline & Realtime Sync）
+**Current focus:** Phase 11 — 导出、导入与迁移（Export, Import & Migration）
 
 ## Current Position
 
-Phase: 10 (离线与实时同步（Offline & Realtime Sync）) — EXECUTING
-Plan: 9 of 9
-Status: Phase complete — ready for verification
-Last activity: 2026-11-09 — Phase 10 execution started
+Phase: 11 — 导出、导入与迁移（Export, Import & Migration）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-10 — Phase 10 complete, transitioned to Phase 11
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 63%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 58
+- Total plans completed: 67
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -57,6 +57,7 @@ Progress: [█████░░░░░] 50%
 | 06 | 10 | - | - |
 | 08 | 7 | - | - |
 | 09 | 14 | - | - |
+| 10 | 9 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -247,12 +248,19 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 10]: 10-08: realtime events only trigger requestSync (never applied directly); ensureRealtime is called at the end of the startup reconcile and subscribes only while rt is off; echo suppressed by writer and by updated==base
 - [Phase 10]: 10-09: onDisconnect 只在 live 时置 connecting，每次成功 syncOnce 后 ensureRealtime（只在 off 时订阅），goExpired 退订且 ensureRealtime/rtStale 认 expired
 - [Phase 10]: 10-09: 两标签页靠 storage 事件 adoptTab 收敛（挂起槽加剩余 ops，内容不同才写回，不来回写）；脏记录采纳后 5 秒补传定时器，采纳后 opsOk 只在脏记录时置假
+Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
+- 断网照常记录、多设备同步、状态栏五种状态、保存失败自动重试、会话中途过期不丢都已完成（ACCT-05、SYNC-02、SYNC-03、SYNC-04、SYNC-06）；验收 2 项：真机“几秒内”延迟推迟到 Phase 13 成功标准 5，状态栏文案保持现状。
+- 同步只有一个入口 `requestSync`/`syncOnce`；修改一律经 `commit(keys, fn)`，`ops` 记录可重做的操作，上传成功只移除已上传的前缀（`sentOps`）；远端版本先进挂起槽 `pendRemote`，只经 `takeRemote()` 并入。
+- 打开时连不上服务器但有缓存就离线可编辑（D-01、D-02）；离线重连真冲突仍整份覆盖加留底（D-03）；在线晚一步保存时重做未上传的操作（D-04）。
+- 代码审查 3 个警告、6 个提示按所有者决定全部处理：修 6 条，跳过 IN-01（涉及契约文案）、IN-05 和 IN-06（Phase 11 的输入）。
+- 默认套件 176 条，cloud 入口 158 条（编排者在 HEAD 上亲自跑过）。执行器提交署名为 `Claude Sonnet 5.5`。
 
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
 - Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
+- Phase 10：确认 10-REVIEW-FIX 的 WR-01（退出登录时中止进行中的同步）和 WR-03（同步超时随文档大小放宽）的写法，以及 10-SECURITY 的低风险 AR-02、AR-03；判断三处体验问题（点击可能要再点一次、改开始日期清草稿、结果不明的上传之后重做会盖掉别处对同一条目的修改）；决定 IN-01 的死代码删不删。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
 
@@ -270,12 +278,16 @@ Phase 9 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条 cloud 用例（登录、云端存取、对账、冲突、退出），TEST-02 仍是 Pending；离线、实时同步、导入导出和编辑计划的 cloud 用例在 Phase 10–12 随功能补齐，Phase 13 全量收口。
-- [Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造（`setOffline` 管不到）。启动时调用 `authRefresh`、用它的 401 判断登录过期这一半已在 Phase 9 完成。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条 cloud 用例，TEST-02 仍是 Pending；导入导出和编辑计划的 cloud 用例在 Phase 11–12 随功能补齐，Phase 13 全量收口。
+- ~~[Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造~~ 已解决（Phase 10，10-02）：假服务器新增 dropRealtime、refuseRealtime、按上下文的故障。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
 - [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
 - [Phase 9 安全]: `09-SECURITY.md` verified，未解决威胁 0；AR-02（T-09-36）待所有者确认。
-- [Phase 10，来自 Phase 9 复审]: WR-01 写入方 id 每次打开页面都重新生成，刷新后可能误弹“已被覆盖”并换掉唯一的留底（记录不丢；可改用 `sessionStorage`）；WR-02 `cloudSave` 没有超时或中止，`resetSession` 不复位 `saving`，保存卡住时没有失败提示（改动仍在本机缓存，随 SYNC-06 处理）。IN-01 到 IN-06 只记录（`09-REVIEW-DISPOSITION.md`）。
+- ~~[Phase 10，来自 Phase 9 复审]: WR-01 写入方 id、WR-02 保存没有超时~~ 已解决（Phase 10，10-05 和 10-01）。
+- [Phase 10 安全]: `10-SECURITY.md` verified，32 条威胁全部关闭；AR-02、AR-03（计划阶段登记的低风险）待所有者确认。
+- [Phase 10 审查]: 9 条发现里修了 6 条、跳过 3 条（`10-REVIEW-FIX.md`、`10-REVIEW-DISPOSITION.md` 无未处理项）；WR-01、WR-03 的写法待所有者确认。
+- [Phase 11，来自 Phase 10 审查]: IN-05 导入路径绕过 `commit`，云端放开导入时要接到挂起槽；IN-06 `normalize` 对非法 id 每次生成新 id，迁移写入侧要保证 id 合法。
+- [Phase 13，来自 Phase 10 验收]: 两台真实设备上的“几秒内”同步和断网记录（10-UAT 第 1 项推迟到这里，对应 Phase 13 成功标准 5）。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
@@ -300,13 +312,13 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T09:49:24.026Z
-Stopped at: Completed 10-09-PLAN.md
+Last session: 2026-11-10T18:36:48.877Z
+Stopped at: Phase 10 complete, ready to plan Phase 11
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 9 已完成并转场（2026-11-09）：验收 4/4，验证 passed，安全报告未解决威胁 0
+- Phase 10 已完成并转场（2026-11-10）：验收 2 项（真机延迟推迟到 Phase 13、状态栏文案保持现状），验证 passed，安全报告未解决威胁 0
 - 本地提交还没推送，推送前要所有者确认
-- 所有者确认 AR-02（T-09-36）
-- 下一阶段：`/gsd-discuss-phase 10`（离线与实时同步；路线图标明需要阶段调研）
+- 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删
+- 下一阶段：`/gsd-discuss-phase 11`（导出、导入与迁移）
