@@ -394,3 +394,23 @@ export const BTN_APPLY_NOW = '现在更新';
 
 // D-06：编辑弹窗里的记录在另一台设备上被删除，用户点保存后按编辑框内容以同一个 id 加回时的提示（所有者 2026-11-10 确认的文案，4000 ms）
 export const TOAST_LOG_READDED = '这条记录在另一台设备上被删除，已按你的修改重新加回';
+
+// ---- 云端导入（IO-07、IO-08、IO-10；Phase 11-01）----
+// 摘要确认框（dialog#confirm）的文案，应用里 T_IMP_* 常量的逐字复制（09-UI-SPEC 的语气）。
+// 拒绝提示复用上面的 TOAST_IMPORT_BAD_FORMAT。
+export const CONFIRM_IMPORT_TITLE = '导入这个文件？';
+export const BTN_IMPORT_CANCEL = '不导入';
+export const BTN_IMPORT_OK = '导入';
+// 旧备份（原 Artifact 导出的裸 state）的两行：文件类型、将替换什么（D-02：只替换记录，计划不变）
+export const IMPORT_KIND_LEGACY = '文件类型：原应用导出的旧备份';
+export const IMPORT_REPLACE_LEGACY = '将替换：当前账号的记录，计划不变';
+// 记录条数和日期范围；条数为 0 时只写“记录 0 条”
+export function importLogsLine(n: number, from: string, to: string): string {
+  return n > 0 ? `记录 ${n} 条（${from} 至 ${to}）` : '记录 0 条';
+}
+// 当前账号现有记录条数
+export function importCurrentLine(n: number): string {
+  return `当前账号现有记录 ${n} 条`;
+}
+// 导入成功后的 toast（云端，4000 ms）
+export const TOAST_IMPORTED = '已导入';

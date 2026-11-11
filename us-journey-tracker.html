@@ -591,6 +591,26 @@ function normalize(s){
   }));
   return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets};
 }
+/* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的七个已知字段和各自的类型判断；
+   presets 的每个值都必须是对象（计划里的 presets 是“类别到字符串数组”，所以裸计划对象不会被当成旧备份）。
+   legacyShape：普通对象、自身没有 format 键、七个已知字段至少出现一个、出现的每一个类型都对（D-02）。
+   classifyBackup：目前只有旧备份一种结果 {kind:"legacy",state}；其余（非对象、{}、[]、类型不对、带 format 键的任何对象）返回 null，整份拒绝，不做部分导入 */
+const LEGACY_KEYS={arrival:v=>typeof v==="string",tasks:isObj,lifts:isObj,reviews:isObj,custom:Array.isArray,logs:Array.isArray,presets:v=>isObj(v)&&Object.values(v).every(isObj)};
+function legacyShape(raw){
+  if(!isObj(raw)||Object.prototype.hasOwnProperty.call(raw,"format"))return false;
+  const present=Object.keys(LEGACY_KEYS).filter(k=>Object.prototype.hasOwnProperty.call(raw,k));
+  return present.length>0&&present.every(k=>LEGACY_KEYS[k](raw[k]));
+}
+function classifyBackup(raw){
+  if(legacyShape(raw)&&importProblem(raw)===null)return {kind:"legacy",state:raw};
+  return null;
+}
+/* 摘要用的数据：b 是 classifyBackup 的结果，cur 是当前 state。state 是 normalize 之后会真正写入的内容（当前计划、当前 keepOrphans），
+   counts 是它的记录条数和日期范围，current 是当前账号现有的记录条数。不改 cur，不改模块状态 */
+function importPreview(b,cur){
+  const st=normalize(b.state),ds=st.logs.map(l=>l.date).sort();
+  return {state:st,counts:{logs:st.logs.length,from:ds.length?ds[0]:"",to:ds.length?ds[ds.length-1]:""},current:(cur.logs||[]).length};
+}
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
@@ -732,7 +752,6 @@ function prefillLogin(){
 }
 async function cloudInit(){
   document.querySelector(".wrap").classList.add("hidden");
-  $("importJson").parentNode.classList.add("hidden");
   $("loginForm").addEventListener("submit",onLogin);
   ["loginEmail","loginPw"].forEach(id=>$(id).addEventListener("input",clearLoginErr));
   document.querySelector("#login .pw-toggle").addEventListener("click",()=>setPwShown($("loginPw").type==="password"));
@@ -1250,6 +1269,40 @@ function confirmBox(o){
     },{once:true});
     cfDlg.showModal();cancel.focus();
   });
+}
+/* ---------- cloud import (IO-07, IO-08, IO-10; Phase 11) ----------
+   one path: file -> classifyBackup (refuse: toast, no dialog) -> summary in confirmBox -> applyImport; the file box is always cleared (finally), so the same file can be chosen again.
+   Nothing reaches the state, the cache or the server before the ok button. */
+const T_IMP_TITLE="导入这个文件？",T_IMP_NO="不导入",T_IMP_YES="导入",T_IMP_BAD="文件格式不对，请选择导出的备份 .json";
+const T_IMP_KIND_LEGACY="文件类型：原应用导出的旧备份",T_IMP_REPLACE_LEGACY="将替换：当前账号的记录，计划不变";
+const T_IMP_LOGS=(n,a,b)=>n?"记录 "+n+" 条（"+a+" 至 "+b+"）":"记录 0 条",T_IMP_NOW=n=>"当前账号现有记录 "+n+" 条",T_IMPORTED="已导入";
+function importLines(b,pv){
+  return [T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(pv.counts.logs,pv.counts.from,pv.counts.to),T_IMP_NOW(pv.current)];
+}
+async function cloudImport(input){
+  try{
+    const f=input.files&&input.files[0];
+    if(!f||!me||document.body.dataset.gate)return;
+    let j,b=null;
+    try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
+    if(!b){toast(T_IMP_BAD,null,4000);return}
+    const ep=sessionEpoch,pv=importPreview(b,docAfter());
+    const ok=await confirmBox({title:T_IMP_TITLE,lines:importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
+    if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
+    applyImport(b);
+  }finally{input.value=""}
+}
+/* the order matters and it is all one synchronous run: a waiting remote version is taken in first (IN-05), then the whole content is replaced through commit.
+   The run reads J, the already normalized text taken here once; it never calls normalize (that would make new ids on every redo, IN-06) and never reads the page.
+   opsOk is cleared: if another device saved a newer version meanwhile, the import wins as a whole and that version is kept as the usual copy (D-03), it is not redone. */
+function applyImport(b){
+  takeRemote();
+  remoteView=false;hideBar("remote");
+  const J=JSON.stringify(importPreview(b,state).state);
+  commit(["import"],s=>{Object.keys(s).forEach(k=>delete s[k]);Object.assign(s,JSON.parse(J))});
+  opsOk=false;
+  renderKeep();
+  toast(T_IMPORTED,null,4000);
 }
 /* ---------- remote updates (SYNC-02, SYNC-03) ---------- */
 /* the pull is the baseline: every POLL_MS while the page is visible, at once when the page becomes visible again, when the browser comes back online and when a retry is due; all go through requestSync, one sync at a time */
@@ -1770,7 +1823,7 @@ async function save(filename,data){
   try{await window.__dl.save({filename,data});toast("已导出")}
   catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
 }
-$("importJson").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+$("importJson").addEventListener("change",e=>{if(CLOUD){cloudImport(e.target);return}const f=e.target.files[0];if(!f)return;const r=new FileReader();
   r.onload=()=>{try{const j=JSON.parse(r.result),bad=importProblem(j);if(bad)throw new Error(bad);const s=normalize(j);if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist("import");renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
   r.readAsText(f)});
 
