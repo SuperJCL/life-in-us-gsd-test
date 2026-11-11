@@ -6,10 +6,10 @@ current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: verifying
 stopped_at: Completed 11-11-PLAN.md
-last_updated: "2026-11-11T08:30:40.657Z"
+last_updated: "2026-11-11T17:51:38.897Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: e04a18c934626149db7c24df8b07e9ad697d8afe
+state_head: abba25dde5dd959fb4ff28c3534cf3ee7607fabf
 progress:
   total_phases: 8
   completed_phases: 5
@@ -327,6 +327,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 | 3 | redact.mjs 私有文件存在但没有值时也拒绝输出（06-REVIEW WR-06），自检 33 项 | 2026-11-08 | dcfc987 | — |
 | 4 | 修 09-UI-REVIEW 的 4 条 CSS 警告：375px 下云端 toast 宽度、新界面按钮 14px、等待卡片进度条外边距、换账号确认框正文颜色（8a8f026） | 2026-11-09 | 8a8f026 | — |
 | 261109-inq | 应用改名为“计划手记”，页面里的美国字样改成通用说法；隐私规则保留旧导出文件名并加上新文件名 | 2026-11-09 | 4a5ab15 | [261109-inq-rename-app-title-and-neutral-wording](./quick/261109-inq-rename-app-title-and-neutral-wording/) |
+| 6 | 修 11-UI-REVIEW 的 4 处：恢复改为键盘可用的按钮、门控时导出可用、旧路径 5 MB 提示加宽延长、CSV 提示改为中性说法 | 2026-11-11 | abba25d | — |
 
 ## Deferred Items
 
