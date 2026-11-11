@@ -446,6 +446,10 @@ export const IMPORT_REPLACE_PLAN = '将替换：当前账号的计划，记录�
 export function importOrphanPlanLine(n: number): string {
   return `${n} 条现有的任务进度对不上新计划，导入后会丢弃。`;
 }
+// WR-01：自定义待办的目标组不在导入后所用的计划里的条数（醒目行；应用里 T_IMP_ORPHAN_CUSTOM 的逐字复制，三种文件共用）
+export function importOrphanCustomLine(n: number): string {
+  return `${n} 条自定义待办的目标组不在计划里，导入后在目标页看不到。`;
+}
 
 // Phase 11-04 Task 1：导入的两个上限（应用里 T_IMP_TOO_BIG、T_IMP_TOO_LARGE 的逐字复制）。
 // 文件超过 5 MB 在读之前拒绝；文件里的数据超过云端容量上限（4 MB，Phase 9）在确认之前拒绝；两种都不弹确认框、不改任何数据

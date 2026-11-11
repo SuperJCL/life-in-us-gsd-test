@@ -200,6 +200,35 @@ test('IO-08 backupOf writes the agreed wrapper and classifyBackup reads it back 
   expect(sampleBack.plan).toEqual(sample);
 });
 
+test('IO-08 WR-01 importPreview counts custom to-dos whose group is not in the plan that will be in use', async () => {
+  const { classifyBackup, importPreview, usePlan, DEFAULT_PLAN } = loadAppPure(names);
+  usePlan(DEFAULT_PLAN);
+  const custom = [
+    { id: 'c-w1', group: 'P2', text: 'SYNTH known' },
+    { id: 'c-w2', group: 'P9', text: 'SYNTH unknown' },
+    { id: 'c-w3', group: 'g-zz', text: 'SYNTH unknown 2' },
+  ];
+  // 旧备份：按账号当前计划（示例计划）算；不丢待办，只计数
+  const legacy = plain(importPreview(classifyBackup({ custom, logs: [] }), { logs: [] }));
+  expect(legacy.orphanCustom).toBe(2);
+  expect(legacy.state.custom.length, '待办仍然保留').toBe(3);
+  // 对得上计划的备份为 0
+  expect(plain(importPreview(classifyBackup({ custom: [custom[0]], logs: [] }), { logs: [] })).orphanCustom).toBe(0);
+  expect(plain(importPreview(classifyBackup({ logs: [] }), { logs: [] })).orphanCustom).toBe(0);
+
+  // 完整备份：按文件里的计划算（只有 g-w1 一组），三条都对不上
+  const filePlan = syntheticPlan('w', 1);
+  const fullB = classifyBackup(fullBackup(filePlan, legacyBackup('w', { custom })));
+  expect(plain(importPreview(fullB, { logs: [] })).orphanCustom).toBe(3);
+  // 文件的计划里有 g-w1 时，放在这个组里的待办对得上
+  const inPlan = classifyBackup(fullBackup(filePlan, legacyBackup('w', { custom: [{ id: 'c-w4', group: filePlan.groups[0].id, text: 'SYNTH in plan' }, custom[1]] })));
+  expect(plain(importPreview(inPlan, { logs: [] })).orphanCustom).toBe(1);
+
+  // 只含计划：按账号现有的待办算。新计划只有一组，现有的三条里 P2、P9、g-zz 都对不上
+  const planB = classifyBackup(planOnlyFile(filePlan));
+  expect(plain(importPreview(planB, { logs: [], custom })).orphanCustom).toBe(3);
+});
+
 test('IO-08 importPreview counts the progress a new plan would drop for full backups and plan-only files (D-07)', async () => {
   const { classifyBackup, importPreview, withPlan, planCounts, readLive } = loadAppPure(wrapNames, ['plan', 'planIds', 'keepOrphans']);
   const initial = readLive();

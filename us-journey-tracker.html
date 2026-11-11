@@ -643,17 +643,18 @@ function backupCounts(s){
     liftEntries:Object.values(s.lifts||{}).reduce((n,L)=>n+(L&&Array.isArray(L.hist)?L.hist.length:0),0)};
 }
 /* 摘要用的数据：b 是 classifyBackup 的结果，cur 是当前 state。state 是 normalize 之后会真正写入的内容（当前计划、当前 keepOrphans），
-   counts 是 backupCounts(state)，current 是当前账号现有的记录条数，orphans 是 normalize 丢掉的任务进度键数（D-07；keepOrphans 为真时不丢，为 0）。不改 cur，不改模块状态。
+   counts 是 backupCounts(state)，current 是当前账号现有的记录条数，orphans 是 normalize 丢掉的任务进度键数（D-07；keepOrphans 为真时不丢，为 0），orphanCustom 是目标组不在所用计划里的自定义待办条数（WR-01：不丢，仍留在记录里，但目标页看不到，所以只在摘要里提示）。不改 cur，不改模块状态。
    完整备份（D-07）：按文件里的计划算（withPlan 之下 normalize 文件的 state）；只含计划的文件：按账号现有的进度算（withPlan 之下 normalize cur，记录不动）。
    这两种多返回 plan（文件的计划）和 planCounts；计算结束后页面正在用的计划原样恢复 */
 function importPreview(b,cur){
   const prog=s=>isObj(s.tasks)?Object.keys(s.tasks).filter(k=>isObj(s.tasks[k])).length:0;
-  const fin=(st,from)=>({state:st,counts:backupCounts(st),current:(cur.logs||[]).length,orphans:Math.max(0,prog(from)-Object.keys(st.tasks).length)});
+  const lost=(st,pl)=>(st.custom||[]).filter(c=>!pl.groups.some(g=>g.id===c.group)).length;
+  const fin=(st,from,pl)=>({state:st,counts:backupCounts(st),current:(cur.logs||[]).length,orphans:Math.max(0,prog(from)-Object.keys(st.tasks).length),orphanCustom:lost(st,pl)});
   if(b.kind===BK_FULL||b.kind===BK_PLAN){
     const from=b.kind===BK_FULL?b.state:cur,st=withPlan(b.plan,()=>normalize(from));
-    return {...fin(st,from),plan:b.plan,planCounts:planCounts(b.plan)};
+    return {...fin(st,from,b.plan),plan:b.plan,planCounts:planCounts(b.plan)};
   }
-  return fin(normalize(b.state),b.state);
+  return fin(normalize(b.state),b.state,plan);
 }
 
 /* ---------- saving ---------- */
@@ -1372,6 +1373,7 @@ const IMPORT_MAX=5242880,T_IMP_PLAN_LOCAL="这个版本不保存计划，只含�
 const tooLarge=pv=>sizeOf(pv.state)>CLOUD_MAX||(!!pv.plan&&sizeOf(pv.plan)>CLOUD_MAX);
 const T_IMP_KIND_PLAN="文件类型：只含计划的文件",T_IMP_REPLACE_PLAN="将替换：当前账号的计划，记录不变";
 const T_IMP_ORPHAN_PLAN=n=>n+" 条现有的任务进度对不上新计划，导入后会丢弃。";
+const T_IMP_ORPHAN_CUSTOM=n=>n+" 条自定义待办的目标组不在计划里，导入后在目标页看不到。";
 /* undo (D-04, D-05): the last line of every summary says the data before is kept; T_UNDO_MORE is the extra line of the confirm shown again when more changes came in while the first one was open */
 const T_UNDO_BTN="撤销导入",T_IMP_UNDO_NOTE="导入前的数据会在这台设备上留一份，导入后可以撤销。",T_IMP_NO_UNDO="本机空间不够，没能留下导入前的数据，所以没有导入";
 const T_UNDO_TITLE="撤销导入？",T_UNDO_CHANGED="导入之后又有新的修改，撤销会把这些修改一起撤掉。",T_UNDO_MORE="刚才确认的时候又收到了其他设备的修改，撤销也会把它们一起撤掉。";
@@ -1382,17 +1384,20 @@ function importLines(b,pv){
   if(b.kind===BK_FULL){
     lines=[T_IMP_KIND_FULL,T_IMP_REPLACE_FULL,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
     if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_FILE(pv.orphans))}
+    if(pv.orphanCustom>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_CUSTOM(pv.orphanCustom))}
     lines.push(T_IMP_UNDO_NOTE);
     return {lines,warn};
   }
   if(b.kind===BK_PLAN){
     lines=[T_IMP_KIND_PLAN,T_IMP_REPLACE_PLAN,T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
     if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_PLAN(pv.orphans))}
+    if(pv.orphanCustom>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_CUSTOM(pv.orphanCustom))}
     lines.push(T_IMP_UNDO_NOTE);
     return {lines,warn};
   }
   lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)];
   if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_LEGACY(pv.orphans))}
+  if(pv.orphanCustom>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_CUSTOM(pv.orphanCustom))}
   lines.push(T_IMP_UNDO_NOTE);
   return {lines,warn};
 }

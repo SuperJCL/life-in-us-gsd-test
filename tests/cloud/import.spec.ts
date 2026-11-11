@@ -31,6 +31,7 @@ import {
   importCurrentLine,
   importLogsLine,
   importMoreLine,
+  importOrphanCustomLine,
   importOrphanFileLine,
   importOrphanLegacyLine,
   importOrphanPlanLine,
@@ -100,6 +101,33 @@ test('IO-08 progress that matches no task of the current plan is highlighted in 
   const tasks = app.fake.lastState(0).tasks as Record<string, unknown>;
   expect(Object.keys(tasks)).toContain('P2-1');
   expect(Object.keys(tasks)).not.toContain('P9-9');
+});
+
+test('IO-08 WR-01 a custom to-do whose group is not in the plan is highlighted in the summary and kept in the records', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('wr1'), login: 0 });
+  // 旧备份：一条自定义待办在 P2（计划里有），一条在 P9（计划里没有）
+  const file = legacyBackup('wr1', {
+    custom: [
+      { id: 'c-wr1-1', group: 'P2', text: 'SYNTH-wr1 todo in a known group' },
+      { id: 'c-wr1-2', group: 'P9', text: 'SYNTH-wr1 todo in an unknown group' },
+    ],
+    tasks: { 'c-wr1-1': { done: true, doneDate: '2026-03-03' } },
+  });
+
+  await chooseImportFile(page, jsonImportFile('synth-wr1.json', file));
+  const confirm = await readConfirm(page);
+  expect(confirm.warn).toEqual([importOrphanCustomLine(1)]);
+  expect(confirm.lines.slice(-2)).toEqual([importOrphanCustomLine(1), IMPORT_UNDO_NOTE]);
+
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  // 不丢：两条待办都在服务器的记录里；目标页只显示 P2 组里的那条
+  await expect.poll(() => app.fake.lastState(0)?.custom?.length, { message: '等待服务器拿到导入的待办' }).toBe(2);
+  expect(app.fake.lastState(0).custom.map((c: any) => c.group).sort()).toEqual(['P2', 'P9']);
+  await gotoGoals(page);
+  const shown = (await readGroups(page)).flatMap((g) => g.taskIds);
+  expect(shown).toContain('c-wr1-1');
+  expect(shown).not.toContain('c-wr1-2');
 });
 
 // 计划去掉 _synthetic 标记、其余原样（normalizePlan 的结果）；用例独立写出期望值
@@ -275,9 +303,11 @@ test('IO-09 importing the plan first and then the legacy backup keeps every task
     importLogsLine(2, '2026-02-10', '2026-03-17'),
     importMoreLine(1, 1, 2),
     importCurrentLine(1),
+    // WR-01：备份里的自定义待办在 P2 组，第一步导入的计划只有 P8 组，所以多一行醒目提示（进度没有丢，所以仍没有任务进度的提示行）
+    importOrphanCustomLine(1),
     IMPORT_UNDO_NOTE,
   ]);
-  expect(second.warn).toEqual([]);
+  expect(second.warn).toEqual([importOrphanCustomLine(1)]);
   await confirmOk(page);
   await expect
     .poll(() => Object.keys(app.fake.lastState(0)?.tasks ?? {}), { message: '等待服务器 state 带上 P8-1 的进度' })
