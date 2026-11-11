@@ -156,7 +156,7 @@ select,input[type=date],input[type=text],input[type=number],textarea{border:1px 
 .sect{font-size:13px;color:var(--muted);margin:14px 0 6px}
 ul.items{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 ul.items li{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:8px;background:var(--paper)}
-.tag{flex:none;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--s);color:var(--c);margin-top:2px}
+.tag{flex:none;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--s);color:var(--c);margin-top:2px;max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .li-text{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
 .panel h3{font-family:var(--serif);font-size:19px;margin:0}
 .panel .sub{color:var(--muted);font-size:13px;margin:2px 0 14px}
@@ -1919,8 +1919,8 @@ function renderDay(){
   box.innerHTML=`<h3>${md(sel)} 周${WD[d.getDay()]}</h3><p class="sub">${dayN}</p>${composer("c",sel)}
     <div class="sect">做过的事</div>
     ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${esc(l.id)}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${esc(l.id)}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
-    ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${esc(t.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
-    ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${esc(t.group)}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
+    ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${esc(t.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${esc(groupLabel(t.group))}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
+    ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${esc(groupLabel(t.group))}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
   bindComposer(box,"c",()=>sel);applyGate();
 }
 
@@ -1970,7 +1970,7 @@ function renderTimeline(){
   $("filters").innerHTML=opts.map(o=>`<button aria-pressed="${o===filter}" data-filter="${esc(o)}">${esc(o)}</button>`).join("");
   let items=[];
   if(filter!=="完成的计划")state.logs.filter(l=>filter==="全部"||l.cat===filter).forEach(l=>items.push({date:l.date,text:l.text,tag:l.cat,k:kOf(l.cat),attr:`data-edit="${esc(l.id)}"`}));
-  if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:t.group,k:kOf(planCat[t.group]),attr:`data-edittask="${esc(t.id)}"`})});
+  if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:groupLabel(t.group),k:kOf(planCat[t.group]),attr:`data-edittask="${esc(t.id)}"`})});
   items.sort((a,b)=>b.date.localeCompare(a.date));
   if(!items.length){$("timeline").innerHTML='<p class="empty">还没有内容。在“本周”里写下今天做过的事。</p>';return}
   let html="",m="";
@@ -2027,7 +2027,7 @@ function openTaskEditor(id){
   if(document.body.dataset.gate)return;
   const t=allTasks().find(x=>x.id===id);if(!t)return;const s=tstate(id);
   form.innerHTML=`<div class="ed-h"><h3 id="ed-title">完成的计划</h3></div>
-    <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${esc(t.group)}</span> ${esc(t.text)}</div>
+    <div class="ed-grid"><div class="ed-task"><span class="tag k-${kOf(planCat[t.group])}">${esc(groupLabel(t.group))}</span> ${esc(t.text)}</div>
     <label class="f">完成日期<input type="date" id="ed-date" value="${esc(s.doneDate||today())}"></label></div>
     <div class="ed-foot"><button type="button" class="danger" id="ed-undone">标记为未完成</button><span class="sp"></span>
       <button type="button" class="ghost" id="ed-cancel">取消</button><button type="button" class="primary" id="ed-save">保存</button></div>`;
@@ -2108,8 +2108,8 @@ $("exportCsv").onclick=()=>{
   const rows=[["Subject","Start Date","All Day Event","Description"]];
   state.logs.forEach(l=>rows.push(["["+l.cat+"] "+l.text.split("\n")[0].slice(0,80),usDate(l.date),"True",l.text]));
   allTasks().forEach(t=>{const s=tstate(t.id);
-    if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",t.group+" 计划"]);
-    else if(s.due)rows.push(["截止："+t.text,usDate(s.due),"True",t.group+" 计划"])});
+    if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",groupLabel(t.group)+" 计划"]);
+    else if(s.due)rows.push(["截止："+t.text,usDate(s.due),"True",groupLabel(t.group)+" 计划"])});
   if(rows.length===1){toast("还没有可导出的日期");return}
   saveFile("计划手记-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"),"text/csv;charset=utf-8");
 };

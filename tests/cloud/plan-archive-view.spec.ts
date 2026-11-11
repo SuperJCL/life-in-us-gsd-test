@@ -3,14 +3,22 @@
 // 页面只读计划，不写计划；失败消息只写 id、计数和布尔，不回显计划文字。
 import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
+import { downloadOf } from '../support/download';
 import { gotoGoals, readArchived, readGroups } from '../support/goals';
+import { gotoCalendar } from '../support/calendar';
+import { gotoTimeline } from '../support/timeline';
+import { FROZEN_TODAY } from '../support/constants';
 import {
   ARCHIVE_STATUS_OPEN,
   ARCHIVED_MARK,
+  FILENAME_CSV,
+  GROUP_UNKNOWN_LABEL,
   archiveDoneOn,
   archiveDueOn,
   archivedSummary,
 } from '../support/strings';
+
+test.use({ acceptDownloads: true });
 
 test('PLAN-03 a plan with an archived group from the server hides it from the goals list, numbers the other groups in order and shows it greyed in the archived area (D-03, D-06, D-14)', async ({
   app,
@@ -67,4 +75,44 @@ test('PLAN-03 a plan with an archived group from the server hides it from the go
   expect(stored.groups[0].tasks.map((t: any) => [t.id, t.archived ?? null])).toEqual(
     plan.groups[0].tasks.map((t: any) => [t.id, t.archived ?? null]),
   );
+});
+
+test('PLAN-03 the day panel, the timeline and the calendar CSV show P numbers for groups in use, the name of an archived group and the unknown-group label (D-14, A17)', async ({
+  app,
+  page,
+}) => {
+  // 3 组，第 2 组归档；同一天（冻结的今天）第 1 组一个任务完成、第 2 组一个任务完成、一条自定义待办（组 g-gone 不在计划里）完成
+  const plan: any = syntheticPlan('lb', 3);
+  plan.groups[1].archived = true;
+  const done = { done: true, doneDate: FROZEN_TODAY };
+  const seed = syntheticState('lb', {
+    tasks: { 't-lb1x1': done, 't-lb2x1': done, 'c-lb1': done },
+    custom: [{ id: 'c-lb1', group: 'g-gone', text: 'SYNTH-lb orphan' }],
+  });
+  await app.open({ mode: 'cloud', seed, plan, login: 0 });
+  const labels = ['P1', plan.groups[1].name, GROUP_UNKNOWN_LABEL];
+
+  // 日面板「完成的计划」：三个 .tag，顺序按页面（计划任务按计划顺序，自定义待办排在最后）
+  await gotoCalendar(page);
+  await page.locator(`#grid [data-date="${FROZEN_TODAY}"]`).click();
+  const dayTags = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('#dayPanel [data-edittask] .tag')).map((e) => e.textContent ?? ''),
+  );
+  expect(dayTags, '日面板里完成的计划的组标签').toEqual(labels);
+
+  // 时间线：同样三个标签
+  await gotoTimeline(page);
+  const tlTags = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('#timeline [data-edittask] .tag')).map((e) => e.textContent ?? ''),
+  );
+  expect(tlTags, '时间线里完成的计划的组标签').toEqual(labels);
+
+  // 日历 CSV：说明列依次是「<标签> 计划」
+  const csv = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(csv.filename).toBe(FILENAME_CSV);
+  const descriptions = csv.text
+    .split('\n')
+    .map((line) => line.slice(line.lastIndexOf(',') + 1))
+    .filter((d) => d.endsWith(' 计划'));
+  expect(descriptions, 'CSV 里计划行的说明列').toEqual(labels.map((l) => `${l} 计划`));
 });

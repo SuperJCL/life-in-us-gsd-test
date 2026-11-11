@@ -37,7 +37,7 @@ import {
 } from '../../fixtures/malicious-state';
 import { loadFixture } from '../../support/fixture-files';
 import { APP_FILE_NAME, FROZEN_TODAY } from '../../support/constants';
-import { CAT_LANGUAGE, TAB_LABELS } from '../../support/strings';
+import { CAT_LANGUAGE, GROUP_UNKNOWN_LABEL, TAB_LABELS } from '../../support/strings';
 
 type Injection = { flag: number; marked: number; foreign: number; handlers: number; scripts: number };
 
@@ -116,11 +116,12 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
         taskId: all<HTMLElement>('[data-task]').some((e) => e.dataset.task === p.cid),
         liftCur: document.querySelector('#lf-bench')?.getAttribute('value') === p.cur,
         due: all<HTMLElement>('input[data-due]').some((e) => e.dataset.due === 'c-synth-1' && e.getAttribute('value') === p.date),
-        group: all('#dayPanel .tag').some((e) => e.textContent === p.group),
+        // 组 id 不再作为文字进入页面（D-14）：找不到组的待办显示「未知目标组」，载荷不出现在任何标签里
+        group: all('#dayPanel .tag').some((e) => e.textContent === p.unknown) && !all('#dayPanel .tag').some((e) => (e.textContent || '').includes(p.group)),
         hist: all('.hist').some((e) => (e.textContent || '').includes(p.hist)),
       };
     },
-    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, hist: HIST_PAYLOAD },
+    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, unknown: GROUP_UNKNOWN_LABEL, hist: HIST_PAYLOAD },
   );
   expect(roundTrip, '恶意字符串没有原样出现在文字或属性值里').toEqual({
     weekText: true,
