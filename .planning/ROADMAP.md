@@ -296,7 +296,7 @@ Plans:
   2. 选择不是备份的文件（包括 `{}`、空数组、普通 JSON 和非 JSON）时直接拒绝并提示，账号数据保持不变（修 N3）。v1 中 N3 和 B2 的 `test.fail` 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
   3. 选择有效备份后，先显示摘要（记录条数、日期范围、计划项数等）并要求确认。确认后替换并同步到服务器，导入前的数据自动留一份快照，用户可以撤销这次导入。取消导入后，能再次选择同一个文件（修 B2）。
   4. 原 Artifact 导出的旧格式备份（裸 state、旧类别名）和所有者的种子计划可以导入新账号：用合成的旧备份和合成种子计划演练，导入后记录、复盘、任务进度和力量历史都对应到正确的任务和日期。生成种子计划的脚本只在本机运行，输出文件被 git 忽略。
-**Plans:** 10/11 plans executed
+**Plans:** 11/11 plans executed
 Plans:
 **Wave 1**
 - [x] 11-01-PLAN.md — 导入 tracer：云端导入原 Artifact 旧备份（识别、摘要确认、并入挂起槽、commit 整份替换、上传），摘要计数与 D-07 醒目提示（D-02、D-07、IN-05）
@@ -329,7 +329,7 @@ Plans:
 - [x] 11-10-PLAN.md — 迁移脚本 migrate-backup.mjs（自检、默认模式、--plan-only、--demo），读真实输入时只写 private/、只打印计数；PRIVACY.md（D-06、D-07）
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 11-11-PLAN.md — 合成迁移演练用例（D-08）；tests/README.md 与 PROBES.md（含 B2、N3、PROBE-8 的修复说明）；阶段收尾的完整默认套件和 cloud 套件；所有者真实 Edge 验收（迁移演练、两个导出文件能下载；CSV 不做日历导入）
+- [x] 11-11-PLAN.md — 合成迁移演练用例（D-08）；tests/README.md 与 PROBES.md（含 B2、N3、PROBE-8 的修复说明）；阶段收尾的完整默认套件和 cloud 套件；所有者真实 Edge 验收（迁移演练、两个导出文件能下载；CSV 不做日历导入）
 
 **Cross-cutting constraints:**
 - 每次改应用都在同一次提交里重新记录 APP_SHA256；测试一律低优先级、1 个 worker、不并发；只用合成数据和假服务器，Claude 不读、不处理所有者的真实备份和种子；备份格式在 11-02 由所有者确认之后才写进应用
@@ -394,6 +394,6 @@ Plans:
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
-| 11. 导出、导入与迁移 | v2.0 | 10/11 | In Progress | - |
+| 11. 导出、导入与迁移 | v2.0 | 11/11 | In Progress | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |

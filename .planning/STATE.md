@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
-status: executing
-stopped_at: Completed 11-10-PLAN.md
-last_updated: "2026-11-11T08:14:23.861Z"
+status: verifying
+stopped_at: Completed 11-11-PLAN.md
+last_updated: "2026-11-11T08:30:40.657Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: 8bf58ecfe3147e1320a2ba5eab9a0e2ebdc59f35
+state_head: e04a18c934626149db7c24df8b07e9ad697d8afe
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 57
+  completed_plans: 58
   percent: 63
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
 Plan: 11 of 11
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-10 — Phase 11 execution started
 
 Progress: [██████░░░░] 63%
@@ -145,6 +145,7 @@ Progress: [██████░░░░] 63%
 | Phase 11 P08 | 40 min | 2 tasks | 9 files |
 | Phase 11 P09 | 55 min | 3 tasks | 8 files |
 | Phase 11 P10 | 25 min | 2 tasks | 2 files |
+| Phase 11 P11 | 40 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -278,6 +279,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11]: 11-08: all exports share blobDownload; JSON backup is the new full-backup wrapper on every path and applies a pending remote update first
 - [Phase 11]: 11-09: plan kept copies download as a plan-only wrapper (计划留底包装：改); B7 prefix on cells starting with = + - @ tab CR; CR also forces quoting
 - [Phase 11]: 11-10: migration script reuses the app pure section through node:vm; real-input modes write only under private/, only SafeError text is ever printed, a file with a format key that does not classify is reported as already-new
+- [Phase 11]: 11-11: the migration rehearsal imports the script's already-normalized --demo file, so the summary has no orphan line; the dropped orphan is checked on the script output
 
 ### Pending Todos
 
@@ -336,8 +338,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T08:14:21.929Z
-Stopped at: Completed 11-10-PLAN.md
+Last session: 2026-11-11T08:30:38.719Z
+Stopped at: Completed 11-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
