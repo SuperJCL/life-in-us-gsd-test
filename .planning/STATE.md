@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-11-11T04:44:49.650Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-11-11T04:58:45.734Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: ebf22cc7b2ade0f666485189a144c143d4cfc2d2
+state_head: ce70d58d81f5ce83ea177a0c0d6a0bc1c977fb69
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 47
+  completed_plans: 48
   percent: 63
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 ## Current Position
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 1 of 11
-Status: Executing Phase 11
+Plan: 2 of 11
+Status: Ready to execute
 Last activity: 2026-11-10 — Phase 11 execution started
 
 Progress: [██████░░░░] 63%
@@ -135,6 +135,7 @@ Progress: [██████░░░░] 63%
 | Phase 10 P07 | 18 min | 2 tasks | 5 files |
 | Phase 10 P08 | 35min | 2 tasks | 7 files |
 | Phase 10 P09 | 22 min | 3 tasks | 6 files |
+| Phase 11 P01 | 12 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -254,6 +255,8 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - 打开时连不上服务器但有缓存就离线可编辑（D-01、D-02）；离线重连真冲突仍整份覆盖加留底（D-03）；在线晚一步保存时重做未上传的操作（D-04）。
 - 代码审查 3 个警告、6 个提示按所有者决定全部处理：修 6 条，跳过 IN-01（涉及契约文案）、IN-05 和 IN-06（Phase 11 的输入）。
 - 默认套件 176 条，cloud 入口 158 条（编排者在 HEAD 上亲自跑过）。执行器提交署名为 `Claude Sonnet 5.5`。
+- [Phase 11]: 11-01: classifyBackup refuses every object with a format key until 11-02 Task 1; the new-format branch must run before legacyShape
+- [Phase 11]: 11-01: importLines returns {lines, warn}; applyImport order is takeRemote, remoteView=false, commit(["import"]), opsOk=false
 
 ### Pending Todos
 
@@ -312,9 +315,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-10T23:40:10.130Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-export-import-migration/11-CONTEXT.md
+Last session: 2026-11-11T04:58:43.878Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
