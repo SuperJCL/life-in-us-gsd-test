@@ -148,6 +148,7 @@
 
 - mock：`save({ filename, data })` 接受字符串、`Blob`、`ArrayBuffer` 和 `ArrayBufferView`，统一解码成文本交给 Node 侧 `MockBackend.downloads` 记录（用例直接读它，D-09），然后返回冻结的、只有 `status` 字段的 `SaveResult`，值恒为 `saved`。
 - 用例：`MOCK-04 downloads.save accepts string, Blob and ArrayBuffer data and resolves status saved`（`ArrayBufferView` 没有单独的用例，它和 `ArrayBuffer` 走同一条解码分支）；账户模式下应用导出时的文件名和内容由 `tests/e2e/storage/account-mode.spec.ts` 的 MOCK-04 用例核对。
+- **Phase 11 起应用不再调用 `downloads`：** 导出（备份、日历 CSV、下载留底）改用浏览器原生下载（Blob 加 `<a download>`），应用里已经没有 `use("downloads")`。mock 的 `downloads` 现在只由 mock-contract 自测使用；`tests/e2e/storage/account-mode.spec.ts` 的 MOCK-04 用例改为核对应用没有调用它（`app.backend.downloads` 一直是空的），导出内容改读下载事件。
 
 ## 3. 明确没实现的条目
 

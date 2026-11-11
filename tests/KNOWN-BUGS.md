@@ -48,7 +48,8 @@
 - N1 的拖拽和改抵达日期两种触发。
 - B3：加载完成前的编辑被丢弃，需要 mock 的加载延迟（v2 的 ERR-04）。云端路径由 09-CONTEXT 的 D-01 门控修复，用例 `SYNC-05 clicks, keys and drags on editing controls during the reconcile change nothing and send no write`；Phase 10 再补上对账超过约 15 秒时带缓存的页面转入离线编辑、期间的修改随后上传，用例 `SYNC-03 a reconcile not finished after about 15 seconds with a cache turns to offline editing and uploads the edits made meanwhile (B3)`；旧路径维持现状，B3 与 B5 在旧路径的修复不在本里程碑。
 - B5：保存失败不重试。云端路径由 Phase 10 修复（用例 `SYNC-06 a server error is retried automatically at growing intervals and the retry-now button tries at once`），旧路径维持现状。
-- B6（导入 XSS）和 B7（CSV 公式注入）：对应 v2 的 XTRA-03。
+- B6（导入 XSS）：由 Phase 7 的转义覆盖。
+- B7（CSV 公式注入）：已在 Phase 11（11-09）修复，回归用例 `IO-06 calendar cells that start with a formula character get a leading quote (B7)`。已知限制：单引号前缀会显示在少数以 `=`、`+`、`-`、`@`、制表符或回车开头的日历标题或描述里。
 - B8：导入校验过浅，例如日志缺 date。导入侧已由 Phase 7 的白名单和 Phase 11 的识别覆盖。
 - B9：跨午夜不更新。
 - B10：位置 id，只被 GOAL-01 的整体比较间接特征化，没有标记用例。

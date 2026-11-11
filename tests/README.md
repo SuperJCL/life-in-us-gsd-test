@@ -44,7 +44,7 @@
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
 | `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
-| `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 的已知 bug 用例；导出内容从 `app.backend.downloads` 读取 |
+| `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 的已知 bug 用例；导出内容读 Playwright 下载事件（`downloadOf`） |
 | `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
@@ -115,8 +115,8 @@ PROBE-1 到 PROBE-9 的结论、证据和采用的方案见 `tests/PROBES.md`；
 应用在 Claude Artifact 里通过 `window.claude` 的 `db` 存数据；在本地直接打开时没有它，会退回 localStorage。账户模式就是在页面里装上 mock，让应用走 `db` 这条路，并且把读写和导出都记在 Node 侧，用例可以直接读到。
 
 - **怎么打开：** `await app.open({ mode: 'account', seed, userId, expectStore })`。`mode` 默认是 `'local'`，所以本地模式的用例不用改。`seed` 写进 Node 侧的 `MockBackend`，不写 localStorage；`userId` 缺省是合成用户 `synth-user-0001`，显式传 `null` 表示没有身份；`expectStore` 只给下面的反向对照用例用。
-- **就绪条件（D-08）：** 状态栏显示账户同步文案，并且 `#exportCsv` 和 `#exportJson` 两个导出按钮都可见。`app.open()` 和 `app.reload()` 内部已经等了这两条，用例不用自己再等。只看状态栏会抢跑：应用在显示状态之后还要再等 `downloads` 能力，导出按钮才出现。
-- **怎么读记录（D-09）：** 用 `app.backend.reads`（每次读取的路径）、`app.backend.writes`（每次写入的路径和内容）、`app.backend.downloads`（每次导出的文件名和文本）、`app.backend.lastState()`（账户文档的当前内容，还没有文档时是 `null`）。不要用 `page.evaluate` 去读 mock 的数据。保存有 600 ms 防抖，等写入落盘用 `app.expectPersisted(...)`，它内部是 `expect.poll`，不用固定睡眠。
+- **就绪条件（D-08）：** 状态栏显示账户同步文案；导出按钮（`#exportCsv`、`#exportJson`）自 Phase 11 起在所有环境里总是显示，`app.open()` 和 `app.reload()` 内部仍会等它们可见，用例不用自己再等。
+- **怎么读记录（D-09）：** 用 `app.backend.reads`（每次读取的路径）、`app.backend.writes`（每次写入的路径和内容）、`app.backend.downloads`（Claude 的 downloads 能力收到的文件，应用自 Phase 11 起不再调用它，所以一直是空的）、`app.backend.lastState()`（账户文档的当前内容，还没有文档时是 `null`）。不要用 `page.evaluate` 去读 mock 的数据。保存有 600 ms 防抖，等写入落盘用 `app.expectPersisted(...)`，它内部是 `expect.poll`，不用固定睡眠。
 - **`app.expectAccountMode()` 和反向对照（D-07）：** 它检查三件事：状态栏是账户同步文案；mock 恰好记录到预期次数的读取，且路径是账户文档路径；页面 localStorage 里没有应用的键。`reload` 之后读取次数会变多，用 `app.expectAccountMode({ reads: 2 })`。为了证明这个检查不是永远通过，`tests/e2e/storage/account-mode.spec.ts` 里有一条常驻的反向对照用例：用 `userId: null` 打开应用，应用会静默退回 localStorage，这时 `expectAccountMode()` 必须失败。它每次 `npm test` 都会运行。
 - **mock 只做正常路径：** 没有拒绝、错误码、限流和延迟（它们是 v2 的 ERR-01 到 ERR-04）。对齐的契约版本、已实现和未实现的条目、mock 的结构和重新核对的步骤都写在 `tests/mocks/CONTRACT.md` 里，契约自测在 `tests/e2e/platform/mock-contract.spec.ts`。
 - **网络：** binding 是页面和本机 Node 进程之间的往返，不走网络，所以 guard 和第 7 节的网络兜底都不变。
@@ -127,7 +127,7 @@ PROBE-1 到 PROBE-9 的结论、证据和采用的方案见 `tests/PROBES.md`；
 - **读取和推导：** `loadFixture(name)` 与 `withoutSynthetic(state)` 在 `tests/support/fixture-files.ts`；应用的 normalize 会丢掉 `_synthetic`，所以导出的备份要和去掉它的 fixture 比较。`tests/support/expect-from-fixture.ts` 里是按规格独立写的推导函数。期望值一律从 fixture 推导，不在用例里抄数字（D-13）。
 - **位置 id：** 内置任务 id 自 Phase 7 起冻结在示例计划里，不再随顺序变化（PLAN-05）；`tests/support/task-ids.ts` 里记录的就是这组冻结 id。
 - **内置任务文字：** 只在运行时从目标页的 aria-label 读取，放在单个用例的内存里，不写进任何文件、annotation 或报告（D-14）。
-- **导出用例：** 文件名和内容从 `app.backend.downloads` 读，只在内存里比较，不写文件、不附加到报告（D-16）；不使用 Playwright 的下载事件。日历 CSV 的期望由独立生成器 `expectedCalendarCsv` 算出，再用用例里手写的金标准行锚定转义规则、80 字符截断和日期格式（D-15）；金标准与应用不一致时先按规格核对金标准，不要把它改成应用的输出。
+- **导出用例：** 读 Playwright 的下载事件（`tests/support/download.ts` 的 `downloadOf(page, click)`）：内容只在内存里比较，临时文件读完即删，不写文件、不附加到报告（D-16）；需要读下载的 spec 自己写 `test.use({ acceptDownloads: true })`，`playwright.config.ts` 和 `playwright.cloud.config.ts` 的默认值不变。JSON 是新格式的完整备份（旧路径也是，D-10），日历 CSV 的期望由独立生成器 `expectedCalendarCsv` 算出，再用用例里手写的金标准行锚定转义规则、80 字符截断和日期格式（D-15）；金标准与应用不一致时先按规格核对金标准，不要把它改成应用的输出。B7（CSV 公式注入）的规则：以 `=`、`+`、`-`、`@`、制表符、回车开头的单元格前面多一个英文单引号，再按原来的规则加引号（回车也触发加引号）；金标准行在 `IO-06 calendar cells that start with a formula character get a leading quote (B7)`，同时约束应用的 `csvCell` 和独立生成器的 `csvCell`。云端版的导出用例（桌面和手机宽度、不含账号标识、375 宽工具栏、计划留底导回）在 `tests/cloud/export.spec.ts`。
 - **合成文字的写法：** 以 `SYNTH-` 开头，中英混合，中文只用短词。
 
 ## 13. 共享 helper
