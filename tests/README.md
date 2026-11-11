@@ -44,14 +44,14 @@
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
 | `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
-| `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 的已知 bug 用例；导出内容读 Playwright 下载事件（`downloadOf`） |
+| `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 修复后的回归用例；导出内容读 Playwright 下载事件（`downloadOf`） |
 | `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
-| `tools/plan/` | 本地提取工具：只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容 |
+| `tools/plan/` | 本地计划工具：`extract-plan.mjs` 只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容；`migrate-backup.mjs` 把种子计划和原 Artifact 的旧备份合成一个新格式文件（用法见“Phase 11 的云端用例”一节，默认模式和 `--plan-only` 只由所有者运行） |
 | `tests/PROBES.md` | 运行时探针的结论 |
 | `tests/KNOWN-BUGS.md` | 已知 bug 登记表：编号、出处、对照用例和标记用例的标题、期望行为和现状 |
 
@@ -191,6 +191,22 @@ Phase 10 的云端用例（离线、重试、远端更新、实时、写入方 i
 - **一个标签页发现登录过期时，同一浏览器的其他标签页会被送回登录页：** 它们没提交的草稿和内存里的操作记录会丢，已写进本机缓存的修改不丢；“过期后仍可继续记”只对发现过期的那个标签页成立。
 - **实时的“几秒内”只在本机假服务器上验证：** 真实网络下的延迟和真实服务器是否补发断线期间的事件无法本地验证，设计不依赖补发（每次 `PB_CONNECT` 都整份对账，60 秒拉取兜底），由 Phase 13 的真机验收确认。
 
+### Phase 11 的云端用例
+
+Phase 11 的云端用例（导入、导入与同步、撤销导入、导出、合成迁移演练）同样只在 `npm run test:cloud` 里运行，只用合成账号和合成数据，全部在假服务器上做，不连任何真实服务器；导入文件只在内存里构造（文件名以 `synth-` 开头），下载的文件只在内存里读。
+
+- **五个新的 spec：**
+  - `tests/cloud/import.spec.ts`：云端导入的三种文件和摘要确认框——原 Artifact 的旧备份（只替换记录，计划不变）、新格式完整备份（计划和记录一起替换，先计划后记录）、只含计划的文件（记录不变）；摘要的文件类型、替换范围、记录条数和日期范围、复盘周数、完成的任务数、力量记录数、计划规模、当前记录数、对不上计划的进度（醒目行，D-07）和撤销说明；先导计划再导旧备份时进度全部保留；取消和拒绝（格式错误、超过 5 MB、超过 4 MB 容量上限）不改任何数据。
+  - `tests/cloud/import-sync.spec.ts`：导入与同步的规则——挂起的远端更新被导入取代（IN-05）、导入遇到另一台设备的新版本时的冲突处理（计划和记录同一次导入都冲突的情形也有用例）、同一浏览器两个标签页：一个标签页导入，另一个标签页按新计划显示而不丢进度。
+  - `tests/cloud/import-undo.spec.ts`：导入前在本机留的数据和“撤销导入”——撤销后服务器回到导入前、另一台设备随后跟着恢复；导入之后又有修改时先确认；确认框打开期间又同步来修改时再确认（D-05）；存不下导入前的数据就拒绝导入；撤销副本刷新后保留、被下一次导入取代、退出和换账号时清除（退出确认框多一行提示）；另一个标签页同步显示或隐藏按钮；导入时挂起的远端版本在撤销时恢复。
+  - `tests/cloud/export.spec.ts`：桌面和手机宽度下下载账号的 JSON 备份和日历 CSV（读下载事件）、导出文件不含账号标识、375 px 宽度下工具栏每个按钮都显示、留底的计划版本导出为只含计划的文件并能被导入接受。
+  - `tests/cloud/migration.spec.ts`：合成迁移演练（IO-09，D-08）——子进程运行迁移脚本的 `--demo`，把它写出的合成好的文件导入新账号，摘要计数、计划、记录、复盘、任务进度、力量历史、目标页和时间线都与从合成输入独立算出的值一致，再撤销导入、核对服务器回到导入前；另有一条脚本自检用例。
+- **迁移脚本 `tools/plan/migrate-backup.mjs`：** 本地脚本，把种子计划和原 Artifact 的旧备份合成一个新格式的完整备份。输出只打印计数，不打印任何计划或记录的文字。
+  - `node tools/plan/migrate-backup.mjs --self-test`：只读应用文件，跑内置自检，最后一行是“自检通过：N 项”。
+  - `node tools/plan/migrate-backup.mjs --demo [目录]`：不读任何私有文件，用内置的合成种子和合成旧备份写出 `synth-legacy-backup.json`、`synth-plan-seed.json`、`synth-migrated.json`、`synth-plan-only.json`；仓库内的目录只接受 `private/` 和 `test-results/` 下的路径，缺省是 `private/migration-demo`；最后一行是 `MIGRATION OK`。用完可以删除这个目录。
+  - 默认模式（`node tools/plan/migrate-backup.mjs <旧备份.json>`）和 `--plan-only` 会读 `private/plan-seed.json` 和真实备份，只由所有者在 Phase 13 运行（见 `PRIVACY.md`）；测试和执行者从不运行这两种模式，`migration.spec.ts` 只以 `--demo` 和 `--self-test` 调用脚本。
+- **和旧路径的分工：** 没有账号、不保存计划的旧版本的导入用例在 `tests/e2e/io/import.spec.ts`（原生 `confirm()`、拒绝只含计划的文件、5 MB 上限、新格式备份只导入记录）；云端路径的用例都在上面的五个 spec 里。
+
 ## 14. 已知 bug
 
 已知 bug 在修复它的那个阶段之前保持现状，只在测试侧标记和登记（BUG-01）。
@@ -201,14 +217,14 @@ Phase 10 的云端用例（离线、重试、远端更新、实时、写入方 i
 - **登记：** 在 `tests/KNOWN-BUGS.md` 的登记表里加一行，写明编号、`.planning/codebase/CONCERNS.md` 的出处、两个用例的完整标题、期望行为和现状（D-12）。`tests/e2e/platform/known-bugs-registry.spec.ts` 的护栏用例会双向核对 spec 里的编号和登记行、用例标题，漏登记或写错标题都会变红。
 - **预期现象：** 跑全部用例时，登记的标记用例在列表里带 x 标记，但汇总计为通过（预期失败），这是正常的；应用修好之后它们会变红，提醒去掉标记。
 
-B2 有两条对照用例（control 和 reset path，写法同 B4 的 reload path）；N3 的标记用例选了“格式错误提示”作为期望，原因写在 `tests/e2e/io/known-bugs.spec.ts` 的注释里。
+B2、N3 已在 Phase 11 修复，见 `tests/KNOWN-BUGS.md` 的“已修复”：原来的标记用例和已知 bug 文件 `tests/e2e/io/known-bugs.spec.ts` 已删除，变成 `tests/e2e/io/import.spec.ts` 里的回归用例（B2：`IO-10 the file input is cleared after cancelling the import confirm (B2 fixed)`；N3：`IO-07 importing an empty JSON object is rejected with the format error (N3 fixed)`）。其余已知 bug 的写法不变。
 
 ## 15. 导入和窄屏用例的注意事项
 
 - **导入文件都是内存里的文件：** 用 `setInputFiles` 的 `{ name, mimeType, buffer }` 形式，磁盘上不放任何像备份的文件；文件名一律以 `synth-` 开头（helper 会检查）。
 - **先注册对话框处理，再选文件：** 用 `answerNextDialog` 登记处理，再 `chooseImportFile`；确认框的文案放在 `strings.ts`，逐字比较。不应弹对话框的用例用 `recordDialogs` 断言记录为空。
 - **FileReader 是异步的：** confirm 在读完文件之后才弹出，要用 `expect.poll` 等，不能在 `setInputFiles` 返回后立刻断言。
-- **B2：** 取消导入后文件框没有清空；期望断言用 `#importJson` 的 value 为空，不断言“change 会再次触发”，原因见 PROBE-8（Playwright 每次都会自己派发 change）。
-- **N3：** 导入 `{}` 这类合法 JSON 会通过 normalize、确认后清空全部数据；期望断言是出现格式错误提示。`[]` 和字段类型错误的对象是同类输入，没有单独验证。
-- **导入白名单（SEC-01）：** 备份里有一项 id 或日期不合格，整份拒绝：显示同一条格式错误提示，不弹确认框、不保存、数据不变。容器里能识别出条目就检查，只剩两条豁免：顶层不是普通对象（`null`、`[]`），以及非字符串的 arrival。导入检查点名保持 v1 结果的输入：`{}`、`{ logs: [] }`、`null`、`[]` 和字段类型错误的 `synth-wrong-types.json`，与 N3 同类，行为改变推迟到 Phase 11 处理。加载已存数据时只修正、不拒绝：坏 id 换新 id 并迁移进度、坏日期回落、孤儿进度键丢弃，记录文字一条不删，加载本身不触发保存。
+- **B2（已在 Phase 11 修复）：** 两条路径共用的识别入口 `onImportFile` 在 finally 里一律清空 `#importJson`（成功、取消、被拒绝之后都清空）；断言用 `#importJson` 的 value 为空，不断言“change 会再次触发”，原因见 PROBE-8（Playwright 每次都会自己派发 change）。
+- **N3（已在 Phase 11 修复）：** 导入文件先过 `classifyBackup`：`{}`、`[]`、`null`、字段类型错误的对象和没有任何已知字段的 JSON 现在在弹确认框之前就用格式错误提示拒绝，数据不变。旧路径（没有账号、不保存计划的版本）的确认仍是原生 `confirm()`，只含计划的文件在旧路径上被拒绝（提示见 `TOAST_IMPORT_PLAN_LOCAL`），新格式完整备份在旧路径上只导入其中的记录；云端路径的确认是摘要确认框（`dialog#confirm`，见“Phase 11 的云端用例”）。
+- **导入白名单（SEC-01）：** 备份里有一项 id 或日期不合格，整份拒绝：显示同一条格式错误提示，不弹确认框、不保存、数据不变。容器里能识别出条目就检查，只剩两条豁免：顶层不是普通对象（`null`、`[]`），以及非字符串的 arrival。导入检查里原来保持 v1 结果的 `{}`、`null`、`[]` 和字段类型错误的 `synth-wrong-types.json` 已随 N3 在 Phase 11 改为被拒绝；`{ logs: [] }` 含一个已知字段，仍然走到确认框。加载已存数据时只修正、不拒绝：坏 id 换新 id 并迁移进度、坏日期回落、孤儿进度键丢弃，记录文字一条不删，加载本身不触发保存。
 - **窄屏只用 viewport：** 文件顶层 `test.use({ viewport: { width: 520, height: 900 } })`，不用设备描述符；断言经 `page.evaluate` 读计算样式和位置，不截图、不测拖拽，也不读日历 chip 或条目的文字。滚动用例先瞬时滚到确定的位置，点击后用 `expect.poll` 等平滑滚动结束，不用固定睡眠。

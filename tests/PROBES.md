@@ -27,7 +27,7 @@
 | PROBE-5 | `dragTo` 驱动 HTML5 拖放 | `PROBE-5 dragTo drives HTML5 drag and drop in the week view` | 通过（方案 A） | 条目从 2026-03-16 拖到 2026-03-19，落盘日期变化，目标列可见 | 方案 A：`dragTo(..., { steps: 10 })` |
 | PROBE-6 | `clock.install` 加 `pauseAt` 后的稳定性检查 | `PROBE-6 clock.install with pauseAt keeps actionability checks working` | 通过 | 暂停后点击标签、记一笔、toast 出现，`runFor(1800)` 后消失，保存落盘 | install、open、pauseAt、runFor 的顺序可用 |
 | PROBE-7 | `exposeBinding` 在页面脚本运行前可调用 | `PROBE-7 exposeBinding is callable from an init script before any page script runs` | 通过 | init 阶段 `typeof` 为 `function`，init 阶段调用返回 `pong`；账户 tracer 里应用调用 `get()` 时 binding 也可用 | 采用 `exposeBinding`，不启用 `sessionStorage` 退路 |
-| PROBE-8 | 取消导入确认后，`setInputFiles` 再选同一个文件 | `PROBE-8 re-selecting the same file with setInputFiles after a cancelled import` | 通过 | 取消后 change 计数 1，`#importJson` 的 value 仍是浏览器的 fakepath 形式加合成文件名；再选同一个文件后 change 计数 2、确认框再次出现 | Playwright 复现不了“再选同一个文件没有反应”，B2 的期望断言改用确定性的 value 为空字符串 |
+| PROBE-8 | 取消导入确认后，`setInputFiles` 再选同一个文件 | `PROBE-8 re-selecting the same file with setInputFiles after a cancelled import` | 通过 | 取消后 change 计数 1；Phase 11 之前 `#importJson` 的 value 仍是浏览器的 fakepath 形式加合成文件名，Phase 11 起取消路径也清空，取消后 value 为空；再选同一个文件后 change 计数 2、确认框再次出现 | Playwright 复现不了“再选同一个文件没有反应”，B2 的期望断言改用确定性的 value 为空字符串；B2 已在 Phase 11 修复 |
 | PROBE-9a | `context.setOffline` 对 `navigator.onLine` 和 online、offline 事件的影响 | `PROBE-9a what context.setOffline does to navigator.onLine and the online and offline events` | 通过 | 初始 onLine 为 true、两个计数 0；`setOffline(true)` 之后 onLine 为 false、offline 计数 1、online 计数 0；`setOffline(false)` 之后 onLine 为 true、online 计数 1、offline 计数 1 | 离线状态下 `navigator.onLine` 和两个事件都由 Playwright 真实改变和派发，应用的断网分支可以直接用 `setOffline` 触发 |
 | PROBE-9b | route 接住的同源 fetch 在离线时是否成功 | `PROBE-9b whether a route-fulfilled same-origin fetch still succeeds while the context is offline` | 通过（离线不影响 route） | 离线时对 `/api/collections/journey_docs/records` 的 fetch 为 `resolved:200`，假服务器收到了这条请求，没有 console.error 也没有违规记录 | 不能靠 `setOffline` 让假服务器的请求失败；网络失败要由假服务器自己的开关制造 |
 | PROBE-9c | 假 EventSource 在离线时是否仍然投递 | `PROBE-9c whether the fake EventSource still delivers while the context is offline` | 通过（离线不影响投递） | 离线时 Node 侧用第 0 个账号更新自己的文档，页面订阅回调收到恰好 1 条 `update`，投递错误为空 | 假 EventSource 由 Node 经 `page.evaluate` 投递，不走浏览器网络栈；SSE 断开必须由假服务器显式触发
@@ -126,8 +126,8 @@
 
 - **怎么测的：** 账户模式加 full-state.json 开局，页面里给 `#importJson` 加一个只计数的 change 监听（计数放在带 probe 前缀的 window 属性上，只计数、不阻止事件、不改应用的处理函数）。先 `answerNextDialog(page, 'dismiss')` 再选内存文件 `synth-probe8.json`，等确认框出现，读回 change 计数和 `#importJson` 的 value；再注册一次 dismiss，选同一个文件，读回第二次的 change 计数和确认框是否再次出现。
 - **观察到什么：** 取消后 change 计数为 1；`#importJson` 的 value 没有被清空，形式是浏览器的 fakepath 形式加合成文件名（文档里不照抄带盘符的字符串）。第二次选同一个文件时 change 计数变成 2，确认框再次出现。
-- **断言是写死的：** 四条断言的期望值固定（第一次计数 1、value 为 fakepath 形式加合成文件名、第二次确认框出现、第二次计数 2），先记 annotations 和终端输出，再断言，不随观察值改写；应用以后若在取消路径上清空 input，这条探针会变红，提醒 B2 已修好。
-- **对 B2 的结论：** 应用的取消路径在 `e.target.value=""` 之前就 `return`，value 确实没有清空（这是 B2 的确定性证据）。但 Playwright 的 `setInputFiles` 每次都自己派发 input 和 change，不依赖 value 是否变化，所以用户在真实浏览器里遇到的“再选同一个文件没有反应”在这里复现不了。因此 B2 的期望断言不写“change 会再次触发”，只断言取消后 `#importJson` 的 value 为空字符串（见 `tests/e2e/io/known-bugs.spec.ts`）。
+- **断言是写死的：** 四条断言的期望值固定（第一次计数 1、取消后 value 为空、第二次确认框出现、第二次计数 2），先记 annotations 和终端输出，再断言，不随观察值改写。Phase 11 之前第二条断言写的是“value 为 fakepath 形式加合成文件名”，B2 修好之后（取消路径清空 input）按计划改为“取消后 value 为空”，其余三条不变。
+- **对 B2 的结论：** Phase 11 之前应用的取消路径在 `e.target.value=""` 之前就 `return`，value 确实没有清空（这是 B2 的确定性证据）；Phase 11 起取消路径也清空，取消后 value 为空（11-07 修复）。但 Playwright 的 `setInputFiles` 每次都自己派发 input 和 change，不依赖 value 是否变化，所以用户在真实浏览器里遇到的“再选同一个文件没有反应”在这里复现不了。因此 B2 的期望断言不写“change 会再次触发”，只断言取消后 `#importJson` 的 value 为空字符串（回归用例见 `tests/e2e/io/import.spec.ts` 的 `IO-10 the file input is cleared after cancelling the import confirm (B2 fixed)`）。
 
 ## PROBE-9：`context.setOffline` 与假服务器、假 EventSource
 
