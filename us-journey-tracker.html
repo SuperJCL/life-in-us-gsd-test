@@ -521,7 +521,7 @@ function tstate(id){return state.tasks[id]||{}}
 function lift(id){const L=plan.lifts.find(x=>x.id===id);return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
 /* 导入检查（D-07）：返回 null 表示没发现问题，否则返回一个简短的原因。容器里能识别出条目就检查，不看容器类型对不对。
    只剩两条豁免，都只为保住 v1 的结果：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）交给 v1 的 normalize；
-   非字符串的 arrival（synth-wrong-types.json 的数字 arrival）不检查。它们不是一般豁免，推迟到 Phase 11 的 IO-07。
+   非字符串的 arrival（synth-wrong-types.json 的数字 arrival）不检查。这两条豁免现在由外层的 classifyBackup 先拒绝（顶层不是普通对象、arrival 不是字符串的文件都进不到这里），函数体不变。
    原始值形式的容器（字符串、数字）里识别不出条目，v1 normalize 会把它们换成空值。 */
 function importProblem(raw){
   if(!isObj(raw))return null;
@@ -595,7 +595,12 @@ function normalize(s){
 /* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的七个已知字段和各自的类型判断；
    presets 的每个值都必须是对象（计划里的 presets 是“类别到字符串数组”，所以裸计划对象不会被当成旧备份）。
    legacyShape：普通对象、自身没有 format 键、七个已知字段至少出现一个、出现的每一个类型都对（D-02）。
-   classifyBackup：目前只有旧备份一种结果 {kind:"legacy",state}；其余（非对象、{}、[]、类型不对、带 format 键的任何对象）返回 null，整份拒绝，不做部分导入 */
+   classifyBackup 有三种结果，其余（非对象、{}、[]、类型不对）返回 null，整份拒绝，不做部分导入：
+   - 自身有 format 键的普通对象只按包装判断（D-01、D-03，所有者在 11-02 确认的格式，one-way：发出去的文件以后每个版本都要能导入）：app 必须是 BK_APP，format 必须是 BK_FORMAT，kind 必须是 BK_FULL 或 BK_PLAN，
+     plan 过 normalizePlan；完整备份的 state 过 legacyShape 加 importProblem；只含计划的文件不能带 state。任何一处不合格返回 null。结果是 {kind:"full",plan,state} 或 {kind:"plan",plan}，plan 是规范化后的计划。
+     未知的多余字段和 exportedAt（只作参考）不检查。以后要改格式就把 format 换成 3，新版继续接受 2 和旧备份。
+   - 其余普通对象按旧备份规则（D-02）：{kind:"legacy",state}。legacyShape 拒绝带 format 键的对象，所以包装分支必须先于它 */
+const BK_APP="us-journey-tracker",BK_FORMAT=2,BK_FULL="full",BK_PLAN="plan";
 const LEGACY_KEYS={arrival:v=>typeof v==="string",tasks:isObj,lifts:isObj,reviews:isObj,custom:Array.isArray,logs:Array.isArray,presets:v=>isObj(v)&&Object.values(v).every(isObj)};
 function legacyShape(raw){
   if(!isObj(raw)||Object.prototype.hasOwnProperty.call(raw,"format"))return false;
@@ -603,9 +608,30 @@ function legacyShape(raw){
   return present.length>0&&present.every(k=>LEGACY_KEYS[k](raw[k]));
 }
 function classifyBackup(raw){
+  if(isObj(raw)&&Object.prototype.hasOwnProperty.call(raw,"format")){
+    if(raw.app!==BK_APP||raw.format!==BK_FORMAT||(raw.kind!==BK_FULL&&raw.kind!==BK_PLAN))return null;
+    const p=normalizePlan(raw.plan);
+    if(!p)return null;
+    if(raw.kind===BK_PLAN)return Object.prototype.hasOwnProperty.call(raw,"state")?null:{kind:BK_PLAN,plan:p};
+    return legacyShape(raw.state)&&importProblem(raw.state)===null?{kind:BK_FULL,plan:p,state:raw.state}:null;
+  }
   if(legacyShape(raw)&&importProblem(raw)===null)return {kind:"legacy",state:raw};
   return null;
 }
+/* 写出备份文件（导出和迁移脚本都用它）：s 为 null 时是只含计划的文件。纯函数：时刻 at 由调用方传入，不读时钟，不读任何账号信息；键序固定 */
+function backupOf(p,s,at){
+  const o={app:BK_APP,format:BK_FORMAT,kind:s==null?BK_PLAN:BK_FULL,exportedAt:at,plan:p};
+  if(s!=null)o.state=s;
+  return o;
+}
+/* 在计划 p 之下执行 fn，之后模块的计划状态全部恢复（含抛错时），返回 fn 的结果；p 不合格时按 usePlan 的回落规则 keepOrphans 为真（与云端段 normUnder 的保存恢复写法相同） */
+function withPlan(p,fn){
+  const kp=plan,kt=planTasks,ki=planIds,kc=planCat,ko=keepOrphans;
+  try{keepOrphans=!usePlan(p);return fn()}
+  finally{plan=kp;planTasks=kt;planIds=ki;planCat=kc;keepOrphans=ko}
+}
+/* 计划的规模：组数、任务数（含 archived 的任务）、力量项数 */
+function planCounts(p){return {groups:p.groups.length,tasks:p.groups.reduce((n,g)=>n+g.tasks.length,0),lifts:p.lifts.length}}
 /* 摘要里的各项计数（对一份已 normalize 的 state）：记录条数和日期范围、非空白的复盘周数、完成的任务数、力量记录条数 */
 function backupCounts(s){
   const ds=(s.logs||[]).map(l=>l.date).sort();
@@ -615,10 +641,17 @@ function backupCounts(s){
     liftEntries:Object.values(s.lifts||{}).reduce((n,L)=>n+(L&&Array.isArray(L.hist)?L.hist.length:0),0)};
 }
 /* 摘要用的数据：b 是 classifyBackup 的结果，cur 是当前 state。state 是 normalize 之后会真正写入的内容（当前计划、当前 keepOrphans），
-   counts 是 backupCounts(state)，current 是当前账号现有的记录条数，orphans 是 normalize 丢掉的任务进度键数（D-07；keepOrphans 为真时不丢，为 0）。不改 cur，不改模块状态 */
+   counts 是 backupCounts(state)，current 是当前账号现有的记录条数，orphans 是 normalize 丢掉的任务进度键数（D-07；keepOrphans 为真时不丢，为 0）。不改 cur，不改模块状态。
+   完整备份（D-07）：按文件里的计划算（withPlan 之下 normalize 文件的 state）；只含计划的文件：按账号现有的进度算（withPlan 之下 normalize cur，记录不动）。
+   这两种多返回 plan（文件的计划）和 planCounts；计算结束后页面正在用的计划原样恢复 */
 function importPreview(b,cur){
-  const st=normalize(b.state),ft=isObj(b.state.tasks)?Object.keys(b.state.tasks).filter(k=>isObj(b.state.tasks[k])).length:0;
-  return {state:st,counts:backupCounts(st),current:(cur.logs||[]).length,orphans:Math.max(0,ft-Object.keys(st.tasks).length)};
+  const prog=s=>isObj(s.tasks)?Object.keys(s.tasks).filter(k=>isObj(s.tasks[k])).length:0;
+  const fin=(st,from)=>({state:st,counts:backupCounts(st),current:(cur.logs||[]).length,orphans:Math.max(0,prog(from)-Object.keys(st.tasks).length)});
+  if(b.kind===BK_FULL||b.kind===BK_PLAN){
+    const from=b.kind===BK_FULL?b.state:cur,st=withPlan(b.plan,()=>normalize(from));
+    return {...fin(st,from),plan:b.plan,planCounts:planCounts(b.plan)};
+  }
+  return fin(normalize(b.state),b.state);
 }
 
 /* ---------- saving ---------- */
@@ -1299,7 +1332,8 @@ async function cloudImport(input){
     if(!f||!me||document.body.dataset.gate)return;
     let j,b=null;
     try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
-    if(!b){toast(T_IMP_BAD,null,4000);return}
+    /* only the kind whose replace logic is wired up (the legacy backup) is let through: a full backup taken as a legacy one would replace the records only, a partial import; the two new kinds are let in once the plan is replaced too (11-03) */
+    if(!b||b.kind!=="legacy"){toast(T_IMP_BAD,null,4000);return}
     const ep=sessionEpoch,pv=importPreview(b,docAfter());
     const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
     if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
