@@ -205,6 +205,8 @@ export type ArchivedRead = {
   taskIds: string[];
   liftIds: string[];
   orphanIds: string[];
+  // 归档力量项 id -> 历史条数（.hist 的文字按「，」分段计数，空文字算 0；只返回数字，不返回文字）
+  liftHistCounts: Record<string, number>;
   inputs: number;
   buttons: number;
 };
@@ -214,7 +216,7 @@ export async function readArchived(page: Page): Promise<ArchivedRead> {
   return page.evaluate(() => {
     const el = document.querySelector('#goalsArch') as HTMLDetailsElement | null;
     if (!el) {
-      return { present: false, open: false, summary: '', groupIds: [], taskIds: [], liftIds: [], orphanIds: [], inputs: 0, buttons: 0 };
+      return { present: false, open: false, summary: '', groupIds: [], taskIds: [], liftIds: [], orphanIds: [], liftHistCounts: {}, inputs: 0, buttons: 0 };
     }
     const ids = (prefix: string) =>
       Array.from(el.querySelectorAll(`[data-arch^="${prefix}"]`)).map((e) => (e.getAttribute('data-arch') ?? '').slice(prefix.length));
@@ -226,6 +228,12 @@ export async function readArchived(page: Page): Promise<ArchivedRead> {
       taskIds: ids('t:'),
       liftIds: ids('l:'),
       orphanIds: Array.from(el.querySelectorAll('[data-deltask]')).map((b) => b.getAttribute('data-deltask') ?? ''),
+      liftHistCounts: Object.fromEntries(
+        Array.from(el.querySelectorAll('[data-arch^="l:"]')).map((e) => {
+          const text = (e.querySelector('.hist')?.textContent ?? '').trim();
+          return [(e.getAttribute('data-arch') ?? '').slice(2), text === '' ? 0 : text.split('，').length];
+        }),
+      ),
       inputs: el.querySelectorAll('input,textarea,select').length,
       buttons: el.querySelectorAll('button').length,
     };

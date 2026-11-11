@@ -524,6 +524,7 @@ function groupLabel(id){const m=planMeta().label;return m.has(id)?m.get(id):T_GR
 function isArchived(t){const m=planMeta();return m.arch.has(t.id)||m.garch.has(t.group)}
 function activeTasks(){return allTasks().filter(t=>!isArchived(t))}
 function activeGroups(){return plan.groups.filter(g=>!g.archived)}
+function activeLifts(){return plan.lifts.filter(L=>!L.archived)}
 
 let state={arrival:"",tasks:{},custom:[],logs:[],lifts:{},reviews:{},presets:{}};
 let store=null;
@@ -1875,9 +1876,9 @@ function renderWeek(){
   $("wkRange").textContent=md(wk)+" – "+(wk.slice(5,7)===end.slice(5,7)?(+end.slice(8))+"日":md(end));
   const dates=[...Array(7)].map((_,i)=>addDays(wk,i));
   const logs=state.logs.filter(l=>l.date>=wk&&l.date<=end);
-  const doneT=allTasks().filter(t=>{const s=tstate(t.id);return s.done&&s.doneDate>=wk&&s.doneDate<=end});
+  const doneT=activeTasks().filter(t=>{const s=tstate(t.id);return s.done&&s.doneDate>=wk&&s.doneDate<=end});
   $("areas").innerHTML=CATS.map(C=>{
-    const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>planCat[t.group]===C.n).length;
+    const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>(planCat[t.group]||"其他")===C.n).length;
     let goal="";
     if(C.n==="健身"){const d=new Set(logs.filter(l=>l.cat==="健身").map(l=>l.date)).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${esc(plan.fitGoal[0])}～${esc(plan.fitGoal[1])} 天</div>`}
     else{const d=new Set(logs.filter(l=>l.cat===C.n).map(l=>l.date)).size;goal=`<div class="goal">${d} 天有记录</div>`}
@@ -1928,7 +1929,7 @@ function renderGoals(){
   const t=today();
   const fit=`<div class="group k-fit"><div class="group-h"><span class="p">健身</span><h3>力量目标</h3></div>
     <p class="note">${esc(plan.fitNote)}</p>
-    <div class="lifts">${plan.lifts.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
+    <div class="lifts">${activeLifts().map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
       const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${esc(x.v)}`).join("，");
       return `<div class="lift"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
       <div class="lbar"><i style="width:${pct}%"></i></div>
@@ -1945,7 +1946,7 @@ function renderGoals(){
       <span class="meta">${s.done?(s.doneDate?`完成于 ${md(s.doneDate)}`:"已完成"):`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
     <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+archivedHTML();applyGate();
 }
-/* D-03、D-05、IN-05：目标页底部默认折叠的「已归档（n）」区，灰色只读，没有任何输入和按钮。n 先数归档的组和所在组没归档的、单独归档的任务（12-02 再加力量项和找不到组的待办）。
+/* D-03、D-05、IN-05：目标页底部默认折叠的「已归档（n）」区，灰色只读，没有任何输入和按钮。n = 归档的组 + 所在组没归档的单独归档任务 + 归档的力量项（+ 找不到组的待办，见下）。
    展开状态存在 goalsArchOpen，重画不会把展开的区收起来 */
 const T_ARCH_MARK="已归档",T_ARCH_TASKS="已归档的任务",T_ARCH_OPEN="未完成",T_ARCH_DONE="已完成";
 let goalsArchOpen=false;
@@ -1954,7 +1955,8 @@ function archivedHTML(){
   const row=(x,pre,id)=>`<div class="task ro" data-arch="t:${esc(id)}"><span class="tt">${esc(pre+x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}</span></div>`;
   const gs=plan.groups.filter(g=>g.archived),name=new Map(plan.groups.map(g=>[g.id,g.name]));
   const solo=allTasks().filter(x=>isArchived(x)&&name.has(x.group)&&!planMeta().garch.has(x.group));
-  const n=gs.length+solo.length;if(!n)return "";
+  const ls=plan.lifts.filter(L=>L.archived);
+  const n=gs.length+solo.length+ls.length;if(!n)return "";
   const groups=gs.map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id),dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group arch-g" data-arch="g:${esc(g.id)}"><div class="group-h"><span class="arch-mark">${T_ARCH_MARK}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
@@ -1962,7 +1964,12 @@ function archivedHTML(){
     <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
     ${ts.map(x=>row(x,"",x.id)).join("")}</div>`}).join("");
   const alone=solo.length?`<p class="note">${T_ARCH_TASKS}</p>${solo.map(x=>row(x,name.get(x.group)+" · ",x.id)).join("")}`:"";
-  return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}</details>`;
+  const lifts=ls.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
+    const h=s.hist.map(x=>`${esc(md(x.date))} ${esc(x.v)}`).join("，");
+    return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
+    <div class="lbar"><i style="width:${pct}%"></i></div>
+    <div class="hist">${h||esc(L.note)}</div></div>`}).join("");
+  return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}${lifts}</details>`;
 }
 
 function renderTimeline(){
