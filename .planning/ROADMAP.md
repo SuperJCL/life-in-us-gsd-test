@@ -308,13 +308,13 @@ Plans:
 - [ ] 11-03-PLAN.md — 云端导入新格式完整备份和只含计划的文件，计划经 syncOnce 上传、真冲突留底、失败重试，两步迁移（D-01、D-03、D-07）
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 11-04-PLAN.md — 导入的边界：5 MB 与云端 4 MB 上限；IN-05、IN-06、导入遇到别处新版本时留底的回归用例；同一浏览器两个标签页的计划采纳
+- [ ] 11-04-PLAN.md — 导入的边界：5 MB 与云端 4 MB 上限；IN-05、IN-06、导入遇到别处新版本时留底的回归用例；同一次导入计划和记录都冲突时合成一份留底（仍每账号一份）；同一浏览器两个标签页的计划采纳
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 11-05-PLAN.md — 导入前自动留一份数据与“撤销导入”：存不下就拒绝、新修改先确认、刷新保留、撤销后用掉、退出和换账号清除（D-04、D-05、D-09）
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 11-06-PLAN.md — 旧路径共用识别入口，修 N3、B2，v1 的 test.fail 翻转，KNOWN-BUGS 和 PROBE-8 同步；旧路径接受新格式完整备份、拒绝只含计划的文件、5 MB 上限；完整默认套件（TEST-03、D-09、D-10）
+- [ ] 11-06-PLAN.md — 旧路径共用识别入口，修 N3、B2，v1 的 test.fail 翻转，KNOWN-BUGS 和 PROBE-8 用例同步；旧路径接受新格式完整备份、拒绝只含计划的文件、5 MB 上限；完整默认套件（TEST-03、D-09、D-10）
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 11-07-PLAN.md — 导出改为浏览器原生下载（新格式 JSON、下载留底共用 blobDownload、按钮在所有环境显示、工具栏换行），v1 导出用例改读下载事件（IO-06、D-10）
@@ -326,7 +326,7 @@ Plans:
 - [ ] 11-09-PLAN.md — 迁移脚本 migrate-backup.mjs（自检、默认模式、--plan-only、--demo），只读 private/、只打印计数；PRIVACY.md（D-06、D-07）
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 11-10-PLAN.md — 合成迁移演练用例（D-08）；tests/README.md；阶段收尾的完整默认套件和 cloud 套件；所有者真实 Edge 验收
+- [ ] 11-10-PLAN.md — 合成迁移演练用例（D-08）；tests/README.md 与 PROBES.md（含 B2、N3、PROBE-8 的修复说明）；阶段收尾的完整默认套件和 cloud 套件；所有者真实 Edge 验收（含合成 CSV 导入日历）
 
 **Cross-cutting constraints:**
 - 每次改应用都在同一次提交里重新记录 APP_SHA256；测试一律低优先级、1 个 worker、不并发；只用合成数据和假服务器，Claude 不读、不处理所有者的真实备份和种子；备份格式在 11-02 由所有者确认之后才写进应用
