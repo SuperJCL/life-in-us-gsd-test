@@ -1096,7 +1096,9 @@ function snapDownload(){
   if(!snap){snapShow();return}
   const name=(snap.kind==="plan"?"计划手记-计划留底-":"计划手记-留底-")+today()+".json";
   /* the blob address outlives the click (blobDownload revokes it much later); D-10 still deletes the kept copy on the click */
-  if(!blobDownload(name,JSON.stringify(snap.data,null,2),"application/json")){toast("留底生成失败，本机副本仍然保留",null,4000);return}
+  /* 11-02 的备份格式决定（计划留底包装：改）：计划留底下载成只含计划的文件，能直接用“恢复”导回；记录留底仍是裸 state（按旧备份导入，D-02）；合成的 full 留底的 data 本来就是完整备份，原样下载 */
+  const out=snap.kind==="plan"?backupOf(snap.data,null,new Date().toISOString()):snap.data;
+  if(!blobDownload(name,JSON.stringify(out,null,2),"application/json")){toast("留底生成失败，本机副本仍然保留",null,4000);return}
   try{localStorage.removeItem(snapKey())}catch(e){}
   snapShow();
   toast("已开始下载留底，本机不再保留副本",null,3000);
@@ -2028,7 +2030,8 @@ $("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.a
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
 
 /* ---------- export / import ---------- */
-function csvCell(s){s=String(s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+/* B7: 日历工具可能把以 = + - @、制表符、回车开头的单元格当公式执行，这样的单元格前面多一个英文单引号，然后才按逗号、引号、换行、回车加引号。不加 BOM。 */
+function csvCell(s){s=String(s);if(/^[=+\-@\t\r]/.test(s))s="'"+s;return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
 function usDate(s){return s.slice(5,7)+"/"+s.slice(8)+"/"+s.slice(0,4)}
 /* 三个下载（备份、日历 CSV、下载留底）共用的浏览器原生下载：Blob 加临时 <a download>。对象地址必须比这次点击活得久（浏览器可能还在问用户是否允许下载），所以 30 秒后才 revoke；抛错时 revoke 已建的地址并返回 false */
 function blobDownload(name,text,type){

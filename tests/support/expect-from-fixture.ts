@@ -102,9 +102,13 @@ export function expectedCategory(cat: string): string {
 // 下面三个函数是 D-15 规格的独立实现，不导入应用代码。
 // 内置任务的文字由调用者在运行时从页面读出后传进来（D-14），本文件不保存任何任务文字。
 
-// 单元格含双引号、逗号或换行时用双引号包起来，内部每个双引号写成两个；否则原样返回
+// 规则来自 B7（CSV 公式注入，Phase 11 的决定），独立写出，不抄应用：
+// ① 单元格以 = + - @、制表符或回车开头时，前面先加一个英文单引号；
+// ② 然后单元格含双引号、逗号、换行或回车时用双引号包起来，内部每个双引号写成两个；否则原样返回。
 export function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+  const first = value.charAt(0);
+  const guarded = ['=', '+', '-', '@', '\t', '\r'].includes(first) ? "'" + value : value;
+  return /[",\r\n]/.test(guarded) ? '"' + guarded.replace(/"/g, '""') + '"' : guarded;
 }
 
 // YYYY-MM-DD -> MM/DD/YYYY

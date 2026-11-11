@@ -6,17 +6,18 @@ import { test, expect } from '../support/test';
 import { downloadOf } from '../support/download';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { legacyBackup } from '../support/backup-files';
-import { chooseImportFile, jsonImportFile } from '../support/import-file';
+import { chooseImportFile, jsonImportFile, textImportFile } from '../support/import-file';
 import { confirmOk, readConfirm } from '../support/confirm';
 import { expectToast } from '../support/toast';
 import { expectedNormalize } from '../support/expect-from-fixture';
-import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, FROZEN_NOW } from '../support/constants';
+import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, BACKUP_KIND_PLAN, FROZEN_NOW } from '../support/constants';
 import {
   BTN_DOWNLOAD_SNAPSHOT,
   CAT_LANGUAGE,
   CSV_HEADER,
   FILENAME_BACKUP_FROZEN,
   FILENAME_CSV,
+  IMPORT_KIND_PLAN,
   TOAST_IMPORTED,
 } from '../support/strings';
 
@@ -146,4 +147,45 @@ test('IO-06 the toolbar fits a 375 px wide screen with every button shown', asyn
   for (const b of boxes) {
     expect(b.left >= 0 && b.right <= NARROW.width, `按钮 ${b.id || '(无 id)'} 超出 375 宽的屏幕`).toBe(true);
   }
+});
+
+test('IO-06 a kept plan version downloads as a plan-only file that the import accepts', async ({ app, page }) => {
+  // 11-02 的决定（计划留底包装：改）：计划留底不再是裸计划，而是只含计划的包装文件，能直接用“恢复”导回
+  await app.open({ mode: 'cloud', seed: syntheticState('kp'), login: 0 });
+  const user = app.fake.users[0];
+  const keptPlan = planLike(syntheticPlan('kp', 2));
+
+  // 放一份合成的计划留底（记录的形状是 {kind, data, told}，data 是规范化后的计划）并重新打开：出现“下载留底”
+  await page.evaluate(
+    ([key, json]) => localStorage.setItem(key, json),
+    [`usj:v2:${user.id}:snapshot`, JSON.stringify({ kind: 'plan', data: keptPlan, told: true })],
+  );
+  await app.reload();
+  await expect(page.locator('#snapshotBtn')).toBeVisible();
+
+  const kept = await downloadOf(page, () => page.locator('#snapshotBtn').click());
+  expect(kept.filename).toBe('计划手记-计划留底-2026-03-18.json');
+  expect(kept.filename.includes(user.email) || kept.filename.includes(user.id), '文件名含账号标识').toBe(false);
+  expect(kept.text.includes(user.email) || kept.text.includes(user.id), '文件内容含账号标识').toBe(false);
+
+  // 只含计划的包装：没有 state 键，键序固定
+  const file = JSON.parse(kept.text);
+  expect(Object.keys(file)).toEqual(['app', 'format', 'kind', 'exportedAt', 'plan']);
+  expect(file.app).toBe(BACKUP_APP);
+  expect(file.format).toBe(BACKUP_FORMAT);
+  expect(file.kind).toBe(BACKUP_KIND_PLAN);
+  expect(file.exportedAt).toBe(new Date(FROZEN_NOW).toISOString());
+  expect(file.plan).toEqual(keptPlan);
+  // 下载之后本机不再保留副本
+  await expect(page.locator('#snapshotBtn')).toBeHidden();
+
+  // 把下载的文件作为内存文件导回：摘要的文件类型是只含计划，确认后服务器上的计划等于留底里的计划，记录不变
+  const stateBefore = app.fake.lastState(0);
+  await chooseImportFile(page, textImportFile('synth-kept-plan.json', kept.text));
+  const confirm = await readConfirm(page);
+  expect(confirm.lines[0]).toBe(IMPORT_KIND_PLAN);
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => app.fake.lastPlan(0), { message: '等待服务器 plan 变成留底里的计划' }).toEqual(keptPlan);
+  expect(expectedNormalize(app.fake.lastState(0))).toEqual(expectedNormalize(stateBefore));
 });

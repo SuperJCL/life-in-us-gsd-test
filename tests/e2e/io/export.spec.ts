@@ -6,7 +6,7 @@ import { test, expect } from '../../support/test';
 import { downloadOf } from '../../support/download';
 import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, FROZEN_NOW } from '../../support/constants';
 import { loadFixture, withoutSynthetic } from '../../support/fixture-files';
-import { builtinTaskIds, csvMismatch, expectedCalendarCsv } from '../../support/expect-from-fixture';
+import { builtinTaskIds, csvMismatch, expectedCalendarCsv, expectedNormalize } from '../../support/expect-from-fixture';
 import {
   CAT_OTHER,
   CATEGORY_NAMES,
@@ -191,4 +191,57 @@ test('IO-06 exporting twice downloads two identical files and the Claude downloa
   expect(json1.filename).toBe(FILENAME_BACKUP_FROZEN);
 
   expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
+});
+
+test('IO-06 calendar cells that start with a formula character get a leading quote (B7)', async ({ page, app }) => {
+  // B7：日历工具（Excel、Outlook、Google 日历）可能把以 = + - @、制表符、回车开头的单元格当公式执行；
+  // 这类单元格前面多一个英文单引号，再按原来的规则加引号。普通文字和日期不受影响。
+  const cat = CATEGORY_NAMES[0];
+  const mk = (n: number, text: string) => ({ id: `synth-b7-${n}`, date: '2026-03-17', cat, text });
+  const state = {
+    _synthetic: true,
+    logs: [
+      mk(1, '=SYNTH-B7 sum'),
+      mk(2, '+SYNTH-B7 plus'),
+      mk(3, '-SYNTH-B7 minus'),
+      mk(4, '@SYNTH-B7 at'),
+      mk(5, '\tSYNTH-B7 tab'),
+      mk(6, '\rSYNTH-B7 return'),
+      mk(7, '-SYNTH-B7 say "hi", ok'),
+      mk(8, 'SYNTH-B7 plain =not first'),
+    ],
+  };
+  await app.open({ mode: 'account', seed: state });
+  await app.expectAccountMode();
+
+  // 金标准行：手写，不调用 csvCell 或 expectedCalendarCsv 生成。
+  // 主题单元格以 “[类别] ” 开头，不受影响；只有描述单元格以公式字符开头，前面多一个单引号。
+  const golden = [
+    `[${cat}] =SYNTH-B7 sum,03/17/2026,True,'=SYNTH-B7 sum`,
+    `[${cat}] +SYNTH-B7 plus,03/17/2026,True,'+SYNTH-B7 plus`,
+    `[${cat}] -SYNTH-B7 minus,03/17/2026,True,'-SYNTH-B7 minus`,
+    `[${cat}] @SYNTH-B7 at,03/17/2026,True,'@SYNTH-B7 at`,
+    `[${cat}] \tSYNTH-B7 tab,03/17/2026,True,'\tSYNTH-B7 tab`,
+    // 回车既触发前缀，也在需要加引号的字符里：主题和描述两格都加引号
+    `"[${cat}] \rSYNTH-B7 return",03/17/2026,True,"'\rSYNTH-B7 return"`,
+    // 前缀之后仍按引号规则：描述含逗号和双引号，整格加引号，内部双引号写成两个
+    `"[${cat}] -SYNTH-B7 say ""hi"", ok",03/17/2026,True,"'-SYNTH-B7 say ""hi"", ok"`,
+    // 公式字符不在开头：不加前缀
+    `[${cat}] SYNTH-B7 plain =not first,03/17/2026,True,SYNTH-B7 plain =not first`,
+  ];
+
+  const { text: data } = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(data.startsWith(CSV_HEADER + '\n')).toBe(true);
+  // 布尔断言，失败消息只放金标准的前 40 个字符（合成文字）
+  for (const row of golden) {
+    expect(data.includes(row), `应用导出缺少金标准行：${row.slice(0, 40)}`).toBe(true);
+  }
+  // 日期单元格不受影响：每行的日期都是原样的 MM/DD/YYYY
+  expect(data.split('\n').filter((l) => l.includes(',03/17/2026,True,')).length).toBeGreaterThanOrEqual(golden.length - 1);
+
+  // 同样的金标准也必须出现在独立生成器的输出里：金标准同时约束应用和生成器
+  const generated = expectedCalendarCsv(expectedNormalize(state), (id) => 'SYNTH-builtin-' + id);
+  for (const row of golden) {
+    expect(generated.includes(row), `生成器输出缺少金标准行：${row.slice(0, 40)}`).toBe(true);
+  }
 });
