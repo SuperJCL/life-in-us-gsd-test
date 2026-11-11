@@ -83,6 +83,12 @@ git config core.hooksPath .githooks
 - 没有个人计划的人可以手动建一份空种子 `{"v":1,"plan":{}}`，明确表示选择加入。空种子不加载任何词条，建了空种子的人自己负责应用里没有个人内容。
 - 不涉及应用文件的提交不受闸门影响。此时没有种子也没有 denylist，规则 D 会跳过并在 stderr 提示，不算失败。
 - 改了名的应用副本（`us-journey-tracker.*.html`）一律被规则 A 拦住，只能留在 `private/`。
+- 迁移脚本 `tools/plan/migrate-backup.mjs`（D-06）把种子计划和原 Artifact 的旧备份合成一个新格式的完整备份，所有者再在应用里一次导入：
+  - 只读两个输入：`private/plan-seed.json` 和所有者在命令行给出路径的旧备份（`--plan-only` 只读种子）。
+  - 默认模式和 `--plan-only` 只写 `private/计划手记-迁移-<日期>.json` 和 `private/计划手记-计划-<日期>.json`，都被 git 忽略；写之前脚本先用 `git check-ignore` 确认，不被忽略就停下。
+  - `--demo [目录]` 不读任何私有文件，只用合成数据写四个合成文件：默认目录 `private/migration-demo/`，也可以指定 `test-results/` 下或仓库外的目录；仓库内的其他目录一律拒绝（`private/` 和 `test-results/` 都被忽略）。
+  - 只打印计数和固定说明（记录条数、复盘周数、完成的任务数、力量记录数、计划的组数、任务数和力量项数、对不上计划被丢弃的进度条数），从不打印计划或记录的原文，解析失败的报错也不带文件内容。
+  - Claude 不对真实数据运行这个脚本，只用 `--self-test` 和合成数据的 `--demo` 验证；真实迁移由所有者在 Phase 13 于本机运行。导入完成后，可以删除 `private/` 里的迁移文件。
 
 ## 6. 不要绕过检查
 

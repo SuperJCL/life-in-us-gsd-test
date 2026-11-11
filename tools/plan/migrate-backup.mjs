@@ -2,7 +2,7 @@
 // 迁移脚本（IO-09、D-06、D-07）：把种子计划和原 Artifact 的旧备份合成一个新格式的完整备份，
 // 所有者再在应用里一次导入。零依赖，只使用 node: 内置模块。
 //
-// 模式（默认、--plan-only 和 --demo 由 Task 2 接上入口）：
+// 模式：
 //   node tools/plan/migrate-backup.mjs <旧备份.json>   默认：读 private/plan-seed.json 和命令行给出的旧备份，
 //                                                      写 private/ 下的迁移文件（完整备份格式）
 //   node tools/plan/migrate-backup.mjs --plan-only     只读种子，写 private/ 下只含计划的文件（D-03 的两步做法）
@@ -10,7 +10,10 @@
 //   node tools/plan/migrate-backup.mjs --self-test     内存里的合成数据自检，不读 private/
 //
 // 隐私约定：
-//   - 默认模式和 --plan-only 只读种子和命令行给出的旧备份，只写 private/（被 git 忽略）；--demo 只写合成文件。
+//   - 默认模式和 --plan-only 只读种子和命令行给出的旧备份，只写 private/（被 git 忽略），写之前先用 git check-ignore 确认；
+//     输出文件名是 private/计划手记-迁移-<日期>.json 和 private/计划手记-计划-<日期>.json。
+//   - --demo 不读任何私有文件，只写合成文件：仓库内只接受 private/、test-results/ 下的目录（两个都被忽略），仓库外的目录也可以；
+//     目录默认 private/migration-demo。
 //   - 只打印计数、校验结果和固定文案，从不打印计划或记录的原文；解析失败的报错也不带文件内容。
 //   - Claude 不对真实数据运行这个脚本；真实运行由所有者在 Phase 13 于本机完成（D-06）。
 //   - 本文件和自检数据里不写任何个人文字，演示文字一律是 SYNTH- 开头的英文和数字。
@@ -24,11 +27,11 @@
 // 退出码：0 通过；1 拒绝或出错。
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
-import { APP_FILE, parseSeedJson, pureSection } from './extract-plan.mjs';
+import { APP_FILE, SEED_FILE, parseSeedJson, pureSection } from './extract-plan.mjs';
 
 // ---------- 报错：只有 SafeError 的文字会被打印 ----------
 
@@ -201,6 +204,143 @@ export function demoInputs() {
   return { seed, legacy };
 }
 
+// ---------- 输出位置 ----------
+
+export const DEMO_DEFAULT_DIR = 'private/migration-demo';
+const DEMO_REPO_DIRS = ['private', 'test-results'];
+const OUTPUT_PREFIX = { migration: '计划手记-迁移-', plan: '计划手记-计划-' };
+
+// 读真实输入的两种模式只写这里：返回值永远在 private/ 下；ymd 必须是 YYYY-MM-DD，防止路径写法跑出 private/
+export function outputPath(kind, ymd) {
+  if (!Object.prototype.hasOwnProperty.call(OUTPUT_PREFIX, kind)) throw new SafeError('输出种类不对');
+  if (typeof ymd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) throw new SafeError('输出文件的日期格式不对');
+  return `private/${OUTPUT_PREFIX[kind]}${ymd}.json`;
+}
+
+// --demo 的目录：路径先 resolve 再比较（test-results/../tools 这类写法不能绕过）；
+// 仓库内只接受 private/、test-results/ 下的路径（区分大小写，更严）；仓库根目录本身和其他仓库内目录拒绝；仓库外的目录接受
+export function demoDirAllowed(dir, root) {
+  if (typeof dir !== 'string' || dir === '') return false;
+  const rootAbs = resolve(root);
+  const rel = relative(rootAbs, resolve(rootAbs, dir));
+  if (rel === '') return false;
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return true;
+  return DEMO_REPO_DIRS.includes(rel.split(sep)[0]);
+}
+
+// 只认这四种命令行写法，其余返回 null（打印用法、退出码 1）
+export function parseArgs(args) {
+  const [a, b] = args;
+  if (a === '--self-test' && args.length === 1) return { mode: 'self-test' };
+  if (a === '--plan-only' && args.length === 1) return { mode: 'plan-only' };
+  if (a === '--demo' && args.length <= 2 && !(b ?? '').startsWith('--')) return { mode: 'demo', dir: b };
+  if (a !== undefined && !a.startsWith('--') && args.length === 1) return { mode: 'migrate', legacyPath: a };
+  return null;
+}
+
+// ---------- 模式：默认、--plan-only、--demo ----------
+
+const USAGE = '用法：node tools/plan/migrate-backup.mjs <旧备份.json> | --plan-only | --demo [目录] | --self-test\n';
+
+function localYmd(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function ignoredByGit(path) {
+  try {
+    execFileSync('git', ['check-ignore', '-q', path], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 报错里不带路径：真实文件的路径可能带本机用户名
+function readInput(path, missing) {
+  if (!existsSync(path)) throw new SafeError(missing);
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    throw new SafeError('读取输入文件失败');
+  }
+}
+
+function writeJson(path, value) {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+  } catch {
+    throw new SafeError('写输出文件失败');
+  }
+}
+
+function seedText() {
+  return readInput(SEED_FILE, `找不到 ${SEED_FILE}：请先运行 node tools/plan/extract-plan.mjs 生成种子`);
+}
+
+function reject(result) {
+  process.stderr.write(`${reportLines(result).join('\n')}\n`);
+  return 1;
+}
+
+// 默认模式：种子 + 旧备份 → private/ 下的迁移文件
+function runMigrate(legacyPath) {
+  const out = outputPath('migration', localYmd());
+  if (!ignoredByGit(out)) {
+    process.stderr.write('private/ 没有被 git 忽略，已停止\n');
+    return 1;
+  }
+  const html = readInput(APP_FILE, `找不到 ${APP_FILE}`);
+  const seed = seedText();
+  const legacy = readInput(legacyPath, '找不到旧备份文件');
+  const result = composeMigration(html, seed, legacy, new Date().toISOString());
+  if (!result.ok) return reject(result);
+  writeJson(out, result.file);
+  process.stdout.write(`${reportLines(result, out).join('\n')}\n`);
+  return 0;
+}
+
+// --plan-only：只读种子 → private/ 下只含计划的文件
+function runPlanOnly() {
+  const out = outputPath('plan', localYmd());
+  if (!ignoredByGit(out)) {
+    process.stderr.write('private/ 没有被 git 忽略，已停止\n');
+    return 1;
+  }
+  const html = readInput(APP_FILE, `找不到 ${APP_FILE}`);
+  const result = composePlanOnly(html, seedText(), new Date().toISOString());
+  if (!result.ok) return reject(result);
+  writeJson(out, result.file);
+  process.stdout.write(`${reportLines(result, out).join('\n')}\n`);
+  return 0;
+}
+
+// --demo：不读任何私有文件，只用合成输入写四个合成文件
+function runDemo(dirArg, root) {
+  const dirInput = dirArg ?? DEMO_DEFAULT_DIR;
+  if (!demoDirAllowed(dirInput, root)) {
+    process.stderr.write('演示目录不允许：仓库内只接受 private/、test-results/ 下的路径，或仓库外的路径\n');
+    return 1;
+  }
+  const dir = resolve(root, dirInput);
+  const shown = dirInput.replace(/\\/g, '/').replace(/\/+$/, '');
+  const html = readInput(join(root, APP_FILE), `找不到 ${APP_FILE}`);
+  const { seed, legacy } = demoInputs();
+  const now = new Date().toISOString();
+  const migrated = composeMigration(html, JSON.stringify(seed), JSON.stringify(legacy), now);
+  if (!migrated.ok) return reject(migrated);
+  const planOnly = composePlanOnly(html, JSON.stringify(seed), now);
+  if (!planOnly.ok) return reject(planOnly);
+  writeJson(join(dir, 'synth-legacy-backup.json'), legacy);
+  writeJson(join(dir, 'synth-plan-seed.json'), seed);
+  writeJson(join(dir, 'synth-migrated.json'), migrated.file);
+  writeJson(join(dir, 'synth-plan-only.json'), planOnly.file);
+  const lines = [...reportLines(migrated, `${shown}/synth-migrated.json`).slice(0, -1), '只含计划的文件：', ...reportLines(planOnly, `${shown}/synth-plan-only.json`)];
+  process.stdout.write(`${lines.join('\n')}\n`);
+  return 0;
+}
+
 // ---------- 模式：--self-test ----------
 
 function repoRoot() {
@@ -307,6 +447,25 @@ function runSelfTest() {
   expect('reportLines：计划文件的报告没有记录行和孤儿行', json(reportLines(po)) === json(['计划 2 组、4 项任务、1 个力量项', 'MIGRATION OK']));
   expect('reportLines：失败结果不会因为多余字段泄露', !leaks(reportLines({ ok: false, reason: 'not-backup', file, counts: ok.counts })));
 
+  // outputPath
+  expect('outputPath：迁移文件和计划文件都在 private/ 下，文件名前缀正确', outputPath('migration', '2026-03-18') === 'private/计划手记-迁移-2026-03-18.json' && outputPath('plan', '2026-03-18') === 'private/计划手记-计划-2026-03-18.json');
+  expect('outputPath：种类或日期不对时抛 SafeError（不能借日期跑出 private/）', [() => outputPath('other', '2026-03-18'), () => outputPath('migration', '../x'), () => outputPath('migration', '2026-3-18'), () => outputPath('migration', undefined), () => outputPath('__proto__', '2026-03-18')].every((f) => thrown(f) instanceof SafeError));
+  expect('outputPath：输出路径被 git 忽略（git check-ignore）', ignoredByGit(outputPath('migration', '2026-03-18')) && ignoredByGit(outputPath('plan', '2026-03-18')) && ignoredByGit(`${DEMO_DEFAULT_DIR}/synth-migrated.json`));
+
+  // demoDirAllowed：根目录用合成的绝对路径，不碰真实仓库
+  const root = resolve(sep, 'synth-root');
+  const allowed = (d) => demoDirAllowed(d, root);
+  expect('demoDirAllowed：仓库内只接受 private/、test-results/ 下的路径', allowed('private') && allowed('private/migration-demo') && allowed('test-results/x') && allowed(resolve(root, 'test-results', 'a')));
+  expect('demoDirAllowed：仓库内其他目录和仓库根目录拒绝', !allowed('tools/x') && !allowed('tools') && !allowed('.') && !allowed('') && !allowed('x') && !allowed(resolve(root, 'tools', 'x')) && !allowed(root));
+  expect('demoDirAllowed：先 resolve 再比较，.. 写法不能绕过', !allowed('test-results/../tools') && !allowed('private/../tools/x') && !allowed('test-results/./../x') && allowed('tools/../test-results/x'));
+  expect('demoDirAllowed：相似前缀和大小写不同的目录拒绝', !allowed('privatex/x') && !allowed('private-x') && !allowed('Private/x') && !allowed('TEST-RESULTS/x'));
+  expect('demoDirAllowed：仓库外的目录接受（含与仓库根同前缀的兄弟目录）', allowed(resolve(sep, 'synth-elsewhere', 'x')) && allowed(resolve(sep, 'synth-root-other')) && allowed('../synth-elsewhere'));
+  expect('demoDirAllowed：不是字符串时拒绝', !demoDirAllowed(undefined, root) && !demoDirAllowed(null, root) && !demoDirAllowed(5, root));
+
+  // parseArgs
+  expect('parseArgs：四种写法', json(parseArgs(['--self-test'])) === json({ mode: 'self-test' }) && json(parseArgs(['--plan-only'])) === json({ mode: 'plan-only' }) && json(parseArgs(['a.json'])) === json({ mode: 'migrate', legacyPath: 'a.json' }) && parseArgs(['--demo']).mode === 'demo' && parseArgs(['--demo', 'd']).dir === 'd');
+  expect('parseArgs：未知参数、多余参数、没有参数都不认', [[], ['--no-such-mode'], ['--self-test', 'x'], ['--plan-only', 'x'], ['a.json', 'b.json'], ['--demo', '--self-test'], ['--demo', 'a', 'b'], ['a.json', '--plan-only']].every((a) => parseArgs(a) === null));
+
   if (failures.length > 0) {
     for (const f of failures) process.stdout.write(`自检失败：${f}\n`);
     return 1;
@@ -318,10 +477,17 @@ function runSelfTest() {
 // ---------- 入口 ----------
 
 function main() {
-  const args = process.argv.slice(2);
-  if (args.length === 1 && args[0] === '--self-test') return runSelfTest();
-  process.stderr.write('用法：node tools/plan/migrate-backup.mjs --self-test（其余模式见文件头）\n');
-  return 1;
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed === null) {
+    process.stderr.write(USAGE);
+    return 1;
+  }
+  if (parsed.mode === 'self-test') return runSelfTest();
+  const root = repoRoot();
+  process.chdir(root);
+  if (parsed.mode === 'demo') return runDemo(parsed.dir, root);
+  if (parsed.mode === 'plan-only') return runPlanOnly();
+  return runMigrate(parsed.legacyPath);
 }
 
 // 只在直接运行时执行入口，被 import 时不执行
