@@ -57,7 +57,7 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(-
 .toolbar{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
 .ghost{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
 .ghost:hover{color:var(--ink);border-color:var(--muted)}
-#snapshotBtn{color:var(--ink);background:var(--c-job-s);border-color:var(--c-job);font-size:12px}
+#snapshotBtn,#undoImportBtn{color:var(--ink);background:var(--c-job-s);border-color:var(--c-job);font-size:12px}
 #logoutBtn,.who{font-size:12px}
 .who{color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:560px){.who{display:none}}
@@ -330,6 +330,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <button role="tab" data-tab="tl" aria-selected="false">时间线</button>
     <div class="toolbar">
       <button class="ghost hidden" id="snapshotBtn" aria-label="下载留底：另一台设备上的旧版本，下载后会从本机删除" title="下载留底：另一台设备上的旧版本，下载后会从本机删除">下载留底</button>
+      <button class="ghost hidden" id="undoImportBtn" aria-label="撤销导入：恢复成导入前的样子" title="撤销导入：恢复成导入前的样子">撤销导入</button>
       <button class="ghost hidden" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
       <button class="ghost hidden" id="exportJson">备份</button>
       <label class="ghost" style="cursor:pointer">恢复<input type="file" id="importJson" accept=".json,application/json" class="hidden"></label>
@@ -881,6 +882,8 @@ function cacheNote(ok){
   showBar("cachefail",{tone:"warn",msg:"本机空间不够，没能在本机保存这次修改。上传成功之前请别关闭或刷新页面。",btns:[{text:"知道了",cls:"ghost",fn:()=>hideBar("cachefail")}]});
 }
 function canon(v){return JSON.stringify(v,(k,x)=>x&&typeof x==="object"&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(y=>[y,x[y]])):x)}
+/* a short fingerprint of the plan and the records (FNV-1a, 32 bit, over canon): only used to tell whether anything changed since an import (undoImport); it is never stored as data and never used for anything but equality */
+function dataPrint(p,s){const t=canon({p,s});let h=0x811c9dc5;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).padStart(8,"0")}
 const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null});
 /* edit gate: body[data-gate] is the only switch; the legacy path never has it */
 const GATE_ALLOW="nav.tabs [data-tab],#wkPrev,#wkNow,#wkNext,#prev,#todayBtn,#next,.filters button,.cell,#syncbar button,#logoutBtn,#snapshotBtn";
@@ -986,7 +989,7 @@ async function enterApp(refresh){
     $("login").classList.add("hidden");document.querySelector(".wrap").classList.remove("hidden");
     setGate("reconciling");renderAll();
   }
-  snapShow();
+  snapShow();undoShow();
   return startReconcile({refresh:!!refresh,cached,old});
 }
 const uniqErr=e=>{const d=e&&e.status===400&&e.response&&e.response.data;return !!d&&["kind","owner"].some(k=>d[k]&&d[k].code==="validation_not_unique")};
@@ -1049,7 +1052,7 @@ async function reconcileOnce(r){
   setGate(null);
   if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
   pendRemote={plan:null,state:null};remoteView=false;hideBar("remote");
-  renderAll();snapShow();startPoll();ensureRealtime();
+  renderAll();snapShow();undoShow();startPoll();ensureRealtime();
   if(changed&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
@@ -1109,6 +1112,13 @@ function snapDownload(){
   toast("已开始下载留底，本机不再保留副本",null,3000);
 }
 $("snapshotBtn").addEventListener("click",snapDownload);
+/* the copy of the data before the last import (IO-08, D-04): usj:v2:<user id>:importundo = { at, plan, state, after }, written by applyImport before anything is changed (an import that cannot keep it is refused).
+   plan is the account's plan data and state the records as they were; after is the dataPrint of the plan and records the import produced, so undoImport can tell whether anything changed since.
+   It is a slot of its own, apart from the kept conflict copy (snapshot, one per account, Phase 9 D-09); it stays until the next import replaces it, a successful undo uses it up, or logout / switching accounts clears it. */
+const undoKey=()=>cacheKey("importundo");
+function undoGet(){try{const r=JSON.parse(localStorage.getItem(undoKey()));return r&&typeof r==="object"&&isObj(r.plan)&&isObj(r.state)&&typeof r.at==="string"&&typeof r.after==="string"?r:null}catch(e){return null}}
+function undoShow(){$("undoImportBtn").classList.toggle("hidden",!(CLOUD&&me&&undoGet()))}
+$("undoImportBtn").addEventListener("click",undoImport);
 /* capacity guard: the document is measured in UTF-8 bytes before any request; over the limit nothing is sent and the edit stays dirty in the local cache */
 const CLOUD_MAX=4194304;let sizeAck=false;
 const sizeOf=s=>new TextEncoder().encode(JSON.stringify(s)).length;
@@ -1369,21 +1379,28 @@ const IMPORT_MAX=5242880,T_IMP_TOO_BIG="文件太大（超过 5 MB），没有�
 const tooLarge=pv=>sizeOf(pv.state)>CLOUD_MAX||(!!pv.plan&&sizeOf(pv.plan)>CLOUD_MAX);
 const T_IMP_KIND_PLAN="文件类型：只含计划的文件",T_IMP_REPLACE_PLAN="将替换：当前账号的计划，记录不变";
 const T_IMP_ORPHAN_PLAN=n=>n+" 条现有的任务进度对不上新计划，导入后会丢弃。";
+/* undo (D-04, D-05): the last line of every summary says the data before is kept; T_UNDO_MORE is the extra line of the confirm shown again when more changes came in while the first one was open */
+const T_UNDO_BTN="撤销导入",T_IMP_UNDO_NOTE="导入前的数据会在这台设备上留一份，导入后可以撤销。",T_IMP_NO_UNDO="本机空间不够，没能留下导入前的数据，所以没有导入";
+const T_UNDO_TITLE="撤销导入？",T_UNDO_CHANGED="导入之后又有新的修改，撤销会把这些修改一起撤掉。",T_UNDO_MORE="刚才确认的时候又收到了其他设备的修改，撤销也会把它们一起撤掉。";
+const T_UNDO_NO="不撤销",T_UNDO_YES="仍然撤销",T_UNDONE="已撤销导入，恢复成了导入前的样子";
 /* the summary lines, and the indexes of the lines to highlight (warn): progress that matches no task of the plan it is read under is dropped by normalize (D-07) */
 function importLines(b,pv){
   const c=pv.counts,warn=[];let lines;
   if(b.kind===BK_FULL){
     lines=[T_IMP_KIND_FULL,T_IMP_REPLACE_FULL,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
     if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_FILE(pv.orphans))}
+    lines.push(T_IMP_UNDO_NOTE);
     return {lines,warn};
   }
   if(b.kind===BK_PLAN){
     lines=[T_IMP_KIND_PLAN,T_IMP_REPLACE_PLAN,T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
     if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_PLAN(pv.orphans))}
+    lines.push(T_IMP_UNDO_NOTE);
     return {lines,warn};
   }
   lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)];
   if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_LEGACY(pv.orphans))}
+  lines.push(T_IMP_UNDO_NOTE);
   return {lines,warn};
 }
 async function cloudImport(input){
@@ -1413,6 +1430,10 @@ function applyImport(b){
   const pv=importPreview(b,state);
   /* a plan-only file is read under the state taken in just now: if that no longer fits, nothing is changed (the taken-in remote version is already shown) */
   if(tooLarge(pv)){renderKeep();toast(T_IMP_TOO_LARGE,null,4000);return}
+  /* the data before the import is kept on this device first (D-04): a copy that cannot be written means no import at all, and nothing has been changed yet. A waiting remote version was taken in above, so the copy holds it too (it stays on the server after an undo).
+     after is the fingerprint of the plan and records this import produces (the file's plan read through withPlan, else the working plan) */
+  const urec={at:new Date().toISOString(),plan:undoPlanData(),state:JSON.parse(JSON.stringify(state)),after:pv.plan?withPlan(pv.plan,()=>dataPrint(plan,pv.state)):dataPrint(plan,pv.state)};
+  try{localStorage.setItem(undoKey(),JSON.stringify(urec))}catch(e){renderKeep();toast(T_IMP_NO_UNDO,null,6000);return}
   let planCached=true;
   if(pv.plan&&docs.plan){
     usePlan(pv.plan);keepOrphans=false;
@@ -1424,8 +1445,49 @@ function applyImport(b){
   opsOk=false;
   /* persist (inside commit) reports the state cache alone; a plan that did not reach the cache must still raise the cache-full banner */
   if(!planCached)cacheNote(false);
+  undoShow();
   renderKeep();
-  toast(T_IMPORTED,null,4000);
+  toast(T_IMPORTED,{label:T_UNDO_BTN,fn:undoImport},8000);
+}
+/* the account's plan data as it is kept on this device: the plan cache when readable, else the working plan (the same expression on both sides of an import and its undo) */
+function undoPlanData(){const pc=cacheGet("plan");return pc&&isObj(pc.data)?pc.data:plan}
+/* undo the last import (D-04, D-05): the plan and records go back to what they were before it, through the same write path as the import (commit, opsOk cleared), so it uploads and the other devices follow.
+   A waiting remote version is taken in first. If the plan or records are not what the import left (a later edit here, or a change from another device), a confirm says so first. After every confirm the waiting version is taken in again and the fingerprint recomputed:
+   when it differs from the one the user was shown (a change synced in while the confirm was open), the confirm is shown again with one more line, until the data at the moment of the click is the data the user saw. Every change present when the undo runs is therefore named in a confirm the user said yes to.
+   There is no await between the last comparison and the restore (nothing can come in), and none at all when nothing changed since the import. The slot is deleted after the restore (D-04: used up). */
+async function undoImport(){
+  let rec=undoGet();
+  if(!rec){undoShow();return}
+  if(!me||document.body.dataset.gate)return;
+  const ep=sessionEpoch,fold=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}};
+  fold();
+  let seen=dataPrint(plan,state);
+  if(seen!==rec.after){
+    let lines=[T_UNDO_CHANGED];
+    for(;;){
+      const ok=await confirmBox({title:T_UNDO_TITLE,lines,cancel:T_UNDO_NO,ok:T_UNDO_YES});
+      const now=undoGet();
+      if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate||!now||now.at!==rec.at)return;
+      fold();
+      const cur=dataPrint(plan,state);
+      if(cur===seen)break;
+      seen=cur;lines=[T_UNDO_CHANGED,T_UNDO_MORE];
+    }
+  }
+  let planCached=true;
+  if(docs.plan&&canon(rec.plan)!==canon(undoPlanData())){
+    keepOrphans=!usePlan(rec.plan);
+    docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
+    planCached=cachePut("plan",{...docs.plan,data:rec.plan});
+  }
+  const J=JSON.stringify(rec.state);
+  commit(["import"],s=>{Object.keys(s).forEach(k=>delete s[k]);Object.assign(s,JSON.parse(J))});
+  opsOk=false;
+  if(!planCached)cacheNote(false);
+  try{localStorage.removeItem(undoKey())}catch(e){}
+  undoShow();
+  renderKeep();
+  toast(T_UNDONE,null,4000);
 }
 /* ---------- remote updates (SYNC-02, SYNC-03) ---------- */
 /* the pull is the baseline: every POLL_MS while the page is visible, at once when the page becomes visible again, when the browser comes back online and when a retry is due; all go through requestSync, one sync at a time */
@@ -1654,7 +1716,7 @@ function resetSession(){
   if(dlg.open)dlg.close();
   form.textContent="";delete form.dataset.keep;delete form.dataset.kdate;
   clearTimeout(tt);const t=$("toast");t.classList.remove("on","act");t.textContent="";
-  $("snapshotBtn").classList.add("hidden");$("logoutBtn").classList.add("hidden");
+  $("snapshotBtn").classList.add("hidden");$("undoImportBtn").classList.add("hidden");$("logoutBtn").classList.add("hidden");
   const w=$("who");w.classList.add("hidden");w.textContent="";w.removeAttribute("title");
   document.querySelector(".wrap").classList.add("hidden");
   renderAll();

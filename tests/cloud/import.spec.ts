@@ -21,6 +21,7 @@ import {
   IMPORT_REPLACE_FULL,
   IMPORT_REPLACE_LEGACY,
   IMPORT_REPLACE_PLAN,
+  IMPORT_UNDO_NOTE,
   STATUS_CLOUD_SYNCED,
   TOAST_IMPORT_BAD_FORMAT,
   TOAST_IMPORT_TOO_BIG,
@@ -55,6 +56,7 @@ test('IO-08 importing a legacy backup in the cloud version asks first, replaces 
     // 文件里：一周复盘、两项完成的任务（P2-1 和自定义待办）、bench 两条力量历史
     importMoreLine(1, 2, 2),
     importCurrentLine(1),
+    IMPORT_UNDO_NOTE,
   ]);
   // 点“导入”之前什么都没有写：服务器、本周视图都还是原样
   expect(app.fake.writes.length).toBe(writesBefore);
@@ -89,7 +91,7 @@ test('IO-08 progress that matches no task of the current plan is highlighted in 
   const confirm = await readConfirm(page);
   // 摘要里多出一行醒目提示，只有这一行带醒目样式
   expect(confirm.warn).toEqual([importOrphanLegacyLine(1)]);
-  expect(confirm.lines[confirm.lines.length - 1]).toBe(importOrphanLegacyLine(1));
+  expect(confirm.lines.slice(-2)).toEqual([importOrphanLegacyLine(1), IMPORT_UNDO_NOTE]);
 
   await confirmOk(page);
   await expectToast(page, TOAST_IMPORTED);
@@ -153,6 +155,7 @@ test('IO-08 importing a full backup replaces the plan and the records, uploads b
       importPlanLine(2, 4, 1),
       importCurrentLine(1),
       importOrphanFileLine(1),
+      IMPORT_UNDO_NOTE,
     ]);
     expect(confirm.warn).toEqual([importOrphanFileLine(1)]);
     // 点“导入”之前服务器上什么都没有变
@@ -217,6 +220,7 @@ test('IO-08 importing a plan-only file replaces the plan and keeps the records (
     importPlanLine(2, 4, 1),
     importCurrentLine(3),
     importOrphanPlanLine(2),
+    IMPORT_UNDO_NOTE,
   ]);
   expect(confirm.warn).toEqual([importOrphanPlanLine(2)]);
   expect(app.fake.writes.length).toBe(writesBefore);
@@ -253,7 +257,7 @@ test('IO-09 importing the plan first and then the legacy backup keeps every task
   // 第一步：只含计划的文件。账号里没有任务进度，没有醒目行
   await chooseImportFile(page, jsonImportFile('synth-two-plan.json', planOnlyFile(plan)));
   const first = await readConfirm(page);
-  expect(first.lines).toEqual([IMPORT_KIND_PLAN, IMPORT_REPLACE_PLAN, importPlanLine(1, 1, 1), importCurrentLine(1)]);
+  expect(first.lines).toEqual([IMPORT_KIND_PLAN, IMPORT_REPLACE_PLAN, importPlanLine(1, 1, 1), importCurrentLine(1), IMPORT_UNDO_NOTE]);
   expect(first.warn).toEqual([]);
   await confirmOk(page);
   await expectToast(page, TOAST_IMPORTED);
@@ -270,6 +274,7 @@ test('IO-09 importing the plan first and then the legacy backup keeps every task
     importLogsLine(2, '2026-02-10', '2026-03-17'),
     importMoreLine(1, 1, 2),
     importCurrentLine(1),
+    IMPORT_UNDO_NOTE,
   ]);
   expect(second.warn).toEqual([]);
   await confirmOk(page);

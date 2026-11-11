@@ -448,3 +448,16 @@ export function importOrphanPlanLine(n: number): string {
 // 文件超过 5 MB 在读之前拒绝；文件里的数据超过云端容量上限（4 MB，Phase 9）在确认之前拒绝；两种都不弹确认框、不改任何数据
 export const TOAST_IMPORT_TOO_BIG = '文件太大（超过 5 MB），没有导入';
 export const TOAST_IMPORT_TOO_LARGE = '数据超过容量上限（4 MB），没有导入';
+
+// Phase 11-06 Task 1：导入前留的数据和“撤销导入”（应用里 T_UNDO_BTN、T_IMP_UNDO_NOTE、T_IMP_NO_UNDO、T_UNDO_TITLE、T_UNDO_CHANGED、T_UNDO_MORE、T_UNDO_NO、T_UNDO_YES、T_UNDONE 的逐字复制）。
+// 摘要的最后一行都是 IMPORT_UNDO_NOTE（不是醒目行）；存不下导入前的数据就拒绝导入（TOAST_IMPORT_NO_UNDO，6000 ms）；
+// 撤销前如果导入之后又有修改，确认框正文先写 CONFIRM_UNDO_CHANGED；确认框打开期间又同步来修改，再弹一次，多一行 CONFIRM_UNDO_MORE（D-05）
+export const BTN_UNDO_IMPORT = '撤销导入';
+export const IMPORT_UNDO_NOTE = '导入前的数据会在这台设备上留一份，导入后可以撤销。';
+export const TOAST_IMPORT_NO_UNDO = '本机空间不够，没能留下导入前的数据，所以没有导入';
+export const CONFIRM_UNDO_TITLE = '撤销导入？';
+export const CONFIRM_UNDO_CHANGED = '导入之后又有新的修改，撤销会把这些修改一起撤掉。';
+export const CONFIRM_UNDO_MORE = '刚才确认的时候又收到了其他设备的修改，撤销也会把它们一起撤掉。';
+export const BTN_UNDO_CANCEL = '不撤销';
+export const BTN_UNDO_OK = '仍然撤销';
+export const TOAST_UNDONE = '已撤销导入，恢复成了导入前的样子';
