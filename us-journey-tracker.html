@@ -1438,12 +1438,17 @@ document.addEventListener("visibilitychange",()=>{
   if(document.hidden){stopPoll();return}
   startPoll();requestSync("visible");if(remoteView)maybeApplyView();
 });
-/* two tabs of one browser share the same cache: the storage event (sent to the OTHER tabs only) brings what the other tab wrote into this one. A plan cache change only asks for a sync (the plan comes from the server only);
-   a state cache record of this account is adopted as if it were a remote version (adoptTab). Only this account's records with this page's document id are looked at, and only while a session is open. */
+/* two tabs of one browser share the same cache: the storage event (sent to the OTHER tabs only) brings what the other tab wrote into this one. A plan cache record of this account (an import in the other tab) goes into the waiting slot first (adoptPlanTab) and asks for a sync;
+   a state cache record of this account is adopted as if it were a remote version (adoptTab). Only this account's records with this page's document id are looked at, and only while a session is open.
+   The plan comes first because the other tab writes its plan cache before its state cache and the events arrive in that order: adoptTab then normalizes the state under the plan already waiting (docAfter), so the progress of the new plan's tasks is not taken for orphans (Phase 10 plan first, then state). */
 const TAB_UPLOAD_MS=5000;
 window.addEventListener("storage",e=>{
   if(!CLOUD||!me||!e.key||e.storageArea!==localStorage)return;
-  if(e.key===cacheKey("plan")){requestSync("tab");return}
+  if(e.key===cacheKey("plan")){
+    let pr=null;if(e.newValue)try{pr=JSON.parse(e.newValue)}catch(x){}
+    if(pr&&typeof pr==="object"&&pr.data&&typeof pr.data==="object"&&docs.plan&&pr.id===docs.plan.id)adoptPlanTab(pr);
+    requestSync("tab");return;
+  }
   if(e.key!==cacheKey("state")||!e.newValue)return;
   let rec=null;try{rec=JSON.parse(e.newValue)}catch(x){return}
   if(!rec||typeof rec!=="object"||!rec.data||typeof rec.data!=="object"||!docs.state||rec.id!==docs.state.id)return;
@@ -1469,6 +1474,21 @@ function adoptTab(rec){
   /* a dirty union the other tab may never upload (it can be closed any moment) is uploaded by this tab after a grace period, in which the other tab normally has done it and its clean record has cleared this one */
   if(d.dirty){if(!savePending){savePending=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,TAB_UPLOAD_MS)}}
   else{savePending=false;clearTimeout(saveTimer)}
+  if($("status").getAttribute("data-state")!=="toolarge")showSync();
+  if(remoteView)maybeApplyView();
+}
+/* the other tab's plan record (an import there) goes into the waiting plan slot like a server plan (base = the record's base); the state record that follows is then normalized under it by docAfter.
+   Nothing is written back to the plan cache (the other tab holds the same record: no ping-pong). A dirty record is an import the other tab has not uploaded yet: this tab carries the dirty flag too, so its next sync uploads the same plan
+   (equal content is no conflict) and the plan is not lost if the other tab is closed first. seq moves on, so an upload already under way does not clear the flag. A record whose content is already the working plan and is clean needs nothing. */
+function adoptPlanTab(rec){
+  if(run&&run.live)return;
+  const d=docs.plan,np=normalizePlan(rec.data);
+  if(!np)return;
+  if(!rec.dirty&&canon(np)===canon(plan)&&!pendRemote.plan)return;
+  pendRemote.plan={data:rec.data,updated:rec.base};
+  d.base=rec.base;d.dirty=!!rec.dirty;d.seq=(d.seq||0)+1;
+  remoteView=remoteDiffers();
+  if(!remoteView){pendRemote.plan=null;if(!pendRemote.state)hideBar("remote")}
   if($("status").getAttribute("data-state")!=="toolarge")showSync();
   if(remoteView)maybeApplyView();
 }

@@ -2,17 +2,18 @@
 // “另一台设备的写入”用 app.fake.request 以 writer 'synth-other' 直接改假服务器上的文档（不开第二个浏览器）；
 // 要让页面“没听到”这次写入，先对本页 refuseRealtime 加 dropRealtime，导入的上传才会撞上别处写的新版本（真冲突，Phase 10 D-03）。
 // 导入文件只在内存里构造（文件名以 synth- 开头）；除 IN-05 外都在 manual 时钟下运行：open 之前 install，登录后 pauseAt，需要时 runFor。
-// 同一个浏览器两个标签页的计划采纳由 11-05 加进这个文件。
+// 同一个浏览器两个标签页的计划采纳（11-05）：一个标签页导入，另一个标签页走 storage 事件按新计划显示；两页共用真实计时，不用 manual 时钟。
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
-import type { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
+import { AppHarness } from '../support/app';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
 import { chooseImportFile, jsonImportFile, textImportFile } from '../support/import-file';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
+import { gotoGoals, readGroups } from '../support/goals';
 import { expectToast } from '../support/toast';
 import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, BACKUP_KIND_PLAN, FROZEN_NOW } from '../support/constants';
 import {
@@ -274,4 +275,58 @@ test.describe('manual clock', () => {
     expect(app.fake.writes.length).toBe(writes);
     await expect(page.locator('#syncbar')).not.toBeVisible();
   });
+});
+
+test('IO-08 an import in one tab reaches the other tab of the same browser without losing progress of the new plan', async ({ app, page, context }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('tab'), login: 0 });
+  const other = await context.newPage();
+  try {
+    await new AppHarness(other, { fake: app.fake }).open({ mode: 'cloud', login: 'session' });
+
+    // 新计划两个组、三个任务，文件里三个任务都有进度（t- 开头的 id 只在新计划里存在）
+    const plan = syntheticPlan('tpx', 2);
+    const progress = {
+      't-tpx1x1': { done: true, doneDate: '2026-03-02' },
+      't-tpx1x2': { done: true, doneDate: '2026-03-03' },
+      't-tpx2x1': { done: true, doneDate: '2026-03-04' },
+    };
+    const taskIds = Object.keys(progress).sort();
+    const file = legacyBackup('tab1', { tasks: progress, custom: [] });
+    const writesBefore = app.fake.writes.length;
+
+    await importAndConfirm(page, 'synth-two-tabs.json', fullBackup(plan, file));
+    await expectToast(page, TOAST_IMPORTED);
+
+    // 另一个标签页按新计划显示，三条进度都在（等待用真实计时：补传宽限 5 秒）
+    await gotoGoals(other);
+    await expect
+      .poll(async () => (await readGroups(other)).length, { message: '等待另一个标签页换成新计划', timeout: 15_000 })
+      .toBe(2);
+    await expect
+      .poll(async () => (await readGroups(other)).flatMap((g) => g.doneIds).sort(), { message: '等待另一个标签页显示新计划任务的进度', timeout: 15_000 })
+      .toEqual(taskIds);
+
+    // 它的本机 state 缓存里也有这些进度
+    const stateKey = `usj:v2:${app.fake.users[0].id}:state`;
+    await expect
+      .poll(async () => Object.keys((await readJson(other, stateKey))?.data?.tasks ?? {}).sort(), { message: '等待另一个标签页的缓存含新计划的进度', timeout: 15_000 })
+      .toEqual(expect.arrayContaining(taskIds));
+
+    // 服务器上是新计划和全部进度；两个标签页都同步完
+    await expect.poll(() => app.fake.lastPlan(0), { message: '等待服务器 plan 变成文件里的计划', timeout: 15_000 }).toEqual(planLike(plan));
+    await expect
+      .poll(() => Object.keys(app.fake.lastState(0)?.tasks ?? {}).sort(), { message: '等待服务器 state 含全部进度', timeout: 15_000 })
+      .toEqual(expect.arrayContaining(taskIds));
+    await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED, { timeout: 15_000 });
+    await expect(other.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED, { timeout: 15_000 });
+
+    // 再等一会儿：补传宽限过了之后，服务器收到的每一次 state 写入都保留这些进度，最后一次写入也是
+    await page.waitForTimeout(1_500);
+    const stateWrites = app.fake.writes.slice(writesBefore).filter((w) => w.path === 'journey_docs:state');
+    expect(stateWrites.length).toBeGreaterThan(0);
+    for (const w of stateWrites) expect(Object.keys(w.data?.tasks ?? {}).sort()).toEqual(expect.arrayContaining(taskIds));
+    expect(Object.keys(app.fake.lastState(0).tasks).sort()).toEqual(expect.arrayContaining(taskIds));
+  } finally {
+    await other.close();
+  }
 });

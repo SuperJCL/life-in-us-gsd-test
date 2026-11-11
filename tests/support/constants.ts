@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = '605eb32ca6e719d400c3f9808431e2a6e0d4d5cbc0aec129a1678ec123224b86';
+export const APP_SHA256 = 'd5d913434c89c5a78265c7808b50c28a2cb6e77a0c77b7c31359665aa6fd5e5c';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
