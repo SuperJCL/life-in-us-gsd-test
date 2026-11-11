@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: executing
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-11-11T06:07:50.602Z"
+stopped_at: Completed 11-05-PLAN.md
+last_updated: "2026-11-11T06:23:20.735Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: eec88054e026f4e82b4fe5b457b2baf66a852451
+state_head: e58e472bc22bf754b550fe655caaa6bcb883236a
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 51
+  completed_plans: 52
   percent: 63
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 ## Current Position
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 11 execution started
 
@@ -139,6 +139,7 @@ Progress: [██████░░░░] 63%
 | Phase 11 P02 | 20 min | 2 tasks | 5 files |
 | Phase 11 P03 | 21 min | 2 tasks | 4 files |
 | Phase 11 P04 | 75 min | 2 tasks | 6 files |
+| Phase 11 P05 | 40 min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -265,6 +266,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11]: 11-03: a dirty plan is uploaded by syncOnce before the state; plan size guard calls sizeCheck only above the limit; plan cache failure raises the cache-full banner after commit
 - [Phase 11]: 11-04: merge unannounced kept copies of different kinds into one full-backup copy (told flag); a Phase 9 copy without told counts as announced
 - [Phase 11]: 11-04: owner approved one assertion change in conflict-snapshot.spec.ts (told false->true after notice)
+- [Phase 11]: 11-05: another tab adopts the plan cache record (adoptPlanTab into pendRemote.plan, no cache write-back, dirty flag carried) before the state record, so new-plan progress is kept across tabs
 
 ### Pending Todos
 
@@ -323,8 +325,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T06:07:47.334Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-11-11T06:23:18.850Z
+Stopped at: Completed 11-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
