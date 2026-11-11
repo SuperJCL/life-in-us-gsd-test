@@ -215,6 +215,20 @@ test.describe('IO-04 manual clock', () => {
 
 // IO-10（原 B2）：取消导入确认后，文件框没有清空，再选同一个文件没有反应。
 // 期望断言只用确定性的 value；不断言“change 会再次触发”，因为 Playwright 的 setInputFiles 每次都自己派发 change（PROBE-8）。
+// 11-UI-REVIEW 的阻断项：“恢复”原来是包着隐藏文件框的 label，键盘走不到；现在是按钮，Tab 能聚焦，回车打开选文件框
+test('IO-10 the restore button can be reached with the keyboard and opens the file chooser', async ({ page, app }) => {
+  await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
+  await app.expectAccountMode();
+  const restore = page.locator('#importBtn');
+  await expect(restore).toBeVisible();
+  await expect(restore).toHaveText('恢复');
+  await restore.focus();
+  await expect(restore).toBeFocused();
+  const chooser = page.waitForEvent('filechooser');
+  await page.keyboard.press('Enter');
+  expect((await chooser).isMultiple()).toBe(false);
+});
+
 test.describe('IO-10 the file input is cleared after every import attempt', () => {
   // 准备和触发：账户模式加完整 fixture 开局，先注册“取消”再选文件，等确认框出现；返回确认框消息数组
   async function cancelImport(page: Page, app: AppHarness) {
