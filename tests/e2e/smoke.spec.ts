@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../support/test';
-import { FROZEN_NOW, FROZEN_TODAY } from '../support/constants';
-import { CAT_LANGUAGE, TAB_LABELS } from '../support/strings';
+import { BACKUP_APP, FROZEN_NOW, FROZEN_TODAY } from '../support/constants';
+import { downloadOf } from '../support/download';
+import { CAT_LANGUAGE, FILENAME_BACKUP_FROZEN, TAB_LABELS } from '../support/strings';
 
 // 合成文本，不含任何真实内容
 const ENTRY_TEXT = 'SYNTH-IO01 local roundtrip';
@@ -30,16 +31,24 @@ test('IO-01 saves an entry to localStorage and keeps it after reload', async ({ 
   ).toBeVisible();
 });
 
-test('IO-01 keeps the export buttons hidden in local mode', async ({ page, app }) => {
-  await app.open();
+// 只在这个 describe 里打开下载：playwright.config.ts 的 acceptDownloads 默认值不改（D-16）
+test.describe('IO-06 native downloads in local mode', () => {
+  test.use({ acceptDownloads: true });
 
-  // 等到状态行之后断言是安全的：本地模式下没有 window.claude，
-  // init 在 setStatus 之后同步走完 downloads 分支，中间没有 await，
-  // 所以状态行就绪时导出按钮的最终状态已经确定。
-  for (const id of ['#exportCsv', '#exportJson']) {
-    await expect(page.locator(id)).toHaveClass(/\bhidden\b/);
-    await expect(page.locator(id)).toBeHidden();
-  }
+  test('IO-06 shows both export buttons in local mode and downloads the backup natively', async ({ page, app }) => {
+    await app.open();
+
+    // 导出按钮自 Phase 11 起在所有环境都显示，不再等 Claude 的 downloads 能力
+    for (const id of ['#exportCsv', '#exportJson']) {
+      await expect(page.locator(id)).not.toHaveClass(/\bhidden\b/);
+      await expect(page.locator(id)).toBeVisible();
+    }
+
+    // 点备份：浏览器原生下载，旧路径也写新格式完整备份（D-10）
+    const { filename, text } = await downloadOf(page, () => page.locator('#exportJson').click());
+    expect(filename).toBe(FILENAME_BACKUP_FROZEN);
+    expect(JSON.parse(text).app).toBe(BACKUP_APP);
+  });
 });
 
 test('MOCK-01 opens in local mode without window.claude and switches all four tabs', async ({ page, app }) => {

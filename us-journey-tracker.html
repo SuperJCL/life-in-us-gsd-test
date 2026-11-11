@@ -54,7 +54,7 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 nav.tabs{display:flex;gap:4px;margin:20px 0 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 nav.tabs button{background:none;border:0;padding:10px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
-.toolbar{margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:6px}
+.toolbar{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;align-items:center;padding-bottom:6px}
 .ghost{background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
 .ghost:hover{color:var(--ink);border-color:var(--muted)}
 #snapshotBtn,#undoImportBtn{color:var(--ink);background:var(--c-job-s);border-color:var(--c-job);font-size:12px}
@@ -331,8 +331,8 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <div class="toolbar">
       <button class="ghost hidden" id="snapshotBtn" aria-label="下载留底：另一台设备上的旧版本，下载后会从本机删除" title="下载留底：另一台设备上的旧版本，下载后会从本机删除">下载留底</button>
       <button class="ghost hidden" id="undoImportBtn" aria-label="撤销导入：恢复成导入前的样子" title="撤销导入：恢复成导入前的样子">撤销导入</button>
-      <button class="ghost hidden" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
-      <button class="ghost hidden" id="exportJson">备份</button>
+      <button class="ghost" id="exportCsv" title="可导入 Google 日历 / Outlook">导出日历 CSV</button>
+      <button class="ghost" id="exportJson">备份</button>
       <label class="ghost" style="cursor:pointer">恢复<input type="file" id="importJson" accept=".json,application/json" class="hidden"></label>
       <span class="who hidden" id="who"></span>
       <button class="ghost hidden" id="logoutBtn">退出登录</button>
@@ -703,8 +703,6 @@ async function init(){
   else store=localStore();
   try{const s=await store.load();if(s)state=normalize(s)}catch(e){store=localStore();const s=await store.load();if(s)state=normalize(s)}
   setStatus(store.label);renderAll();
-  const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
-  if(dl){$("exportCsv").classList.remove("hidden");$("exportJson").classList.remove("hidden")}
 }
 
 /* ---------- cloud ---------- */

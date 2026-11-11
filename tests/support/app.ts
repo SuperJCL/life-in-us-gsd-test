@@ -187,7 +187,7 @@ export class AppHarness {
   // 就绪条件。
   // local：状态行显示本地模式文案，说明 store 已就位。
   // account（D-08）：状态行显示账户文案，并且两个导出按钮都可见。
-  // 只看状态栏会抢跑：应用在 setStatus 之后还要再 await use("downloads") 才显示导出按钮。
+  // 导出按钮自 Phase 11 起总是显示（应用不再解析 Claude 的 downloads 能力），就绪看状态栏；这两个按钮的可见断言保留。
   // cloud 且 backend 为 pocketbase（Phase 9 起应用自己同源加载 SDK）：
   //   期望视图是登录页时，等 #login 可见且页面里有 PocketBase 函数；
   //   期望视图是应用时，等 #status 的 data-state 为 synced、文字是已同步，且 .wrap 可见；realtime 为真时再等 body 的 data-rt 为 live。

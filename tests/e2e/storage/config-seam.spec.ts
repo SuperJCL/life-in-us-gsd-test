@@ -77,11 +77,11 @@ test.describe('TEST-01 unsupported backend', () => {
     await composer(page, 'w').submit();
     await page.clock.runFor(2_000);
 
-    // 没有悄悄退回本地：localStorage 里没有应用的键，状态栏文案没变，导出按钮仍隐藏
+    // 没有悄悄退回本地：localStorage 里没有应用的键，状态栏文案没变；导出按钮在所有环境都显示（IO-06），所以这里也可见
     expect(await page.evaluate((key) => localStorage.getItem(key), STATE_KEY)).toBeNull();
     await expect(page.locator('#status')).toHaveText(STATUS_BACKEND_UNSUPPORTED);
     for (const id of ['#exportCsv', '#exportJson']) {
-      await expect(page.locator(id)).toHaveClass(/\bhidden\b/);
+      await expect(page.locator(id)).toBeVisible();
     }
 
     // 计划仍是示例计划的 7 组
