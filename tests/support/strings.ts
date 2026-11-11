@@ -435,3 +435,11 @@ export function importPlanLine(groups: number, tasks: number, lifts: number): st
 export function importOrphanFileLine(n: number): string {
   return `${n} 条任务进度对不上文件里的计划，导入后会丢弃。`;
 }
+
+// Phase 11-03 Task 2：只含计划的文件的摘要行（应用里 T_IMP_KIND_PLAN、T_IMP_REPLACE_PLAN、T_IMP_ORPHAN_PLAN 的逐字复制）
+export const IMPORT_KIND_PLAN = '文件类型：只含计划的文件';
+export const IMPORT_REPLACE_PLAN = '将替换：当前账号的计划，记录不变';
+// D-07：账号现有的任务进度对不上新计划的条数（醒目行）
+export function importOrphanPlanLine(n: number): string {
+  return `${n} 条现有的任务进度对不上新计划，导入后会丢弃。`;
+}

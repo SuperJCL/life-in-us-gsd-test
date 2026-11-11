@@ -4,7 +4,7 @@
 // 这样“写入次数不变”不依赖真实等待。
 import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
-import { fullBackup, legacyBackup } from '../support/backup-files';
+import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { openDevice } from '../support/devices';
 import { gotoGoals, readGroups } from '../support/goals';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
@@ -17,8 +17,10 @@ import {
   CONFIRM_IMPORT_TITLE,
   IMPORT_KIND_FULL,
   IMPORT_KIND_LEGACY,
+  IMPORT_KIND_PLAN,
   IMPORT_REPLACE_FULL,
   IMPORT_REPLACE_LEGACY,
+  IMPORT_REPLACE_PLAN,
   STATUS_CLOUD_SYNCED,
   TOAST_IMPORT_BAD_FORMAT,
   TOAST_IMPORTED,
@@ -27,6 +29,7 @@ import {
   importMoreLine,
   importOrphanFileLine,
   importOrphanLegacyLine,
+  importOrphanPlanLine,
   importPlanLine,
 } from '../support/strings';
 
@@ -186,6 +189,94 @@ test('IO-08 importing a full backup replaces the plan and the records, uploads b
   } finally {
     await second.context.close();
   }
+});
+
+test('IO-08 importing a plan-only file replaces the plan and keeps the records (D-03)', async ({ app, page }) => {
+  const logs = [1, 2, 3].map((n) => ({ id: `synthetic-ipo${n}`, date: '2026-03-17', cat: '语言', text: `合成记录 ipo${n}` }));
+  await app.open({
+    mode: 'cloud',
+    seed: syntheticState('ipo', {
+      logs,
+      tasks: { 'P2-1': { done: true, doneDate: '2026-03-02' }, 'P3-1': { done: true, doneDate: '2026-03-03' } },
+    }),
+    login: 0,
+  });
+  const plan = syntheticPlan('po', 2);
+  const writesBefore = app.fake.writes.length;
+  const stateBefore = app.fake.lastState(0);
+
+  await chooseImportFile(page, jsonImportFile('synth-plan-only.json', planOnlyFile(plan)));
+  const confirm = await readConfirm(page);
+  expect(confirm.title).toBe(CONFIRM_IMPORT_TITLE);
+  // 只替换计划：没有记录行；现有的两条进度对不上新计划，醒目提示
+  expect(confirm.lines).toEqual([
+    IMPORT_KIND_PLAN,
+    IMPORT_REPLACE_PLAN,
+    importPlanLine(2, 4, 1),
+    importCurrentLine(3),
+    importOrphanPlanLine(2),
+  ]);
+  expect(confirm.warn).toEqual([importOrphanPlanLine(2)]);
+  expect(app.fake.writes.length).toBe(writesBefore);
+  expect(app.fake.lastState(0)).toEqual(stateBefore);
+
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  const { _synthetic, ...expectedPlan } = plan;
+  await expect.poll(() => app.fake.lastPlan(0), { message: '等待服务器 plan 变成文件里的计划' }).toEqual(expectedPlan);
+  // 记录原样，对不上新计划的进度被丢弃
+  await expect
+    .poll(() => app.fake.lastState(0), { message: '等待服务器 state 在新计划下重新规范化' })
+    .toEqual({ arrival: '', tasks: {}, custom: [], logs, lifts: {}, reviews: {}, presets: {} });
+  await expect(page.locator('#tab-wk [data-edit="synthetic-ipo1"]')).toBeVisible();
+  await expect(page.locator('#tab-wk [data-edit="synthetic-ipo3"]')).toBeVisible();
+  await gotoGoals(page);
+  expect((await readGroups(page)).map((g) => g.code)).toEqual(['g-po1', 'g-po2']);
+});
+
+test('IO-09 importing the plan first and then the legacy backup keeps every task progress (D-07)', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('imt'), login: 0 });
+  // 带 P8 组和 P8-1 任务的计划（示例计划没有 P8）；文字都以 SYNTH- 开头
+  const plan = {
+    _synthetic: true,
+    v: 1,
+    presets: { lang: [], pro: [], fit: [], job: [], oth: [] },
+    groups: [{ id: 'P8', cat: '语言', name: 'SYNTH-two group 8', tasks: [{ id: 'P8-1', text: 'SYNTH-two task 8.1' }] }],
+    lifts: [{ id: 'l-two1', n: 'SYNTH-two lift', unit: 'kg', def: 10, target: 20, note: '' }],
+    fitGoal: [1, 3],
+    fitNote: 'SYNTH-two fit note',
+  };
+  const { _synthetic, ...expectedPlan } = plan;
+
+  // 第一步：只含计划的文件。账号里没有任务进度，没有醒目行
+  await chooseImportFile(page, jsonImportFile('synth-two-plan.json', planOnlyFile(plan)));
+  const first = await readConfirm(page);
+  expect(first.lines).toEqual([IMPORT_KIND_PLAN, IMPORT_REPLACE_PLAN, importPlanLine(1, 1, 1), importCurrentLine(1)]);
+  expect(first.warn).toEqual([]);
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => app.fake.lastPlan(0), { message: '等待服务器拿到第一步的计划' }).toEqual(expectedPlan);
+  await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+
+  // 第二步：进度键是 P8-1 的旧备份。现在的计划里有 P8-1，所以摘要没有醒目行，进度全部保留
+  const legacy = legacyBackup('two', { tasks: { 'P8-1': { done: true, doneDate: '2026-03-05' } } });
+  await chooseImportFile(page, jsonImportFile('synth-two-legacy.json', legacy));
+  const second = await readConfirm(page);
+  expect(second.lines).toEqual([
+    IMPORT_KIND_LEGACY,
+    IMPORT_REPLACE_LEGACY,
+    importLogsLine(2, '2026-02-10', '2026-03-17'),
+    importMoreLine(1, 1, 2),
+    importCurrentLine(1),
+  ]);
+  expect(second.warn).toEqual([]);
+  await confirmOk(page);
+  await expect
+    .poll(() => Object.keys(app.fake.lastState(0)?.tasks ?? {}), { message: '等待服务器 state 带上 P8-1 的进度' })
+    .toContain('P8-1');
+  expect(app.fake.lastState(0).tasks['P8-1']).toEqual({ done: true, doneDate: '2026-03-05' });
+  // 计划没有被第二步改动
+  expect(app.fake.lastPlan(0)).toEqual(expectedPlan);
 });
 
 test.describe('manual clock', () => {

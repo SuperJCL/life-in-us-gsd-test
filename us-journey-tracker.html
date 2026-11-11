@@ -1341,12 +1341,19 @@ const T_IMP_ORPHAN_LEGACY=n=>n+" 条任务进度对不上当前计划，导入�
 const T_IMP_KIND_FULL="文件类型：新格式备份（计划和记录）",T_IMP_REPLACE_FULL="将替换：当前账号的计划和记录";
 const T_IMP_PLAN=(g,t,l)=>"计划：目标组 "+g+" 个，任务 "+t+" 项，力量项 "+l+" 个";
 const T_IMP_ORPHAN_FILE=n=>n+" 条任务进度对不上文件里的计划，导入后会丢弃。";
+const T_IMP_KIND_PLAN="文件类型：只含计划的文件",T_IMP_REPLACE_PLAN="将替换：当前账号的计划，记录不变";
+const T_IMP_ORPHAN_PLAN=n=>n+" 条现有的任务进度对不上新计划，导入后会丢弃。";
 /* the summary lines, and the indexes of the lines to highlight (warn): progress that matches no task of the plan it is read under is dropped by normalize (D-07) */
 function importLines(b,pv){
   const c=pv.counts,warn=[];let lines;
   if(b.kind===BK_FULL){
     lines=[T_IMP_KIND_FULL,T_IMP_REPLACE_FULL,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
     if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_FILE(pv.orphans))}
+    return {lines,warn};
+  }
+  if(b.kind===BK_PLAN){
+    lines=[T_IMP_KIND_PLAN,T_IMP_REPLACE_PLAN,T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
+    if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_PLAN(pv.orphans))}
     return {lines,warn};
   }
   lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)];
@@ -1359,8 +1366,8 @@ async function cloudImport(input){
     if(!f||!me||document.body.dataset.gate)return;
     let j,b=null;
     try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
-    /* the legacy backup and the full backup are let through (applyImport replaces the plan too when the file has one); the plan-only file is let in with its own summary lines (11-03 Task 2) */
-    if(!b||b.kind===BK_PLAN){toast(T_IMP_BAD,null,4000);return}
+    /* all three kinds are let through; applyImport replaces the plan too when the file has one, and importLines has a summary for each kind */
+    if(!b){toast(T_IMP_BAD,null,4000);return}
     const ep=sessionEpoch,pv=importPreview(b,docAfter());
     const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
     if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
