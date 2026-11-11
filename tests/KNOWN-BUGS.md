@@ -37,10 +37,10 @@
 **已覆盖**（成对用例已登记，见上表）：
 
 - B1：本周（Phase 3 的 03-04 计划）和日历日面板（Phase 4 的 04-01 计划）两处。
-- B2：取消导入后文件框没有清空（Phase 5 的 05-04 计划）。
+- B2：已在 Phase 11 修复，见“已修复”。
 - B4：输入复盘后立刻刷新会丢文字（Phase 3 的 03-02 计划）。
 - N1：直接记录的预设（Phase 3 的 03-04 计划）、日面板删除和目标页勾选（Phase 4 的 04-03 计划）三种触发。
-- N3：导入 `{}` 后数据被清空（Phase 5 的 05-04 计划）。
+- N3：已在 Phase 11 修复，见“已修复”。
 - N2 只立了规则、不写用例（见上面的约定）。
 
 **仍未验证**（留给后续修 bug 的里程碑，即 REQUIREMENTS.md 的 FIX-01，或 v2）：
@@ -49,8 +49,8 @@
 - B3：加载完成前的编辑被丢弃，需要 mock 的加载延迟（v2 的 ERR-04）。云端路径由 09-CONTEXT 的 D-01 门控修复，用例 `SYNC-05 clicks, keys and drags on editing controls during the reconcile change nothing and send no write`；Phase 10 再补上对账超过约 15 秒时带缓存的页面转入离线编辑、期间的修改随后上传，用例 `SYNC-03 a reconcile not finished after about 15 seconds with a cache turns to offline editing and uploads the edits made meanwhile (B3)`；旧路径维持现状，B3 与 B5 在旧路径的修复不在本里程碑。
 - B5：保存失败不重试。云端路径由 Phase 10 修复（用例 `SYNC-06 a server error is retried automatically at growing intervals and the retry-now button tries at once`），旧路径维持现状。
 - B6（导入 XSS）和 B7（CSV 公式注入）：对应 v2 的 XTRA-03。
-- B8：导入校验过浅，例如日志缺 date。
+- B8：导入校验过浅，例如日志缺 date。导入侧已由 Phase 7 的白名单和 Phase 11 的识别覆盖。
 - B9：跨午夜不更新。
 - B10：位置 id，只被 GOAL-01 的整体比较间接特征化，没有标记用例。
 - B11、B12：research 标为延期。
-- 与 N3 同类的输入：`[]` 和字段类型错误的对象，同样能通过 normalize。
+- 与 N3 同类的输入：已在 Phase 11 修复，见“已修复”。
