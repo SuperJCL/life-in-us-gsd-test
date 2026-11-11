@@ -126,8 +126,12 @@ test('IO-07 classifyBackup reads the agreed wrapper as a full backup or a plan-o
   delete noTime.exportedAt;
   expect(classifyBackup(noTime), 'no exportedAt').not.toBeNull();
 
-  // 计划缺组、任务 id 不合格
+  // 空计划（D-16，Phase 12）：没有组的计划是合格的计划，完整备份和只含计划的文件里的空计划都能认出
   const noGroups = { ...plan, groups: [] };
+  expect(classifyBackup(fullBackup(noGroups, state)), 'empty plan, full').not.toBeNull();
+  expect(classifyBackup(planOnlyFile(noGroups)), 'empty plan, plan-only').not.toBeNull();
+
+  // 任务 id 不合格、任务 id 重复
   const badTask = JSON.parse(JSON.stringify(plan));
   badTask.groups[0].tasks[0].id = 'bad task id';
   const dupTask = JSON.parse(JSON.stringify(plan));
@@ -148,8 +152,6 @@ test('IO-07 classifyBackup reads the agreed wrapper as a full backup or a plan-o
     ['format as a string', { ...fullBackup(plan, state), format: '2' }],
     ['unknown kind', { ...fullBackup(plan, state), kind: 'records' }],
     ['missing kind', without(fullBackup(plan, state), 'kind')],
-    ['plan without groups, full', fullBackup(noGroups, state)],
-    ['plan without groups, plan-only', planOnlyFile(noGroups)],
     ['plan with a bad task id', fullBackup(badTask, state)],
     ['plan with a duplicate task id', planOnlyFile(dupTask)],
     ['plan is null', fullBackup(null, state)],

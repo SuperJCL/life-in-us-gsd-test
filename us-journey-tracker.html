@@ -405,6 +405,8 @@ const LEGACY={"学习":"专业","活动社交":"求职","生活":"其他","里�
 const GROUP_ID_RE=/^(P\d{1,3}|g-[A-Za-z0-9_-]{1,40})$/,PLAN_TASK_ID_RE=/^(P\d{1,3}-\d{1,3}|t-[A-Za-z0-9_-]{1,40})$/,LIFT_ID_RE=/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/;
 /* SEC-01：导入白名单。记录 id、自定义待办 id、进度键（内置 P<n>-<i>，以及以后新增的 t-、自定义的 c-）和日期的格式；力量键和组 id 沿用上面两条 */
 const LOG_ID_RE=/^[A-Za-z0-9_-]{1,64}$/,CUSTOM_ID_RE=/^c-[A-Za-z0-9_-]{1,60}$/,TASK_KEY_RE=/^(P\d{1,3}-\d{1,3}|[ct]-[A-Za-z0-9_-]{1,60})$/,DATE_RE=/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+/* D-16：空计划下（或没有未归档的组时）找不到所属组的自定义待办写这个标记。它不合 GROUP_ID_RE，所以 normalizePlan 永远不会接受叫这个 id 的真实组，待办不会悄悄挂到真实的组上；normalize 对已标记的待办不再改组，importProblem 对它放行 */
+const GROUP_NONE="-";
 const isObj=v=>v!==null&&typeof v==="object"&&!Array.isArray(v);
 const DEFAULT_PLAN={v:1,
   presets:{
@@ -469,7 +471,7 @@ const DEFAULT_PLAN={v:1,
 const pObj=v=>!!v&&typeof v==="object"&&!Array.isArray(v),pStr=v=>typeof v==="string",pNum=v=>typeof v==="number"&&isFinite(v);
 /* 只信类型、返回新对象；任何一处不合格就返回 null（拒绝整份计划） */
 function normalizePlan(p){
-  if(!pObj(p)||!Array.isArray(p.groups)||!p.groups.length||!Array.isArray(p.lifts)||!pObj(p.presets))return null;
+  if(!pObj(p)||!Array.isArray(p.groups)||!Array.isArray(p.lifts)||!pObj(p.presets))return null;
   const gids=new Set(),tids=new Set(),groups=[],lifts=[],presets={};
   for(const g of p.groups){
     if(!pObj(g)||!pStr(g.id)||!GROUP_ID_RE.test(g.id)||gids.has(g.id)||!pStr(g.cat)||!hasCat(g.cat)||!pStr(g.name)||!Array.isArray(g.tasks))return null;
@@ -544,7 +546,7 @@ const compCat={c:"语言",w:"语言"};
 
 function allTasks(){return planTasks.concat(state.custom||[])}
 function tstate(id){return state.tasks[id]||{}}
-function lift(id){const L=plan.lifts.find(x=>x.id===id);return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
+function lift(id){const L=plan.lifts.find(x=>x.id===id)||{def:0};return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
 /* 导入检查（D-07）：返回 null 表示没发现问题，否则返回一个简短的原因。容器里能识别出条目就检查，不看容器类型对不对。
    只供 classifyBackup 和单元用例调用：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）和非字符串的 arrival（synth-wrong-types.json 的数字 arrival）这两种文件，现在都由外层的 classifyBackup 先拒绝，应用里没有调用路径把它们交给这个函数；
    函数体里的 if(!isObj(raw))return null 和只检查字符串 arrival 的那一行只服务单元用例，保留原样。
@@ -554,7 +556,7 @@ function importProblem(raw){
   const items=c=>Array.isArray(c)?c:isObj(c)?Object.values(c):[];
   const okDate=realDate,optDate=v=>v===undefined||v===""||okDate(v);
   for(const l of items(raw.logs))if(!isObj(l)||typeof l.id!=="string"||!LOG_ID_RE.test(l.id)||!okDate(l.date))return "log";
-  for(const c of items(raw.custom))if(!isObj(c)||typeof c.id!=="string"||!CUSTOM_ID_RE.test(c.id)||typeof c.group!=="string"||!GROUP_ID_RE.test(c.group))return "custom";
+  for(const c of items(raw.custom))if(!isObj(c)||typeof c.id!=="string"||!CUSTOM_ID_RE.test(c.id)||typeof c.group!=="string"||(c.group!==GROUP_NONE&&!GROUP_ID_RE.test(c.group)))return "custom";
   const t=raw.tasks;
   if(t!==null&&typeof t==="object")for(const k of Object.keys(t))if(!TASK_KEY_RE.test(k)||!isObj(t[k])||!optDate(t[k].due)||!optDate(t[k].doneDate))return "task";
   const L=raw.lifts;
@@ -576,7 +578,7 @@ function normalize(s){
   const entry=l=>isObj(l)?l:wordy(l)?{text:String(l)}:Array.isArray(l)&&l.some(wordy)?{text:JSON.stringify(l)}:null;
   const okDate=realDate,fin=v=>typeof v==="number"&&isFinite(v);
   const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
-  const oth=(plan.groups.find(g=>g.cat==="其他")||plan.groups[plan.groups.length-1]).id;
+  const act=plan.groups.filter(g=>!g.archived),oth=act.length?(act.find(g=>g.cat==="其他")||act[act.length-1]).id:GROUP_NONE;
   const idMap=new Map();
   const logs=(Array.isArray(s.logs)?s.logs:[]).map(entry).filter(Boolean).map(l=>{
     const r={...l};
@@ -593,7 +595,7 @@ function normalize(s){
       const old=r.id;r.id="c-"+uid();
       if(typeof old==="string"&&!planIds.has(old)&&!idMap.has(old))idMap.set(old,r.id);
     }
-    if(typeof r.group!=="string"||!GROUP_ID_RE.test(r.group))r.group=oth;
+    if(r.group!==GROUP_NONE&&(typeof r.group!=="string"||!GROUP_ID_RE.test(r.group)))r.group=oth;
     r.text=asText(r.text);
     return r;
   });

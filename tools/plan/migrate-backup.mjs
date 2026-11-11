@@ -432,7 +432,7 @@ function runSelfTest() {
   expect('拒绝：复盘周键不合格（review）', rejected(withLegacy({ reviews: { 'not-a-date': 'SYNTH-x' } }), 'problem:review'));
   expect('拒绝：开始日期不合格（arrival）', rejected(withLegacy({ arrival: '2026-13-01' }), 'problem:arrival'));
   expect('拒绝：种子不是带 plan 对象的普通对象', ['[]', 'null', '{}', '{"plan":1}', '{"plan":[]}', '{"plan":null}'].every((t) => rejected(composeMigration(html, t, legacyText, SELF_NOW), 'seed-shape')));
-  expect('拒绝：种子的计划不合格（空组数）', rejected(composeMigration(html, json({ ...seed, plan: { ...seed.plan, groups: [] } }), legacyText, SELF_NOW), 'seed-plan'));
+  expect('拒绝：种子的计划不合格（groups 不是数组）', rejected(composeMigration(html, json({ ...seed, plan: { ...seed.plan, groups: {} } }), legacyText, SELF_NOW), 'seed-plan'));
   expect('拒绝：种子的计划不合格（任务 id 不合格）', rejected(composeMigration(html, json({ ...seed, plan: { ...seed.plan, groups: [{ id: 'P1', cat: '语言', name: 'SYNTH-g', tasks: [{ id: 'bad', text: 'SYNTH-t' }] }] } }), legacyText, SELF_NOW), 'seed-plan'));
 
   // composePlanOnly
