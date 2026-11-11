@@ -239,6 +239,11 @@ export function parseArgs(args) {
   return null;
 }
 
+// 旧备份的路径：相对路径按用户运行脚本时所在的目录解析（main 随后会 chdir 到仓库根，所以要先解析）
+export function legacyPathFrom(p, cwd) {
+  return resolve(cwd, p);
+}
+
 // ---------- 模式：默认、--plan-only、--demo ----------
 
 const USAGE = '用法：node tools/plan/migrate-backup.mjs <旧备份.json> | --plan-only | --demo [目录] | --self-test\n';
@@ -471,6 +476,9 @@ function runSelfTest() {
   expect('parseArgs：四种写法', json(parseArgs(['--self-test'])) === json({ mode: 'self-test' }) && json(parseArgs(['--plan-only'])) === json({ mode: 'plan-only' }) && json(parseArgs(['a.json'])) === json({ mode: 'migrate', legacyPath: 'a.json' }) && parseArgs(['--demo']).mode === 'demo' && parseArgs(['--demo', 'd']).dir === 'd');
   expect('parseArgs：未知参数、多余参数、没有参数都不认', [[], ['--no-such-mode'], ['--self-test', 'x'], ['--plan-only', 'x'], ['a.json', 'b.json'], ['--demo', '--self-test'], ['--demo', 'a', 'b'], ['a.json', '--plan-only']].every((a) => parseArgs(a) === null));
 
+  // legacyPathFrom（IN-01）
+  expect('legacyPathFrom：相对路径按给定的目录解析，绝对路径不变', legacyPathFrom('a.json', resolve(sep, 'synth-cwd')) === resolve(sep, 'synth-cwd', 'a.json') && legacyPathFrom(resolve(sep, 'synth-x', 'b.json'), resolve(sep, 'synth-cwd')) === resolve(sep, 'synth-x', 'b.json'));
+
   if (failures.length > 0) {
     for (const f of failures) process.stdout.write(`自检失败：${f}\n`);
     return 1;
@@ -488,11 +496,12 @@ function main() {
     return 1;
   }
   if (parsed.mode === 'self-test') return runSelfTest();
+  const legacyPath = parsed.mode === 'migrate' ? legacyPathFrom(parsed.legacyPath, process.cwd()) : undefined;
   const root = repoRoot();
   process.chdir(root);
   if (parsed.mode === 'demo') return runDemo(parsed.dir, root);
   if (parsed.mode === 'plan-only') return runPlanOnly();
-  return runMigrate(parsed.legacyPath);
+  return runMigrate(legacyPath);
 }
 
 // 只在直接运行时执行入口，被 import 时不执行
