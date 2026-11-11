@@ -296,7 +296,31 @@ Plans:
   2. 选择不是备份的文件（包括 `{}`、空数组、普通 JSON 和非 JSON）时直接拒绝并提示，账号数据保持不变（修 N3）。v1 中 N3 和 B2 的 `test.fail` 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
   3. 选择有效备份后，先显示摘要（记录条数、日期范围、计划项数等）并要求确认。确认后替换并同步到服务器，导入前的数据自动留一份快照，用户可以撤销这次导入。取消导入后，能再次选择同一个文件（修 B2）。
   4. 原 Artifact 导出的旧格式备份（裸 state、旧类别名）和所有者的种子计划可以导入新账号：用合成的旧备份和合成种子计划演练，导入后记录、复盘、任务进度和力量历史都对应到正确的任务和日期。生成种子计划的脚本只在本机运行，输出文件被 git 忽略。
-**Plans:** TBD
+**Plans:** 7 plans
+Plans:
+**Wave 1**
+- [ ] 11-01-PLAN.md — 导入 tracer：云端导入原 Artifact 旧备份（识别、摘要确认、并入挂起槽、commit 整份替换、上传），摘要计数与 D-07 醒目提示（D-02、D-07、IN-05）
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 11-02-PLAN.md — 所有者确认备份格式（checkpoint，one-way）；新格式完整备份和只含计划的文件导入，计划经 syncOnce 上传、真冲突留底（D-01、D-03、D-07）
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 11-03-PLAN.md — 导入的边界：5 MB 与云端 4 MB 上限；IN-05、IN-06、导入遇到别处新版本时留底的回归用例；同一浏览器两个标签页的计划采纳
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 11-04-PLAN.md — 导入前自动留一份数据与“撤销导入”：存不下就拒绝、新修改先确认、刷新保留、退出和换账号清除（D-04、D-05）
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 11-05-PLAN.md — 旧路径共用识别入口，修 N3、B2，v1 的 test.fail 翻转，KNOWN-BUGS 和 PROBE-8 同步；完整默认套件（TEST-03）
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 11-06-PLAN.md — 导出改为浏览器原生下载（新格式 JSON、CSV 修 B7、按钮总是显示），v1 导出用例改读下载事件，云端桌面与手机宽度用例（IO-06）
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 11-07-PLAN.md — 迁移脚本 migrate-backup.mjs（自检、--plan-only、--demo）与合成迁移演练（D-06、D-08）；阶段收尾的完整默认套件和 cloud 套件
+
+**Cross-cutting constraints:**
+- 每次改应用都在同一次提交里重新记录 APP_SHA256；测试一律低优先级、1 个 worker、不并发；只用合成数据和假服务器，Claude 不读、不处理所有者的真实备份和种子；备份格式在 11-02 由所有者确认之后才写进应用
 **UI hint**: no
 **Research:** 不需要
 **Notes:**
@@ -358,6 +382,6 @@ Plans:
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
-| 11. 导出、导入与迁移 | v2.0 | 0/TBD | Not started | - |
+| 11. 导出、导入与迁移 | v2.0 | 0/7 | Not started | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |
