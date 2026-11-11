@@ -1,7 +1,10 @@
-// 导出用例（IO-02、IO-03、MOCK-04）。
-// 导出内容只在内存里比较：不写文件、不附加到报告、不进 annotation 或控制台（D-16）。
-// 文件名和内容只从 app.backend.downloads（mock 的 downloads.save 记录）读取。
+// 导出用例（IO-02、IO-03、IO-06）。
+// 导出内容只在内存里比较：读 Playwright 的下载事件，不写文件、不附加到报告、不进 annotation 或控制台（D-16）。
+// 文件名和内容只从 downloadOf（tests/support/download.ts）读取；Claude 的 downloads 能力不再被调用，mock 的下载记录必须一直是空的。
+// 只在这个文件里打开下载：playwright.config.ts 的 acceptDownloads 默认值不改。
 import { test, expect } from '../../support/test';
+import { downloadOf } from '../../support/download';
+import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, FROZEN_NOW } from '../../support/constants';
 import { loadFixture, withoutSynthetic } from '../../support/fixture-files';
 import { builtinTaskIds, csvMismatch, expectedCalendarCsv } from '../../support/expect-from-fixture';
 import {
@@ -16,7 +19,9 @@ import {
   TOAST_NOTHING_TO_EXPORT,
 } from '../../support/strings';
 
-test('IO-03 the JSON backup of the full fixture equals the fixture without _synthetic and the seeded document', async ({
+test.use({ acceptDownloads: true });
+
+test('IO-03 the JSON backup of the full fixture wraps the fixture without _synthetic together with the sample plan', async ({
   page,
   app,
 }) => {
@@ -26,20 +31,30 @@ test('IO-03 the JSON backup of the full fixture equals the fixture without _synt
 
   expect(app.backend.downloads.length).toBe(0);
 
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
-
-  const { filename, data } = app.backend.downloads[0];
+  const { filename, text } = await downloadOf(page, () => page.locator('#exportJson').click());
   expect(filename).toBe(FILENAME_BACKUP_FROZEN);
-  const backup = JSON.parse(data);
+  const backup = JSON.parse(text);
 
-  // 备份与去掉 _synthetic 的 fixture 深度相等
-  expect(backup).toEqual(withoutSynthetic(fixture));
+  // 包装（11-02 的格式）：键和键序固定，只有应用标识、格式号、种类、导出时刻、计划和记录，没有任何账号标识
+  expect(Object.keys(backup)).toEqual(['app', 'format', 'kind', 'exportedAt', 'plan', 'state']);
+  expect(backup.app).toBe(BACKUP_APP);
+  expect(backup.format).toBe(BACKUP_FORMAT);
+  expect(backup.kind).toBe(BACKUP_KIND_FULL);
+  expect(backup.exportedAt).toBe(new Date(FROZEN_NOW).toISOString());
+
+  // 记录与去掉 _synthetic 的 fixture 深度相等
+  expect(backup.state).toEqual(withoutSynthetic(fixture));
+
+  // 计划是应用正在用的示例计划：任务 id 包含 fixture 用到的全部内置任务 id
+  const planIds: string[] = backup.plan.groups.flatMap((g: { tasks: { id: string }[] }) => g.tasks.map((t) => t.id));
+  const missing = builtinTaskIds(fixture).filter((id) => !planIds.includes(id));
+  expect(missing, '计划里缺少 fixture 用到的内置任务 id').toEqual([]);
 
   // D-16 的理解：还没保存时“最新文档”就是种子文档，而 normalize 会丢掉 _synthetic，
   // 所以与种子文档按去掉 _synthetic 比较；此时还没有任何写入。
   expect(app.backend.writes).toEqual([]);
-  expect(backup).toEqual(withoutSynthetic(app.backend.lastState()));
+  expect(backup.state).toEqual(withoutSynthetic(app.backend.lastState()));
+  expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
 
   await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
   await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
@@ -63,14 +78,13 @@ test('IO-02 the calendar CSV export matches the spec-derived expectation byte fo
 
   // 用 length 而不是 toEqual([])：失败时不打印下载记录里的 CSV 内容（WR-01）
   expect(app.backend.downloads.length).toBe(0);
-  await page.locator('#exportCsv').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(1);
-
-  const { filename, data } = app.backend.downloads[0];
+  const { filename, text: data } = await downloadOf(page, () => page.locator('#exportCsv').click());
   expect(filename).toBe(FILENAME_CSV);
-  // 逐字节比较，但失败时不能把内置任务文字打印出来：expect 只拿到布尔值和脱敏后的诊断（WR-01）
+  // 逐字节比较，但失败时不能把内置任务文字打印出来：expect 只拿到布尔值和脱敏后的诊断（WR-01）；不加 BOM
   const mismatch = csvMismatch(data, expected, texts);
   expect(mismatch === null, mismatch ?? '').toBe(true);
+  expect(data.charCodeAt(0) === 0xfeff, 'CSV 不应带 BOM').toBe(false);
+  expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
 
   await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
   await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
@@ -96,9 +110,7 @@ test('IO-02 handwritten golden rows anchor quoting, the 80-character subject cut
     `"${CSV_DONE_PREFIX}SYNTH-TODO finished, custom",03/10/2026,True,P3${CSV_GROUP_SUFFIX}`,
   ];
 
-  await page.locator('#exportCsv').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(1);
-  const { data } = app.backend.downloads[0];
+  const { text: data } = await downloadOf(page, () => page.locator('#exportCsv').click());
   expect(data.startsWith(CSV_HEADER + '\n')).toBe(true);
   // 用布尔值断言：data 含全部内置任务文字，toContain 失败时会把整段 CSV 打印出来（WR-01）。
   // 消息里只放金标准行的前 40 个字符，那是合成文字。
@@ -112,23 +124,25 @@ test('IO-02 handwritten golden rows anchor quoting, the 80-character subject cut
   for (const row of golden) expect(generated, `生成器输出缺少金标准行：${row.slice(0, 40)}`).toContain(row);
 });
 
-test('IO-02 exporting the calendar with nothing dated shows the empty toast and saves nothing', async ({
+test('IO-02 exporting the calendar with nothing dated shows the empty toast and downloads nothing', async ({
   page,
   app,
 }) => {
   await app.open({ mode: 'account', seed: loadFixture('minimal-state.json') });
   await app.expectAccountMode();
 
+  // 数下载事件：CSV 如果下载了，它的事件一定排在后面这次 JSON 导出之前
+  const names: string[] = [];
+  page.on('download', (d) => names.push(d.suggestedFilename()));
+
   await page.locator('#exportCsv').click();
   await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
   await expect(page.locator('#toast')).toContainText(TOAST_NOTHING_TO_EXPORT);
 
-  // 为什么这能证明 CSV 没有保存：mock 按页面调用的顺序记录，
-  // CSV 如果调用过 save，它的记录一定排在后面这次 JSON 导出之前
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
-  expect(app.backend.downloads.length).toBe(1);
-  expect(app.backend.downloads[0].filename).toBe(FILENAME_BACKUP_FROZEN);
+  const { filename } = await downloadOf(page, () => page.locator('#exportJson').click());
+  expect(filename).toBe(FILENAME_BACKUP_FROZEN);
+  expect(names).toEqual([FILENAME_BACKUP_FROZEN]);
+  expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
 });
 
 test('IO-03 the JSON backup equals the latest saved document after a change', async ({ page, app }) => {
@@ -145,19 +159,18 @@ test('IO-03 the JSON backup equals the latest saved document after a change', as
   const saved = app.backend.lastState();
   expect(saved).toEqual(app.backend.writes[app.backend.writes.length - 1].data);
 
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
+  const { text: file } = await downloadOf(page, () => page.locator('#exportJson').click());
 
-  const backup = JSON.parse(app.backend.downloads[0].data);
-  expect(backup).toEqual(saved);
-  expect(backup).not.toHaveProperty('_synthetic');
+  const backup = JSON.parse(file);
+  expect(backup.state).toEqual(saved);
+  expect(backup.state).not.toHaveProperty('_synthetic');
 });
 
-test('MOCK-04 exporting twice records two identical downloads and every test starts with an empty mock', async ({
+test('IO-06 exporting twice downloads two identical files and the Claude downloads capability is never called', async ({
   page,
   app,
 }) => {
-  // 每个用例的 AppHarness 新建自己的 MockBackend，workers: 2 并行时用例之间不共享任何记录
+  // 每个用例的 AppHarness 新建自己的 MockBackend：Claude 的 downloads 能力一次都没被调用，记录一直是空的
   expect(app.backend.reads).toEqual([]);
   expect(app.backend.writes).toEqual([]);
   expect(app.backend.downloads.length).toBe(0);
@@ -165,22 +178,17 @@ test('MOCK-04 exporting twice records two identical downloads and every test sta
   await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
   await app.expectAccountMode();
 
-  // 同一份状态连续导出两次：每次都 poll 到记录数增加，两条完全相同
-  await page.locator('#exportCsv').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 CSV 下载记录' }).toBe(1);
-  await page.locator('#exportCsv').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待第 2 条 CSV 下载记录' }).toBe(2);
-  // 两条 CSV 都含内置任务文字：比较布尔值，失败时不能打印 data（WR-01）
-  expect(
-    app.backend.downloads[1].filename === app.backend.downloads[0].filename &&
-      app.backend.downloads[1].data === app.backend.downloads[0].data,
-    '连续两次导出的 CSV 不一致（内容已隐藏）',
-  ).toBe(true);
+  // 同一份状态连续导出两次，两份文件完全相同
+  const csv1 = await downloadOf(page, () => page.locator('#exportCsv').click());
+  const csv2 = await downloadOf(page, () => page.locator('#exportCsv').click());
+  // 两份 CSV 都含内置任务文字：比较布尔值，失败时不能打印内容（WR-01）
+  expect(csv1.filename === csv2.filename && csv1.text === csv2.text, '连续两次导出的 CSV 不一致（内容已隐藏）').toBe(true);
+  expect(csv1.filename).toBe(FILENAME_CSV);
 
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待第 1 条 JSON 下载记录' }).toBe(3);
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待第 2 条 JSON 下载记录' }).toBe(4);
-  expect(app.backend.downloads[3]).toEqual(app.backend.downloads[2]);
-  expect(app.backend.downloads[2].filename).toBe(FILENAME_BACKUP_FROZEN);
+  const json1 = await downloadOf(page, () => page.locator('#exportJson').click());
+  const json2 = await downloadOf(page, () => page.locator('#exportJson').click());
+  expect(json2).toEqual(json1);
+  expect(json1.filename).toBe(FILENAME_BACKUP_FROZEN);
+
+  expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
 });

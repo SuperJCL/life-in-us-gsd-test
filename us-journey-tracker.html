@@ -704,7 +704,7 @@ async function init(){
   try{const s=await store.load();if(s)state=normalize(s)}catch(e){store=localStore();const s=await store.load();if(s)state=normalize(s)}
   setStatus(store.label);renderAll();
   const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
-  if(dl){window.__dl=dl;$("exportCsv").classList.remove("hidden");$("exportJson").classList.remove("hidden")}
+  if(dl){$("exportCsv").classList.remove("hidden");$("exportJson").classList.remove("hidden")}
 }
 
 /* ---------- cloud ---------- */
@@ -1097,16 +1097,8 @@ function snapDownload(){
   const snap=snapGet();
   if(!snap){snapShow();return}
   const name=(snap.kind==="plan"?"计划手记-计划留底-":"计划手记-留底-")+today()+".json";
-  let url=null;
-  try{
-    url=URL.createObjectURL(new Blob([JSON.stringify(snap.data,null,2)],{type:"application/json"}));
-    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-  }catch(e){
-    if(url)try{URL.revokeObjectURL(url)}catch(x){}
-    toast("留底生成失败，本机副本仍然保留",null,4000);return;
-  }
-  /* the blob address must outlive the click: the browser may still be asking whether to allow the download; it is revoked much later (D-10 still deletes the kept copy on the click) */
-  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  /* the blob address outlives the click (blobDownload revokes it much later); D-10 still deletes the kept copy on the click */
+  if(!blobDownload(name,JSON.stringify(snap.data,null,2),"application/json")){toast("留底生成失败，本机副本仍然保留",null,4000);return}
   try{localStorage.removeItem(snapKey())}catch(e){}
   snapShow();
   toast("已开始下载留底，本机不再保留副本",null,3000);
@@ -2040,20 +2032,35 @@ $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter
 /* ---------- export / import ---------- */
 function csvCell(s){s=String(s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
 function usDate(s){return s.slice(5,7)+"/"+s.slice(8)+"/"+s.slice(0,4)}
-$("exportCsv").onclick=async()=>{
+/* 三个下载（备份、日历 CSV、下载留底）共用的浏览器原生下载：Blob 加临时 <a download>。对象地址必须比这次点击活得久（浏览器可能还在问用户是否允许下载），所以 30 秒后才 revoke；抛错时 revoke 已建的地址并返回 false */
+function blobDownload(name,text,type){
+  let url=null;
+  try{
+    url=URL.createObjectURL(new Blob([text],{type}));
+    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  }catch(e){
+    if(url)try{URL.revokeObjectURL(url)}catch(x){}
+    return false;
+  }
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  return true;
+}
+function saveFile(name,text,type){toast(blobDownload(name,text,type)?"已导出":"导出不可用")}
+$("exportCsv").onclick=()=>{
+  if(remoteView)applyView();
   const rows=[["Subject","Start Date","All Day Event","Description"]];
   state.logs.forEach(l=>rows.push(["["+l.cat+"] "+l.text.split("\n")[0].slice(0,80),usDate(l.date),"True",l.text]));
   allTasks().forEach(t=>{const s=tstate(t.id);
     if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",t.group+" 计划"]);
     else if(s.due)rows.push(["截止："+t.text,usDate(s.due),"True",t.group+" 计划"])});
   if(rows.length===1){toast("还没有可导出的日期");return}
-  await save("计划手记-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"));
+  saveFile("计划手记-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"),"text/csv;charset=utf-8");
 };
-$("exportJson").onclick=()=>save("计划手记-备份-"+today()+".json",JSON.stringify(state,null,2));
-async function save(filename,data){
-  try{await window.__dl.save({filename,data});toast("已导出")}
-  catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
-}
+/* 备份是新格式完整备份（D-10：旧路径也一样）；有别的设备的更新正等着显示时先按 Phase 10 的规则应用，文件与账号当前数据一致 */
+$("exportJson").onclick=()=>{
+  if(remoteView)applyView();
+  saveFile("计划手记-备份-"+today()+".json",JSON.stringify(backupOf(plan,state,new Date().toISOString()),null,2),"application/json");
+};
 $("importJson").addEventListener("change",e=>{onImportFile(e.target)});
 
 let tt;function toast(m,act,ms){const t=$("toast");if(ms!=null)t.setAttribute("data-cloud","");else t.removeAttribute("data-cloud");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);

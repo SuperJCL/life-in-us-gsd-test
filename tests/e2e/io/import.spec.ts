@@ -21,6 +21,7 @@ import {
   textImportFile,
 } from '../../support/import-file';
 import { composer } from '../../support/composer';
+import { downloadOf } from '../../support/download';
 import {
   expectedCategory,
   expectedNormalize,
@@ -348,39 +349,43 @@ test.describe('IO-07 legacy version manual clock', () => {
   });
 });
 
-test('IO-04 an exported JSON backup imported again restores exactly the exported data', async ({ page, app }) => {
-  const fixture = loadFixture('full-state.json');
-  const sentinel = 'SYNTH-IO04 after export';
-  await app.open({ mode: 'account', seed: fixture });
-  await app.expectAccountMode();
+// 只在这个 describe 里打开下载：playwright.config.ts 的 acceptDownloads 默认值不改（D-16）
+test.describe('IO-04 reading the exported backup from the download event', () => {
+  test.use({ acceptDownloads: true });
 
-  // 导出的备份只在内存里：不写文件、不进报告和注解（D-04）
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
-  const exported = app.backend.downloads[0].data;
-  const backup = JSON.parse(exported);
-  expect(backup).toEqual(withoutSynthetic(fixture));
+  test('IO-04 an exported JSON backup imported again restores exactly the exported data', async ({ page, app }) => {
+    const fixture = loadFixture('full-state.json');
+    const sentinel = 'SYNTH-IO04 after export';
+    await app.open({ mode: 'account', seed: fixture });
+    await app.expectAccountMode();
 
-  // 导出之后再改动：记一条合成记录并等它保存
-  const comp = composer(page, 'w');
-  await comp.type(sentinel);
-  await comp.submit();
-  await app.expectSaved((s) => s.logs.some((l: Log) => l.text === sentinel), '等待新记录保存');
+    // 导出的备份只在内存里：读下载事件，不写文件、不进报告和注解（D-04）；旧路径导出的也是新格式完整备份（D-10）
+    const { text: exported } = await downloadOf(page, () => page.locator('#exportJson').click());
+    const backup = JSON.parse(exported);
+    expect(backup.state).toEqual(withoutSynthetic(fixture));
+    expect(app.backend.downloads.length, 'Claude 的 downloads 能力不应被调用').toBe(0);
 
-  // 把导出的原文（不重新序列化）作为内存文件导入并接受
-  const dialogs = answerNextDialog(page, 'accept');
-  await chooseImportFile(page, textImportFile('synth-roundtrip.json', exported));
-  await expect.poll(() => dialogs.length, { message: '等待替换确认框' }).toBe(1);
-  expect(dialogs[0]).toBe(CONFIRM_IMPORT);
-  await expectToast(page, TOAST_RESTORED);
-  await app.expectSaved((s) => s.logs.every((l: Log) => l.text !== sentinel), '等待导入后的保存');
+    // 导出之后再改动：记一条合成记录并等它保存
+    const comp = composer(page, 'w');
+    await comp.type(sentinel);
+    await comp.submit();
+    await app.expectSaved((s) => s.logs.some((l: Log) => l.text === sentinel), '等待新记录保存');
 
-  expect(await app.saved()).toEqual(backup);
-  await expect(page.locator('#tab-wk #days').getByText(sentinel)).toHaveCount(0);
-  await gotoTimeline(page);
-  await expect
-    .poll(() => readTimeline(page), { message: '时间线与备份的推导不一致' })
-    .toEqual(expectedTimeline(backup, FILTER_ALL));
+    // 把导出的原文（不重新序列化）作为内存文件导入并接受：旧路径按 D-10 只替换记录
+    const dialogs = answerNextDialog(page, 'accept');
+    await chooseImportFile(page, textImportFile('synth-roundtrip.json', exported));
+    await expect.poll(() => dialogs.length, { message: '等待替换确认框' }).toBe(1);
+    expect(dialogs[0]).toBe(CONFIRM_IMPORT);
+    await expectToast(page, TOAST_RESTORED);
+    await app.expectSaved((s) => s.logs.every((l: Log) => l.text !== sentinel), '等待导入后的保存');
+
+    expect(await app.saved()).toEqual(backup.state);
+    await expect(page.locator('#tab-wk #days').getByText(sentinel)).toHaveCount(0);
+    await gotoTimeline(page);
+    await expect
+      .poll(() => readTimeline(page), { message: '时间线与备份的推导不一致' })
+      .toEqual(expectedTimeline(backup.state, FILTER_ALL));
+  });
 });
 
 test('IO-05 importing a backup with legacy category names migrates them and every view shows the new categories', async ({

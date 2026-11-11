@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
+import { downloadOf } from '../../support/download';
 import { ACCOUNT_DOC_PATH, FROZEN_NOW, FROZEN_TODAY, STATE_KEY } from '../../support/constants';
 import { FILENAME_BACKUP_FROZEN, FILENAME_CSV, STATUS_LOCAL, TOAST_EXPORTED } from '../../support/strings';
 
@@ -144,39 +145,40 @@ test.describe('MOCK-03 manual clock', () => {
   });
 });
 
-test('MOCK-04 account mode shows both export buttons and records what downloads.save receives', async ({
-  page,
-  app,
-}) => {
-  // ready() 已断言两个导出按钮可见（D-08）
-  await app.open({ mode: 'account', seed: loadSeed() });
-  expect(app.backend.downloads).toEqual([]);
+// 只在这个 describe 里打开下载：playwright.config.ts 的 acceptDownloads 默认值不改（D-16）
+test.describe('MOCK-04 native downloads', () => {
+  test.use({ acceptDownloads: true });
 
-  // JSON 备份
-  await page.locator('#exportJson').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 JSON 下载记录' }).toBe(1);
-  const json = app.backend.downloads[0];
-  expect(json.filename).toBe(FILENAME_BACKUP_FROZEN);
-  expect(typeof json.data).toBe('string');
-  expect(json.data.length).toBeGreaterThan(0);
-  expect(JSON.parse(json.data).logs.some((l: Log) => l.text === SEED_TEXT)).toBe(true);
-  await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
-  await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
+  test('MOCK-04 account mode shows both export buttons and downloads the files natively without the downloads capability', async ({
+    page,
+    app,
+  }) => {
+    // ready() 已断言两个导出按钮可见（D-08）
+    await app.open({ mode: 'account', seed: loadSeed() });
+    expect(app.backend.downloads.length).toBe(0);
 
-  // JSON 和 CSV 成功后的 toast 文案相同，toast 约显示 1800 ms：先等 JSON 的 toast 自然消失，
-  // 再点 CSV，后面的 toast 断言才能证明是 CSV 导出弹出的（WR-05）
-  await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
+    // JSON 备份：新格式完整备份，记录在 state 里
+    const json = await downloadOf(page, () => page.locator('#exportJson').click());
+    expect(json.filename).toBe(FILENAME_BACKUP_FROZEN);
+    expect(json.text.length).toBeGreaterThan(0);
+    expect(JSON.parse(json.text).state.logs.some((l: Log) => l.text === SEED_TEXT)).toBe(true);
+    await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
 
-  // 日历 CSV：逐字内容比较放在 02-04，这里只确认文件名和种子条目的日期
-  await page.locator('#exportCsv').click();
-  await expect.poll(() => app.backend.downloads.length, { message: '等待 CSV 下载记录' }).toBe(2);
-  const csv = app.backend.downloads[1];
-  expect(csv.filename).toBe(FILENAME_CSV);
-  expect(csv.data.length).toBeGreaterThan(0);
-  expect(csv.data).toContain('03/17/2026');
-  await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
-  await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
+    // JSON 和 CSV 成功后的 toast 文案相同，toast 约显示 1800 ms：先等 JSON 的 toast 自然消失，
+    // 再点 CSV，后面的 toast 断言才能证明是 CSV 导出弹出的（WR-05）
+    await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
 
-  // 导出之后应用仍在账户模式：读取次数不变，localStorage 里没有应用的键
-  await app.expectAccountMode();
+    // 日历 CSV：逐字内容比较放在 02-04，这里只确认文件名和种子条目的日期
+    const csv = await downloadOf(page, () => page.locator('#exportCsv').click());
+    expect(csv.filename).toBe(FILENAME_CSV);
+    expect(csv.text.length).toBeGreaterThan(0);
+    expect(csv.text).toContain('03/17/2026');
+    await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
+    await expect(page.locator('#toast')).toContainText(TOAST_EXPORTED);
+
+    // Claude 的 downloads 能力一次都没被调用；导出之后应用仍在账户模式：读取次数不变，localStorage 里没有应用的键
+    expect(app.backend.downloads.length).toBe(0);
+    await app.expectAccountMode();
+  });
 });
