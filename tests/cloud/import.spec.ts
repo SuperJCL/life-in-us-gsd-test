@@ -15,6 +15,7 @@ import { expectToast, expectToastGone } from '../support/toast';
 import { FROZEN_NOW } from '../support/constants';
 import {
   CONFIRM_IMPORT_TITLE,
+  GOAL_DONE_NO_DATE,
   IMPORT_KIND_FULL,
   IMPORT_KIND_LEGACY,
   IMPORT_KIND_PLAN,
@@ -429,4 +430,36 @@ test.describe('manual clock', () => {
     expect(app.fake.lastState(0)).toEqual(stateBefore);
     await expect(page.locator('#tab-wk [data-edit="synthetic-imr"]')).toBeVisible();
   });
+});
+
+test('IO-08 CR-01 a backup with a done task and no doneDate imports, the goals view renders it and the account still opens after a reload', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('cr1'), login: 0 });
+  // 合成旧备份：P2-1 已完成但没有 doneDate（手改的文件会这样），自定义待办也是
+  const file = legacyBackup('cr1', {
+    tasks: { 'P2-1': { done: true }, 'c-cr1-1': { done: true } },
+  });
+
+  await chooseImportFile(page, jsonImportFile('synth-cr1.json', file));
+  await readConfirm(page);
+  await confirmOk(page);
+  // 以前这里 renderGoals 抛 TypeError：toast 和撤销入口都不出现
+  await expectToast(page, TOAST_IMPORTED);
+  await expect(page.locator('#undoImportBtn')).toBeVisible();
+  await expect
+    .poll(() => app.fake.lastState(0)?.tasks?.['P2-1'], { message: '等待服务器拿到导入的进度' })
+    .toEqual({ done: true, doneDate: '' });
+  await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+
+  await gotoGoals(page);
+  const groups = await readGroups(page);
+  expect(groups.flatMap((g) => g.doneIds)).toEqual(expect.arrayContaining(['P2-1', 'c-cr1-1']));
+  await expect(page.locator('#goals .task:has([data-task="P2-1"]) .meta')).toHaveText(GOAL_DONE_NO_DATE);
+
+  // 刷新之后账号照常打开（以前每次加载都在 enterApp 里抛错，落到登录页的“网络错误”）
+  await app.reload();
+  await gotoGoals(page);
+  expect((await readGroups(page)).flatMap((g) => g.doneIds)).toEqual(expect.arrayContaining(['P2-1', 'c-cr1-1']));
 });

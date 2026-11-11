@@ -279,7 +279,7 @@ test('PLAN-05 backups with g-, t- and l- prefixed ids pass the import check and 
     tasks: {
       't-synth1': { done: true, doneDate: '2026-03-12' },
       'c-synth-1': { due: '2026-03-25' },
-      'P1-1': { done: true },
+      'P1-1': { done: true, doneDate: '2026-03-13' },
     },
     lifts: { 'l-synth1': { cur: 5, hist: [{ date: '2026-03-02', v: 5 }] } },
     reviews: {},
@@ -287,6 +287,12 @@ test('PLAN-05 backups with g-, t- and l- prefixed ids pass the import check and 
   });
   expect(importProblem(backup()), '前缀 id 通过导入检查').toBeNull();
   expect(norm(backup()), '计划里有这些项时原样保留').toEqual(backup());
+  // CR-01：done 为真但没有 doneDate 的进度补成空串，渲染和 md() 不会碰到 undefined；已有 doneDate 的不变
+  expect(norm({ tasks: { 'P1-1': { done: true }, 'P1-2': { done: false }, 'P1-3': { due: '2026-03-25' } } }).tasks).toEqual({
+    'P1-1': { done: true, doneDate: '' },
+    'P1-2': { done: false },
+    'P1-3': { due: '2026-03-25' },
+  });
 
   // 换回 DEFAULT_PLAN：计划里没有 t-synth1，进度键被丢弃；g- 组和 l- 力量键格式合格，仍保留
   expect(usePlan(DEFAULT_PLAN)).toBe(true);

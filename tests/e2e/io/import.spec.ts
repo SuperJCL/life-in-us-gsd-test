@@ -37,6 +37,7 @@ import {
   CATEGORY_NAMES,
   CONFIRM_IMPORT,
   FILTER_ALL,
+  GOAL_DONE_NO_DATE,
   TOAST_IMPORT_BAD_FORMAT,
   TOAST_IMPORT_PLAN_LOCAL,
   TOAST_IMPORT_TOO_BIG,
@@ -114,6 +115,31 @@ test('IO-04 accepting the import confirm replaces all data with the backup', asy
   await expect
     .poll(() => readTimeline(page), { message: '时间线与导入后状态的推导不一致' })
     .toEqual(expectedTimeline(saved, FILTER_ALL));
+});
+
+test('IO-04 CR-01 a backup with a done task and no doneDate imports and the goals view still renders after a reload', async ({ page, app }) => {
+  await app.open({ mode: 'account', seed: loadFixture('full-state.json') });
+  await app.expectAccountMode();
+
+  const payload = {
+    ...syntheticBackup(),
+    tasks: { 'P2-1': { done: true }, 'c-synth-imp-1': { done: true } },
+  };
+  const dialogs = answerNextDialog(page, 'accept');
+  await chooseImportFile(page, jsonImportFile('synth-cr1-legacy.json', payload));
+  await expect.poll(() => dialogs.length, { message: '等待替换确认框' }).toBe(1);
+  // 以前 renderGoals 抛 TypeError：恢复成功的 toast 不出现，之后每次加载都打不开
+  await expectToast(page, TOAST_RESTORED);
+  await app.expectSaved((s) => s.tasks?.['P2-1']?.done === true, '等待导入后的保存');
+  expect((await app.saved()).tasks['P2-1']).toEqual({ done: true, doneDate: '' });
+
+  await gotoGoals(page);
+  expect((await readGroups(page)).flatMap((g) => g.doneIds)).toEqual(expect.arrayContaining(['P2-1', 'c-synth-imp-1']));
+  await expect(page.locator('#goals .task:has([data-task="P2-1"]) .meta')).toHaveText(GOAL_DONE_NO_DATE);
+
+  await app.reload();
+  await gotoGoals(page);
+  expect((await readGroups(page)).flatMap((g) => g.doneIds)).toEqual(expect.arrayContaining(['P2-1', 'c-synth-imp-1']));
 });
 
 // 这两条证明“没有保存”，所以用 manual 时钟推过 600 ms 防抖（D-06）；同一个用例里不混用 setFixedTime

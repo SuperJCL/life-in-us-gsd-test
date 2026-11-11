@@ -577,6 +577,7 @@ function normalize(s){
     const r={...v};
     if(r.done!==undefined&&typeof r.done!=="boolean")r.done=!!r.done;
     for(const f of ["doneDate","due"])if(r[f]!==undefined&&r[f]!==""&&!okDate(r[f]))r[f]="";
+    if(r.done===true&&r.doneDate===undefined)r.doneDate="";
     return [k,r];
   }));
   const lifts=Object.fromEntries(Object.keys(isObj(s.lifts)?s.lifts:{}).filter(k=>LIFT_ID_RE.test(k)&&isObj(s.lifts[k])).map(k=>{
@@ -1908,7 +1909,7 @@ function renderGoals(){
     ${ts.map(x=>{const s=tstate(x.id),od=!s.done&&s.due&&s.due<t;const custom=!planIds.has(x.id);
       return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
-      <span class="meta">${s.done?`完成于 ${md(s.doneDate)}`:`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
+      <span class="meta">${s.done?(s.doneDate?`完成于 ${md(s.doneDate)}`:"已完成"):`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
     <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给${esc(g.id)}添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("");applyGate();
 }
 

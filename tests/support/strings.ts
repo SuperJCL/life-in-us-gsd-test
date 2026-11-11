@@ -220,6 +220,9 @@ export const TOAST_TASK_DONE = '完成，已记到今天';
 // 已完成任务行里的“完成于 ”前缀，后面接 M月D日，末尾一个空格（应用源码第 523 行逐字复制）
 export const GOAL_DONE_ON_PREFIX = '完成于 ';
 
+// CR-01：已完成但没有记下完成日期的任务，行上写这个，不写“完成于”（应用里目标视图任务行的逐字复制）
+export const GOAL_DONE_NO_DATE = '已完成';
+
 // 未完成且没有过期的任务行里的标记文字（应用源码第 523 行逐字复制）；过期时是上面的 GOAL_OVERDUE
 export const GOAL_DUE_LABEL = '截止';
 
