@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 11
-current_phase_name: 导出、导入与迁移（Export, Import & Migration）
-status: verifying
-stopped_at: Completed 11-11-PLAN.md
-last_updated: "2026-11-11T17:51:38.897Z"
-last_activity: 2026-11-10
-last_activity_desc: Phase 11 execution started
-state_head: abba25dde5dd959fb4ff28c3534cf3ee7607fabf
+current_phase: 12
+current_phase_name: 编辑计划页（Plan Editor）
+status: planning
+stopped_at: Phase 11 complete, ready to plan Phase 12
+last_updated: "2026-11-11T19:26:56.302Z"
+last_activity: 2026-11-11
+last_activity_desc: Phase 11 complete, transitioned to Phase 12
+state_head: f416d32f707ce31ab1744efb95d30f009d35263a
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 58
   completed_plans: 58
-  percent: 63
+  percent: 75
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
+See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 11 — 导出、导入与迁移（Export, Import & Migration）
+**Current focus:** Phase 12 — 编辑计划页（Plan Editor）
 
 ## Current Position
 
-Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 11 of 11
-Status: Phase complete — ready for verification
-Last activity: 2026-11-10 — Phase 11 execution started
+Phase: 12 — 编辑计划页（Plan Editor）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-11 — Phase 11 complete, transitioned to Phase 12
 
-Progress: [██████░░░░] 63%
+Progress: [████████░░] 75%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 67
+- Total plans completed: 78
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -58,6 +58,7 @@ Progress: [██████░░░░] 63%
 | 08 | 7 | - | - |
 | 09 | 14 | - | - |
 | 10 | 9 | - | - |
+| 11 | 11 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -275,11 +276,16 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11]: 11-05: another tab adopts the plan cache record (adoptPlanTab into pendRemote.plan, no cache write-back, dirty flag carried) before the state record, so new-plan progress is kept across tabs
 - [Phase 11]: 11-06: import undo slot importundo = {at, plan, state, after}; D-05 re-check loop (confirm, takeRemote, recompute fingerprint, confirm again while it differs); undo restores through commit with opsOk cleared; slot cleared on logout and account switch
 - [Phase 11]: 11-07: both import paths share onImportFile (finally clears the file box); legacy path keeps the native confirm and old texts (D-09), takes new-format full backups as records only, refuses plan-only files and files over 5 MB (D-10)
-- [Phase 11]: 11-08: the two export buttons stay out of GATE_ALLOW, so they are disabled while the edit gate is on
+- [Phase 11]: 11-08: the two export buttons stay out of GATE_ALLOW, so they are disabled while the edit gate is on（已被 UI 审查修复 abba25d 取代：两个导出按钮加入 GATE_ALLOW，门控时照常可用）
 - [Phase 11]: 11-08: all exports share blobDownload; JSON backup is the new full-backup wrapper on every path and applies a pending remote update first
 - [Phase 11]: 11-09: plan kept copies download as a plan-only wrapper (计划留底包装：改); B7 prefix on cells starting with = + - @ tab CR; CR also forces quoting
 - [Phase 11]: 11-10: migration script reuses the app pure section through node:vm; real-input modes write only under private/, only SafeError text is ever printed, a file with a format key that does not classify is reported as already-new
 - [Phase 11]: 11-11: the migration rehearsal imports the script's already-normalized --demo file, so the summary has no orphan line; the dropped orphan is checked on the script output
+Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
+- 导出导入和迁移都已完成（IO-06..IO-10、TEST-03）；N3、B2 已修，对应用例翻转为正常断言；验收 4/4 通过，真机下载和选文件在 Phase 13 部署后再查一次。
+- 备份格式是 `{app, format: 2, kind, exportedAt, plan, state?}`（所有者选项 A）；导入按文件类型决定替换范围（D-01..D-03）；云端导入经 `takeRemote` 和 `commit(["import"])` 整份替换，撤销副本在 `usj:v2:<id>:importundo`。
+- 迁移脚本 `tools/plan/migrate-backup.mjs` 只在本机运行、只写 `private/`；Claude 只跑 `--self-test` 和指向 `test-results/` 的 `--demo`。
+- 安全 30/30 关闭（AR-01、AR-02 待所有者确认）；UI 审计 18/24，4 处已修（abba25d）；代码审查 9 条全部修完。默认套件 188 条、cloud 入口 196 条（编排者在 HEAD 上亲自跑过）。
 
 ### Pending Todos
 
@@ -287,8 +293,9 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
 - Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
 - Phase 10：确认 10-REVIEW-FIX 的 WR-01（退出登录时中止进行中的同步）和 WR-03（同步超时随文档大小放宽）的写法，以及 10-SECURITY 的低风险 AR-02、AR-03；判断三处体验问题（点击可能要再点一次、改开始日期清草稿、结果不明的上传之后重做会盖掉别处对同一条目的修改）；决定 IN-01 的死代码删不删。
+- Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
-- Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，用真实设备验收。
+- Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，用真实设备验收。
 
 ### Blockers/Concerns
 
@@ -304,7 +311,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条 cloud 用例，TEST-02 仍是 Pending；导入导出和编辑计划的 cloud 用例在 Phase 11–12 随功能补齐，Phase 13 全量收口。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
 - ~~[Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造~~ 已解决（Phase 10，10-02）：假服务器新增 dropRealtime、refuseRealtime、按上下文的故障。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
 - [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
@@ -312,7 +319,10 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - ~~[Phase 10，来自 Phase 9 复审]: WR-01 写入方 id、WR-02 保存没有超时~~ 已解决（Phase 10，10-05 和 10-01）。
 - [Phase 10 安全]: `10-SECURITY.md` verified，32 条威胁全部关闭；AR-02、AR-03（计划阶段登记的低风险）待所有者确认。
 - [Phase 10 审查]: 9 条发现里修了 6 条、跳过 3 条（`10-REVIEW-FIX.md`、`10-REVIEW-DISPOSITION.md` 无未处理项）；WR-01、WR-03 的写法待所有者确认。
-- [Phase 11，来自 Phase 10 审查]: IN-05 导入路径绕过 `commit`，云端放开导入时要接到挂起槽；IN-06 `normalize` 对非法 id 每次生成新 id，迁移写入侧要保证 id 合法。
+- ~~[Phase 11，来自 Phase 10 审查]: IN-05 导入路径绕过 `commit`；IN-06 迁移写入侧要保证 id 合法~~ 已解决（Phase 11，11-01 和 11-04）：云端导入经挂起槽和 `commit`，导入写入的 id 都合法。IN-06 的根因（服务器文档里已有的非法 id 每次加载都换新 id）仍在，不在本里程碑范围。
+- [Phase 11 安全]: `11-SECURITY.md` verified，30 条威胁全部关闭；AR-01、AR-02（计划阶段登记的低风险）待所有者确认。
+- [Phase 11 审查]: 9 条发现全部修完（`11-REVIEW-FIX.md`、`11-REVIEW-DISPOSITION.md` 无未处理项）；IN-03（登录过期后换账号不提示上一个账号的撤销副本）只写进 11-CONTEXT 的规划备注。
+- [Phase 13，来自 Phase 11 验收]: 部署后在真实手机上再查一次下载备份、日历 CSV 和导入时选文件（11-CONTEXT 把真机检查留到部署之后）。
 - [Phase 13，来自 Phase 10 验收]: 两台真实设备上的“几秒内”同步和断网记录（10-UAT 第 1 项推迟到这里，对应 Phase 13 成功标准 5）。
 - [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
@@ -339,13 +349,13 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T08:30:38.719Z
-Stopped at: Completed 11-11-PLAN.md
+Last session: 2026-11-11T19:29:09.000Z
+Stopped at: Phase 11 complete, ready to plan Phase 12
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 10 已完成并转场（2026-11-10）：验收 2 项（真机延迟推迟到 Phase 13、状态栏文案保持现状），验证 passed，安全报告未解决威胁 0
+- Phase 11 已完成并转场（2026-11-11）：验收 4/4 通过，验证 passed，安全报告未解决威胁 0
 - 本地提交还没推送，推送前要所有者确认
-- 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删
-- 下一阶段：`/gsd-discuss-phase 11`（导出、导入与迁移）
+- 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
+- 下一阶段：`/gsd-discuss-phase 12`（编辑计划页）；路线图要求在规划前做 UI 设计契约（`/gsd-ui-phase 12`）

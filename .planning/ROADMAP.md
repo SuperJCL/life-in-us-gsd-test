@@ -45,7 +45,7 @@
 - [x] **Phase 8: PocketBase 规则、隔离与假服务器（Rules, Isolation & Fake Server）** - 用迁移文件定义集合和规则，在一次性本机 PocketBase 上证明账号隔离；按真实协议样本做出假服务器和 cloud 测试模式 (completed 2026-11-08)
 - [x] **Phase 9: 登录与云端存储（Login & Cloud Storage）** - 登录、退出、会话保持；记录和个人计划按账号存在服务器上；先对账再允许编辑；页面只加载同源资源 (completed 2026-11-09)
 - [x] **Phase 10: 离线与实时同步（Offline & Realtime Sync）** - 断网先存、联网自动上传；同账号多设备几秒内同步且不毁草稿；状态栏五种状态；保存失败和登录过期都不丢数据 (completed 2026-11-10)
-- [ ] **Phase 11: 导出、导入与迁移（Export, Import & Migration）** - 按账号导出 JSON 和 CSV；导入先识别、摘要确认、快照可撤销；修 N3、B2；旧 Artifact 备份的迁移先用合成文件演练
+- [x] **Phase 11: 导出、导入与迁移（Export, Import & Migration）** - 按账号导出 JSON 和 CSV；导入先识别、摘要确认、快照可撤销；修 N3、B2；旧 Artifact 备份的迁移先用合成文件演练 (completed 2026-11-11)
 - [ ] **Phase 12: 编辑计划页（Plan Editor）** - 在应用里增删改、排序和归档个人计划，草稿式保存，跨设备同步
 - [ ] **Phase 13: 部署、加固与验收（Deploy, Hardening & Acceptance）** - 正式部署、重启自恢复、每日异地备份和恢复演练、CSP 与后台加固、冷启动离线（含断网刷新）；两台真实设备在大陆和美国验收
 
@@ -296,7 +296,7 @@ Plans:
   2. 选择不是备份的文件（包括 `{}`、空数组、普通 JSON 和非 JSON）时直接拒绝并提示，账号数据保持不变（修 N3）。v1 中 N3 和 B2 的 `test.fail` 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
   3. 选择有效备份后，先显示摘要（记录条数、日期范围、计划项数等）并要求确认。确认后替换并同步到服务器，导入前的数据自动留一份快照，用户可以撤销这次导入。取消导入后，能再次选择同一个文件（修 B2）。
   4. 原 Artifact 导出的旧格式备份（裸 state、旧类别名）和所有者的种子计划可以导入新账号：用合成的旧备份和合成种子计划演练，导入后记录、复盘、任务进度和力量历史都对应到正确的任务和日期。生成种子计划的脚本只在本机运行，输出文件被 git 忽略。
-**Plans:** 11/11 plans executed
+**Plans:** 11/11 plans complete
 Plans:
 **Wave 1**
 - [x] 11-01-PLAN.md — 导入 tracer：云端导入原 Artifact 旧备份（识别、摘要确认、并入挂起槽、commit 整份替换、上传），摘要计数与 D-07 醒目提示（D-02、D-07、IN-05）
@@ -394,6 +394,6 @@ Plans:
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
-| 11. 导出、导入与迁移 | v2.0 | 11/11 | In Progress | - |
+| 11. 导出、导入与迁移 | v2.0 | 11/11 | Complete    | 2026-11-11 |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |
