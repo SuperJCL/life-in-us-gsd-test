@@ -18,6 +18,8 @@ import {
   TOAST_IMPORTED,
   importCurrentLine,
   importLogsLine,
+  importMoreLine,
+  importOrphanLegacyLine,
 } from '../support/strings';
 
 test('IO-08 importing a legacy backup in the cloud version asks first, replaces the records, keeps the plan and uploads to the server', async ({
@@ -37,6 +39,8 @@ test('IO-08 importing a legacy backup in the cloud version asks first, replaces 
     IMPORT_KIND_LEGACY,
     IMPORT_REPLACE_LEGACY,
     importLogsLine(2, '2026-02-10', '2026-03-17'),
+    // 文件里：一周复盘、两项完成的任务（P2-1 和自定义待办）、bench 两条力量历史
+    importMoreLine(1, 2, 2),
     importCurrentLine(1),
   ]);
   // 点“导入”之前什么都没有写：服务器、本周视图都还是原样
@@ -54,6 +58,32 @@ test('IO-08 importing a legacy backup in the cloud version asks first, replaces 
   await expect(page.locator('#tab-wk [data-edit="synth-imp1-1"]')).toBeVisible();
   await expect(page.locator('#tab-wk [data-edit="synthetic-imp"]')).toHaveCount(0);
   await expect(page.locator('#importJson')).toHaveValue('');
+});
+
+test('IO-08 progress that matches no task of the current plan is highlighted in the summary and dropped on import (D-07)', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('imo'), login: 0 });
+  const file = legacyBackup('imp9', {
+    tasks: {
+      'P2-1': { done: true, doneDate: '2026-03-02' },
+      'P9-9': { done: true, doneDate: '2026-03-02' },
+    },
+  });
+
+  await chooseImportFile(page, jsonImportFile('synth-orphan.json', file));
+  const confirm = await readConfirm(page);
+  // 摘要里多出一行醒目提示，只有这一行带醒目样式
+  expect(confirm.warn).toEqual([importOrphanLegacyLine(1)]);
+  expect(confirm.lines[confirm.lines.length - 1]).toBe(importOrphanLegacyLine(1));
+
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => Object.keys(app.fake.lastState(0)?.tasks ?? {}).includes('P2-1')).toBe(true);
+  const tasks = app.fake.lastState(0).tasks as Record<string, unknown>;
+  expect(Object.keys(tasks)).toContain('P2-1');
+  expect(Object.keys(tasks)).not.toContain('P9-9');
 });
 
 test.describe('manual clock', () => {

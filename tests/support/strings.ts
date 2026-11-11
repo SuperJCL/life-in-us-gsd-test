@@ -414,3 +414,12 @@ export function importCurrentLine(n: number): string {
 }
 // 导入成功后的 toast（云端，4000 ms）
 export const TOAST_IMPORTED = '已导入';
+
+// 摘要里的复盘周数、完成的任务数、力量记录数（Phase 11-01 Task 2；应用里 T_IMP_MORE 的逐字复制）
+export function importMoreLine(reviews: number, done: number, liftEntries: number): string {
+  return `复盘 ${reviews} 周，完成的任务 ${done} 项，力量记录 ${liftEntries} 条`;
+}
+// D-07：旧备份里对不上当前计划的任务进度条数（醒目行；应用里 T_IMP_ORPHAN_LEGACY 的逐字复制）
+export function importOrphanLegacyLine(n: number): string {
+  return `${n} 条任务进度对不上当前计划，导入后会丢弃。建议先导入计划，再导入这份备份。`;
+}

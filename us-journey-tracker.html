@@ -224,6 +224,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 #cf-body p{margin:0}
 #cf-body p+p{margin-top:6px}
 #cf-body p.cf-who{color:var(--muted)}
+#cf-body p.cf-warn{color:var(--ink);background:var(--c-job-s);border-left:3px solid var(--c-job);padding:6px 10px;border-radius:6px}
 @media (max-width:560px){dialog#confirm .ed-foot .sp{display:none}dialog#confirm .ed-foot button{flex:1;min-height:44px}}
 .ed-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
 .ed-h h3{font-family:var(--serif);font-size:19px;margin:0}
@@ -605,11 +606,19 @@ function classifyBackup(raw){
   if(legacyShape(raw)&&importProblem(raw)===null)return {kind:"legacy",state:raw};
   return null;
 }
+/* 摘要里的各项计数（对一份已 normalize 的 state）：记录条数和日期范围、非空白的复盘周数、完成的任务数、力量记录条数 */
+function backupCounts(s){
+  const ds=(s.logs||[]).map(l=>l.date).sort();
+  return {logs:ds.length,from:ds.length?ds[0]:"",to:ds.length?ds[ds.length-1]:"",
+    reviews:Object.values(s.reviews||{}).filter(v=>String(v).trim()!=="").length,
+    done:Object.values(s.tasks||{}).filter(v=>v&&v.done===true).length,
+    liftEntries:Object.values(s.lifts||{}).reduce((n,L)=>n+(L&&Array.isArray(L.hist)?L.hist.length:0),0)};
+}
 /* 摘要用的数据：b 是 classifyBackup 的结果，cur 是当前 state。state 是 normalize 之后会真正写入的内容（当前计划、当前 keepOrphans），
-   counts 是它的记录条数和日期范围，current 是当前账号现有的记录条数。不改 cur，不改模块状态 */
+   counts 是 backupCounts(state)，current 是当前账号现有的记录条数，orphans 是 normalize 丢掉的任务进度键数（D-07；keepOrphans 为真时不丢，为 0）。不改 cur，不改模块状态 */
 function importPreview(b,cur){
-  const st=normalize(b.state),ds=st.logs.map(l=>l.date).sort();
-  return {state:st,counts:{logs:st.logs.length,from:ds.length?ds[0]:"",to:ds.length?ds[ds.length-1]:""},current:(cur.logs||[]).length};
+  const st=normalize(b.state),ft=isObj(b.state.tasks)?Object.keys(b.state.tasks).filter(k=>isObj(b.state.tasks[k])).length:0;
+  return {state:st,counts:backupCounts(st),current:(cur.logs||[]).length,orphans:Math.max(0,ft-Object.keys(st.tasks).length)};
 }
 
 /* ---------- saving ---------- */
@@ -1257,7 +1266,7 @@ function confirmBox(o){
     const back=document.activeElement,cancel=$("cfCancel"),okb=$("cfOk");let val=false;
     $("cf-title").textContent=o.title;
     const body=$("cf-body");body.textContent="";
-    o.lines.forEach((t,i)=>{const p=document.createElement("p");if(i===0&&o.who)p.className="cf-who";p.textContent=t;body.appendChild(p)});
+    o.lines.forEach((t,i)=>{const p=document.createElement("p");if(i===0&&o.who)p.className="cf-who";if(o.warn&&o.warn.includes(i))p.classList.add("cf-warn");p.textContent=t;body.appendChild(p)});
     cancel.textContent=o.cancel;okb.textContent=o.ok;
     cancel.onclick=()=>cfDlg.close();
     okb.onclick=()=>{val=true;cfDlg.close()};
@@ -1276,8 +1285,13 @@ function confirmBox(o){
 const T_IMP_TITLE="导入这个文件？",T_IMP_NO="不导入",T_IMP_YES="导入",T_IMP_BAD="文件格式不对，请选择导出的备份 .json";
 const T_IMP_KIND_LEGACY="文件类型：原应用导出的旧备份",T_IMP_REPLACE_LEGACY="将替换：当前账号的记录，计划不变";
 const T_IMP_LOGS=(n,a,b)=>n?"记录 "+n+" 条（"+a+" 至 "+b+"）":"记录 0 条",T_IMP_NOW=n=>"当前账号现有记录 "+n+" 条",T_IMPORTED="已导入";
+const T_IMP_MORE=(r,d,l)=>"复盘 "+r+" 周，完成的任务 "+d+" 项，力量记录 "+l+" 条";
+const T_IMP_ORPHAN_LEGACY=n=>n+" 条任务进度对不上当前计划，导入后会丢弃。建议先导入计划，再导入这份备份。";
+/* the summary lines, and the indexes of the lines to highlight (warn): progress that matches no task of the current plan is dropped by normalize (D-07) */
 function importLines(b,pv){
-  return [T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(pv.counts.logs,pv.counts.from,pv.counts.to),T_IMP_NOW(pv.current)];
+  const c=pv.counts,lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)],warn=[];
+  if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_LEGACY(pv.orphans))}
+  return {lines,warn};
 }
 async function cloudImport(input){
   try{
@@ -1287,7 +1301,7 @@ async function cloudImport(input){
     try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
     if(!b){toast(T_IMP_BAD,null,4000);return}
     const ep=sessionEpoch,pv=importPreview(b,docAfter());
-    const ok=await confirmBox({title:T_IMP_TITLE,lines:importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
+    const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
     if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
     applyImport(b);
   }finally{input.value=""}
