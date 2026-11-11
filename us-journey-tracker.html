@@ -998,12 +998,15 @@ async function reconcileOnce(r){
   const mk=async(kind,data)=>{const d=await coll.create({owner:me,kind,data,writer:WRITER},sg);live();return d};
   /* reconcile table, one kind at a time (plan first, then state):
      server only -> server; clean cache with the same updated -> cache (= server); clean cache and newer server -> server, nothing uploaded;
-     dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict() (silent), upload the local version, then conflictNotice();
+     dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict() (silent), upload the local version; one conflictNotice() after both kinds are done (below);
      no server document -> create it from the cache, or from DEFAULT_PLAN / an empty state when there is no cache; a create that hits the (owner, kind)
      unique index (400 validation_not_unique: another device created it first) re-reads the list and continues from the same table with the server document.
      Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
   const uniq=uniqErr;
+  /* a kept copy is announced once, after both kinds have been handled: a plan conflict and a state conflict at one startup leave ONE joined copy (keepConflict), and the notice must not come between the two
+     (it would mark the plan copy announced, and the state copy would then replace it instead of joining it); kept = the result of the last keepConflict */
+  let clashed=false,keptLast=true;
   const resolve=async kind=>{
     const c=old[kind];let sv=list.find(d=>d.kind===kind);
     /* capacity (same limit as a save): an over-limit local version is not sent; it stays dirty in the cache with its old base and the page shows the over-limit state, not "unreachable" */
@@ -1018,13 +1021,14 @@ async function reconcileOnce(r){
       /* the kept copy is written before the upload (a run abandoned meanwhile must still have kept it); it is announced only after the overwrite succeeded */
       const clash=c.base!==sv.updated&&sv.writer!==WRITER,kept=clash&&keepConflict(kind,sv);
       const u=await coll.update(sv.id,{data:c.data,writer:WRITER},sg);live();
-      if(clash)conflictNotice(kept);
+      if(clash){clashed=true;keptLast=kept}
       return {sv:u,data:c.data,c};
     }
     return {sv,data:same(c,sv)?c.data:sv.data,c};
   };
   const pr=await resolve("plan"),sr=await resolve("state");
   live();
+  if(clashed)conflictNotice(keptLast);
   const planOk=usePlan(pr.data);keepOrphans=!planOk;
   state=normalize(sr.data);
   /* an invalid plan document is cached as the server sent it, not as the fallback plan: the fallback is not this account's plan and must never become the clean cache */
@@ -1052,11 +1056,28 @@ async function reconcileOnce(r){
 const snapKey=()=>cacheKey("snapshot");
 function snapGet(){try{const r=JSON.parse(localStorage.getItem(snapKey()));return r&&typeof r==="object"&&r.data&&typeof r.data==="object"?r:null}catch(e){return null}}
 function snapShow(){$("snapshotBtn").classList.toggle("hidden",!(CLOUD&&me&&snapGet()))}
-/* keepConflict only writes the kept copy and says whether that worked; conflictNotice tells the user, and is called once the overwrite has really happened */
+/* keepConflict only writes the kept copy and says whether that worked; conflictNotice tells the user, and is called once the overwrite has really happened.
+   The record is {kind,data,told}: told is false until conflictNotice has announced it; a copy written by Phase 9 has no told and counts as announced.
+   One copy per account stays (D-09): a copy that has not been announced yet and is of another kind (the other document, or full) belongs to the same overwrite as this one
+   (an import replaced plan and records, and the two uploads or the startup reconcile keep one copy each), so the two server versions are joined into ONE kind "full" copy (the data is a backupOf, a new-format full backup that imports back, D-01):
+   the plan is this one (kind plan) or the one already kept, the records are this server state as it came (kind state) or the ones already kept, normalized under that plan so the other device's progress is not dropped by the plan just imported.
+   Anything else (an announced copy, the same kind again) is replaced as before. */
 function keepConflict(kind,doc){
   const data=kind==="plan"?(normalizePlan(doc.data)||doc.data):normalize(doc.data);
-  try{localStorage.setItem(snapKey(),JSON.stringify({kind,data}));return true}catch(e){return false}
+  let rec={kind,data,told:false};
+  const old=snapGet();
+  if(old&&old.told===false&&old.kind!==kind){
+    try{
+      const f=old.kind===BK_FULL?old.data:null,
+        pl=kind==="plan"?data:old.kind==="plan"?old.data:f&&f.plan,
+        rs=kind==="state"?doc.data:old.kind==="state"?old.data:f&&f.state;
+      if(isObj(pl)&&isObj(rs))rec={kind:BK_FULL,data:backupOf(pl,withPlan(pl,()=>normalize(rs)),new Date().toISOString()),told:false};
+    }catch(e){}
+  }
+  try{localStorage.setItem(snapKey(),JSON.stringify(rec));return true}catch(e){return false}
 }
+/* the copy kept on this device is marked announced once the user has been told (a copy that cannot be rewritten stays as it is) */
+function snapTold(){try{const r=snapGet();if(r&&r.told===false){r.told=true;localStorage.setItem(snapKey(),JSON.stringify(r))}}catch(e){}}
 let cfShown=false;/* true once a conflict notice was raised in the current sync pass or startup reconcile: the "updated" notice must not replace it (IN-01) */
 let snapPending=null;/* null = nothing waiting for a notice; true / false = a copy was kept / could not be kept, announced after the next successful upload */
 function conflictNotice(kept){
@@ -1067,6 +1088,7 @@ function conflictNotice(kept){
   }
   hideBar("snapfail");snapShow();
   toast("另一台设备上的修改被覆盖，已在本机留底",{label:"下载留底",fn:snapDownload},8000);
+  snapTold();
 }
 function snapDownload(){
   const snap=snapGet();

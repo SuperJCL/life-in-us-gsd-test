@@ -515,7 +515,10 @@ test('SYNC-05 a conflict whose overwrite reached the server but whose answer was
     await expect(second.page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
     await expect(second.page.locator('#snapshotBtn')).toBeVisible();
     const after = await second.page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), key);
-    expect(after).toEqual(kept);
+    expect(kept.told).toBe(false);
+    expect(after.told).toBe(true);
+    expect(after.kind).toBe(kept.kind);
+    expect(after.data).toEqual(kept.data);
     expect(hasText(after.data.logs, 'SYNTH-0912 first')).toBe(true);
   } finally {
     await second.context.close();
