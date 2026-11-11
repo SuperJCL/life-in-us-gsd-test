@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: executing
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-11-11T04:58:45.734Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-11-11T05:09:03.847Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: ce70d58d81f5ce83ea177a0c0d6a0bc1c977fb69
+state_head: f9606f7292c7413ee379afdd26cd37658a892457
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 48
+  completed_plans: 49
   percent: 63
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 ## Current Position
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 11 execution started
 
@@ -136,6 +136,7 @@ Progress: [██████░░░░] 63%
 | Phase 10 P08 | 35min | 2 tasks | 7 files |
 | Phase 10 P09 | 22 min | 3 tasks | 6 files |
 | Phase 11 P01 | 12 min | 2 tasks | 7 files |
+| Phase 11 P02 | 20 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -257,6 +258,8 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - 默认套件 176 条，cloud 入口 158 条（编排者在 HEAD 上亲自跑过）。执行器提交署名为 `Claude Sonnet 5.5`。
 - [Phase 11]: 11-01: classifyBackup refuses every object with a format key until 11-02 Task 1; the new-format branch must run before legacyShape
 - [Phase 11]: 11-01: importLines returns {lines, warn}; applyImport order is takeRemote, remoteView=false, commit(["import"]), opsOk=false
+- [Phase 11]: 11-02: Backup format option A (format 2, kind full or plan); plan kept-copy download switches to the plan wrapper in 11-09 — Owner confirmed at the 11-02 Task 1 checkpoint (one-way format)
+- [Phase 11]: 11-02: cloudImport lets only kind legacy through until 11-03 wires plan replacement — Avoid a records-only (partial) import of a full backup
 
 ### Pending Todos
 
@@ -315,8 +318,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T04:58:43.878Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-11-11T05:09:01.934Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
