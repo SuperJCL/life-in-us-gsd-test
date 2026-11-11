@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: executing
-stopped_at: Completed 11-05-PLAN.md
-last_updated: "2026-11-11T06:23:20.735Z"
+stopped_at: Completed 11-06-PLAN.md
+last_updated: "2026-11-11T07:00:59.982Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: e58e472bc22bf754b550fe655caaa6bcb883236a
+state_head: 28675d7f48e7b7e2d85f1c68a520b6a26e7a7a1d
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 52
+  completed_plans: 53
   percent: 63
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 ## Current Position
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 11 execution started
 
@@ -140,6 +140,7 @@ Progress: [██████░░░░] 63%
 | Phase 11 P03 | 21 min | 2 tasks | 4 files |
 | Phase 11 P04 | 75 min | 2 tasks | 6 files |
 | Phase 11 P05 | 40 min | 1 tasks | 3 files |
+| Phase 11 P06 | 55 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -267,6 +268,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11]: 11-04: merge unannounced kept copies of different kinds into one full-backup copy (told flag); a Phase 9 copy without told counts as announced
 - [Phase 11]: 11-04: owner approved one assertion change in conflict-snapshot.spec.ts (told false->true after notice)
 - [Phase 11]: 11-05: another tab adopts the plan cache record (adoptPlanTab into pendRemote.plan, no cache write-back, dirty flag carried) before the state record, so new-plan progress is kept across tabs
+- [Phase 11]: 11-06: import undo slot importundo = {at, plan, state, after}; D-05 re-check loop (confirm, takeRemote, recompute fingerprint, confirm again while it differs); undo restores through commit with opsOk cleared; slot cleared on logout and account switch
 
 ### Pending Todos
 
@@ -325,8 +327,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T06:23:18.850Z
-Stopped at: Completed 11-05-PLAN.md
+Last session: 2026-11-11T07:00:58.035Z
+Stopped at: Completed 11-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
