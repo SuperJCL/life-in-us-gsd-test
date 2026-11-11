@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 11
 current_phase_name: 导出、导入与迁移（Export, Import & Migration）
 status: executing
-stopped_at: Completed 11-09-PLAN.md
-last_updated: "2026-11-11T08:05:43.323Z"
+stopped_at: Completed 11-10-PLAN.md
+last_updated: "2026-11-11T08:14:23.861Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 11 execution started
-state_head: b20ee1430a14a24c17ecad511ecce535b6a6e240
+state_head: 8bf58ecfe3147e1320a2ba5eab9a0e2ebdc59f35
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 58
-  completed_plans: 56
+  completed_plans: 57
   percent: 63
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-10 after Phase 10)
 ## Current Position
 
 Phase: 11 (导出、导入与迁移（Export, Import & Migration）) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 11 execution started
 
@@ -144,6 +144,7 @@ Progress: [██████░░░░] 63%
 | Phase 11 P07 | 20 min | 2 tasks | 8 files |
 | Phase 11 P08 | 40 min | 2 tasks | 9 files |
 | Phase 11 P09 | 55 min | 3 tasks | 8 files |
+| Phase 11 P10 | 25 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -276,6 +277,7 @@ Phase 10 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11]: 11-08: the two export buttons stay out of GATE_ALLOW, so they are disabled while the edit gate is on
 - [Phase 11]: 11-08: all exports share blobDownload; JSON backup is the new full-backup wrapper on every path and applies a pending remote update first
 - [Phase 11]: 11-09: plan kept copies download as a plan-only wrapper (计划留底包装：改); B7 prefix on cells starting with = + - @ tab CR; CR also forces quoting
+- [Phase 11]: 11-10: migration script reuses the app pure section through node:vm; real-input modes write only under private/, only SafeError text is ever printed, a file with a format key that does not classify is reported as already-new
 
 ### Pending Todos
 
@@ -334,8 +336,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T08:05:41.344Z
-Stopped at: Completed 11-09-PLAN.md
+Last session: 2026-11-11T08:14:21.929Z
+Stopped at: Completed 11-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
