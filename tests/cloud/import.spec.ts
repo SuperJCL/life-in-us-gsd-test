@@ -3,7 +3,7 @@
 // 取消和拒绝两条用例在 manual 时钟下运行：open 之前 install，登录完成后 pauseAt，只在需要时 runFor，
 // 这样“写入次数不变”不依赖真实等待。
 import { test, expect } from '../support/test';
-import { syntheticPlan, syntheticState } from '../support/cloud-data';
+import { bulkyState, syntheticPlan, syntheticState } from '../support/cloud-data';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { openDevice } from '../support/devices';
 import { gotoGoals, readGroups } from '../support/goals';
@@ -23,6 +23,8 @@ import {
   IMPORT_REPLACE_PLAN,
   STATUS_CLOUD_SYNCED,
   TOAST_IMPORT_BAD_FORMAT,
+  TOAST_IMPORT_TOO_BIG,
+  TOAST_IMPORT_TOO_LARGE,
   TOAST_IMPORTED,
   importCurrentLine,
   importLogsLine,
@@ -323,6 +325,46 @@ test.describe('manual clock', () => {
     await expect.poll(() => app.fake.lastState(0), { message: '等待重试后服务器拿到导入的记录' }).toEqual(expectedState);
     await expect.poll(async () => (await readPlanCache())?.dirty, { message: '等待计划缓存不再脏' }).toBe(false);
     await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+  });
+
+  test('IO-07 a file over 5 MB is refused before it is read', async ({ app, page }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('imb'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const stateBefore = app.fake.lastState(0);
+    const writesBefore = app.fake.writes.length;
+
+    // 5 MB 加 1 字节：内容本身不是备份，被拒的原因只能是大小（读之前就拒绝）
+    await chooseImportFile(page, textImportFile('synth-big.json', 'x'.repeat(5 * 1024 * 1024 + 1)));
+    await expectToast(page, TOAST_IMPORT_TOO_BIG);
+    await expect(page.locator('dialog#confirm[open]')).toHaveCount(0);
+    await expect(page.locator('#importJson')).toHaveValue('');
+    await page.clock.runFor(2_000);
+    expect(app.fake.writes.length).toBe(writesBefore);
+    expect(app.fake.lastState(0)).toEqual(stateBefore);
+    await expect(page.locator('#tab-wk [data-edit="synthetic-imb"]')).toBeVisible();
+  });
+
+  test('IO-07 a backup whose data exceeds the cloud limit is refused and nothing is uploaded', async ({ app, page }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('imz'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const stateBefore = app.fake.lastState(0);
+    const writesBefore = app.fake.writes.length;
+    // 文件本身小于 5 MB，数据超过 4 MB 的云端容量上限
+    const big = bulkyState('imp-cap', 4_300_000);
+    const text = JSON.stringify(big);
+    expect(Buffer.byteLength(text)).toBeLessThan(5 * 1024 * 1024);
+    expect(Buffer.byteLength(text)).toBeGreaterThan(4 * 1024 * 1024);
+
+    await chooseImportFile(page, textImportFile('synth-over-cap.json', text));
+    await expectToast(page, TOAST_IMPORT_TOO_LARGE);
+    await expect(page.locator('dialog#confirm[open]')).toHaveCount(0);
+    await expect(page.locator('#importJson')).toHaveValue('');
+    await page.clock.runFor(2_000);
+    expect(app.fake.writes.length).toBe(writesBefore);
+    expect(app.fake.lastState(0)).toEqual(stateBefore);
+    await expect(page.locator('#tab-wk [data-edit="synthetic-imz"]')).toBeVisible();
   });
 
   test('IO-10 cancelling the cloud import leaves the data unchanged and the same file can be chosen again', async ({ app, page }) => {

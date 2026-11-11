@@ -443,3 +443,8 @@ export const IMPORT_REPLACE_PLAN = '将替换：当前账号的计划，记录�
 export function importOrphanPlanLine(n: number): string {
   return `${n} 条现有的任务进度对不上新计划，导入后会丢弃。`;
 }
+
+// Phase 11-04 Task 1：导入的两个上限（应用里 T_IMP_TOO_BIG、T_IMP_TOO_LARGE 的逐字复制）。
+// 文件超过 5 MB 在读之前拒绝；文件里的数据超过云端容量上限（4 MB，Phase 9）在确认之前拒绝；两种都不弹确认框、不改任何数据
+export const TOAST_IMPORT_TOO_BIG = '文件太大（超过 5 MB），没有导入';
+export const TOAST_IMPORT_TOO_LARGE = '数据超过容量上限（4 MB），没有导入';
