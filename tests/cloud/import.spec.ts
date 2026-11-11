@@ -3,8 +3,11 @@
 // 取消和拒绝两条用例在 manual 时钟下运行：open 之前 install，登录完成后 pauseAt，只在需要时 runFor，
 // 这样“写入次数不变”不依赖真实等待。
 import { test, expect } from '../support/test';
-import { syntheticState } from '../support/cloud-data';
-import { legacyBackup } from '../support/backup-files';
+import { syntheticPlan, syntheticState } from '../support/cloud-data';
+import { fullBackup, legacyBackup } from '../support/backup-files';
+import { openDevice } from '../support/devices';
+import { gotoGoals, readGroups } from '../support/goals';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
 import { chooseImportFile, jsonImportFile, textImportFile } from '../support/import-file';
@@ -12,14 +15,19 @@ import { expectToast, expectToastGone } from '../support/toast';
 import { FROZEN_NOW } from '../support/constants';
 import {
   CONFIRM_IMPORT_TITLE,
+  IMPORT_KIND_FULL,
   IMPORT_KIND_LEGACY,
+  IMPORT_REPLACE_FULL,
   IMPORT_REPLACE_LEGACY,
+  STATUS_CLOUD_SYNCED,
   TOAST_IMPORT_BAD_FORMAT,
   TOAST_IMPORTED,
   importCurrentLine,
   importLogsLine,
   importMoreLine,
+  importOrphanFileLine,
   importOrphanLegacyLine,
+  importPlanLine,
 } from '../support/strings';
 
 test('IO-08 importing a legacy backup in the cloud version asks first, replaces the records, keeps the plan and uploads to the server', async ({
@@ -86,8 +94,145 @@ test('IO-08 progress that matches no task of the current plan is highlighted in 
   expect(Object.keys(tasks)).not.toContain('P9-9');
 });
 
+// 计划去掉 _synthetic 标记、其余原样（normalizePlan 的结果）；用例独立写出期望值
+const planLike = (p: any): any => {
+  const { _synthetic, ...rest } = p;
+  return rest;
+};
+
+// 新格式完整备份：计划是两个组的合成计划（组 g-fb1、g-fb2，任务 t-fb1x1 到 t-fb2x2，力量项 l-fb1）；
+// 记录沿用 legacyBackup('fb1')；进度里 t-fb1x1 和自定义待办对得上新计划，P2-1（示例计划的任务）对不上
+function fullBackupFile() {
+  const plan = syntheticPlan('fb', 2);
+  const state = legacyBackup('fb1', {
+    custom: [{ id: 'c-fb1-1', group: 'g-fb1', text: 'SYNTH-fb1 custom task' }],
+    tasks: {
+      't-fb1x1': { done: true, doneDate: '2026-03-02' },
+      'c-fb1-1': { done: true, doneDate: '2026-03-03' },
+      'P2-1': { done: true, doneDate: '2026-03-04' },
+    },
+  });
+  const { _synthetic, ...bare } = state as Record<string, unknown>;
+  const expectedState = {
+    ...bare,
+    tasks: { 't-fb1x1': { done: true, doneDate: '2026-03-02' }, 'c-fb1-1': { done: true, doneDate: '2026-03-03' } },
+  };
+  return { file: fullBackup(plan, state), expectedPlan: planLike(plan), expectedState };
+}
+
+test('IO-08 importing a full backup replaces the plan and the records, uploads both and another device shows them (D-01)', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('imf'), login: 0 });
+  const sample = app.fake.lastPlan(0);
+  const stateBefore = app.fake.lastState(0);
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await gotoGoals(second.page);
+    expect((await readGroups(second.page)).map((g) => g.code)).not.toContain('g-fb1');
+
+    const { file, expectedPlan, expectedState } = fullBackupFile();
+    const writesBefore = app.fake.writes.length;
+    await chooseImportFile(page, jsonImportFile('synth-full.json', file));
+    const confirm = await readConfirm(page);
+    expect(confirm.title).toBe(CONFIRM_IMPORT_TITLE);
+    expect(confirm.lines).toEqual([
+      IMPORT_KIND_FULL,
+      IMPORT_REPLACE_FULL,
+      importLogsLine(2, '2026-02-10', '2026-03-17'),
+      importMoreLine(1, 2, 2),
+      importPlanLine(2, 4, 1),
+      importCurrentLine(1),
+      importOrphanFileLine(1),
+    ]);
+    expect(confirm.warn).toEqual([importOrphanFileLine(1)]);
+    // 点“导入”之前服务器上什么都没有变
+    expect(app.fake.writes.length).toBe(writesBefore);
+    expect(app.fake.lastPlan(0)).toEqual(sample);
+    expect(app.fake.lastState(0)).toEqual(stateBefore);
+
+    await confirmOk(page);
+    await expectToast(page, TOAST_IMPORTED);
+    await expect.poll(() => app.fake.lastPlan(0), { message: '等待服务器 plan 变成文件里的计划' }).toEqual(expectedPlan);
+    await expect
+      .poll(() => app.fake.lastState(0), { message: '等待服务器 state 变成文件记录在新计划下规范化的结果' })
+      .toEqual(expectedState);
+    // 先计划后记录：两次写入的先后顺序
+    const kinds = app.fake.writes.slice(writesBefore).map((w) => w.path);
+    expect(kinds.indexOf('journey_docs:plan')).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf('journey_docs:plan')).toBeLessThan(kinds.indexOf('journey_docs:state'));
+
+    // 这台设备按文件里的计划显示目标页，记录换成文件里的
+    await gotoGoals(page);
+    const here = await readGroups(page);
+    expect(here.map((g) => g.code)).toEqual(['g-fb1', 'g-fb2']);
+    expect([...here[0].doneIds].sort()).toEqual(['c-fb1-1', 't-fb1x1']);
+    await expect(page.locator('#importJson')).toHaveValue('');
+
+    // 另一台设备随后按导入的计划和记录显示（空闲时自动更新）
+    await expect
+      .poll(async () => (await readGroups(second.page)).map((g) => g.code), {
+        message: '等待另一台设备更新计划',
+        timeout: 20_000,
+      })
+      .toEqual(['g-fb1', 'g-fb2']);
+    await second.page.getByRole('tab', { name: '本周', exact: true }).click();
+    await expect(second.page.locator('#tab-wk [data-edit="synth-fb1-1"]')).toBeVisible();
+    await expect(second.page.locator('#tab-wk [data-edit="synthetic-imf"]')).toHaveCount(0);
+  } finally {
+    await second.context.close();
+  }
+});
+
 test.describe('manual clock', () => {
   test.use({ clockMode: 'manual' });
+
+  test('IO-08 an imported plan that could not be uploaded is retried and reaches the server', async ({ app, page, guard }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('imu'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const planKey = `usj:v2:${app.fake.users[0].id}:plan`;
+    const readPlanCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), planKey);
+    const stateBefore = app.fake.lastState(0);
+    const planBefore = app.fake.lastPlan(0);
+    // 只拒绝计划文档那条 PATCH 一次
+    const fault = app.fake.fault({
+      method: 'PATCH',
+      path: `/api/collections/journey_docs/records/${app.fake.docId(0, 'plan')}`,
+      mode: 'refuse',
+      times: 1,
+    });
+    const { file, expectedPlan, expectedState } = fullBackupFile();
+
+    await chooseImportFile(page, jsonImportFile('synth-full-retry.json', file));
+    await readConfirm(page);
+    await confirmOk(page);
+    await expectToast(page, TOAST_IMPORTED);
+    await page.clock.runFor(1_000);
+
+    // 计划没传上去：状态行不再是“已同步”，本机计划缓存仍是脏的，服务器上计划和记录都没动（不会只换一半）
+    await expect.poll(() => fault.hits, { message: '等待计划那条请求被拒' }).toBe(1);
+    await expect(page.locator('#status')).not.toHaveText(STATUS_CLOUD_SYNCED);
+    await expect.poll(async () => (await readPlanCache())?.dirty, { message: '等待计划缓存标成脏' }).toBe(true);
+    expect((await readPlanCache()).data).toEqual(expectedPlan);
+    expect(app.fake.lastPlan(0)).toEqual(planBefore);
+    expect(app.fake.lastState(0)).toEqual(stateBefore);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: fault.hits });
+
+    // 自动重试：服务器拿到这份计划和记录，缓存收尾
+    for (let i = 0; i < 6 && JSON.stringify(app.fake.lastState(0)) !== JSON.stringify(expectedState); i += 1) {
+      await page.clock.runFor(1_000);
+      await page.waitForTimeout(150);
+    }
+    await expect.poll(() => app.fake.lastPlan(0), { message: '等待重试后服务器拿到导入的计划' }).toEqual(expectedPlan);
+    await expect.poll(() => app.fake.lastState(0), { message: '等待重试后服务器拿到导入的记录' }).toEqual(expectedState);
+    await expect.poll(async () => (await readPlanCache())?.dirty, { message: '等待计划缓存不再脏' }).toBe(false);
+    await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+  });
 
   test('IO-10 cancelling the cloud import leaves the data unchanged and the same file can be chosen again', async ({ app, page }) => {
     await page.clock.install({ time: FROZEN_NOW });

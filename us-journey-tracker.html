@@ -1127,7 +1127,7 @@ function showSync(){
   if(net==="expired")setStatus(full||T_EXPIRED,"expired");
   else if(net==="offline")setStatus(full||T_OFFLINE(n),"offline");
   else if(net==="retrying"&&!trying)setStatus(full||T_RETRY_IN(Math.max(1,cdLeft)),"retrying",full?null:{text:T_RETRY_NOW,fn:retryNow});
-  else if(docs.state.dirty||trying)setStatus(T_SAVING,"saving");
+  else if(docs.state.dirty||(docs.plan&&docs.plan.dirty)||trying)setStatus(T_SAVING,"saving");
   else setStatus(T_SYNCED,"synced");
 }
 function stopRetry(){clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null}
@@ -1201,6 +1201,24 @@ async function syncOnce(){
       psv=m.d;
       if(m.made){docs.plan={id:psv.id,base:psv.updated,dirty:false,seq:docs.plan.seq||0};if(!cachePut("plan",{...docs.plan,data:psv.data}))dropCache("plan")}
     }
+    /* a dirty plan (an imported one) is uploaded here, before the state (plan first, then state): a real conflict (the server plan is newer than the base, was not written by this page and differs)
+       keeps the other device's plan first (keepConflict, D-03: the local plan wins, the overwritten one is kept; the notice waits for the last upload of this pass, below and after the state upload);
+       a failed upload goes to the common catch and the dirty flag stays; a seq that moved during the upload keeps the plan dirty (the cache then keeps the newer data) */
+    if(docs.plan.dirty){
+      const pseq=docs.plan.seq||0,pbody=JSON.parse(JSON.stringify(planBody()));
+      if(sizeOf(pbody)>CLOUD_MAX)sizeCheck(pbody);
+      const pclash=psv.updated!==docs.plan.base&&psv.writer!==WRITER&&canon(psv.data)!==canon(pbody);
+      if(pclash)snapPending=keepConflict("plan",psv);
+      const pu=await coll.update(psv.id,{data:pbody,writer:WRITER},sg);
+      if(ep!==sessionEpoch)return;
+      psv=pu;
+      docs.plan.base=pu.updated;
+      const pnow=(docs.plan.seq||0)===pseq;
+      if(pnow)docs.plan.dirty=false;
+      const pc2=pnow?pbody:(cacheGet("plan")||{data:pbody}).data;
+      if(!cachePut("plan",{...docs.plan,data:pc2})&&!docs.plan.dirty)dropCache("plan");
+      if(!isDirty&&snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
+    }
     if(psv.updated!==docs.plan.base&&!docs.plan.dirty){
       /* a newer plan waits in the slot (the cache already holds it, clean, with its new base, so a reload in between shows the new plan with the new base); the working plan stays until takeRemote */
       pendRemote.plan={data:psv.data,updated:psv.updated};
@@ -1259,7 +1277,7 @@ async function syncOnce(){
     }
     net="ok";retryIdx=0;slowRuns=0;stopRetry();trying=false;
     if(bootOffline){bootOffline=false;snapShow()}
-    if(docs.state.dirty)syncAgain=true;
+    if(docs.state.dirty||docs.plan.dirty)syncAgain=true;
     if(gotRemote){remoteView=remoteDiffers();if(!remoteView){pendRemote={plan:null,state:null};hideBar("remote")}}
     showSync();
     /* the first connection failed (the SDK never retries it, PROBE-10b) or the page started offline: the first successful pass after that subscribes (only while rt is "off") */
@@ -1320,9 +1338,18 @@ const T_IMP_KIND_LEGACY="文件类型：原应用导出的旧备份",T_IMP_REPLA
 const T_IMP_LOGS=(n,a,b)=>n?"记录 "+n+" 条（"+a+" 至 "+b+"）":"记录 0 条",T_IMP_NOW=n=>"当前账号现有记录 "+n+" 条",T_IMPORTED="已导入";
 const T_IMP_MORE=(r,d,l)=>"复盘 "+r+" 周，完成的任务 "+d+" 项，力量记录 "+l+" 条";
 const T_IMP_ORPHAN_LEGACY=n=>n+" 条任务进度对不上当前计划，导入后会丢弃。建议先导入计划，再导入这份备份。";
-/* the summary lines, and the indexes of the lines to highlight (warn): progress that matches no task of the current plan is dropped by normalize (D-07) */
+const T_IMP_KIND_FULL="文件类型：新格式备份（计划和记录）",T_IMP_REPLACE_FULL="将替换：当前账号的计划和记录";
+const T_IMP_PLAN=(g,t,l)=>"计划：目标组 "+g+" 个，任务 "+t+" 项，力量项 "+l+" 个";
+const T_IMP_ORPHAN_FILE=n=>n+" 条任务进度对不上文件里的计划，导入后会丢弃。";
+/* the summary lines, and the indexes of the lines to highlight (warn): progress that matches no task of the plan it is read under is dropped by normalize (D-07) */
 function importLines(b,pv){
-  const c=pv.counts,lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)],warn=[];
+  const c=pv.counts,warn=[];let lines;
+  if(b.kind===BK_FULL){
+    lines=[T_IMP_KIND_FULL,T_IMP_REPLACE_FULL,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_PLAN(pv.planCounts.groups,pv.planCounts.tasks,pv.planCounts.lifts),T_IMP_NOW(pv.current)];
+    if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_FILE(pv.orphans))}
+    return {lines,warn};
+  }
+  lines=[T_IMP_KIND_LEGACY,T_IMP_REPLACE_LEGACY,T_IMP_LOGS(c.logs,c.from,c.to),T_IMP_MORE(c.reviews,c.done,c.liftEntries),T_IMP_NOW(pv.current)];
   if(pv.orphans>0){warn.push(lines.length);lines.push(T_IMP_ORPHAN_LEGACY(pv.orphans))}
   return {lines,warn};
 }
@@ -1332,8 +1359,8 @@ async function cloudImport(input){
     if(!f||!me||document.body.dataset.gate)return;
     let j,b=null;
     try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
-    /* only the kind whose replace logic is wired up (the legacy backup) is let through: a full backup taken as a legacy one would replace the records only, a partial import; the two new kinds are let in once the plan is replaced too (11-03) */
-    if(!b||b.kind!=="legacy"){toast(T_IMP_BAD,null,4000);return}
+    /* the legacy backup and the full backup are let through (applyImport replaces the plan too when the file has one); the plan-only file is let in with its own summary lines (11-03 Task 2) */
+    if(!b||b.kind===BK_PLAN){toast(T_IMP_BAD,null,4000);return}
     const ep=sessionEpoch,pv=importPreview(b,docAfter());
     const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
     if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
@@ -1342,13 +1369,24 @@ async function cloudImport(input){
 }
 /* the order matters and it is all one synchronous run: a waiting remote version is taken in first (IN-05), then the whole content is replaced through commit.
    The run reads J, the already normalized text taken here once; it never calls normalize (that would make new ids on every redo, IN-06) and never reads the page.
-   opsOk is cleared: if another device saved a newer version meanwhile, the import wins as a whole and that version is kept as the usual copy (D-03), it is not redone. */
+   opsOk is cleared: if another device saved a newer version meanwhile, the import wins as a whole and that version is kept as the usual copy (D-03), it is not redone.
+   A file with a plan (full backup, plan-only file) replaces the working plan first, in the same synchronous run: the plan goes dirty (seq + 1) and into the plan cache, syncOnce uploads it before the state;
+   the records in J were already normalized under that plan by importPreview, so no render or upload can see the plan replaced and the records not (or the other way round). */
 function applyImport(b){
   takeRemote();
   remoteView=false;hideBar("remote");
-  const J=JSON.stringify(importPreview(b,state).state);
+  const pv=importPreview(b,state);
+  let planCached=true;
+  if(pv.plan&&docs.plan){
+    usePlan(pv.plan);keepOrphans=false;
+    docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
+    planCached=cachePut("plan",{...docs.plan,data:pv.plan});
+  }
+  const J=JSON.stringify(pv.state);
   commit(["import"],s=>{Object.keys(s).forEach(k=>delete s[k]);Object.assign(s,JSON.parse(J))});
   opsOk=false;
+  /* persist (inside commit) reports the state cache alone; a plan that did not reach the cache must still raise the cache-full banner */
+  if(!planCached)cacheNote(false);
   renderKeep();
   toast(T_IMPORTED,null,4000);
 }
@@ -1356,7 +1394,7 @@ function applyImport(b){
 /* the pull is the baseline: every POLL_MS while the page is visible, at once when the page becomes visible again, when the browser comes back online and when a retry is due; all go through requestSync, one sync at a time */
 function startPoll(){stopPoll();if(CLOUD&&!document.hidden)pollTimer=setInterval(pollTick,POLL_MS)}
 /* a tick only pulls when nothing else is already doing it: a pending save, a running sync or a retry timer reconcile by themselves */
-function pollTick(){if(net==="ok"&&!syncing&&!savePending&&docs.state&&!docs.state.dirty)requestSync("poll")}
+function pollTick(){if(net==="ok"&&!syncing&&!savePending&&docs.state&&!docs.state.dirty&&!(docs.plan&&docs.plan.dirty))requestSync("poll")}
 function stopPoll(){clearInterval(pollTimer);pollTimer=null}
 document.addEventListener("visibilitychange",()=>{
   if(!CLOUD||!me)return;
@@ -1451,6 +1489,11 @@ function rebaseState(sv){
   docs.state.base=sv.updated;
   cacheNote(cachePut("state",{...docs.state,data:docAfter()}));
   return pendRemote.state;
+}
+/* the plan to upload: the local plan cache when it is dirty (it holds exactly what the import wrote, also after a reload), else the working plan */
+function planBody(){
+  const pc=cacheGet("plan");
+  return pc&&pc.dirty?pc.data:plan;
 }
 /* what this device should now contain: the waiting server state with every local operation still in ops done on it again (D-04); with no waiting state it is the working state itself.
    Uploads and the state cache are built from it. */
