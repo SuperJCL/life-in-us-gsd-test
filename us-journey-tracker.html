@@ -191,6 +191,16 @@ ul.items li{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-r
 .lift .upd{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
 .lift .upd input{width:80px;padding:4px 6px}
 .lift .hist{font-size:12px;color:var(--muted);margin-top:6px}
+/* Phase 12：目标页「已归档」区，只在 .arch 里生效，主列表里的同名组件不变 */
+.arch .group{padding:16px} .arch .group-h{gap:8px} .arch .group-h h3{font-size:16px;font-weight:600}
+.arch .group-h .cnt,.arch .note,.arch .task .meta,.arch .lift .hist,.arch .lift .lv small{font-size:12px;font-weight:400}
+.arch .task{gap:8px} .arch .task .meta{gap:8px} .arch .task .tt{font-size:14px;font-weight:400}
+.arch .bar{margin:8px 0} .arch .lift .ln{font-size:14px;font-weight:600}
+.arch .lift .lv{font-size:16px;font-weight:600}
+.arch>summary{min-height:36px;padding:8px 0;font-size:14px;color:var(--muted);cursor:pointer}
+.group.arch-g,.lift.arch-l{--c:var(--c-oth);--s:var(--c-oth-s);color:var(--muted)}
+.arch-mark{font-size:12px;padding:0 8px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.task.ro{grid-template-columns:1fr auto}
 
 /* timeline */
 .tl{position:relative;padding-left:22px}
@@ -464,6 +474,7 @@ function normalizePlan(p){
   for(const g of p.groups){
     if(!pObj(g)||!pStr(g.id)||!GROUP_ID_RE.test(g.id)||gids.has(g.id)||!pStr(g.cat)||!hasCat(g.cat)||!pStr(g.name)||!Array.isArray(g.tasks))return null;
     if(g.note!==undefined&&!pStr(g.note))return null;
+    if(g.archived!==undefined&&typeof g.archived!=="boolean")return null;
     gids.add(g.id);
     const tasks=[];
     for(const t of g.tasks){
@@ -472,13 +483,14 @@ function normalizePlan(p){
       tids.add(t.id);
       const o={id:t.id,text:t.text};if(t.archived!==undefined)o.archived=t.archived;tasks.push(o);
     }
-    const o={id:g.id,cat:g.cat,name:g.name};if(g.note!==undefined)o.note=g.note;o.tasks=tasks;groups.push(o);
+    const o={id:g.id,cat:g.cat,name:g.name};if(g.note!==undefined)o.note=g.note;if(g.archived!==undefined)o.archived=g.archived;o.tasks=tasks;groups.push(o);
   }
   const lids=new Set();
   for(const l of p.lifts){
     if(!pObj(l)||!pStr(l.id)||!LIFT_ID_RE.test(l.id)||lids.has(l.id)||!pStr(l.n)||!pStr(l.unit)||!pNum(l.def)||!pNum(l.target)||l.target<=0)return null;
     if(l.note!==undefined&&!pStr(l.note))return null;
-    lids.add(l.id);lifts.push({id:l.id,n:l.n,unit:l.unit,def:l.def,target:l.target,note:l.note===undefined?"":l.note});
+    if(l.archived!==undefined&&typeof l.archived!=="boolean")return null;
+    lids.add(l.id);const o={id:l.id,n:l.n,unit:l.unit,def:l.def,target:l.target,note:l.note===undefined?"":l.note};if(l.archived!==undefined)o.archived=l.archived;lifts.push(o);
   }
   const keys=CATS.map(c=>c.k);
   for(const k of Object.keys(p.presets)){if(!keys.includes(k)||!Array.isArray(p.presets[k])||!p.presets[k].every(pStr))return null}
@@ -497,6 +509,19 @@ function usePlan(p){
   return ok;
 }
 usePlan(DEFAULT_PLAN);
+/* D-14、D-03、A17：归档的派生数据按 plan 的对象身份做缓存（archMemo），withPlan 和云端段的 normUnder 换 plan 时不用改；
+   组编号 P{n} 只数未归档的组，归档的组显示组名，找不到组显示 T_GROUP_UNKNOWN */
+const T_GROUP_UNKNOWN="未知目标组";
+function groupLabels(p){const m=new Map();let n=0;p.groups.forEach(g=>m.set(g.id,g.archived?g.name:"P"+(++n)));return m}
+let archMemo=null;
+function planMeta(){
+  if(!archMemo||archMemo.p!==plan)archMemo={p:plan,garch:new Set(plan.groups.filter(g=>g.archived).map(g=>g.id)),arch:new Set(plan.groups.flatMap(g=>g.tasks.filter(t=>t.archived).map(t=>t.id))),label:groupLabels(plan)};
+  return archMemo;
+}
+function groupLabel(id){const m=planMeta().label;return m.has(id)?m.get(id):T_GROUP_UNKNOWN}
+function isArchived(t){const m=planMeta();return m.arch.has(t.id)||m.garch.has(t.group)}
+function activeTasks(){return allTasks().filter(t=>!isArchived(t))}
+function activeGroups(){return plan.groups.filter(g=>!g.archived)}
 
 let state={arrival:"",tasks:{},custom:[],logs:[],lifts:{},reviews:{},presets:{}};
 let store=null;
@@ -1907,16 +1932,35 @@ function renderGoals(){
       <div class="lbar"><i style="width:${pct}%"></i></div>
       <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
       <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
-  $("goals").innerHTML=fit+plan.groups.map(g=>{
-    const ts=allTasks().filter(x=>x.group===g.id);const dn=ts.filter(x=>tstate(x.id).done).length;
-    return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(g.id)}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
+  $("goals").innerHTML=fit+activeGroups().map(g=>{
+    const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
+    return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
     ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
     <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
     ${ts.map(x=>{const s=tstate(x.id),od=!s.done&&s.due&&s.due<t;const custom=!planIds.has(x.id);
       return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
       <span class="meta">${s.done?(s.doneDate?`完成于 ${md(s.doneDate)}`:"已完成"):`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
-    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给${esc(g.id)}添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("");applyGate();
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+archivedHTML();applyGate();
+}
+/* D-03、D-05、IN-05：目标页底部默认折叠的「已归档（n）」区，灰色只读，没有任何输入和按钮。n 先数归档的组和所在组没归档的、单独归档的任务（12-02 再加力量项和找不到组的待办）。
+   展开状态存在 goalsArchOpen，重画不会把展开的区收起来 */
+const T_ARCH_MARK="已归档",T_ARCH_TASKS="已归档的任务",T_ARCH_OPEN="未完成",T_ARCH_DONE="已完成";
+let goalsArchOpen=false;
+const archStatus=s=>s.done?(s.doneDate?"已完成于 "+md(s.doneDate):T_ARCH_DONE):s.due?"截止 "+md(s.due):T_ARCH_OPEN;
+function archivedHTML(){
+  const row=(x,pre,id)=>`<div class="task ro" data-arch="t:${esc(id)}"><span class="tt">${esc(pre+x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}</span></div>`;
+  const gs=plan.groups.filter(g=>g.archived),name=new Map(plan.groups.map(g=>[g.id,g.name]));
+  const solo=allTasks().filter(x=>isArchived(x)&&name.has(x.group)&&!planMeta().garch.has(x.group));
+  const n=gs.length+solo.length;if(!n)return "";
+  const groups=gs.map(g=>{
+    const ts=allTasks().filter(x=>x.group===g.id),dn=ts.filter(x=>tstate(x.id).done).length;
+    return `<div class="group arch-g" data-arch="g:${esc(g.id)}"><div class="group-h"><span class="arch-mark">${T_ARCH_MARK}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
+    ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
+    <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
+    ${ts.map(x=>row(x,"",x.id)).join("")}</div>`}).join("");
+  const alone=solo.length?`<p class="note">${T_ARCH_TASKS}</p>${solo.map(x=>row(x,name.get(x.group)+" · ",x.id)).join("")}`:"";
+  return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}</details>`;
 }
 
 function renderTimeline(){
@@ -2018,6 +2062,7 @@ $("todayBtn").onclick=()=>{view=new Date();view.setDate(1);sel=today();renderCal
 $("grid").addEventListener("click",e=>{const c=e.target.closest("[data-date]");if(!c)return;sel=c.dataset.date;
   const d=parse(sel);if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d);view.setDate(1)}renderCal();renderDay()});
 // goals
+$("goals").addEventListener("toggle",e=>{if(e.target&&e.target.id==="goalsArch")goalsArchOpen=e.target.open},true);
 $("goals").addEventListener("change",e=>{
   const c=e.target.dataset.task,du=e.target.dataset.due;
   if(c){const on=e.target.checked,day=today();commit(["task:"+c],st=>{st.tasks[c]=Object.assign({},st.tasks[c]||{},{done:on,doneDate:on?day:""})});renderAll();if(on)toast("完成，已记到今天")}

@@ -6,7 +6,7 @@ import { test, expect } from '../support/test';
 import { bulkyState, syntheticPlan, syntheticState } from '../support/cloud-data';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { openDevice } from '../support/devices';
-import { gotoGoals, readGroups } from '../support/goals';
+import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
@@ -169,7 +169,7 @@ test('IO-08 importing a full backup replaces the plan and the records, uploads b
   try {
     await second.app.open({ mode: 'cloud', login: 0 });
     await gotoGoals(second.page);
-    expect((await readGroups(second.page)).map((g) => g.code)).not.toContain('g-fb1');
+    expect((await readGroupIds(second.page))).not.toContain('g-fb1');
 
     const { file, expectedPlan, expectedState } = fullBackupFile();
     const writesBefore = app.fake.writes.length;
@@ -206,13 +206,13 @@ test('IO-08 importing a full backup replaces the plan and the records, uploads b
     // 这台设备按文件里的计划显示目标页，记录换成文件里的
     await gotoGoals(page);
     const here = await readGroups(page);
-    expect(here.map((g) => g.code)).toEqual(['g-fb1', 'g-fb2']);
+    expect(await readGroupIds(page)).toEqual(['g-fb1', 'g-fb2']);
     expect([...here[0].doneIds].sort()).toEqual(['c-fb1-1', 't-fb1x1']);
     await expect(page.locator('#importJson')).toHaveValue('');
 
     // 另一台设备随后按导入的计划和记录显示（空闲时自动更新）
     await expect
-      .poll(async () => (await readGroups(second.page)).map((g) => g.code), {
+      .poll(async () => readGroupIds(second.page), {
         message: '等待另一台设备更新计划',
         timeout: 20_000,
       })
@@ -266,7 +266,7 @@ test('IO-08 importing a plan-only file replaces the plan and keeps the records (
   await expect(page.locator('#tab-wk [data-edit="synthetic-ipo1"]')).toBeVisible();
   await expect(page.locator('#tab-wk [data-edit="synthetic-ipo3"]')).toBeVisible();
   await gotoGoals(page);
-  expect((await readGroups(page)).map((g) => g.code)).toEqual(['g-po1', 'g-po2']);
+  expect((await readGroupIds(page))).toEqual(['g-po1', 'g-po2']);
 });
 
 test('IO-09 importing the plan first and then the legacy backup keeps every task progress (D-07)', async ({ app, page }) => {

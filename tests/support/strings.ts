@@ -477,3 +477,14 @@ export const CONFIRM_LOGOUT_UNDO = '这台设备上还能撤销上一次导入�
 // Phase 11-07 Task 1：旧路径（没有账号、不保存计划）拒绝只含计划的文件的提示（应用里 T_IMP_PLAN_LOCAL 的逐字复制，D-10）。
 // 旧路径的其余提示不变：确认框用 CONFIRM_IMPORT，接受后用 TOAST_RESTORED，格式错误用 TOAST_IMPORT_BAD_FORMAT，太大用 TOAST_IMPORT_TOO_BIG。
 export const TOAST_IMPORT_PLAN_LOCAL = '这个版本不保存计划，只含计划的文件要登录后才能导入';
+
+// Phase 12-01：归档的组和任务在目标页「已归档」区、日面板、时间线、日历 CSV 里的显示（应用里 T_GROUP_UNKNOWN、T_ARCH_MARK、T_ARCH_TASKS、T_ARCH_OPEN、T_ARCH_DONE 和 archStatus、archivedHTML 里文案的逐字复制）。
+// 自定义待办找不到所属组时，日面板、时间线、日历 CSV 的组标签写 GROUP_UNKNOWN_LABEL；已归档的组写组名；未归档的组写 P 加序号
+export const GROUP_UNKNOWN_LABEL = '未知目标组';
+export const ARCHIVED_MARK = '已归档';
+export const archivedSummary = (n: number): string => `已归档（${n}）`;
+export const ARCHIVED_TASKS_TITLE = '已归档的任务';
+export const ARCHIVE_STATUS_OPEN = '未完成';
+export const ARCHIVE_STATUS_DONE = '已完成';
+export const archiveDoneOn = (md: string): string => `已完成于 ${md}`;
+export const archiveDueOn = (md: string): string => `截止 ${md}`;

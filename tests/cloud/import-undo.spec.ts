@@ -12,7 +12,7 @@ import { fullBackup, legacyBackup } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
 import { openDevice } from '../support/devices';
-import { gotoGoals, readGroups } from '../support/goals';
+import { gotoGoals, readGroupIds } from '../support/goals';
 import { FROZEN_NOW } from '../support/constants';
 import { chooseImportFile, jsonImportFile } from '../support/import-file';
 import { expectToast } from '../support/toast';
@@ -269,7 +269,7 @@ test.describe('manual clock', () => {
     const stateBefore = expectedNormalize(syntheticState('udw'));
     const groupCodes = async () => {
       await gotoGoals(page);
-      return (await readGroups(page)).map((g) => g.code);
+      return readGroupIds(page);
     };
     const codesBefore = await groupCodes();
     expect(codesBefore).toEqual(planBefore.groups.map((g: any) => g.id));

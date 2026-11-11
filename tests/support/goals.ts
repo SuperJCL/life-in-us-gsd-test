@@ -27,12 +27,12 @@ export type GroupRead = {
   deleteIds: string[];
 };
 
-// 一次 page.evaluate 读回全部目标组（P1 到 P7）。健身那一组没有 .cnt，不算目标组。
+// 一次 page.evaluate 读回全部目标组（主列表里的，P1 到 P7）。健身那一组没有 .cnt，不算目标组；底部「已归档」区（.arch）里的组不读，见 readArchived。
 // 进度条宽度取 style 属性原文里 width 的数值（不取计算后的样式），数字与应用写进去的完全一样
 export async function readGroups(page: Page): Promise<GroupRead[]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('#goals .group'))
-      .filter((g) => g.querySelector('.cnt'))
+      .filter((g) => g.querySelector('.cnt') && !g.closest('.arch'))
       .map((g) => {
         const rows = Array.from(g.querySelectorAll('.task'));
         const idOf = (row: Element) => row.querySelector('[data-task]')?.getAttribute('data-task') ?? '';
@@ -49,6 +49,16 @@ export async function readGroups(page: Page): Promise<GroupRead[]> {
           deleteIds: Array.from(g.querySelectorAll('[data-deltask]')).map((c) => c.getAttribute('data-deltask') ?? ''),
         };
       }),
+  );
+}
+
+// 主列表里每个目标组的 id（按页面顺序）。组标题 .p 从 12-01 起显示自动生成的 P1、P2……（D-14），不再是组 id，
+// 所以要核对“哪个组在哪个位置”时读这里：id 取自组里添加待办输入框的 data-addto。只读 id，不读任何计划文字
+export async function readGroupIds(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('#goals .group'))
+      .filter((g) => g.querySelector('.cnt') && !g.closest('.arch'))
+      .map((g) => g.querySelector('[data-addto]')?.getAttribute('data-addto') ?? ''),
   );
 }
 
@@ -183,4 +193,41 @@ export async function setDue(page: Page, id: string, ymd: string) {
     { id, ymd },
   );
   expect(found, `目标页上应当能找到任务 ${id} 的截止日期框`).toBe(true);
+}
+
+// 「已归档」区（details#goalsArch）的读回形状（12-01）。id 取自 data-arch（g:、t:、l: 前缀）和区内的 data-deltask；
+// summary 是 <summary> 的文字（界面文案，不是计划文字）；inputs、buttons 是区内输入控件和按钮的个数（只读区应当都是 0，找不到所属组的待办的删除按钮除外）
+export type ArchivedRead = {
+  present: boolean;
+  open: boolean;
+  summary: string;
+  groupIds: string[];
+  taskIds: string[];
+  liftIds: string[];
+  orphanIds: string[];
+  inputs: number;
+  buttons: number;
+};
+
+// 一次 page.evaluate 读回「已归档」区。不返回元素句柄，不读任务文字
+export async function readArchived(page: Page): Promise<ArchivedRead> {
+  return page.evaluate(() => {
+    const el = document.querySelector('#goalsArch') as HTMLDetailsElement | null;
+    if (!el) {
+      return { present: false, open: false, summary: '', groupIds: [], taskIds: [], liftIds: [], orphanIds: [], inputs: 0, buttons: 0 };
+    }
+    const ids = (prefix: string) =>
+      Array.from(el.querySelectorAll(`[data-arch^="${prefix}"]`)).map((e) => (e.getAttribute('data-arch') ?? '').slice(prefix.length));
+    return {
+      present: true,
+      open: el.open,
+      summary: el.querySelector('summary')?.textContent ?? '',
+      groupIds: ids('g:'),
+      taskIds: ids('t:'),
+      liftIds: ids('l:'),
+      orphanIds: Array.from(el.querySelectorAll('[data-deltask]')).map((b) => b.getAttribute('data-deltask') ?? ''),
+      inputs: el.querySelectorAll('input,textarea,select').length,
+      buttons: el.querySelectorAll('button').length,
+    };
+  });
 }

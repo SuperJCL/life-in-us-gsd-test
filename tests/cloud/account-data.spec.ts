@@ -5,7 +5,7 @@ import { test, expect } from '../support/test';
 import { composer } from '../support/composer';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { openDevice } from '../support/devices';
-import { checkTask, gotoGoals, readGroups, readLifts, readTaskRow } from '../support/goals';
+import { checkTask, gotoGoals, readGroupIds, readGroups, readLifts, readTaskRow } from '../support/goals';
 import { gotoCalendar, readMonth } from '../support/calendar';
 import { gotoTimeline, readTimeline } from '../support/timeline';
 import { FROZEN_TODAY, WEEK_START_FROZEN } from '../support/constants';
@@ -33,7 +33,7 @@ test("PLAN-01 each account sees its own plan and records and none of the other a
   await expect(wk.presetNamed('SYNTH-a preset')).toBeVisible();
   await expect(page.locator('#days [data-edit="synthetic-a"]')).toBeVisible();
   await gotoGoals(page);
-  expect((await readGroups(page)).map((g) => g.code)).toEqual(['g-a1', 'g-a2']);
+  expect((await readGroupIds(page))).toEqual(['g-a1', 'g-a2']);
   await expect(page.locator('#goals')).toContainText('SYNTH-a lift');
   await expect(page.locator('#goals .group.k-fit .note')).toHaveText('SYNTH-a fit note');
   const htmlA = await page.content();
@@ -51,7 +51,7 @@ test("PLAN-01 each account sees its own plan and records and none of the other a
     await expect(wkB.presetNamed('SYNTH-b preset')).toBeVisible();
     await expect(pageB.locator('#days [data-edit="synthetic-b"]')).toBeVisible();
     await gotoGoals(pageB);
-    expect((await readGroups(pageB)).map((g) => g.code)).toEqual(['g-b1', 'g-b2', 'g-b3']);
+    expect((await readGroupIds(pageB))).toEqual(['g-b1', 'g-b2', 'g-b3']);
     await expect(pageB.locator('#goals')).toContainText('SYNTH-b lift');
     await expect(pageB.locator('#goals .group.k-fit .note')).toHaveText('SYNTH-b fit note');
     const htmlB = await pageB.content();
@@ -119,7 +119,7 @@ test('SYNC-01 records, a review, a task tick and a lift value saved on one devic
 
     // 目标：按 A 自己的计划
     await gotoGoals(p);
-    expect((await readGroups(p)).map((g) => g.code)).toEqual(['g-a1', 'g-a2']);
+    expect((await readGroupIds(p))).toEqual(['g-a1', 'g-a2']);
     expect((await readTaskRow(p, 't-a1x1')).isdone).toBe(true);
     const lifts = await readLifts(p, ['l-a1']);
     expect(lifts.cards.find((c) => c.fixtureId === 'l-a1')?.value).toBe('15');
