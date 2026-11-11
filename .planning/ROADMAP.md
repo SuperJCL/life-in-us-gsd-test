@@ -296,7 +296,7 @@ Plans:
   2. 选择不是备份的文件（包括 `{}`、空数组、普通 JSON 和非 JSON）时直接拒绝并提示，账号数据保持不变（修 N3）。v1 中 N3 和 B2 的 `test.fail` 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
   3. 选择有效备份后，先显示摘要（记录条数、日期范围、计划项数等）并要求确认。确认后替换并同步到服务器，导入前的数据自动留一份快照，用户可以撤销这次导入。取消导入后，能再次选择同一个文件（修 B2）。
   4. 原 Artifact 导出的旧格式备份（裸 state、旧类别名）和所有者的种子计划可以导入新账号：用合成的旧备份和合成种子计划演练，导入后记录、复盘、任务进度和力量历史都对应到正确的任务和日期。生成种子计划的脚本只在本机运行，输出文件被 git 忽略。
-**Plans:** 8/11 plans executed
+**Plans:** 9/11 plans executed
 Plans:
 **Wave 1**
 - [x] 11-01-PLAN.md — 导入 tracer：云端导入原 Artifact 旧备份（识别、摘要确认、并入挂起槽、commit 整份替换、上传），摘要计数与 D-07 醒目提示（D-02、D-07、IN-05）
@@ -323,7 +323,7 @@ Plans:
 - [x] 11-08-PLAN.md — 导出改为浏览器原生下载（新格式 JSON、下载留底共用 blobDownload、按钮在所有环境显示、工具栏换行），v1 导出用例改读下载事件；完整 cloud 套件（IO-06、D-10）
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 11-09-PLAN.md — 云端桌面与手机宽度的导出用例、不含账号标识、375 宽工具栏；CSV 修 B7（不加 BOM）；计划留底按决定改用包装；测试说明同步；完整 cloud 套件（IO-06）
+- [x] 11-09-PLAN.md — 云端桌面与手机宽度的导出用例、不含账号标识、375 宽工具栏；CSV 修 B7（不加 BOM）；计划留底按决定改用包装；测试说明同步；完整 cloud 套件（IO-06）
 
 **Wave 10** *(blocked on Wave 9 completion)*
 - [ ] 11-10-PLAN.md — 迁移脚本 migrate-backup.mjs（自检、默认模式、--plan-only、--demo），读真实输入时只写 private/、只打印计数；PRIVACY.md（D-06、D-07）
@@ -394,6 +394,6 @@ Plans:
 | 8. PocketBase 规则、隔离与假服务器 | v2.0 | 7/7 | Complete    | 2026-11-08 |
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
-| 11. 导出、导入与迁移 | v2.0 | 8/11 | In Progress | - |
+| 11. 导出、导入与迁移 | v2.0 | 9/11 | In Progress | - |
 | 12. 编辑计划页 | v2.0 | 0/TBD | Not started | - |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |

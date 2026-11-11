@@ -40,7 +40,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ### 导出、导入与迁移（IO，延续 v1.0 编号）
 
-- [ ] **IO-06**：用户可以在手机和电脑上下载自己账号的 JSON 备份和日历 CSV，不再依赖 Claude 的下载能力。
+- [x] **IO-06**：用户可以在手机和电脑上下载自己账号的 JSON 备份和日历 CSV，不再依赖 Claude 的下载能力。
 - [x] **IO-07**：导入前先识别文件格式。不是备份的文件（包括 `{}`）直接拒绝并提示，数据保持不变（修 N3）。
 - [x] **IO-08**：导入前显示摘要并要求确认；导入之前自动留一份快照，导入后可以撤销。
 - [ ] **IO-09**：所有者能把原 Artifact 导出的旧备份导入到自己的新账号，记录和计划进度都对应正确。迁移流程先用合成文件演练。
@@ -118,7 +118,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | PLAN-03 | Phase 12 | Pending |
 | PLAN-04 | Phase 12 | Pending |
 | PLAN-05 | Phase 7 | Complete |
-| IO-06 | Phase 11 | Pending |
+| IO-06 | Phase 11 | Complete |
 | IO-07 | Phase 11 | Complete |
 | IO-08 | Phase 11 | Complete |
 | IO-09 | Phase 11 | Pending |
