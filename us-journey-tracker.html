@@ -521,8 +521,8 @@ function allTasks(){return planTasks.concat(state.custom||[])}
 function tstate(id){return state.tasks[id]||{}}
 function lift(id){const L=plan.lifts.find(x=>x.id===id);return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
 /* 导入检查（D-07）：返回 null 表示没发现问题，否则返回一个简短的原因。容器里能识别出条目就检查，不看容器类型对不对。
-   只剩两条豁免，都只为保住 v1 的结果：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）交给 v1 的 normalize；
-   非字符串的 arrival（synth-wrong-types.json 的数字 arrival）不检查。这两条豁免现在由外层的 classifyBackup 先拒绝（顶层不是普通对象、arrival 不是字符串的文件都进不到这里），函数体不变。
+   只供 classifyBackup 和单元用例调用：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）和非字符串的 arrival（synth-wrong-types.json 的数字 arrival）这两种文件，现在都由外层的 classifyBackup 先拒绝，应用里没有调用路径把它们交给这个函数；
+   函数体里的 if(!isObj(raw))return null 和只检查字符串 arrival 的那一行只服务单元用例，保留原样。
    原始值形式的容器（字符串、数字）里识别不出条目，v1 normalize 会把它们换成空值。 */
 function importProblem(raw){
   if(!isObj(raw))return null;
