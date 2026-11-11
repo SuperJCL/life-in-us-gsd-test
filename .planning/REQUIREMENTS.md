@@ -41,10 +41,10 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 ### 导出、导入与迁移（IO，延续 v1.0 编号）
 
 - [ ] **IO-06**：用户可以在手机和电脑上下载自己账号的 JSON 备份和日历 CSV，不再依赖 Claude 的下载能力。
-- [ ] **IO-07**：导入前先识别文件格式。不是备份的文件（包括 `{}`）直接拒绝并提示，数据保持不变（修 N3）。
+- [x] **IO-07**：导入前先识别文件格式。不是备份的文件（包括 `{}`）直接拒绝并提示，数据保持不变（修 N3）。
 - [x] **IO-08**：导入前显示摘要并要求确认；导入之前自动留一份快照，导入后可以撤销。
 - [ ] **IO-09**：所有者能把原 Artifact 导出的旧备份导入到自己的新账号，记录和计划进度都对应正确。迁移流程先用合成文件演练。
-- [ ] **IO-10**：取消导入后，可以再次选择同一个文件（修 B2）。
+- [x] **IO-10**：取消导入后，可以再次选择同一个文件（修 B2）。
 
 ### 安全与隐私（SEC）
 
@@ -64,7 +64,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 - [x] **TEST-01**：v1.0 的 154 条测试在新版应用上继续通过，走旧路径；应用 sha256 基线机制随应用改动更新。
 - [ ] **TEST-02**：新增基于模拟 PocketBase 的测试，覆盖登录、云端存取、离线、实时同步、导入导出和编辑计划；测试运行时不连接任何真实服务器。
-- [ ] **TEST-03**：N3 和 B2 的已知 bug 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
+- [x] **TEST-03**：N3 和 B2 的已知 bug 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
 - [x] **TEST-04**：在一次性的本机 PocketBase 上，用合成账号验证账号隔离。下载 PocketBase 二进制需要用户批准，这项验证不进默认的 `npm test`。
 
 ## Future Requirements
@@ -119,10 +119,10 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | PLAN-04 | Phase 12 | Pending |
 | PLAN-05 | Phase 7 | Complete |
 | IO-06 | Phase 11 | Pending |
-| IO-07 | Phase 11 | Pending |
+| IO-07 | Phase 11 | Complete |
 | IO-08 | Phase 11 | Complete |
 | IO-09 | Phase 11 | Pending |
-| IO-10 | Phase 11 | Pending |
+| IO-10 | Phase 11 | Complete |
 | SEC-01 | Phase 7 | Complete |
 | SEC-02 | Phase 13 | Pending |
 | SEC-03 | Phase 6 | Complete |
@@ -133,7 +133,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | OPS-04 | Phase 13 | Pending |
 | TEST-01 | Phase 7 | Complete |
 | TEST-02 | Phase 8 | Pending |
-| TEST-03 | Phase 11 | Pending |
+| TEST-03 | Phase 11 | Complete |
 | TEST-04 | Phase 8 | Complete |
 
 **Coverage:**
