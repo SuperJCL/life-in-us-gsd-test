@@ -21,7 +21,7 @@ function malformed(name: string): unknown {
 }
 
 test('SEC-01 the import check rejects any malformed id or date and accepts well-formed, empty and type-mismatched backups', async () => {
-  const { importProblem, normalize } = loadAppPure(['importProblem', 'normalize']);
+  const { importProblem, normalize, classifyBackup } = loadAppPure(['importProblem', 'normalize', 'classifyBackup', 'legacyShape']);
 
   // 1. 合格的备份：四个 fixture 加 07-02 的位置 id 备份都没有问题
   for (const name of [
@@ -34,14 +34,20 @@ test('SEC-01 the import check rejects any malformed id or date and accepts well-
     expect(importProblem(loadFixture(name)), `${name} 应当通过`).toBeNull();
   }
 
-  // 2. 点名的 5 个 v1 输入：返回 null，交给 v1 路径
+  // 2. 点名的 5 个 v1 输入：importProblem 对它们仍返回 null（它只查条目）；外层的 classifyBackup 拒绝它们（N3，Phase 11 起两条路径共用识别），
+  //    只有 { logs: [] } 是合格的最小旧备份
   expect(importProblem({}), '{}（N3）').toBeNull();
   expect(importProblem({ logs: [] }), '{ logs: [] }（B2）').toBeNull();
   for (const name of ['synth-null.json', 'synth-array.json', 'synth-wrong-types.json']) {
     expect(importProblem(malformed(name)), name).toBeNull();
   }
-  // synth-null.json 照旧由 v1 的 normalize 抛错（页面上显示格式错误）
+  // synth-null.json 照旧由 v1 的 normalize 抛错；页面上它在 normalize 之前就被 classifyBackup 拒绝（显示格式错误）
   expect(() => normalize(null), 'normalize(null) 照旧抛错').toThrow();
+  expect(classifyBackup({}), '{}（N3）被识别拒绝').toBeNull();
+  expect(plain(classifyBackup({ logs: [] })), '{ logs: [] } 是合格的最小旧备份').toEqual({ kind: 'legacy', state: { logs: [] } });
+  for (const name of ['synth-null.json', 'synth-array.json', 'synth-wrong-types.json']) {
+    expect(classifyBackup(malformed(name)), `${name} 被识别拒绝`).toBeNull();
+  }
 
   // 3. 每一种不合格的条目都整份拒绝
   const variants: Record<string, (s: any) => void> = {

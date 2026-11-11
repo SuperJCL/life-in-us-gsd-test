@@ -1375,7 +1375,7 @@ const T_IMP_PLAN=(g,t,l)=>"计划：目标组 "+g+" 个，任务 "+t+" 项，力
 const T_IMP_ORPHAN_FILE=n=>n+" 条任务进度对不上文件里的计划，导入后会丢弃。";
 /* two limits, both refused outright (no confirm, nothing written): the chosen file over IMPORT_MAX bytes is refused before it is read; data over the cloud capacity (CLOUD_MAX, 4 MB) is refused before the confirm and again before it is applied.
    T_IMP_TOO_LARGE is written out (not built from T_TOOLARGE) so the order of the constants cannot matter at load time */
-const IMPORT_MAX=5242880,T_IMP_TOO_BIG="文件太大（超过 5 MB），没有导入",T_IMP_TOO_LARGE="数据超过容量上限（4 MB），没有导入";
+const IMPORT_MAX=5242880,T_IMP_PLAN_LOCAL="这个版本不保存计划，只含计划的文件要登录后才能导入",T_IMP_TOO_BIG="文件太大（超过 5 MB），没有导入",T_IMP_TOO_LARGE="数据超过容量上限（4 MB），没有导入";
 const tooLarge=pv=>sizeOf(pv.state)>CLOUD_MAX||(!!pv.plan&&sizeOf(pv.plan)>CLOUD_MAX);
 const T_IMP_KIND_PLAN="文件类型：只含计划的文件",T_IMP_REPLACE_PLAN="将替换：当前账号的计划，记录不变";
 const T_IMP_ORPHAN_PLAN=n=>n+" 条现有的任务进度对不上新计划，导入后会丢弃。";
@@ -1403,21 +1403,39 @@ function importLines(b,pv){
   lines.push(T_IMP_UNDO_NOTE);
   return {lines,warn};
 }
-async function cloudImport(input){
+/* one entry for both versions (IO-07, IO-10): the file is size-checked, read, parsed and classified here, and the file box is always cleared at the end (B2: it used to be cleared only on the error path and after the confirm was accepted, so a cancelled import kept its value).
+   A file that is not a backup (not JSON, {}, [], wrong field types, no known field) is refused with the format error before any confirm (N3). The cloud version then goes on to the summary confirm (cloudImport), the legacy version to the native confirm (legacyImport).
+   toast times: the cloud version passes 4000 ms; the legacy version passes none, so it keeps the 1800 ms and the plain style it always had. */
+async function onImportFile(input){
   try{
     const f=input.files&&input.files[0];
-    if(!f||!me||document.body.dataset.gate)return;
-    if(f.size>IMPORT_MAX){toast(T_IMP_TOO_BIG,null,4000);return}
-    let j,b=null;
-    try{j=JSON.parse(await f.text());b=classifyBackup(j)}catch(e){b=null}
-    /* all three kinds are let through; applyImport replaces the plan too when the file has one, and importLines has a summary for each kind */
-    if(!b){toast(T_IMP_BAD,null,4000);return}
-    const ep=sessionEpoch,pv=importPreview(b,docAfter());
-    if(tooLarge(pv)){toast(T_IMP_TOO_LARGE,null,4000);return}
-    const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
-    if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
-    applyImport(b);
+    if(!f||(CLOUD&&(!me||document.body.dataset.gate)))return;
+    const ms=CLOUD?4000:undefined;
+    if(f.size>IMPORT_MAX){toast(T_IMP_TOO_BIG,null,ms);return}
+    let b=null;
+    try{b=classifyBackup(JSON.parse(await f.text()))}catch(e){b=null}
+    if(!b){toast(T_IMP_BAD,null,ms);return}
+    if(CLOUD)await cloudImport(b);else legacyImport(b);
   }finally{input.value=""}
+}
+async function cloudImport(b){
+  if(!me||document.body.dataset.gate)return;
+  /* all three kinds are let through; applyImport replaces the plan too when the file has one, and importLines has a summary for each kind */
+  const ep=sessionEpoch,pv=importPreview(b,docAfter());
+  if(tooLarge(pv)){toast(T_IMP_TOO_LARGE,null,4000);return}
+  const ok=await confirmBox({title:T_IMP_TITLE,...importLines(b,pv),cancel:T_IMP_NO,ok:T_IMP_YES});
+  if(!ok||ep!==sessionEpoch||!me||document.body.dataset.gate)return;
+  applyImport(b);
+}
+/* the version without an account (Claude, localStorage; D-09, D-10): the native confirm with its old text, no summary, no copy of the data before and no undo.
+   It has no stored plan, so a plan-only file is refused with its own message; a new-format full backup replaces the records only (its plan part was checked by classifyBackup but is not applied) and the sample plan stays. */
+function legacyImport(b){
+  if(b.kind==="plan"){toast(T_IMP_PLAN_LOCAL);return}
+  const s=normalize(b.state);
+  if(!confirm("用备份文件替换当前所有内容？"))return;
+  const J=JSON.stringify(s);
+  commit(["import"],t=>{Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,JSON.parse(J))});
+  renderAll();toast("已恢复");
 }
 /* the order matters and it is all one synchronous run: a waiting remote version is taken in first (IN-05), then the whole content is replaced through commit.
    The run reads J, the already normalized text taken here once; it never calls normalize (that would make new ids on every redo, IN-06) and never reads the page.
@@ -2036,9 +2054,7 @@ async function save(filename,data){
   try{await window.__dl.save({filename,data});toast("已导出")}
   catch(e){if(e&&e.code==="declined")return;if(e&&e.code==="rate_limited"){toast("稍等一下再试");return}toast("导出不可用")}
 }
-$("importJson").addEventListener("change",e=>{if(CLOUD){cloudImport(e.target);return}const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const j=JSON.parse(r.result),bad=importProblem(j);if(bad)throw new Error(bad);const s=normalize(j);if(!confirm("用备份文件替换当前所有内容？"))return;state=s;persist("import");renderAll();toast("已恢复")}catch(err){toast("文件格式不对，请选择导出的备份 .json")}e.target.value=""};
-  r.readAsText(f)});
+$("importJson").addEventListener("change",e=>{onImportFile(e.target)});
 
 let tt;function toast(m,act,ms){const t=$("toast");if(ms!=null)t.setAttribute("data-cloud","");else t.removeAttribute("data-cloud");t.textContent="";const s=document.createElement("span");s.textContent=m;t.appendChild(s);
   t.classList.toggle("act",!!act);

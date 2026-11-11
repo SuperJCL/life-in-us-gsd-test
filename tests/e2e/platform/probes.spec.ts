@@ -373,10 +373,10 @@ test('PROBE-8 re-selecting the same file with setInputFiles after a cancelled im
     `PROBE-8 changesAfterFirst=${changesAfterFirst} valueAfterCancel=${valueShape} changesAfterSecond=${changesAfterSecond} secondDialog=${secondDialog}`,
   );
 
-  // 断言写死，不随观察值改写：取消后 value 仍保留（所以 B2 的期望断言用确定性的 value），
+  // 断言写死，不随观察值改写：Phase 11 起取消路径也清空 value（B2 已修；原来取消后 value 仍保留，写死为 fakepath+name），
   // 而 Playwright 的 setInputFiles 每次都会自己派发 change，第二次选同一个文件时 change 再次派发、确认框再次出现
   expect(changesAfterFirst).toBe(1);
-  expect(valueShape).toBe('fakepath+name');
+  expect(valueShape).toBe('empty');
   expect(secondDialog).toBe('appeared');
   expect(changesAfterSecond).toBe(2);
 });
