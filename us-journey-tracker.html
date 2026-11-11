@@ -1294,8 +1294,8 @@ async function syncOnce(){
     }
     if(up){
       docs.state.base=up.updated;
-      /* the operations in the uploaded snapshot leave ops (they must never be done again); what is left was made after the snapshot and is whole relative to the new base */
-      ops.splice(0,sentOps);opsOk=true;
+      /* the operations in the uploaded snapshot leave ops (they must never be done again); what is left was made after the snapshot and is whole relative to the new base; an import (or its undo) among them replaces everything, so it is never redone on another device's newer version and opsOk stays false until it has been uploaded (WR-03) */
+      ops.splice(0,sentOps);opsOk=!ops.some(o=>o.keys.includes("import"));
       docs.state.touched=[...new Set(ops.flatMap(o=>o.keys))];
       if((docs.state.seq||0)===seq)docs.state.dirty=false;
       if(!cachePut("state",{...docs.state,data:docAfter()})&&!docs.state.dirty)dropCache("state");

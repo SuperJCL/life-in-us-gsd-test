@@ -130,6 +130,44 @@ test.describe('manual clock', () => {
     expect(await snapKeys(page)).toEqual([key]);
   });
 
+  test('IO-08 WR-03 an import made while an upload is in flight is not redone on a newer version from another device afterwards', async ({
+    app,
+    page,
+  }) => {
+    await openManual(app, page, 'isw');
+    await deaf(app, page);
+
+    // 一次上传在途：记一笔，推过防抖窗口，让 state 的 PATCH 挂在假服务器上
+    const patchHold = app.fake.fault({ method: 'PATCH', path: recordPath(app, 'state'), mode: 'hold', times: 1 });
+    const entry = composer(page, 'w');
+    await entry.type('SYNTH-WR03 record in flight');
+    await entry.submit();
+    await page.clock.runFor(1_000);
+    await expect.poll(() => patchHold.hits, { message: '等待上传被挂起' }).toBe(1);
+
+    // 上传还没返回时导入（导入的操作排在这次上传的快照之后）
+    const file = legacyBackup('isw1');
+    await importAndConfirm(page, 'synth-inflight.json', file);
+    await expectToast(page, TOAST_IMPORTED);
+
+    // 放行上传；它收尾之后紧接着的下一轮同步，列表请求也先挂住，另一台设备趁这个空档写入
+    const listHold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold', times: 1 });
+    await patchHold.release();
+    await expect.poll(() => listHold.hits, { message: '等待下一轮同步的列表请求' }).toBe(1);
+    await otherAddsLog(app, 'synthetic-other-isw', 'SYNTH-WR03 other device record');
+    await listHold.release();
+    await page.clock.runFor(1_000);
+
+    // 导入整份胜出，另一台设备的版本按平常的冲突留底（以前被静默替掉，没有留底，也没有提示）
+    await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 变成导入的内容' }).toEqual(expectedNormalize(file));
+    await expectToast(page, TOAST_CONFLICT);
+    await expect(page.locator('#snapshotBtn')).toBeVisible();
+    const key = `usj:v2:${app.fake.users[0].id}:snapshot`;
+    const snap = await readJson(page, key);
+    expect(snap.kind).toBe('state');
+    expect(hasText(snap.data.logs, 'SYNTH-WR03 other device record')).toBe(true);
+  });
+
   test('IO-08 a plan import whose upload meets a newer plan from another device keeps that plan as a snapshot', async ({ app, page }) => {
     await openManual(app, page, 'isp');
     await deaf(app, page);
