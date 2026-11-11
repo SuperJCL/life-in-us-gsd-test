@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: executing
-stopped_at: Phase 12 UI-SPEC approved
-last_updated: "2026-11-11T22:24:33.237Z"
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-11-11T23:49:39.524Z"
 last_activity: 2026-11-11
-last_activity_desc: Phase 11 complete, transitioned to Phase 12
-state_head: db3c155727dc7c85ee90486754e1e7dbba1817d8
+last_activity_desc: Phase 12 execution started
+state_head: f54cabcfd4daaf3e461b58477191b46942256545
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 66
-  completed_plans: 58
+  completed_plans: 59
   percent: 75
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 
 ## Current Position
 
-Phase: 12 (编辑计划页（Plan Editor）) — READY TO EXECUTE
-Plan: Not started
+Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-11-11 — Phase 11 complete, transitioned to Phase 12
+Last activity: 2026-11-11 — Phase 12 execution started
 
 Progress: [████████░░] 75%
 
@@ -147,6 +147,7 @@ Progress: [████████░░] 75%
 | Phase 11 P09 | 55 min | 3 tasks | 8 files |
 | Phase 11 P10 | 25 min | 2 tasks | 2 files |
 | Phase 11 P11 | 40 min | 2 tasks | 3 files |
+| Phase 12 P01 | 19 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -286,6 +287,8 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - 备份格式是 `{app, format: 2, kind, exportedAt, plan, state?}`（所有者选项 A）；导入按文件类型决定替换范围（D-01..D-03）；云端导入经 `takeRemote` 和 `commit(["import"])` 整份替换，撤销副本在 `usj:v2:<id>:importundo`。
 - 迁移脚本 `tools/plan/migrate-backup.mjs` 只在本机运行、只写 `private/`；Claude 只跑 `--self-test` 和指向 `test-results/` 的 `--demo`。
 - 安全 30/30 关闭（AR-01、AR-02 待所有者确认）；UI 审计 18/24，4 处已修（abba25d）；代码审查 9 条全部修完。默认套件 188 条、cloud 入口 196 条（编排者在 HEAD 上亲自跑过）。
+- [Phase 12]: 12-01: GROUP_NONE ("-") marks custom to-dos with no group; it does not match GROUP_ID_RE so it never attaches to a real group
+- [Phase 12]: 12-01: numeric plan rules stay out of normalizePlan (editor-only, owner decision 2026-11-11); cloud tests read group ids via readGroupIds after D-14
 
 ### Pending Todos
 
@@ -349,9 +352,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T20:58:31.770Z
-Stopped at: Phase 12 UI-SPEC approved
-Resume file: .planning/phases/12-plan-editor/12-UI-SPEC.md
+Last session: 2026-11-11T23:49:37.779Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
