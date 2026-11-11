@@ -346,6 +346,10 @@ test.describe('IO-07 legacy version manual clock', () => {
     expect(dialogs, '不应弹出确认框').toEqual([]);
     await expect(page.locator('#importJson')).toHaveValue('');
     await page.clock.runFor(2_000);
+    // IN-04：整句说明读得完，2 秒之后提示还在（以前默认 1800 毫秒，已经消失），4 秒左右才消失
+    await expectToast(page, TOAST_IMPORT_PLAN_LOCAL);
+    await page.clock.runFor(2_500);
+    await expectToastGone(page);
     expect(app.backend.writes.length).toBe(writesBefore);
     await expect(page.locator('#tab-wk [data-edit="synth-full-04"]')).toHaveCount(1);
 

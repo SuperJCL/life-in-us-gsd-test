@@ -1403,7 +1403,7 @@ function importLines(b,pv){
 }
 /* one entry for both versions (IO-07, IO-10): the file is size-checked, read, parsed and classified here, and the file box is always cleared at the end (B2: it used to be cleared only on the error path and after the confirm was accepted, so a cancelled import kept its value).
    A file that is not a backup (not JSON, {}, [], wrong field types, no known field) is refused with the format error before any confirm (N3). The cloud version then goes on to the summary confirm (cloudImport), the legacy version to the native confirm (legacyImport).
-   toast times: the cloud version passes 4000 ms; the legacy version passes none, so it keeps the 1800 ms and the plain style it always had. */
+   toast times: the cloud version passes 4000 ms; the legacy version passes none, so it keeps the 1800 ms and the plain style it always had; the one exception is the plan-only refusal (T_IMP_PLAN_LOCAL, a whole sentence that explains why), which is shown for 4000 ms (IN-04). */
 async function onImportFile(input){
   try{
     const f=input.files&&input.files[0];
@@ -1428,7 +1428,7 @@ async function cloudImport(b){
 /* the version without an account (Claude, localStorage; D-09, D-10): the native confirm with its old text, no summary, no copy of the data before and no undo.
    It has no stored plan, so a plan-only file is refused with its own message; a new-format full backup replaces the records only (its plan part was checked by classifyBackup but is not applied) and the sample plan stays. */
 function legacyImport(b){
-  if(b.kind==="plan"){toast(T_IMP_PLAN_LOCAL);return}
+  if(b.kind==="plan"){toast(T_IMP_PLAN_LOCAL,null,4000);return}
   const s=normalize(b.state);
   if(!confirm("用备份文件替换当前所有内容？"))return;
   const J=JSON.stringify(s);
