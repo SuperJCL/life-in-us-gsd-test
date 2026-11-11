@@ -1491,7 +1491,8 @@ async function undoImport(){
     }
   }
   let planCached=true;
-  if(docs.plan&&canon(rec.plan)!==canon(undoPlanData())){
+  /* compared with the plan in use, not with the plan cache: if the import could not write the plan cache, the cache still holds the old plan while the working plan is the imported one (WR-02). A saved plan that is not readable was shown as the sample plan, so that is what it is compared with */
+  if(docs.plan&&canon(normalizePlan(rec.plan)||normalizePlan(DEFAULT_PLAN))!==canon(plan)){
     keepOrphans=!usePlan(rec.plan);
     docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
     planCached=cachePut("plan",{...docs.plan,data:rec.plan});

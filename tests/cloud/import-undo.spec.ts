@@ -12,6 +12,8 @@ import { fullBackup, legacyBackup } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
 import { openDevice } from '../support/devices';
+import { gotoGoals, readGroups } from '../support/goals';
+import { FROZEN_NOW } from '../support/constants';
 import { chooseImportFile, jsonImportFile } from '../support/import-file';
 import { expectToast } from '../support/toast';
 import {
@@ -27,6 +29,7 @@ import {
   CONFIRM_UNDO_MORE,
   CONFIRM_UNDO_TITLE,
   STATUS_CLOUD_SYNCED,
+  TAB_LABELS,
   TOAST_IMPORT_NO_UNDO,
   TOAST_IMPORTED,
   TOAST_UNDONE,
@@ -241,6 +244,54 @@ test('IO-08 an import is refused when the data before it cannot be kept on this 
   expect(app.fake.writes.length).toBe(writesBefore);
   expect(app.fake.lastState(0)).toEqual(stateBefore);
   expect(app.fake.lastPlan(0)).toEqual(planBefore);
+});
+
+test.describe('manual clock', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('IO-08 WR-02 undo puts the plan back when the import could not write the plan cache and nothing has synced yet', async ({ app, page }) => {
+    // 测试装置：计数大于 0 时，写计划缓存的键（以 :plan 结尾）抛配额错误并减一，其余键照常写；在应用脚本之前装好
+    await page.addInitScript(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        const w = window as any;
+        if (w.__failPlanWrites > 0 && String(key).endsWith(':plan')) {
+          w.__failPlanWrites -= 1;
+          throw new DOMException('quota', 'QuotaExceededError');
+        }
+        return original.call(this, key, value);
+      };
+    });
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('udw'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const planBefore = app.fake.lastPlan(0);
+    const stateBefore = expectedNormalize(syntheticState('udw'));
+    const groupCodes = async () => {
+      await gotoGoals(page);
+      return (await readGroups(page)).map((g) => g.code);
+    };
+    const codesBefore = await groupCodes();
+    expect(codesBefore).toEqual(planBefore.groups.map((g: any) => g.id));
+    const importedPlan = syntheticPlan('wr2', 2);
+
+    // 导入完整备份，计划缓存这一次写不进去：缓存里还是导入前的计划，工作计划已经是导入的
+    await page.evaluate(() => ((window as any).__failPlanWrites = 1));
+    await importAndConfirm(page, 'synth-undo-plan-cache.json', fullBackup(importedPlan, legacyBackup('udw1')));
+    await expectToast(page, TOAST_IMPORTED);
+    expect(await groupCodes()).toEqual(importedPlan.groups.map((g) => g.id));
+    expect(await page.evaluate(() => (window as any).__failPlanWrites), '计划缓存的写失败确实发生过').toBe(0);
+
+    // 时钟没有走：还没有任何同步。撤销：工作计划和记录一起回到导入前（以前只恢复记录，计划留在导入的版本，却提示已恢复）
+    await page.locator('#undoImportBtn').click();
+    await expectToast(page, TOAST_UNDONE);
+    expect(await groupCodes()).toEqual(codesBefore);
+    await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+    await expect(page.locator('#tab-wk [data-edit="synthetic-udw"]')).toBeVisible();
+    await page.clock.runFor(5_000);
+    await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 回到导入前' }).toEqual(stateBefore);
+    expect(app.fake.lastPlan(0), '服务器上的计划没有被换成导入的').toEqual(planBefore);
+  });
 });
 
 test('IO-08 the undo entry survives a reload and is replaced by the next import', async ({ app, page }) => {
