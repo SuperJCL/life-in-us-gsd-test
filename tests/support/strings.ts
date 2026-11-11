@@ -461,3 +461,6 @@ export const CONFIRM_UNDO_MORE = '刚才确认的时候又收到了其他设备�
 export const BTN_UNDO_CANCEL = '不撤销';
 export const BTN_UNDO_OK = '仍然撤销';
 export const TOAST_UNDONE = '已撤销导入，恢复成了导入前的样子';
+
+// Phase 11-06 Task 2：退出确认框在本机还留着导入前的数据时多出的一行（应用里 T_CF_UNDO 的逐字复制），排在账号行、未保存行、留底行之后
+export const CONFIRM_LOGOUT_UNDO = '这台设备上还能撤销上一次导入，退出后就不能撤销了。';

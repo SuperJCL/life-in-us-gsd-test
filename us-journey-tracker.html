@@ -858,7 +858,7 @@ async function onLogin(e){
         return;
       }
     }
-    ["state","plan","snapshot"].forEach(k=>{try{localStorage.removeItem("usj:v2:"+prevId+":"+k)}catch(err){}});
+    ["state","plan","snapshot","importundo"].forEach(k=>{try{localStorage.removeItem("usj:v2:"+prevId+":"+k)}catch(err){}});
   }
   setLoginBusy(false);
   $("loginPw").value="";setPwShown(false);loginNotice(null);
@@ -1506,6 +1506,8 @@ document.addEventListener("visibilitychange",()=>{
 const TAB_UPLOAD_MS=5000;
 window.addEventListener("storage",e=>{
   if(!CLOUD||!me||!e.key||e.storageArea!==localStorage)return;
+  /* the undo copy (an import or an undo in another tab of this browser) only moves the toolbar button */
+  if(e.key===undoKey()){undoShow();return}
   if(e.key===cacheKey("plan")){
     let pr=null;if(e.newValue)try{pr=JSON.parse(e.newValue)}catch(x){}
     if(pr&&typeof pr==="object"&&pr.data&&typeof pr.data==="object"&&docs.plan&&pr.id===docs.plan.id)adoptPlanTab(pr);
@@ -1695,7 +1697,7 @@ document.addEventListener("input",()=>{if(remoteView)maybeApplyView()});
 /* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce;
    the cache is shared by every tab of this browser, so logout also reads the dirty bit another tab left there (onLogoutClick adds unsentOf) */
 function hasUnsaved(){return savePending||saving||rvPending||!!(docs.state&&docs.state.dirty)||!!(docs.plan&&docs.plan.dirty)}
-const T_CF_OUT="退出登录？",T_CF_ACCOUNT="当前账号：",T_CF_UNSAVED="有修改还没保存到服务器，退出后会丢失。",T_CF_SNAP="有一份另一台设备的旧版本留底还没下载，退出后会丢失。";
+const T_CF_OUT="退出登录？",T_CF_ACCOUNT="当前账号：",T_CF_UNSAVED="有修改还没保存到服务器，退出后会丢失。",T_CF_SNAP="有一份另一台设备的旧版本留底还没下载，退出后会丢失。",T_CF_UNDO="这台设备上还能撤销上一次导入，退出后就不能撤销了。";
 function showWho(){
   const em=(pb.authStore.record&&pb.authStore.record.email)||"",w=$("who");
   w.textContent=em;w.title=em;w.classList.toggle("hidden",!em);$("logoutBtn").classList.remove("hidden");
@@ -1729,7 +1731,7 @@ async function logout(){
   /* unsubscribing asks the server; with no answer logout still goes on after UNSUB_MS (offline logout must work) */
   try{await Promise.race([pb.realtime.unsubscribe(),new Promise(r=>setTimeout(r,UNSUB_MS))])}catch(e){}
   if(ep===sessionEpoch){
-    ["state","plan","snapshot"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
+    ["state","plan","snapshot","importundo"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
     try{localStorage.removeItem(LAST_USER_KEY)}catch(e){}
     pb.authStore.clear();
     resetSession();showLogin("");
@@ -1740,11 +1742,12 @@ async function logout(){
 /* the toolbar button: ask first only when something would be lost (D-05); the confirm does not wait for a running save, and a save answering later is stopped by sessionEpoch */
 async function onLogoutClick(){
   if(loggingOut||!me)return;
-  const u=unsentOf(me),unsaved=hasUnsaved()||u.edits,snap=!!snapGet()||u.snap;
-  if(unsaved||snap){
+  const u=unsentOf(me),unsaved=hasUnsaved()||u.edits,snap=!!snapGet()||u.snap,undo=!!undoGet();
+  if(unsaved||snap||undo){
     const lines=[T_CF_ACCOUNT+((pb.authStore.record&&pb.authStore.record.email)||"")];
     if(unsaved)lines.push(T_CF_UNSAVED);
     if(snap)lines.push(T_CF_SNAP);
+    if(undo)lines.push(T_CF_UNDO);
     if(!await confirmBox({title:T_CF_OUT,lines,who:true,cancel:"不退出",ok:"仍然退出"}))return;
   }
   await logout();

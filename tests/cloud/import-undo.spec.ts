@@ -4,8 +4,9 @@
 // 导入文件只在内存里构造（文件名以 synth- 开头）；“另一台设备的写入”用 app.fake.request 以另一个 writer 直接改假服务器上的文档。
 import type { Page } from '@playwright/test';
 import { test, expect } from '../support/test';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
-import type { AppHarness } from '../support/app';
+import { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
 import { fullBackup, legacyBackup } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
@@ -19,9 +20,13 @@ import {
   BTN_UNDO_IMPORT,
   BTN_UNDO_OK,
   CATEGORY_NAMES,
+  CONFIRM_LOGOUT_ACCOUNT_PREFIX,
+  CONFIRM_LOGOUT_TITLE,
+  CONFIRM_LOGOUT_UNDO,
   CONFIRM_UNDO_CHANGED,
   CONFIRM_UNDO_MORE,
   CONFIRM_UNDO_TITLE,
+  STATUS_CLOUD_SYNCED,
   TOAST_IMPORT_NO_UNDO,
   TOAST_IMPORTED,
   TOAST_UNDONE,
@@ -236,4 +241,144 @@ test('IO-08 an import is refused when the data before it cannot be kept on this 
   expect(app.fake.writes.length).toBe(writesBefore);
   expect(app.fake.lastState(0)).toEqual(stateBefore);
   expect(app.fake.lastPlan(0)).toEqual(planBefore);
+});
+
+test('IO-08 the undo entry survives a reload and is replaced by the next import', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('udr'), login: 0 });
+  const key = undoKeyOf(app);
+
+  // 导入 A，等上传完，刷新：“撤销导入”仍在，本机的撤销副本还在
+  const fileA = legacyBackup('udra');
+  await importAndConfirm(page, 'synth-undo-a.json', fileA);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 变成 A' }).toEqual(expectedNormalize(fileA));
+  await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+  await app.reload();
+  await expect(page.locator('#undoImportBtn')).toBeVisible();
+  expect(await readJson(page, key)).not.toBeNull();
+
+  // 再导入 B：撤销副本换成 B 导入之前的数据，也就是 A 导入后的数据
+  const fileB = legacyBackup('udrb');
+  await importAndConfirm(page, 'synth-undo-b.json', fileB);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 变成 B' }).toEqual(expectedNormalize(fileB));
+  const rec = await readJson(page, key);
+  expect(hasText(rec.state.logs, 'SYNTH-udra week record')).toBe(true);
+  expect(hasText(rec.state.logs, 'SYNTH-udrb week record')).toBe(false);
+  expect(hasText(rec.state.logs, '合成记录 udr')).toBe(false);
+
+  // 撤销：服务器回到 B 导入之前（A 导入后的数据），不是 A 之前；撤销用掉了这份数据，入口消失
+  await page.locator('#undoImportBtn').click();
+  await expectToast(page, TOAST_UNDONE);
+  await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 回到 A' }).toEqual(expectedNormalize(fileA));
+  await expect(page.locator('#undoImportBtn')).toBeHidden();
+  expect(await readJson(page, key)).toBeNull();
+});
+
+test('IO-08 logout and switching accounts clear the import undo copy and the logout confirm says the undo will be lost', async ({
+  app,
+  page,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', users: 2, seed: syntheticState('uda') });
+  app.fake.seed(syntheticState('udb'), { userIndex: 1 });
+  const [userA, userB] = app.fake.users;
+  await app.login(0);
+  const keyA = undoKeyOf(app);
+  const localKeysOfA = () => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), `usj:v2:${userA.id}:`);
+  const imported = async (name: string, label: string) => {
+    await importAndConfirm(page, name, legacyBackup(label));
+    await expectToast(page, TOAST_IMPORTED);
+    await expect.poll(() => hasText(app.fake.lastState(0)?.logs, `SYNTH-${label} week record`), { message: '等待服务器拿到导入的记录' }).toBe(true);
+    await expect(page.locator('#status')).toHaveText(STATUS_CLOUD_SYNCED);
+  };
+
+  // 退出：数据都已上传，所以确认框里只有账号行和撤销说明；先点“不退出”，副本还在
+  await imported('synth-undo-out.json', 'uda1');
+  expect(await localKeysOfA()).toContain(keyA);
+  await page.locator('#logoutBtn').click();
+  const confirm = await readConfirm(page);
+  expect(confirm.title).toBe(CONFIRM_LOGOUT_TITLE);
+  expect(confirm.lines).toEqual([CONFIRM_LOGOUT_ACCOUNT_PREFIX + userA.email, CONFIRM_LOGOUT_UNDO]);
+  await confirmCancel(page);
+  expect(await readJson(page, keyA)).not.toBeNull();
+
+  // 点“仍然退出”：本机没有 A 的任何键，包括撤销副本；再登录同一账号，没有“撤销导入”
+  await page.locator('#logoutBtn').click();
+  await readConfirm(page);
+  await page.locator('#cfOk').click();
+  await expect(page.locator('#login')).toBeVisible();
+  expect(await localKeysOfA()).toEqual([]);
+  await app.login(0);
+  await expect(page.locator('#undoImportBtn')).toBeHidden();
+  expect(await readJson(page, keyA)).toBeNull();
+
+  // 换账号：A 再导入一次，令牌失效（没有未上传的修改，所以换账号时不再确认），换 B 登录，A 的本机键全部清除，B 没有“撤销导入”
+  await imported('synth-undo-switch.json', 'uda2');
+  expect(await readJson(page, keyA)).not.toBeNull();
+  app.fake.revokeTokens(0);
+  await page.reload();
+  await expect(page.locator('#login')).toBeVisible();
+  await acknowledgeConsoleErrors(guard, { 'status of 401 ': 1 });
+  expect(await readJson(page, keyA)).not.toBeNull();
+  await app.submitLogin(1);
+  await app.ready();
+  expect(await page.content()).toContain('合成记录 udb');
+  expect(await localKeysOfA()).toEqual([]);
+  await expect(page.locator('#undoImportBtn')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('usj:v2:lastUser'))).toBe(userB.id);
+});
+
+test('IO-08 the undo entry shows and hides in another tab of the same browser', async ({ app, page, context }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('udt'), login: 0 });
+  const other = await context.newPage();
+  try {
+    await new AppHarness(other, { fake: app.fake }).open({ mode: 'cloud', login: 'session' });
+    await expect(other.locator('#undoImportBtn')).toBeHidden();
+
+    // 标签页 A 导入：标签页 B 也出现“撤销导入”（storage 事件；等待用真实计时）
+    await importAndConfirm(page, 'synth-undo-tabs.json', legacyBackup('udt1'));
+    await expectToast(page, TOAST_IMPORTED);
+    await expect(page.locator('#undoImportBtn')).toBeVisible();
+    await expect(other.locator('#undoImportBtn')).toBeVisible({ timeout: 15_000 });
+
+    // 标签页 A 撤销：两个标签页的按钮都消失
+    await page.locator('#undoImportBtn').click();
+    await expectToast(page, TOAST_UNDONE);
+    await expect(page.locator('#undoImportBtn')).toBeHidden();
+    await expect(other.locator('#undoImportBtn')).toBeHidden({ timeout: 15_000 });
+    expect(await readJson(other, undoKeyOf(app))).toBeNull();
+  } finally {
+    await other.close();
+  }
+});
+
+test('IO-08 the undo restores a remote change that was waiting when the import was made', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('udw'), login: 0 });
+  // 本周 composer 里写着没提交的草稿：页面忙，别的设备的更新只会挂起、显示横幅
+  const draft = 'SYNTH-udw draft in progress';
+  const entry = composer(page, 'w');
+  await entry.type(draft);
+  await expect(entry.text).toBeFocused();
+  const otherText = 'SYNTH-udw remote record';
+  await otherAddsLog(app, 'synthetic-other-udw', otherText);
+  await expect(page.locator('#syncbar .sb-msg')).toHaveText(BANNER_REMOTE);
+
+  // 导入：挂起的那次远端更新算导入前的数据，导入之后服务器上是文件的内容
+  const file = legacyBackup('udw1');
+  await importAndConfirm(page, 'synth-undo-pending.json', file);
+  await expectToast(page, TOAST_IMPORTED);
+  await expect.poll(() => app.fake.lastState(0), { message: '等待服务器 state 变成导入的内容' }).toEqual(expectedNormalize(file));
+  const rec = await readJson(page, undoKeyOf(app));
+  expect(hasText(rec.state.logs, otherText)).toBe(true);
+
+  // 撤销：没有新修改不弹确认框；服务器上又有了那次远端更新和原来的记录，没有导入的记录
+  await page.locator('#undoImportBtn').click();
+  await expectToast(page, TOAST_UNDONE);
+  await expect
+    .poll(() => (app.fake.lastState(0)?.logs ?? []).map((l: Log) => l.id).sort(), { message: '等待服务器 state 回到导入前（含远端更新）' })
+    .toEqual(['synthetic-other-udw', 'synthetic-udw']);
+  expect(hasText(app.fake.lastState(0)?.logs, otherText)).toBe(true);
+  expect(await entry.draft()).toBe(draft);
+  await expect(page.locator('#syncbar')).not.toBeVisible();
 });
