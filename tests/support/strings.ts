@@ -25,6 +25,8 @@ export const STATUS_ACCOUNT = '已同步保存到你的账户';
 
 // 导出成功后弹出的 toast 文案（应用源码逐字复制）
 export const TOAST_EXPORTED = '已导出';
+// IN-05：账号的计划读不出来（示例计划在用）时导出备份的提示，替换“已导出”（应用里 T_EXPORT_SAMPLE_PLAN 的逐字复制，6000 ms）
+export const TOAST_EXPORTED_SAMPLE_PLAN = '已导出。账号的计划读不出来，备份里的计划是示例计划，导入它会换掉账号的计划。';
 
 // 应用名：文档标题、登录卡标题和页头 h1（应用源码逐字复制）
 export const APP_NAME = '计划手记';

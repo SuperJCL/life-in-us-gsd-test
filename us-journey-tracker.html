@@ -2053,7 +2053,9 @@ function blobDownload(name,text,type){
   setTimeout(()=>URL.revokeObjectURL(url),30000);
   return true;
 }
-function saveFile(name,text,type){toast(blobDownload(name,text,type)?"已导出":"导出不可用")}
+/* note: shown instead of the plain "已导出" (and for longer) when the file has something the user should know; a failed download still says it is unavailable */
+const T_EXPORT_SAMPLE_PLAN="已导出。账号的计划读不出来，备份里的计划是示例计划，导入它会换掉账号的计划。";
+function saveFile(name,text,type,note){const ok=blobDownload(name,text,type);if(ok&&note)toast(note,null,6000);else toast(ok?"已导出":"导出不可用")}
 $("exportCsv").onclick=()=>{
   if(remoteView)applyView();
   const rows=[["Subject","Start Date","All Day Event","Description"]];
@@ -2067,7 +2069,8 @@ $("exportCsv").onclick=()=>{
 /* 备份是新格式完整备份（D-10：旧路径也一样）；有别的设备的更新正等着显示时先按 Phase 10 的规则应用，文件与账号当前数据一致 */
 $("exportJson").onclick=()=>{
   if(remoteView)applyView();
-  saveFile("计划手记-备份-"+today()+".json",JSON.stringify(backupOf(plan,state,new Date().toISOString()),null,2),"application/json");
+  /* keepOrphans: the account plan could not be read and plan is the sample plan, so the file says "full backup" with a plan that is not the account's (IN-05) */
+  saveFile("计划手记-备份-"+today()+".json",JSON.stringify(backupOf(plan,state,new Date().toISOString()),null,2),"application/json",keepOrphans?T_EXPORT_SAMPLE_PLAN:undefined);
 };
 $("importJson").addEventListener("change",e=>{onImportFile(e.target)});
 

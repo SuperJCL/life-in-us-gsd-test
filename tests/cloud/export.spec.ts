@@ -18,6 +18,8 @@ import {
   FILENAME_BACKUP_FROZEN,
   FILENAME_CSV,
   IMPORT_KIND_PLAN,
+  TOAST_EXPORTED,
+  TOAST_EXPORTED_SAMPLE_PLAN,
   TOAST_IMPORTED,
 } from '../support/strings';
 
@@ -68,6 +70,22 @@ test("IO-06 the cloud version downloads the account's JSON backup at desktop and
   const narrow = await downloadOf(page, () => page.locator('#exportJson').click());
   expect(narrow.filename).toBe(wide.filename);
   expect(narrow.text === wide.text, '两种宽度导出的 JSON 内容不一致（内容已隐藏）').toBe(true);
+});
+
+test('IO-06 IN-05 exporting while the account plan cannot be read says that the plan in the file is the sample plan', async ({ app, page }) => {
+  // 账号的计划文档不合格：页面按示例计划显示（PLAN-01），备份里写的也是示例计划，导出时要提醒
+  await app.open({ mode: 'cloud', seed: syntheticState('exq'), plan: { _synthetic: true, groups: [] }, login: 0 });
+  const bad = await downloadOf(page, () => page.locator('#exportJson').click());
+  const file = JSON.parse(bad.text);
+  expect(file.kind).toBe(BACKUP_KIND_FULL);
+  expect(file.plan.groups.map((g: any) => g.id)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  await expectToast(page, TOAST_EXPORTED_SAMPLE_PLAN);
+});
+
+test('IO-06 IN-05 exporting with a readable account plan still says only that it was exported', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('exr'), plan: syntheticPlan('exr', 2), login: 0 });
+  await downloadOf(page, () => page.locator('#exportJson').click());
+  await expectToast(page, TOAST_EXPORTED);
 });
 
 test("IO-06 the cloud version downloads the account's calendar CSV at desktop and phone width", async ({ app, page }) => {
