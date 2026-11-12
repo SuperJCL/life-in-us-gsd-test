@@ -27,6 +27,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const APP_PATH = 'us-journey-tracker.html';
+const SW_PATH = 'deploy/site/sw.js';
+const MANIFEST_PATH = 'deploy/site/manifest.webmanifest';
+const ICON_DIR = 'deploy/site/icons';
+const SDK_FILE = 'pocketbase.iife.js';
+const SDK_DIR = 'tools/probe/page/vendor';
+const PLACEHOLDER = '__BUILD_VERSION__';
+
+// 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
+export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
 
 // 脚本自己写的固定文案才会被打印；其他错误顶层只打印固定文字
 export class BuildError extends Error {}
@@ -79,18 +88,71 @@ export function cspConf(policy) {
   return `# 由 deploy/build-site.mjs 生成，勿手改；页面的内联脚本和样式改了就必须重新构建\nadd_header Content-Security-Policy "${policy}" always;\n`;
 }
 
-// 本任务只产出页面、策略和头文件，Task 2 扩展
-export function buildSite({ html }) {
+// 外壳版本号：页面、SDK、清单、4 个图标按固定顺序喂给同一个 sha256，取十六进制前 12 位。
+// 外壳变了版本就变（旧页面不会配新缓存）；同一个构建部署两次版本不变（不会出现更新提示）。
+export function shellVersion({ indexHtml, sdk, manifest, icons }) {
+  const h = createHash('sha256');
+  h.update(Buffer.from(indexHtml, 'utf8'));
+  h.update(sdk);
+  h.update(Buffer.from(manifest, 'utf8'));
+  for (const name of ICON_NAMES) h.update(icons[name]);
+  return h.digest('hex').slice(0, 12);
+}
+
+// 校验文件里 SDK 那一行的哈希：接受两个空格和空格加星号两种分隔
+export function sdkPinnedHash(sums) {
+  for (const line of normalizeNl(sums).split('\n')) {
+    const m = /^([0-9a-f]{64}) [ *](\S+)$/.exec(line.trim());
+    if (m && m[2] === SDK_FILE) return m[1];
+  }
+  throw new BuildError('SDK 校验文件里没有 SDK 那一行');
+}
+
+// 输出目录里除 SHA256SUMS 自己以外的每个文件：<hash>  <相对路径>，按路径排序，LF
+export function sumsOf(files) {
+  return (
+    Object.keys(files)
+      .filter((n) => n !== 'SHA256SUMS')
+      .sort((x, y) => (x < y ? -1 : x > y ? 1 : 0))
+      .map((n) => `${sha256Hex(typeof files[n] === 'string' ? Buffer.from(files[n], 'utf8') : files[n])}  ${n}\n`)
+      .join('')
+  );
+}
+
+// 纯函数：输入都是内存里的文本和字节，输出是 { 相对路径: 文本或字节 }；文本一律 LF
+export function buildSite({ html, sw, manifest, icons, sdk, sdkSums }) {
   const indexHtml = injectConfig(html);
   const scripts = inlineBlocks(indexHtml, 'script').map(cspHash);
   const styles = inlineBlocks(indexHtml, 'style').map(cspHash);
   const cspHeader = buildCsp({ scripts, styles });
-  return { indexHtml, scripts, styles, cspHeader, cspConfText: cspConf(cspHeader) };
+  const cspConfText = cspConf(cspHeader);
+
+  if (sha256Hex(sdk) !== sdkPinnedHash(sdkSums)) throw new BuildError('SDK 与钉死的 sha256 不符');
+  for (const name of ICON_NAMES) if (!icons || !Buffer.isBuffer(icons[name])) throw new BuildError(`缺少图标 ${name}`);
+  const swText = normalizeNl(sw);
+  const slots = swText.split(PLACEHOLDER).length - 1;
+  if (slots !== 1) throw new BuildError(`sw.js 里的版本占位出现了 ${slots} 次，应当恰好 1 次`);
+  const manifestText = normalizeNl(manifest);
+  const version = shellVersion({ indexHtml, sdk, manifest: manifestText, icons });
+
+  const files = {
+    'site/index.html': indexHtml,
+    'site/sw.js': swText.replace(PLACEHOLDER, () => version),
+    'site/manifest.webmanifest': manifestText,
+    'site/vendor/pocketbase.iife.js': sdk,
+    'site/vendor/SHA256SUMS': normalizeNl(sdkSums),
+    'server/nginx/usj-csp.conf': cspConfText,
+    BUILD_VERSION: `${version}\n`,
+  };
+  for (const name of ICON_NAMES) files[`site/icons/${name}`] = icons[name];
+  files.SHA256SUMS = sumsOf(files);
+  return { indexHtml, scripts, styles, cspHeader, cspConfText, version, files };
 }
 
 // ---------- 输出目录 ----------
 
-// 本任务只接受 private/deploy-out 和 test-results/ 下的目录（Task 2 补全检查）
+// 只接受恰好 private/deploy-out，或 test-results/ 下的目录；仓库外、.. 逃逸、仓库根和 deploy 等一律拒绝（退出 2）。
+// private/deploy-out 写之前用 git check-ignore 确认被忽略（输出可能和真实站点文件放在一起，不能进 git）。
 export function checkOutDir(dir, repoRoot = ROOT) {
   const rel = relative(repoRoot, resolve(dir)).split(sep).join('/');
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) throw new UsageError('输出目录必须在仓库内');
@@ -119,8 +181,6 @@ export function parseArgs(args) {
 
 // ---------- 自检 ----------
 
-// 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
-export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
 const sha256Hex = (data) => createHash('sha256').update(data).digest('hex');
 
 // 内存里的合成输入：不读 private/，不写磁盘
@@ -241,16 +301,22 @@ export function selfTest() {
 function run(opts) {
   const rel = checkOutDir(resolve(opts.out), ROOT);
   const out = resolve(ROOT, rel);
-  const html = readFileSync(join(ROOT, APP_PATH), 'utf8');
-  const built = buildSite({ html });
+  const read = (p) => readFileSync(join(ROOT, p));
+  const icons = Object.fromEntries(ICON_NAMES.map((n) => [n, read(`${ICON_DIR}/${n}`)]));
+  const built = buildSite({
+    html: read(APP_PATH).toString('utf8'),
+    sw: read(SW_PATH).toString('utf8'),
+    manifest: read(MANIFEST_PATH).toString('utf8'),
+    icons,
+    sdk: read(`${SDK_DIR}/${SDK_FILE}`),
+    sdkSums: read(`${SDK_DIR}/SHA256SUMS`).toString('utf8'),
+  });
   rmSync(out, { recursive: true, force: true });
-  const put = (name, data) => {
+  for (const [name, data] of Object.entries(built.files)) {
     mkdirSync(dirname(join(out, name)), { recursive: true });
     writeFileSync(join(out, name), data);
-  };
-  put('site/index.html', built.indexHtml);
-  put('server/nginx/usj-csp.conf', built.cspConfText);
-  process.stdout.write(`BUILD OK (${built.scripts.length} scripts, ${built.styles.length} styles)\n`);
+  }
+  process.stdout.write(`BUILD OK ${built.version} (${Object.keys(built.files).length} files)\n`);
   return 0;
 }
 
