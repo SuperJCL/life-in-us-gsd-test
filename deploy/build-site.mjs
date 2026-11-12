@@ -48,7 +48,7 @@ export function inlineBlocks(html, tag) {
 
 // 云端开关：在主内联脚本之前插入一个单独的小内联脚本。锚点是“单独一行的 <script>”，必须恰好一处。
 // 仓库里的页面保持本地版（不带这行），所以 APP_SHA256 仍然指仓库文件。
-const CONFIG_LINE = '<script>window.USJ_CONFIG={backend:"pocketbase"};</script>';
+export const CONFIG_LINE ='<script>window.USJ_CONFIG={backend:"pocketbase"};</script>';
 export function injectConfig(html) {
   const text = normalizeNl(html);
   const n = (text.match(/^<script>$/gm) || []).length;
@@ -117,6 +117,125 @@ export function parseArgs(args) {
   return opts;
 }
 
+// ---------- 自检 ----------
+
+// 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
+export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
+const sha256Hex = (data) => createHash('sha256').update(data).digest('hex');
+
+// 内存里的合成输入：不读 private/，不写磁盘
+const SYN_HTML =
+  '<!DOCTYPE html>\n<html><head>\n<style>\nbody{color:#111}\n</style>\n</head><body>\n<script src="/vendor/synth.js" integrity="sha256-synth"></script>\n<script>\nalert(1)\n</script>\n</body></html>\n';
+const SYN_SW = "const V = '__BUILD_VERSION__', CACHE = 'synth-' + V;\n";
+function synthInputs(over = {}) {
+  const sdk = Buffer.from('synth-sdk');
+  return {
+    html: SYN_HTML,
+    sw: SYN_SW,
+    manifest: '{"name":"synth"}\n',
+    icons: Object.fromEntries(ICON_NAMES.map((n, i) => [n, Buffer.from(`synth-icon-${i}`)])),
+    sdk,
+    sdkSums: `${sha256Hex(sdk)}  pocketbase.iife.js\n`,
+    ...over,
+  };
+}
+const throws = (fn) => {
+  try {
+    fn();
+    return false;
+  } catch {
+    return true;
+  }
+};
+const bytes = (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v));
+
+export function selfTest() {
+  const results = [];
+  const expect = (name, fn) => {
+    let ok = false;
+    try {
+      ok = fn() === true;
+    } catch {
+      ok = false;
+    }
+    results.push([name, ok]);
+  };
+  const a = () => buildSite(synthInputs());
+  expect('cspHash：已知输入 alert(1) 的哈希', () => cspHash('alert(1)') === "'sha256-bhHHL3z2vDgxUt0W3dWQOrprscmda2Y5pLsLg4GF+pI='");
+  expect('cspHash：CRLF 和 LF 两种页面算出同样的哈希', () => {
+    const crlf = SYN_HTML.replace(/\n/g, '\r\n');
+    const hashes = (h, tag) => inlineBlocks(h, tag).map(cspHash).join();
+    return hashes(crlf, 'script') === hashes(SYN_HTML, 'script') && hashes(crlf, 'style') === hashes(SYN_HTML, 'style');
+  });
+  expect('inlineBlocks：带 src 的 script 不算内联块', () => inlineBlocks(SYN_HTML, 'script').length === 1 && inlineBlocks(SYN_HTML, 'style').length === 1);
+  expect('injectConfig：锚点缺失时抛错', () => throws(() => injectConfig('<html><script src="/x.js"></script></html>\n')));
+  expect('injectConfig：锚点重复时抛错', () => throws(() => injectConfig('<script>\na\n</script>\n<script>\nb\n</script>\n')));
+  expect('buildSite：构建后的页面恰好一处配置脚本', () => a().indexHtml.split(CONFIG_LINE).length === 2);
+  expect('buildSite：配置脚本排在主内联脚本之前，两个脚本哈希都在策略里', () => {
+    const b = a();
+    return b.indexHtml.indexOf(CONFIG_LINE) < b.indexHtml.indexOf('alert(1)') && b.scripts.length === 2 && b.scripts.every((h) => b.cspHeader.includes(h));
+  });
+  expect('buildCsp：含必需的指令', () => {
+    const p = a().cspHeader;
+    return ["style-src-attr 'none'", "frame-ancestors 'none'", "default-src 'none'", "base-uri 'none'", "object-src 'none'", "connect-src 'self'"].every((d) => p.includes(d));
+  });
+  expect('buildCsp：不含 unsafe- 开头的关键字', () => !a().cspHeader.includes('unsafe-'));
+  expect('cspConf：一行注释加一行 add_header', () => {
+    const lines = a().cspConfText.trimEnd().split('\n');
+    return lines.length === 2 && lines[0].startsWith('#') && lines[1].startsWith('add_header Content-Security-Policy "') && lines[1].endsWith('" always;');
+  });
+  expect('确定性：同一输入两次构建，页面、sw.js、头文件、SHA256SUMS 逐字节相同', () => {
+    const x = a();
+    const y = a();
+    return ['site/index.html', 'site/sw.js', 'server/nginx/usj-csp.conf', 'SHA256SUMS', 'BUILD_VERSION'].every((n) => x.files[n] !== undefined && Buffer.compare(bytes(x.files[n]), bytes(y.files[n])) === 0);
+  });
+  expect('版本：12 位十六进制，写进 sw.js 和 BUILD_VERSION', () => {
+    const b = a();
+    return /^[0-9a-f]{12}$/.test(b.version) && b.files['site/sw.js'].includes(b.version) && !b.files['site/sw.js'].includes('__BUILD_VERSION__') && b.files.BUILD_VERSION === `${b.version}\n`;
+  });
+  expect('版本：内联脚本改一个字符后脚本哈希和版本号都变', () => {
+    const b = buildSite(synthInputs({ html: SYN_HTML.replace('alert(1)', 'alert(2)') }));
+    return b.version !== a().version && b.cspHeader !== a().cspHeader;
+  });
+  expect('版本：只改一个图标字节时版本号变，CSP 不变', () => {
+    const inputs = synthInputs();
+    inputs.icons['icon-512.png'] = Buffer.from('synth-icon-X');
+    const b = buildSite(inputs);
+    return b.version !== a().version && b.cspHeader === a().cspHeader;
+  });
+  expect('sw 模板：没有占位时抛错', () => throws(() => buildSite(synthInputs({ sw: "const V = 'x';\n" }))));
+  expect('sw 模板：有两个占位时抛错', () => throws(() => buildSite(synthInputs({ sw: '__BUILD_VERSION__ __BUILD_VERSION__\n' }))));
+  expect('SDK：字节与钉死值不符时抛错', () => throws(() => buildSite(synthInputs({ sdk: Buffer.from('synth-sdk-tampered') }))));
+  expect('SDK：校验文件接受两个空格和空格加星号两种分隔', () => {
+    const sdk = Buffer.from('synth-sdk');
+    return !throws(() => buildSite(synthInputs({ sdkSums: `${sha256Hex(sdk)} *pocketbase.iife.js\n` })));
+  });
+  expect('SHA256SUMS：两个空格、相对路径、按路径排序、不含自己', () => {
+    const lines = a().files.SHA256SUMS.trimEnd().split('\n');
+    const paths = lines.map((l) => l.slice(66));
+    return lines.every((l) => /^[0-9a-f]{64} {2}\S/.test(l)) && paths.join() === [...paths].sort().join() && !paths.includes('SHA256SUMS') && paths.includes('site/sw.js') && paths.includes('server/nginx/usj-csp.conf');
+  });
+  expect('SHA256SUMS：每个哈希都对得上对应文件的字节', () => {
+    const b = a();
+    return b.files.SHA256SUMS.trimEnd().split('\n').every((l) => sha256Hex(bytes(b.files[l.slice(66)])) === l.slice(0, 64));
+  });
+  expect('输出文件清单：页面、sw、清单、4 个图标、SDK 和校验文件、头文件', () => {
+    const names = Object.keys(a().files).sort();
+    const want = ['BUILD_VERSION', 'SHA256SUMS', 'server/nginx/usj-csp.conf', 'site/icons/apple-touch-icon-180.png', 'site/icons/icon-192.png', 'site/icons/icon-512.png', 'site/icons/icon-maskable-512.png', 'site/index.html', 'site/manifest.webmanifest', 'site/sw.js', 'site/vendor/SHA256SUMS', 'site/vendor/pocketbase.iife.js'];
+    return names.join() === want.join();
+  });
+  const root = resolve(sep, 'synth-repo');
+  expect('checkOutDir：仓库外、仓库根、deploy、test-results 本身、.. 都拒绝', () =>
+    [resolve(sep, 'synth-elsewhere'), root, join(root, 'deploy'), join(root, 'test-results'), join(root, 'test-results', '..', 'deploy')].every((d) => throws(() => checkOutDir(d, root))));
+  expect('checkOutDir：test-results 下的目录接受', () => checkOutDir(join(root, 'test-results', 'x', 'y'), root) === 'test-results/x/y');
+  expect('checkOutDir：private/deploy-out 在本仓库里被忽略因而接受', () => checkOutDir(join(ROOT, 'private', 'deploy-out'), ROOT) === 'private/deploy-out');
+
+  const failed = results.filter(([, ok]) => !ok);
+  for (const [name] of failed) process.stdout.write(`自检失败：${name}\n`);
+  process.stdout.write(failed.length === 0 ? `SELF-TEST OK (${results.length} cases)\n` : `SELF-TEST FAIL (${failed.length} of ${results.length})\n`);
+  return failed.length === 0 ? 0 : 1;
+}
+
 // ---------- CLI ----------
 
 function run(opts) {
@@ -136,6 +255,7 @@ function run(opts) {
 }
 
 export function main(args) {
+  if (args.length === 1 && args[0] === '--self-test') return selfTest();
   let opts;
   try {
     opts = parseArgs(args);

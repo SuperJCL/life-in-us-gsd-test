@@ -117,3 +117,24 @@ test('SEC-02 the built site page runs under its Content-Security-Policy without 
   // 全程零违规
   expect(await violations(page)).toEqual([]);
 });
+
+test('SEC-02 a page block whose hash is missing from the policy is blocked and reported, so the zero-violation check is not vacuous', async ({
+  app,
+  page,
+  guard,
+}, testInfo) => {
+  const built = buildSiteFor(testInfo);
+  // 把样式哈希那一项换成 'none'：页面里唯一的内联 <style> 不再被放行
+  const broken = built.policy.replace(/style-src 'sha256-[^']+'/, "style-src 'none'");
+  expect(broken).not.toBe(built.policy);
+  await serveBuilt(page, built, broken);
+
+  await app.open({ mode: 'cloud', seed: syntheticState('cspneg') });
+
+  // 违规恰好一项（一个内联样式块），指令以 style-src 开头
+  await expect.poll(async () => (await violations(page)).length, { message: '等待违规事件' }).toBe(1);
+  const reported = await violations(page);
+  expect(reported[0].startsWith('style-src')).toBe(true);
+  // 浏览器同时写了 1 条 console.error（Edge 的措辞是 Applying inline style violates ...），精确确认后移除，其余任何违规仍会让用例失败
+  await acknowledgeConsoleErrors(guard, { 'Applying inline style violates the following Content Security Policy directive': 1 });
+});
