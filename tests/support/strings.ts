@@ -674,3 +674,11 @@ export const BANNER_SW_UPDATE = '有新版本';
 export const BTN_SW_UPDATE = '点此更新';
 // 点了更新之后按钮上的文字（按钮同时 disabled）
 export const BTN_SW_UPDATING = '正在更新…';
+
+// Phase 13-03 Task 2：有未保存的修改时点「点此更新」弹出的确认框（应用里 T_SW_CF_*，逐字相同；D-08）。
+// 标题和两行正文；按钮顺序是取消（先不更新）、确认（仍然更新），确认按钮是 danger 外观
+export const CF_SW_TITLE = '现在更新？';
+export const CF_SW_LINE1 = '有没保存的修改，更新会刷新页面，这些修改会丢失。';
+export const CF_SW_LINE2 = '已经记下、还没上传的修改不受影响，刷新后会照常上传。';
+export const CF_SW_CANCEL = '先不更新';
+export const CF_SW_OK = '仍然更新';
