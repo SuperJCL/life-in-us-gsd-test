@@ -419,3 +419,23 @@ test("PLAN-02 base preset tags are added, renamed, reordered and deleted per cat
   await expect(card(page, 'p:job').locator('.pe-sum')).toHaveText(pePresetCount(20));
   await expect(act(page, 'addtag', 'p:lang')).toBeEnabled();
 });
+
+test('PLAN-02 saving with an error in a collapsed preset card expands it and focuses the field (WR-01)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('pw', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('pw'), plan, login: 0 });
+  await openEditor(page);
+
+  // 在「语言」加一个空标签，再把这张卡折叠起来
+  await expand(page, 'p:lang');
+  await act(page, 'addtag', 'p:lang').click();
+  await card(page, 'p:lang').locator('[data-peact="toggle"]').click();
+  await expect(card(page, 'p:lang').locator('[data-peact="toggle"]')).toHaveAttribute('aria-expanded', 'false');
+
+  // 点保存：被挡住，卡片展开，焦点落在出错的那一行
+  await savePlan(page);
+  await expect(card(page, 'p:lang').locator('[data-peact="toggle"]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(field(page, 'p:lang:1')).toBeFocused();
+  const ed = await readEditor(page);
+  expect(ed.errors).toEqual([{ key: 'p:lang:1', text: PE_ERR_TAG_EMPTY }]);
+  expect(app.fake.lastPlan(0)?.presets?.lang).toEqual(['SYNTH-pw preset']);
+});

@@ -2386,6 +2386,7 @@ function peCardOf(key){
   if(p[0]==="g")return "g:"+p[1];
   if(p[0]==="t"){const g=pe.draft.groups.find(y=>y.tasks.some(x=>x.id===p[1]));return g?"g:"+g.id:null}
   if(p[0]==="l")return "l:"+p[1];
+  if(p[0]==="p")return "p:"+p[1];
   return null;
 }
 function peRows(g){
