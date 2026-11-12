@@ -2165,21 +2165,23 @@ function renderGoals(){
     ${activeLifts().length?"":`<p class="empty">${T_GOALS_NO_LIFTS}</p>`}<div class="lifts">${activeLifts().map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
       const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${esc(x.v)}`).join("，");
       return `<div class="lift"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
-      <div class="lbar"><i style="width:${pct}%"></i></div>
+      <div class="lbar"><i data-w="${pct}"></i></div>
       <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
       <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
-  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN}</button><button type="button" class="ghost" id="planSampleBtn">${T_PE_SAMPLE_BTN}</button></div>`:""}</div>`+archivedHTML();applyGate();return}
+  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN}</button><button type="button" class="ghost" id="planSampleBtn">${T_PE_SAMPLE_BTN}</button></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();return}
   $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+fit+activeGroups().map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
     ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
-    <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
+    <div class="bar"><i data-w="${ts.length?dn/ts.length*100:0}"></i></div>
     ${ts.map(x=>{const s=tstate(x.id),od=!s.done&&s.due&&s.due<t;const custom=!planIds.has(x.id);
       return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
       <span class="meta">${s.done?(s.doneDate?`完成于 ${md(s.doneDate)}`:"已完成"):`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
-    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+(activeGroups().length?"":`<p class="empty">${T_GOALS_NO_GROUPS}</p>`)+archivedHTML();applyGate();
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+(activeGroups().length?"":`<p class="empty">${T_GOALS_NO_GROUPS}</p>`)+archivedHTML();goalsBars();applyGate();
 }
+/* 进度条宽度：内联样式属性在发布版 CSP（style-src-attr 'none'）下不放行，模板里只写 data-w，每次整页重画后统一用 CSSOM 赋值 */
+function goalsBars(){$("goals").querySelectorAll("i[data-w]").forEach(i=>{i.style.width=i.getAttribute("data-w")+"%"})}
 /* D-03、D-05、IN-05：目标页底部默认折叠的「已归档（n）」区，灰色只读，没有任何输入和按钮。n = 归档的组 + 所在组没归档的单独归档任务 + 归档的力量项 + 找不到所属组的自定义待办（后者带删除按钮，WR-02）。
    展开状态存在 goalsArchOpen，重画不会把展开的区收起来 */
 const T_ARCH_MARK="已归档",T_ARCH_TASKS="已归档的任务",T_ORPHAN_TASKS="没有所属目标组的待办",T_ARCH_OPEN="未完成",T_ARCH_DONE="已完成";
@@ -2196,13 +2198,13 @@ function archivedHTML(){
     const ts=allTasks().filter(x=>x.group===g.id),dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group arch-g" data-arch="g:${esc(g.id)}"><div class="group-h"><span class="arch-mark">${T_ARCH_MARK}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
     ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
-    <div class="bar"><i style="width:${ts.length?dn/ts.length*100:0}%"></i></div>
+    <div class="bar"><i data-w="${ts.length?dn/ts.length*100:0}"></i></div>
     ${ts.map(x=>row(x,"",x.id)).join("")}</div>`}).join("");
   const alone=solo.length?`<p class="note">${T_ARCH_TASKS}</p>${solo.map(x=>row(x,name.get(x.group)+" · ",x.id)).join("")}`:"";
   const lifts=ls.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
     const h=s.hist.map(x=>`${esc(md(x.date))} ${esc(x.v)}`).join("，");
     return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
-    <div class="lbar"><i style="width:${pct}%"></i></div>
+    <div class="lbar"><i data-w="${pct}"></i></div>
     <div class="hist" data-hist="${s.hist.length}">${h||esc(L.note)}</div></div>`}).join("");
   const orphans=orph.length?`<p class="note">${T_ORPHAN_TASKS}</p>${orph.map(x=>`<div class="task ro" data-arch="o:${esc(x.id)}"><span class="tt">${esc(x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办" title="删除待办">×</button></span></div>`).join("")}`:"";
   return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}${lifts}${orphans}</details>`;

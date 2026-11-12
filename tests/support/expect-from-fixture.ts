@@ -486,7 +486,8 @@ export function expectedGroup(state: GoalState, group: string, builtinCount: num
     code: group,
     cnt: `${doneIds.length}/${taskIds.length}`,
     taskIds,
-    barPct: taskIds.length ? (doneIds.length / taskIds.length) * 100 : 0,
+    // 进度条宽度由应用经 CSSOM 赋值（13-04，发布版 CSP 不放行内联样式属性），浏览器把它规整成 6 位有效数字，期望值按同样的精度算
+    barPct: taskIds.length ? Number(((doneIds.length / taskIds.length) * 100).toPrecision(6)) : 0,
     doneIds,
     overdueIds: taskIds.filter((id) => {
       const s = stateOf(id);

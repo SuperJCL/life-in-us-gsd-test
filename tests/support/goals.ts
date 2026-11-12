@@ -28,7 +28,7 @@ export type GroupRead = {
 };
 
 // 一次 page.evaluate 读回全部目标组（主列表里的，P1 到 P7）。健身那一组没有 .cnt，不算目标组；底部「已归档」区（.arch）里的组不读，见 readArchived。
-// 进度条宽度取 style 属性原文里 width 的数值（不取计算后的样式），数字与应用写进去的完全一样
+// 进度条宽度取 style 属性里 width 的数值（不取计算后的样式）；13-04 起宽度由 CSSOM 赋值，浏览器会规整成 6 位有效数字
 export async function readGroups(page: Page): Promise<GroupRead[]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('#goals .group'))

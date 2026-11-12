@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = 'd50b625b291fe462d9c883a318acd97624166ec4e062ca75a2f3e6c221eec6c1';
+export const APP_SHA256 = '37bfa4d11b3293bd7e99374426fa006a1d95744486455a21d8f165cb04f40c4e';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
@@ -118,3 +118,6 @@ export const BACKUP_APP = 'us-journey-tracker';
 export const BACKUP_FORMAT = 2;
 export const BACKUP_KIND_FULL = 'full';
 export const BACKUP_KIND_PLAN = 'plan';
+
+// 站点构建脚本（13-04）：生成发布版页面、nginx 的 CSP 头文件和带版本号的 sw.js；CSP 用例跑它的真实 CLI
+export const BUILD_SITE_SCRIPT = 'deploy/build-site.mjs';
