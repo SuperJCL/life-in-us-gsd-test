@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-11-11T23:49:39.524Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-11-12T00:17:02.621Z"
 last_activity: 2026-11-11
 last_activity_desc: Phase 12 execution started
-state_head: f54cabcfd4daaf3e461b58477191b46942256545
+state_head: 17991f607172b34833e8994b4fb142d7dea1ea21
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 66
-  completed_plans: 59
+  completed_plans: 60
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 ## Current Position
 
 Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-11-11 — Phase 12 execution started
 
@@ -148,6 +148,7 @@ Progress: [████████░░] 75%
 | Phase 11 P10 | 25 min | 2 tasks | 2 files |
 | Phase 11 P11 | 40 min | 2 tasks | 3 files |
 | Phase 12 P01 | 19 min | 3 tasks | 12 files |
+| Phase 12 P02 | 24 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -289,6 +290,8 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - 安全 30/30 关闭（AR-01、AR-02 待所有者确认）；UI 审计 18/24，4 处已修（abba25d）；代码审查 9 条全部修完。默认套件 188 条、cloud 入口 196 条（编排者在 HEAD 上亲自跑过）。
 - [Phase 12]: 12-01: GROUP_NONE ("-") marks custom to-dos with no group; it does not match GROUP_ID_RE so it never attaches to a real group
 - [Phase 12]: 12-01: numeric plan rules stay out of normalizePlan (editor-only, owner decision 2026-11-11); cloud tests read group ids via readGroupIds after D-14
+- [Phase 12]: 12-02: 找不到所属组的自定义待办不算归档，截止提醒照常显示、本周计数按「其他」算（所有者 2026-11-11 确认）
+- [Phase 12]: 12-02: SEC-01 注入检测器排除应用自己的 details#goalsArch，第二个 #goalsArch 仍算外来元素（所有者 2026-11-11 批准）
 
 ### Pending Todos
 
@@ -352,8 +355,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T23:49:37.779Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-11-12T00:17:00.944Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
