@@ -5,17 +5,17 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-11-12T18:45:53.892Z"
+stopped_at: Completed 13-03-PLAN.md
+last_updated: "2026-11-12T19:12:48.423Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: 2e884a34d0236b940863e63c1eed8ea0bd0b8e21
+state_head: af409917b8cea2056df6f44781da32f113c00995
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 68
-  percent: 84
+  completed_plans: 69
+  percent: 85
 ---
 
 # Project State
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 3 of 15
+Plan: 4 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
-Progress: [████████░░] 84%
+Progress: [█████████░] 85%
 
 
 ## Performance Metrics
@@ -158,6 +158,7 @@ Progress: [████████░░] 84%
 | Phase 12 P08 | 14 min | 2 tasks | 1 files |
 | Phase 13 P01 | 16 min | 2 tasks | 8 files |
 | Phase 13 P02 | 120min | 2 tasks | 13 files |
+| Phase 13 P03 | 23 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -320,6 +321,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-01: Service Worker SHELL is / and the SDK, cache usj-shell-<version>; /sw.js is in the cloud guard allow-list only; new worker neither skipWaiting nor claims, so first install fires no controllerchange
 - [Phase 13]: 13-02: SHELL and SHELL_PATHS include the manifest and 4 icons; guard answers manifest/icon requests via route.fetch so a late favicon fetch cannot add an offline console.error
 - [Phase 13]: 13-02: syncOnce returns when the shared token is already gone, so a sign-out in another tab is never reported as an expiry
+- [Phase 13]: 13-03: swUnsaved 在编辑计划页打开时只看 planDirty() 和两个「记一笔」框的真实草稿（isBusy 那时恒为真）；待上传的修改在本机缓存里，不算未保存
+- [Phase 13]: 13-03: 更新横幅「有新版本」「点此更新」、确认框「现在更新？」（先不更新/仍然更新）的文案留给 13-15 总体验收请所有者表态
 
 ### Pending Todos
 
@@ -388,8 +391,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T18:45:49.348Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-11-12T19:12:42.941Z
+Stopped at: Completed 13-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
