@@ -340,6 +340,313 @@ export function c12(ctx) {
   return problems;
 }
 
+// ---------- nginx 文件的解析辅助（13-07） ----------
+
+// 把 nginx 配置拆成 server 层的代码行和 location 块（整行注释已丢掉）。只处理本项目写法：location 头和 `{` 在同一行。
+export function parseConf(text) {
+  const locations = [];
+  const serverLines = [];
+  let depth = 0;
+  let cur = null;
+  for (const raw of String(text).split('\n')) {
+    const line = raw.replace(/^\s*#.*$/, '');
+    if (cur === null) {
+      const m = /^\s*location\s+(.+?)\s*\{\s*$/.exec(line);
+      if (m) {
+        cur = { spec: m[1].replace(/\s+/g, ' '), body: [] };
+        depth = 1;
+        continue;
+      }
+      if (line.trim() !== '') serverLines.push(line);
+      continue;
+    }
+    depth += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+    if (depth <= 0) {
+      locations.push(cur);
+      cur = null;
+      depth = 0;
+      continue;
+    }
+    if (line.trim() !== '') cur.body.push(line);
+  }
+  return { locations, serverLines };
+}
+
+function addHeaderNames(lines) {
+  const names = [];
+  for (const l of lines) {
+    const m = /^\s*add_header\s+(\S+)\s/.exec(l);
+    if (m) names.push(m[1]);
+  }
+  return names;
+}
+
+function includesIn(lines) {
+  const out = [];
+  for (const l of lines) {
+    const m = /^\s*include\s+(\S+?);/.exec(l);
+    if (m) out.push(m[1]);
+  }
+  return out;
+}
+
+const NGINX_NAMES = ['usj-app.conf', 'usj-headers-common.conf', 'usj-headers-proxy.conf', 'usj-log-format.conf'];
+const LOC_SPECS = ['= /', '= /sw.js', '= /manifest.webmanifest', '^~ /vendor/', '^~ /icons/', '= /api/realtime', '^~ /api/', '^~ /_/', '~ ^/'];
+const PROXY_SPECS = ['= /api/realtime', '^~ /api/', '^~ /_/'];
+const COMMON_HEADERS = ['X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy', 'X-Robots-Tag', 'Strict-Transport-Security', 'Cross-Origin-Opener-Policy', 'X-Frame-Options'];
+const PROXY_HEADERS = ['X-Robots-Tag', 'Referrer-Policy', 'Permissions-Policy', 'Strict-Transport-Security'];
+const PERMISSIONS = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
+
+function nginxCodeLines(ctx, name) {
+  const t = ctx.nginx ? ctx.nginx[name] : undefined;
+  return t === undefined || t === null ? null : codeLines(t);
+}
+
+// C-13 每个 location 恰好 include 两个头文件之一；两个头文件各自的 add_header 集合；反代位置不重复也不覆盖 PocketBase 的头
+export function c13(ctx) {
+  const app = ctx.nginx && ctx.nginx['usj-app.conf'];
+  const common = nginxCodeLines(ctx, 'usj-headers-common.conf');
+  const proxy = nginxCodeLines(ctx, 'usj-headers-proxy.conf');
+  if (app === undefined || app === null) return ['缺少 usj-app.conf'];
+  if (!common) return ['缺少 usj-headers-common.conf'];
+  if (!proxy) return ['缺少 usj-headers-proxy.conf'];
+  const problems = [];
+  const cn = addHeaderNames(common);
+  const pn = addHeaderNames(proxy);
+  if (cn.slice().sort().join() !== COMMON_HEADERS.slice().sort().join()) problems.push(`usj-headers-common.conf 的 add_header 不是预期的 7 条（是 ${cn.join('、') || '无'}）`);
+  if (pn.slice().sort().join() !== PROXY_HEADERS.slice().sort().join()) problems.push(`usj-headers-proxy.conf 的 add_header 不是预期的 4 条（是 ${pn.join('、') || '无'}）`);
+  for (const [n, lines] of [['usj-headers-common.conf', common], ['usj-headers-proxy.conf', proxy]]) {
+    const pp = lines.filter((l) => /^\s*add_header\s+Permissions-Policy\s/.test(l));
+    if (pp.length === 1 && !pp[0].includes(`"${PERMISSIONS}"`)) problems.push(`${n} 的 Permissions-Policy 不是预期的值`);
+  }
+  const { locations } = parseConf(app);
+  const specs = locations.map((l) => l.spec);
+  for (const s of LOC_SPECS) {
+    const k = specs.filter((x) => x === s).length;
+    if (k !== 1) problems.push(`位置 ${s} 出现 ${k} 次（应为 1）`);
+  }
+  if (specs.length !== LOC_SPECS.length) problems.push(`位置块一共 ${specs.length} 个（应为 ${LOC_SPECS.length}）`);
+  for (const loc of locations) {
+    const inc = includesIn(loc.body);
+    const nCommon = inc.filter((i) => i === 'snippets/usj-headers-common.conf').length;
+    const nProxy = inc.filter((i) => i === 'snippets/usj-headers-proxy.conf').length;
+    const nCsp = inc.filter((i) => i === 'snippets/usj-csp.conf').length;
+    const isProxy = PROXY_SPECS.includes(loc.spec);
+    if (nCommon + nProxy !== 1) problems.push(`位置 ${loc.spec} 没有恰好 include 一个头文件`);
+    else if (isProxy && nProxy !== 1) problems.push(`反代位置 ${loc.spec} 没有 include usj-headers-proxy.conf`);
+    else if (!isProxy && nCommon !== 1) problems.push(`位置 ${loc.spec} 没有 include usj-headers-common.conf`);
+    if (loc.spec === '= /') {
+      if (nCsp !== 1) problems.push('位置 = / 没有恰好 include 一次 usj-csp.conf');
+    } else if (nCsp !== 0) {
+      problems.push(`位置 ${loc.spec} 不该 include usj-csp.conf`);
+    }
+    if (isProxy && loc.body.some((l) => /Content-Security-Policy/i.test(l))) problems.push(`反代位置 ${loc.spec} 里有 CSP（会盖掉 PocketBase 自己的）`);
+    // 本位置自己的 add_header 与头文件里的不能重名（重名会让响应里出现重复的头）
+    const own = addHeaderNames(loc.body);
+    const fromFile = nCommon === 1 ? cn : nProxy === 1 ? pn : [];
+    for (const h of own) if (fromFile.includes(h)) problems.push(`位置 ${loc.spec} 的 add_header ${h} 与头文件里的重复`);
+    if (isProxy && own.some((h) => ['X-Content-Type-Options', 'X-Frame-Options'].includes(h))) problems.push(`反代位置 ${loc.spec} 覆盖了 PocketBase 自己发的头`);
+  }
+  return problems;
+}
+
+// C-14 三个反代位置的 IP 头、HTTP/1.1；实时位置的缓冲、超时、请求体；/api/ 的请求体 5m
+export function c14(ctx) {
+  const app = ctx.nginx && ctx.nginx['usj-app.conf'];
+  if (app === undefined || app === null) return ['缺少 usj-app.conf'];
+  const problems = [];
+  const { locations } = parseConf(app);
+  const get = (s) => locations.find((l) => l.spec === s);
+  const has = (loc, re) => loc.body.some((l) => re.test(l));
+  for (const s of PROXY_SPECS) {
+    const loc = get(s);
+    if (!loc) {
+      problems.push(`缺少位置 ${s}`);
+      continue;
+    }
+    if (!has(loc, /^\s*proxy_set_header X-Real-IP \$remote_addr;\s*$/)) problems.push(`${s} 没有 proxy_set_header X-Real-IP $remote_addr`);
+    if (loc.body.filter((l) => /proxy_set_header\s+X-Real-IP\b/.test(l)).length !== 1) problems.push(`${s} 的 X-Real-IP 头不是恰好一条`);
+    if (!has(loc, /^\s*proxy_pass http:\/\/127\.0\.0\.1:8090;\s*$/)) problems.push(`${s} 没有 proxy_pass http://127.0.0.1:8090`);
+    if (!has(loc, /^\s*proxy_http_version 1\.1;\s*$/)) problems.push(`${s} 没有 proxy_http_version 1.1`);
+  }
+  const rt = get('= /api/realtime');
+  if (rt) {
+    if (!has(rt, /^\s*proxy_buffering off;\s*$/)) problems.push('= /api/realtime 没有 proxy_buffering off');
+    if (!has(rt, /^\s*proxy_read_timeout 3600s;\s*$/)) problems.push('= /api/realtime 没有 proxy_read_timeout 3600s');
+    if (!has(rt, /^\s*client_max_body_size 1m;\s*$/)) problems.push('= /api/realtime 没有 client_max_body_size 1m');
+    if (!has(rt, /^\s*gzip off;\s*$/)) problems.push('= /api/realtime 没有 gzip off');
+    if (!has(rt, /^\s*proxy_set_header Connection "";\s*$/)) problems.push('= /api/realtime 没有把 Connection 头置空');
+  }
+  const api = get('^~ /api/');
+  if (api && !has(api, /^\s*client_max_body_size 5m;\s*$/)) problems.push('^~ /api/ 没有 client_max_body_size 5m');
+  return problems;
+}
+
+// C-15 日志格式用 $uri，不含查询串；应用片段有 server 层的 access_log，没有任何位置关闭访问日志
+export function c15(ctx) {
+  const fmt = nginxCodeLines(ctx, 'usj-log-format.conf');
+  const app = ctx.nginx && ctx.nginx['usj-app.conf'];
+  if (!fmt) return ['缺少 usj-log-format.conf'];
+  if (app === undefined || app === null) return ['缺少 usj-app.conf'];
+  const problems = [];
+  const f = fmt.join('\n');
+  if (!/^\s*log_format usj '/m.test(f)) problems.push('日志格式没有命名为 usj');
+  if (!f.includes('$uri')) problems.push('日志格式没有用 $uri');
+  if (/\$request(?![A-Za-z0-9_])/.test(f)) problems.push('日志格式里有 $request（含查询串）');
+  if (/\$request_uri\b|\$args\b|\$query_string\b|\$is_args\b/.test(f)) problems.push('日志格式里有查询串变量');
+  const { locations, serverLines } = parseConf(app);
+  if (serverLines.filter((l) => l.trim() === 'access_log /var/log/usj/access.log usj;').length !== 1) problems.push('应用片段的 server 层没有恰好一行 access_log /var/log/usj/access.log usj;');
+  for (const l of serverLines) if (/^\s*access_log\s+off\b/.test(l)) problems.push('server 层关闭了访问日志');
+  for (const loc of locations) if (loc.body.some((l) => /^\s*access_log\b/.test(l))) problems.push(`位置 ${loc.spec} 里有 access_log（不能关闭或改去向）`);
+  if (serverLines.some((l) => /^\s*log_format\b/.test(l))) problems.push('应用片段里不能写 log_format（它只能在 http 层）');
+  return problems;
+}
+
+// C-16 三个 nginx 文件里每条 add_header 都以 always; 结尾
+export function c16(ctx) {
+  const problems = [];
+  for (const name of ['usj-app.conf', 'usj-headers-common.conf', 'usj-headers-proxy.conf']) {
+    const lines = nginxCodeLines(ctx, name);
+    if (!lines) {
+      problems.push(`缺少 ${name}`);
+      continue;
+    }
+    for (const l of lines) {
+      if (/^\s*add_header\s/.test(l) && !/\balways;\s*$/.test(l)) problems.push(`${name} 里有没带 always 的 add_header：${l.trim().slice(0, 50)}`);
+    }
+  }
+  return problems;
+}
+
+// C-17 HSTS 是 max-age=86400，没有 includeSubDomains、preload
+export function c17(ctx) {
+  const problems = [];
+  for (const name of ['usj-headers-common.conf', 'usj-headers-proxy.conf']) {
+    const lines = nginxCodeLines(ctx, name);
+    if (!lines) {
+      problems.push(`缺少 ${name}`);
+      continue;
+    }
+    const hsts = lines.filter((l) => /Strict-Transport-Security/i.test(l));
+    if (hsts.length !== 1) problems.push(`${name} 的 HSTS 不是恰好一条（是 ${hsts.length}）`);
+    for (const l of hsts) if (l.trim() !== 'add_header Strict-Transport-Security "max-age=86400" always;') problems.push(`${name} 的 HSTS 不是 max-age=86400`);
+  }
+  for (const name of NGINX_NAMES) {
+    const lines = nginxCodeLines(ctx, name);
+    if (!lines) continue;
+    for (const l of lines) if (/includeSubDomains|preload/i.test(l)) problems.push(`${name} 里有 includeSubDomains 或 preload`);
+  }
+  const app = nginxCodeLines(ctx, 'usj-app.conf');
+  if (app && app.some((l) => /Strict-Transport-Security/i.test(l))) problems.push('usj-app.conf 里直接写了 HSTS（应只经头文件）');
+  return problems;
+}
+
+// C-18 anchor-block.awk 与 Phase 6 的逐字节相同，并用 bash 里的 awk 判定合成的 443 ssl 块和 80 块
+const AWK_CFG_443 = 'server {\n    listen 443 ssl; # managed by Certbot\n    server_name a.example.com www.a.example.com; # managed by Certbot\n}\nserver {\n    listen 80;\n    server_name a.example.com;\n}\n';
+const AWK_CFG_80 = 'server {\n    listen 80;\n    server_name a.example.com; # managed by Certbot\n}\n';
+
+export function runAnchorAwk(bash, awkText, cfgText) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'usj-awk-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.awk'), awkText);
+    fs.writeFileSync(path.join(dir, 'cfg'), cfgText);
+    const r = spawnSync(bash, ['-c', 'awk -f a.awk cfg'], { cwd: dir, encoding: 'utf8' });
+    return { status: r.status, out: (r.stdout || '').trim() };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function c18(ctx) {
+  const problems = [];
+  if (ctx.awk === undefined || ctx.awk === null) return ['缺少 deploy/server/nginx/anchor-block.awk'];
+  if (ctx.awk6 === undefined || ctx.awk6 === null) return ['找不到 Phase 6 的 tools/probe/server/nginx/anchor-block.awk，无法比对'];
+  if (ctx.awk !== ctx.awk6) problems.push('anchor-block.awk 与 Phase 6 的不是逐字节相同');
+  const a = runAnchorAwk(ctx.bash, ctx.awk, AWK_CFG_443);
+  if (a.out !== 'ANCHOR_BLOCK=443ssl') problems.push(`合成的 443 ssl 块没有输出 ANCHOR_BLOCK=443ssl（输出 ${a.out || '空'}）`);
+  const b = runAnchorAwk(ctx.bash, ctx.awk, AWK_CFG_80);
+  if (b.out === 'ANCHOR_BLOCK=443ssl') problems.push('合成的 80 块被误判成 443 ssl');
+  return problems;
+}
+
+// 取 shell 函数体（`name() {` 之后到单独一行 `}` 之前）
+function funcBody(text, name) {
+  const lines = String(text).split('\n');
+  const start = lines.findIndex((l) => new RegExp(`^${name}\\(\\) \\{`).test(l));
+  if (start < 0) return null;
+  const out = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i] === '}') return out.join('\n');
+    out.push(lines[i]);
+  }
+  return null;
+}
+
+// C-19 05 的回滚、临时文件、顺序和 www 跳转的判断
+export function c19(ctx) {
+  const text = ctx.sh['05-nginx-app.sh'];
+  if (text === undefined) return ['缺少 05-nginx-app.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  const iTrapErr = idx(/^\s*trap rollback ERR\s*$/);
+  const iTrapClear = idx(/^trap - ERR\s*$/); // 顶层（不缩进）的那一行；rollback 函数里缩进的那一行不算
+  const iExit = idx(/^\s*trap \w+ EXIT\s*$/);
+  const iMktemp = idx(/mktemp\s+"\$SITE_DIR\/\S+"/);
+  const iMv = idx(/\bmv -T "\$TMP_SITE" "\$SITE"/);
+  const iNginxT = idx(/\bnginx -t\b/);
+  const iCertbot = idx(/\bcertbot renew --dry-run\b/);
+  const iLogrotate = idx(/\blogrotate -d\b/);
+  const iProbeRm = idx(/\brm -f "\$PROBE_SNIP"(\s|$)/);
+  const iBackup = idx(/\bcp -p "\$p" "\$BK\//);
+  const iFirstInstall = idx(/\binstall -d -o root -g adm -m 0750 \/var\/log\/usj\b/);
+  if (iTrapErr < 0) problems.push('05 没有 trap rollback ERR');
+  if (iTrapClear < 0) problems.push('05 成功路径没有 trap - ERR');
+  if (iExit < 0) problems.push('05 没有 EXIT trap');
+  else {
+    const cl = funcBody(text, 'cleanup');
+    if (cl === null || !/rm -f "\$TMP_SITE"/.test(cl)) problems.push('05 的 EXIT trap 没有清理站点临时文件');
+  }
+  if (iMktemp < 0) problems.push('05 的临时文件不在站点文件所在目录');
+  if (iMv < 0) problems.push('05 没有用 mv -T 把同目录的临时文件换成站点文件');
+  if (iNginxT < 0) problems.push('05 没有 nginx -t');
+  if (iCertbot < 0) problems.push('05 没有 certbot renew --dry-run');
+  if (iLogrotate < 0) problems.push('05 没有 logrotate -d');
+  if (iProbeRm < 0) problems.push('05 没有删探针片段的那一行（rm -f "$PROBE_SNIP"）');
+  if (iBackup < 0) problems.push('05 没有备份文件的 cp -p');
+  if (iFirstInstall < 0) problems.push('05 没有建 /var/log/usj（root:adm 0750）');
+  const rb = funcBody(text, 'rollback');
+  if (rb === null) problems.push('05 没有 rollback 函数');
+  else {
+    const t = rb.indexOf('nginx -t');
+    const r = rb.indexOf('systemctl reload nginx');
+    if (t < 0 || r < 0 || t > r) problems.push('05 的 rollback 没有先 nginx -t 再 reload');
+    if (!/trap - ERR/.test(rb)) problems.push('05 的 rollback 没有先解除 ERR trap');
+  }
+  if (iTrapErr >= 0 && iBackup >= 0 && iBackup > iTrapErr) problems.push('05 的备份在挂 ERR trap 之后');
+  if (iTrapErr >= 0 && iFirstInstall >= 0 && iFirstInstall < iTrapErr) problems.push('05 在挂 ERR trap 之前就开始改动');
+  if (iTrapClear >= 0 && iCertbot >= 0 && iTrapClear < iCertbot) problems.push('05 在 certbot 干跑之前就解除了回滚');
+  if (iTrapClear >= 0 && iLogrotate >= 0 && iTrapClear < iLogrotate) problems.push('05 在 logrotate 干跑之前就解除了回滚');
+  if (iProbeRm >= 0) {
+    if (iCertbot >= 0 && iProbeRm < iCertbot) problems.push('05 删探针片段的位置在 certbot 干跑之前');
+    if (iLogrotate >= 0 && iProbeRm < iLogrotate) problems.push('05 删探针片段的位置在 logrotate 干跑之前');
+    if (iTrapClear >= 0 && iProbeRm < iTrapClear) problems.push('05 删探针片段的位置在解除回滚之前');
+  }
+  // www 跳转：两项只读判断在生成跳转片段之前；跳转只在 05 里生成，不写在 usj-app.conf 里
+  const iSn = idx(/\bwww\.\*\)/);
+  const iGetent = idx(/\bgetent ahosts\b/);
+  const iIf = idx(/if \(\$host/);
+  if (iSn < 0) problems.push('05 没有判断 server_name 里有没有 www.<裸域名>');
+  if (iGetent < 0) problems.push('05 没有 getent ahosts 判断 www 能不能解析');
+  if (iIf < 0) problems.push('05 没有生成 www 跳转的那一行');
+  if (iIf >= 0 && ((iSn >= 0 && iSn > iIf) || (iGetent >= 0 && iGetent > iIf))) problems.push('05 的两项只读判断没有排在生成跳转之前');
+  if (lines.filter((l) => /if \(\$host/.test(l)).length > 1) problems.push('05 里 www 跳转的那一行不止一处');
+  if (!lines.some((l) => /WWW_REDIRECT=/.test(l))) problems.push('05 没有输出 WWW_REDIRECT=');
+  const app = ctx.nginx && ctx.nginx['usj-app.conf'];
+  if (app && /if \(\$host/.test(app)) problems.push('usj-app.conf 里写了 if ($host（www 跳转只能由 05 生成）');
+  return problems;
+}
+
 // ---------- 检查清单 ----------
 
 export const CHECKS = [
@@ -355,6 +662,13 @@ export const CHECKS = [
   { id: 'C-10', title: '02 在 install 之前对解压出的程序跑 --version（IN-11），两个钉死的 sha256 与 Phase 6 的相同', run: c10 },
   { id: 'C-11', title: '07 的 --wipe 在 rm -rf 之前有非探针数据守卫，邮箱正则与清理迁移里的相同', run: c11 },
   { id: 'C-12', title: '00-status 只读（没有改动命令），最后一个 kv 是 STATUS_DONE', run: c12 },
+  { id: 'C-13', title: '每个 location 恰好 include 两个头文件之一（静态位置 common、反代位置 proxy），= / 另 include usj-csp.conf，反代位置不重复也不覆盖 PocketBase 的头', run: c13 },
+  { id: 'C-14', title: '三个反代位置都有 X-Real-IP $remote_addr 和 HTTP/1.1；实时位置有关缓冲、3600s、1m；/api/ 是 5m', run: c14 },
+  { id: 'C-15', title: '日志格式用 $uri、不含查询串；server 层有 access_log，没有位置关闭访问日志', run: c15 },
+  { id: 'C-16', title: 'nginx 文件里每条 add_header 都以 always; 结尾', run: c16 },
+  { id: 'C-17', title: 'HSTS 是 max-age=86400，没有 includeSubDomains、preload', run: c17 },
+  { id: 'C-18', title: 'anchor-block.awk 与 Phase 6 的逐字节相同，合成的 443 ssl 块输出 ANCHOR_BLOCK=443ssl、80 块不输出', run: c18 },
+  { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -369,7 +683,14 @@ export function loadContext(bash) {
   const readOpt = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
   const probe02 = readOpt(path.join(REPO, 'tools', 'probe', 'server', '02-install-pocketbase.sh'));
   const retire = readOpt(path.join(HERE, 'pb_migrations', '1794096150_retire_probe.js'));
-  return { bash, sh, unit, probe02, retire };
+  const nginx = {};
+  const nginxDir = path.join(SERVER_DIR, 'nginx');
+  if (fs.existsSync(nginxDir)) {
+    for (const n of fs.readdirSync(nginxDir).filter((x) => x.endsWith('.conf')).sort()) nginx[n] = fs.readFileSync(path.join(nginxDir, n), 'utf8');
+  }
+  const awk = readOpt(path.join(nginxDir, 'anchor-block.awk'));
+  const awk6 = readOpt(path.join(REPO, 'tools', 'probe', 'server', 'nginx', 'anchor-block.awk'));
+  return { bash, sh, unit, probe02, retire, nginx, awk, awk6 };
 }
 
 export function runChecks(ctx) {
@@ -499,6 +820,110 @@ const GOOD_00 =
     '',
   ].join('\n');
 
+// ---------- 13-07 的合成好文件：nginx 和 05 ----------
+
+const GOOD_COMMON = [
+  'add_header X-Content-Type-Options "nosniff" always;',
+  'add_header Referrer-Policy "no-referrer" always;',
+  `add_header Permissions-Policy "${PERMISSIONS}" always;`,
+  'add_header X-Robots-Tag "noindex, nofollow" always;',
+  'add_header Strict-Transport-Security "max-age=86400" always;',
+  'add_header Cross-Origin-Opener-Policy "same-origin" always;',
+  'add_header X-Frame-Options "DENY" always;',
+  '',
+].join('\n');
+
+const GOOD_PROXYH = [
+  'add_header X-Robots-Tag "noindex, nofollow" always;',
+  'add_header Referrer-Policy "no-referrer" always;',
+  `add_header Permissions-Policy "${PERMISSIONS}" always;`,
+  'add_header Strict-Transport-Security "max-age=86400" always;',
+  '',
+].join('\n');
+
+const GOOD_LOGFMT = [
+  '# 注释里提到 $request_uri 不算',
+  `log_format usj '$remote_addr [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent "$http_user_agent"';`,
+  '',
+].join('\n');
+
+function proxyLoc(spec, extra) {
+  return [
+    `location ${spec} {`,
+    '    proxy_pass http://127.0.0.1:8090;',
+    '    proxy_http_version 1.1;',
+    '    proxy_set_header Connection "";',
+    '    proxy_set_header Host $host;',
+    '    proxy_set_header X-Real-IP $remote_addr;',
+    '    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;',
+    ...extra.map((e) => `    ${e}`),
+    '    include snippets/usj-headers-proxy.conf;',
+    '}',
+    '',
+  ].join('\n');
+}
+
+function staticLoc(spec, extra) {
+  return [`location ${spec} {`, '    root /var/www/usj/site;', '    include snippets/usj-headers-common.conf;', ...extra.map((e) => `    ${e}`), '}', ''].join('\n');
+}
+
+const GOOD_APP = [
+  '# 注释',
+  'access_log /var/log/usj/access.log usj;',
+  'server_tokens off;',
+  'include snippets/usj-www-redirect.conf;',
+  staticLoc('= /', ['try_files /index.html =404;', 'include snippets/usj-csp.conf;', 'add_header Cache-Control "no-cache" always;']),
+  staticLoc('= /sw.js', ['add_header Content-Security-Policy "default-src \'none\'; connect-src \'self\'" always;', 'add_header Cache-Control "no-cache" always;']),
+  staticLoc('= /manifest.webmanifest', ['types { application/manifest+json webmanifest; }', 'add_header Cache-Control "no-cache" always;']),
+  staticLoc('^~ /vendor/', ['add_header Cache-Control "no-cache" always;']),
+  staticLoc('^~ /icons/', ['add_header Cache-Control "public, max-age=3600" always;']),
+  proxyLoc('= /api/realtime', ['proxy_buffering off;', 'proxy_cache off;', 'gzip off;', 'proxy_read_timeout 3600s;', 'proxy_send_timeout 3600s;', 'client_max_body_size 1m;']),
+  proxyLoc('^~ /api/', ['proxy_read_timeout 60s;', 'client_max_body_size 5m;', 'gzip on;']),
+  proxyLoc('^~ /_/', ['proxy_read_timeout 60s;']),
+  'location ~ ^/ {\n    include snippets/usj-headers-common.conf;\n    return 404;\n}\n',
+].join('\n');
+
+const GOOD_05 =
+  GOOD_HEADER +
+  GOOD_UPLOAD +
+  [
+    'SITE_DIR=/etc/nginx/sites-available',
+    'rollback() {',
+    '  trap - ERR',
+    '  sudo -n nginx -t </dev/null',
+    '  sudo -n systemctl reload nginx </dev/null',
+    '}',
+    'cleanup() {',
+    '  sudo -n rm -f "$TMP_SITE" </dev/null || true',
+    '}',
+    'trap cleanup EXIT',
+    'case "$t" in',
+    '  www.*) ;;',
+    'esac',
+    'getent ahosts "$t" </dev/null',
+    "echo 'if ($host ~* ^www\\.(.+)$) { return 301 https://$1$request_uri; }'",
+    'echo "WWW_REDIRECT=$S"',
+    'sudo -n cp -p "$p" "$BK/x" </dev/null',
+    'trap rollback ERR',
+    'sudo -n install -d -o root -g adm -m 0750 /var/log/usj </dev/null',
+    'TMP_SITE="$(sudo -n mktemp "$SITE_DIR/.usj-site.XXXXXX" </dev/null)"',
+    'sudo -n mv -T "$TMP_SITE" "$SITE" </dev/null',
+    'sudo -n nginx -t </dev/null',
+    'sudo -n certbot renew --dry-run --no-random-sleep-on-renew </dev/null',
+    'sudo -n logrotate -d /etc/logrotate.d/usj-nginx </dev/null',
+    'trap - ERR',
+    'sudo -n rm -f "$PROBE_SNIP" </dev/null',
+    '',
+  ].join('\n');
+
+// 自检用的小 awk：一个 server 块里同时有锚点和 listen 443 ssl 才输出 443ssl（只管合成的单块配置）
+const GOOD_AWK = [
+  '/listen 443 ssl/ { ssl = 1 }',
+  '/managed by Certbot/ { a = 1 }',
+  'END { if (a && ssl) print "ANCHOR_BLOCK=443ssl"; else print "ANCHOR_BLOCK=other" }',
+  '',
+].join('\n');
+
 export function goodContext(bash) {
   return {
     bash,
@@ -508,18 +933,31 @@ export function goodContext(bash) {
       '02-install-pocketbase.sh': GOOD_02,
       '03-configure-pocketbase.sh': GOOD_03,
       '04-start-pocketbase.sh': GOOD_04,
+      '05-nginx-app.sh': GOOD_05,
       '07-retire-probe.sh': GOOD_07,
       'pb-admin.sh': GOOD_ADMIN,
     },
     unit: GOOD_UNIT,
     probe02: GOOD_PROBE02,
     retire: GOOD_RETIRE,
+    nginx: {
+      'usj-app.conf': GOOD_APP,
+      'usj-headers-common.conf': GOOD_COMMON,
+      'usj-headers-proxy.conf': GOOD_PROXYH,
+      'usj-log-format.conf': GOOD_LOGFMT,
+    },
+    awk: GOOD_AWK,
+    awk6: GOOD_AWK,
   };
 }
 
-// 在好的上下文上改一个脚本或 unit，得到坏的上下文
+// 在好的上下文上改一个脚本、unit 或 nginx 文件（名字写成 nginx/<文件名>），得到坏的上下文
 export function mutate(ctx, name, fn) {
   if (name === 'unit') return { ...ctx, unit: fn(ctx.unit) };
+  if (name.startsWith('nginx/')) {
+    const n = name.slice('nginx/'.length);
+    return { ...ctx, nginx: { ...ctx.nginx, [n]: fn(ctx.nginx[n]) } };
+  }
   return { ...ctx, sh: { ...ctx.sh, [name]: fn(ctx.sh[name]) } };
 }
 
@@ -544,7 +982,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-12 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-19 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -664,6 +1102,102 @@ function selfTest() {
   expect('C-12 坏：sqlite 不是 mode=ro', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('?mode=ro', ''))));
   expect('C-12 坏：最后一个 kv 不是 STATUS_DONE', () => fails(c12, mutate(good, '00-status.sh', (t) => `${t}kv LATE 1\n`)));
   expect('C-12 坏：没有 STATUS_DONE', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1\n', ''))));
+
+  // C-13
+  expect('C-13 好：头文件和位置都对', () => passes(c13, good));
+  expect('C-13 坏：静态位置没有 include 头文件', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/location \^~ \/vendor\/ \{\n    root \/var\/www\/usj\/site;\n    include snippets\/usj-headers-common\.conf;/, 'location ^~ /vendor/ {\n    root /var/www/usj/site;'))));
+  expect('C-13 坏：反代位置又 include 了 common', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{\n)/, '$1    include snippets/usj-headers-common.conf;\n'))));
+  expect('C-13 坏：= / 没有 include usj-csp.conf', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('    include snippets/usj-csp.conf;\n', ''))));
+  expect('C-13 坏：别的位置也 include 了 usj-csp.conf', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/icons\/ \{\n)/, '$1    include snippets/usj-csp.conf;\n'))));
+  expect('C-13 坏：反代位置里有 CSP', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/api\/ \{\n)/, "$1    add_header Content-Security-Policy \"default-src 'self'\" always;\n"))));
+  expect('C-13 坏：位置的 add_header 与头文件重名', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/icons\/ \{\n)/, '$1    add_header X-Robots-Tag "index" always;\n'))));
+  expect('C-13 坏：反代位置自己发 X-Frame-Options', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{\n)/, '$1    add_header X-Frame-Options "DENY" always;\n'))));
+  expect('C-13 坏：common 少了一条', () => fails(c13, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('add_header X-Frame-Options "DENY" always;\n', ''))));
+  expect('C-13 坏：proxy 多了 nosniff', () => fails(c13, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => `${t}add_header X-Content-Type-Options "nosniff" always;\n`)));
+  expect('C-13 坏：Permissions-Policy 被改', () => fails(c13, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('usb=()', 'usb=*'))));
+  expect('C-13 坏：少一个位置', () => fails(c13, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/location \^~ \/icons\/ \{[\s\S]*?\n\}\n/, ''))));
+  expect('C-13 坏：缺少 usj-app.conf', () => fails(c13, { ...good, nginx: {} }));
+
+  // C-14
+  expect('C-14 好：IP 头和实时位置参数都对', () => passes(c14, good));
+  expect('C-14 坏：/_/ 没有 X-Real-IP', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{[\s\S]*?)    proxy_set_header X-Real-IP \$remote_addr;\n/, '$1'))));
+  expect('C-14 坏：X-Real-IP 取了客户端自带的头', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/api\/ \{[\s\S]*?)X-Real-IP \$remote_addr;/, '$1X-Real-IP $http_x_real_ip;'))));
+  expect('C-14 坏：X-Real-IP 设了两次', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{\n)/, '$1    proxy_set_header X-Real-IP $remote_addr;\n'))));
+  expect('C-14 坏：实时位置没关缓冲', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('proxy_buffering off;', 'proxy_buffering on;'))));
+  expect('C-14 坏：实时位置读超时不是 3600s', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('proxy_read_timeout 3600s;', 'proxy_read_timeout 60s;'))));
+  expect('C-14 坏：实时位置请求体不是 1m', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location = \/api\/realtime \{[\s\S]*?)client_max_body_size 1m;/, '$1client_max_body_size 5m;'))));
+  expect('C-14 坏：/api/ 的请求体是 1m', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('client_max_body_size 5m;', 'client_max_body_size 1m;'))));
+  expect('C-14 坏：没有 proxy_http_version 1.1', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{[\s\S]*?)    proxy_http_version 1\.1;\n/, '$1'))));
+  expect('C-14 坏：实时位置没清 Connection 头', () => fails(c14, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location = \/api\/realtime \{[\s\S]*?)    proxy_set_header Connection "";\n/, '$1'))));
+
+  // C-15
+  expect('C-15 好：日志格式用 $uri，server 层记日志', () => passes(c15, good));
+  expect('C-15 坏：日志格式用了 $request', () => fails(c15, mutate(good, 'nginx/usj-log-format.conf', (t) => t.replace('"$request_method $uri $server_protocol"', '"$request"'))));
+  expect('C-15 坏：日志格式用了 $request_uri', () => fails(c15, mutate(good, 'nginx/usj-log-format.conf', (t) => t.replace('$uri', '$request_uri'))));
+  expect('C-15 坏：日志格式带 $args', () => fails(c15, mutate(good, 'nginx/usj-log-format.conf', (t) => t.replace('$uri $server_protocol', '$uri?$args $server_protocol'))));
+  expect('C-15 坏：日志格式没有 $uri', () => fails(c15, mutate(good, 'nginx/usj-log-format.conf', (t) => t.replace('$uri ', ''))));
+  expect('C-15 坏：日志格式不叫 usj', () => fails(c15, mutate(good, 'nginx/usj-log-format.conf', (t) => t.replace('log_format usj', 'log_format other'))));
+  expect('C-15 坏：位置里关了访问日志', () => fails(c15, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/_\/ \{\n)/, '$1    access_log off;\n'))));
+  expect('C-15 坏：server 层没有 access_log', () => fails(c15, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('access_log /var/log/usj/access.log usj;\n', ''))));
+  expect('C-15 坏：access_log 用了别的格式', () => fails(c15, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('access_log /var/log/usj/access.log usj;', 'access_log /var/log/usj/access.log combined;'))));
+
+  // C-16
+  expect('C-16 好：每条 add_header 都带 always', () => passes(c16, good));
+  expect('C-16 坏：头文件里有一条没有 always', () => fails(c16, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('"nosniff" always;', '"nosniff";'))));
+  expect('C-16 坏：应用片段里有一条没有 always', () => fails(c16, mutate(good, 'nginx/usj-app.conf', (t) => t.replace('add_header Cache-Control "public, max-age=3600" always;', 'add_header Cache-Control "public, max-age=3600";'))));
+  expect('C-16 坏：proxy 头文件里有一条没有 always', () => fails(c16, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('"no-referrer" always;', '"no-referrer";'))));
+
+  // C-17
+  expect('C-17 好：HSTS 一天', () => passes(c17, good));
+  expect('C-17 坏：HSTS 一年', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('max-age=86400', 'max-age=31536000'))));
+  expect('C-17 坏：HSTS 带 includeSubDomains', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('max-age=86400', 'max-age=86400; includeSubDomains'))));
+  expect('C-17 坏：HSTS 带 preload', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('max-age=86400', 'max-age=86400; preload'))));
+  expect('C-17 坏：HSTS 缺失', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('add_header Strict-Transport-Security "max-age=86400" always;\n', ''))));
+  expect('C-17 坏：应用片段里直接写 HSTS', () => fails(c17, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/icons\/ \{\n)/, '$1    add_header Strict-Transport-Security "max-age=86400" always;\n'))));
+
+  // C-18（需要 bash 里的 awk）
+  expect('C-18 好：awk 相同，合成块判定对', () => passes(c18, good));
+  expect('C-18 坏：与 Phase 6 的不相同', () => fails(c18, { ...good, awk6: `${GOOD_AWK}# x\n` }));
+  expect('C-18 坏：80 块也输出 443ssl', () => fails(c18, { ...good, awk: 'END { print "ANCHOR_BLOCK=443ssl" }\n', awk6: 'END { print "ANCHOR_BLOCK=443ssl" }\n' }));
+  expect('C-18 坏：443 块不输出 443ssl', () => fails(c18, { ...good, awk: 'END { print "ANCHOR_BLOCK=other" }\n', awk6: 'END { print "ANCHOR_BLOCK=other" }\n' }));
+  expect('C-18 坏：找不到 Phase 6 的文件', () => fails(c18, { ...good, awk6: null }));
+  expect('C-18 坏：缺少 awk', () => fails(c18, { ...good, awk: null }));
+
+  // C-19
+  const g05 = (fn) => mutate(good, '05-nginx-app.sh', fn);
+  expect('C-19 好：05 的顺序和回滚都对', () => passes(c19, good));
+  expect('C-19 坏：没有 trap rollback ERR', () => fails(c19, g05((t) => t.replace('trap rollback ERR\n', ''))));
+  expect('C-19 坏：成功路径没有 trap - ERR', () => fails(c19, g05((t) => t.replace(/\ntrap - ERR\n/, '\n'))));
+  expect('C-19 坏：没有 EXIT trap', () => fails(c19, g05((t) => t.replace('trap cleanup EXIT\n', ''))));
+  expect('C-19 坏：EXIT 清理不删临时文件', () => fails(c19, g05((t) => t.replace('sudo -n rm -f "$TMP_SITE" </dev/null || true', 'true'))));
+  expect('C-19 坏：临时文件不在站点目录', () => fails(c19, g05((t) => t.replace('mktemp "$SITE_DIR/.usj-site.XXXXXX"', 'mktemp'))));
+  expect('C-19 坏：没有 mv -T', () => fails(c19, g05((t) => t.replace('mv -T "$TMP_SITE" "$SITE"', 'cp "$TMP_SITE" "$SITE"'))));
+  expect('C-19 坏：没有 certbot 干跑', () => fails(c19, g05((t) => t.replace('certbot renew --dry-run', 'certbot renew'))));
+  expect('C-19 坏：没有 logrotate -d', () => fails(c19, g05((t) => t.replace('logrotate -d', 'logrotate -f'))));
+  expect('C-19 坏：删探针片段在 certbot 干跑之前', () =>
+    fails(c19, g05((t) => {
+      const rm = 'sudo -n rm -f "$PROBE_SNIP" </dev/null\n';
+      return t.replace(rm, '').replace('sudo -n certbot renew', `${rm}sudo -n certbot renew`);
+    })));
+  expect('C-19 坏：解除回滚在 certbot 干跑之前', () => fails(c19, g05((t) => t.replace(/\ntrap - ERR\n/, '\n').replace('sudo -n certbot renew', 'trap - ERR\nsudo -n certbot renew'))));
+  expect('C-19 坏：rollback 不核对 nginx -t 就 reload', () => fails(c19, g05((t) => t.replace('  sudo -n nginx -t </dev/null\n  sudo -n systemctl reload nginx </dev/null', '  sudo -n systemctl reload nginx </dev/null'))));
+  expect('C-19 坏：在挂 ERR trap 之前就改动', () =>
+    fails(c19, g05((t) => t.replace('trap rollback ERR\n', '').replace('TMP_SITE="$(', 'trap rollback ERR\nTMP_SITE="$('))));
+  expect('C-19 坏：备份在 ERR trap 之后', () =>
+    fails(c19, g05((t) => {
+      const cp = 'sudo -n cp -p "$p" "$BK/x" </dev/null\n';
+      return t.replace(cp, '').replace('sudo -n install -d -o root -g adm', `${cp}sudo -n install -d -o root -g adm`);
+    })));
+  expect('C-19 坏：没有判断 www 解析', () => fails(c19, g05((t) => t.replace('getent ahosts "$t" </dev/null\n', ''))));
+  expect('C-19 坏：没有判断 server_name 里有 www', () => fails(c19, g05((t) => t.replace('  www.*) ;;\n', '  x) ;;\n'))));
+  expect('C-19 坏：判断排在生成跳转之后', () =>
+    fails(c19, g05((t) => {
+      const g = 'getent ahosts "$t" </dev/null\n';
+      return t.replace(g, '').replace('echo "WWW_REDIRECT=$S"', `${g}echo "WWW_REDIRECT=$S"`);
+    })));
+  expect('C-19 坏：没有输出 WWW_REDIRECT=', () => fails(c19, g05((t) => t.replace('echo "WWW_REDIRECT=$S"\n', ''))));
+  expect('C-19 坏：usj-app.conf 里写了 if ($host', () => fails(c19, mutate(good, 'nginx/usj-app.conf', (t) => `${t}if ($host ~* ^www\\.(.+)$) { return 301 https://$1$request_uri; }\n`)));
+  expect('C-19 坏：缺少 05', () => fails(c19, { ...good, sh: { 'x.sh': '' } }));
 
   console.log(bad === 0 ? `SELF-TEST OK (${n} cases)` : `SELF-TEST FAIL (${bad} of ${n})`);
   return bad === 0 ? 0 : 1;
