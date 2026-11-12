@@ -57,7 +57,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 - [ ] **OPS-01**：服务器每天自动备份数据库，并复制一份到服务器以外（Cloudflare R2）；做过一次恢复演练。
 - [ ] **OPS-02**：服务器重启后，PocketBase 和 HTTPS 自动恢复，不需要手动操作。
-- [x] **OPS-03**：部署和升级有写好的步骤和脚本；PocketBase 固定版本，安装前核对校验和。
+- [ ] **OPS-03**：部署和升级有写好的步骤和脚本；PocketBase 固定版本，安装前核对校验和。
 - [ ] **OPS-04**：页面打开过一次后，断网时也能打开（冷启动离线），也可以添加到手机主屏幕。
 
 ### 测试（TEST）
@@ -129,7 +129,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | SEC-04 | Phase 7 | Complete |
 | OPS-01 | Phase 13 | Pending |
 | OPS-02 | Phase 13 | Pending |
-| OPS-03 | Phase 13 | Complete |
+| OPS-03 | Phase 13 | Pending |
 | OPS-04 | Phase 13 | Pending |
 | TEST-01 | Phase 7 | Complete |
 | TEST-02 | Phase 8 | Pending |
