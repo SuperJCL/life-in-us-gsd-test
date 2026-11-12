@@ -3,6 +3,9 @@
 // 用途：withInstance(opts, fn) 核对已批准的程序 -> 建系统临时目录 -> 创建超级用户 -> 只在 127.0.0.1 的随机端口启动
 // -> 等健康检查 -> 调用 fn -> 停止进程并删除整个临时目录。隔离脚本、录制脚本和 smoke 共用。
 //
+// 可选参数：opts.migrationsDir 换迁移目录；opts.hooksFrom（目录）在创建超级用户之前把其中所有 *.pb.js 复制进临时的 hooksDir（13-05），
+// 不给时行为与以前完全相同。
+//
 // 安全约定：
 //   - 每次启动前核对程序的 sha256；缺失、未钉死或不一致都拒绝运行（退出码 2），换版本必须重新得到所有者批准。
 //   - 超级用户的邮箱和口令每次运行时随机生成，只在内存里；创建超级用户的子命令只以参数数组传给 spawn。
@@ -100,6 +103,14 @@ function waitExit(child, ms) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 把目录里的 *.pb.js 复制进目标目录，返回复制的文件名（相对路径按仓库根解析）
+export function copyHooks(from, to) {
+  const src = path.isAbsolute(from) ? from : path.join(REPO, from);
+  const names = fs.readdirSync(src).filter((f) => f.endsWith('.pb.js')).sort();
+  for (const f of names) fs.copyFileSync(path.join(src, f), path.join(to, f));
+  return names;
+}
+
 function openLog(dir, name) {
   return fs.openSync(path.join(dir, name), 'a');
 }
@@ -114,6 +125,7 @@ export async function withInstance(opts, fn) {
   const hooksDir = path.join(dir, 'pb_hooks');
   fs.mkdirSync(dataDir);
   fs.mkdirSync(hooksDir);
+  if (opts && opts.hooksFrom) copyHooks(opts.hooksFrom, hooksDir);
 
   const email = `su-${crypto.randomBytes(8).toString('hex')}@example.com`;
   const password = crypto.randomBytes(24).toString('hex');
@@ -268,6 +280,19 @@ function selfTest() {
   const sa = serveArgs({ port: 12345, dataDir: 'd', migrationsDir: 'm', hooksDir: 'h' });
   check('serveArgs 只监听回环并关闭 automigrate', sa.includes('--http=127.0.0.1:12345') && sa.includes('--automigrate=false') && !sa.join(' ').includes('0.0.0.0'));
   check('serveArgs 含 serve 与迁移目录', sa[0] === 'serve' && sa.includes('--migrationsDir=m') && sa.includes('--hooksDir=h'));
+  const hw = fs.mkdtempSync(path.join(os.tmpdir(), 'usj-pbhooks-'));
+  try {
+    const from = path.join(hw, 'from');
+    const to = path.join(hw, 'to');
+    fs.mkdirSync(from);
+    fs.mkdirSync(to);
+    fs.writeFileSync(path.join(from, 'a.pb.js'), '// a');
+    fs.writeFileSync(path.join(from, 'note.txt'), 'x');
+    const names = copyHooks(from, to);
+    check('copyHooks 只复制 *.pb.js', names.length === 1 && names[0] === 'a.pb.js' && fs.readdirSync(to).join() === 'a.pb.js');
+  } finally {
+    fs.rmSync(hw, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
   check('PB_EXE_SHA256 为空或 PB-LOCAL.md 含同一个值', PB_EXE_SHA256 === '' || (fs.existsSync(PB_LOCAL_MD) && fs.readFileSync(PB_LOCAL_MD, 'utf8').includes(PB_EXE_SHA256)));
   return results;
 }

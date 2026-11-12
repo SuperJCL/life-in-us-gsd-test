@@ -21,11 +21,12 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isEntry } from '../tools/pb/lib/entry.mjs';
-import { verifyExe, withInstance } from '../tools/pb/lib/instance.mjs';
+import { freePort, verifyExe, withInstance } from '../tools/pb/lib/instance.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -117,6 +118,113 @@ export function parseArgs(argv, implemented) {
   return { error: '用法：node deploy/server-config-check.mjs --self-test | --local [settings|watchdog|retire|rotate]' };
 }
 
+// MIME 编码字（=?UTF-8?B?…?= 和 =?UTF-8?Q?…?=）解码；相邻编码字之间的空白按规范丢掉
+export function decodeMimeWords(value) {
+  const joined = String(value).replace(/(=\?[^?\s]+\?[BbQq]\?[^?\s]*\?=)\s+(?==\?)/g, '$1');
+  return joined.replace(/=\?([^?\s]+)\?([BbQq])\?([^?\s]*)\?=/g, (_m, _cs, enc, text) => {
+    if (enc.toUpperCase() === 'B') return Buffer.from(text, 'base64').toString('utf8');
+    const bytes = [];
+    const t = text.replace(/_/g, ' ');
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(t.slice(i + 1, i + 3))) {
+        bytes.push(parseInt(t.slice(i + 1, i + 3), 16));
+        i += 2;
+      } else {
+        bytes.push(...Buffer.from(t[i], 'utf8'));
+      }
+    }
+    return Buffer.from(bytes).toString('utf8');
+  });
+}
+
+// 从一封信的原文里取（解码后的）主题；没有主题返回空串
+export function subjectOf(raw) {
+  const head = String(raw).split(/\r?\n\r?\n/)[0].replace(/\r?\n[ \t]+/g, ' ');
+  const m = /^Subject:[ \t]*(.*)$/im.exec(head);
+  return m ? decodeMimeWords(m[1].trim()) : '';
+}
+
+// 本机 SMTP 收件端：只绑 127.0.0.1 的随机端口；不宣告 STARTTLS 和 AUTH；把每封信的发件人、收件人和原文存在内存里。
+export async function startSmtpSink() {
+  const mails = [];
+  const sockets = new Set();
+  const server = net.createServer((sock) => {
+    sockets.add(sock);
+    sock.on('close', () => sockets.delete(sock));
+    sock.on('error', () => {});
+    let buf = '';
+    let inData = false;
+    let cur = { from: '', rcpt: [], raw: '' };
+    const reply = (t) => sock.write(`${t}\r\n`);
+    const addrOf = (line) => {
+      const m = /<([^>]*)>/.exec(line);
+      return m ? m[1] : '';
+    };
+    sock.on('data', (chunk) => {
+      buf += chunk.toString('utf8');
+      for (;;) {
+        if (inData) {
+          const end = buf.indexOf('\r\n.\r\n');
+          if (end < 0) return;
+          cur.raw = buf.slice(0, end);
+          buf = buf.slice(end + 5);
+          inData = false;
+          mails.push(cur);
+          cur = { from: '', rcpt: [], raw: '' };
+          reply('250 queued');
+          continue;
+        }
+        const nl = buf.indexOf('\r\n');
+        if (nl < 0) return;
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 2);
+        const cmd = line.slice(0, 4).toUpperCase();
+        if (cmd === 'EHLO' || cmd === 'HELO') reply('250 localhost');
+        else if (cmd === 'MAIL') {
+          cur = { from: addrOf(line), rcpt: [], raw: '' };
+          reply('250 ok');
+        } else if (cmd === 'RCPT') {
+          cur.rcpt.push(addrOf(line));
+          reply('250 ok');
+        } else if (cmd === 'DATA') {
+          inData = true;
+          reply('354 go ahead');
+        } else if (cmd === 'RSET' || cmd === 'NOOP') reply('250 ok');
+        else if (cmd === 'QUIT') {
+          reply('221 bye');
+          sock.end();
+          return;
+        } else reply('502 not implemented');
+      }
+    });
+    reply('220 localhost ESMTP');
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  return {
+    port: server.address().port,
+    mails,
+    close: () =>
+      new Promise((resolve) => {
+        for (const sk of sockets) sk.destroy();
+        server.close(() => resolve());
+      }),
+  };
+}
+
+// 等到条件成立或超时；返回最后一次条件的值
+async function waitFor(fn, ms, step = 250) {
+  const end = Date.now() + ms;
+  let v = await fn();
+  while (!v && Date.now() < end) {
+    await sleep(step);
+    v = await fn();
+  }
+  return v;
+}
+
 // ---------- 报告 ----------
 
 const results = [];
@@ -191,13 +299,106 @@ async function scenarioSettings() {
   }
 }
 
+// ---------- 场景 watchdog ----------
+
+const WATCH_SUBJECT = '计划手记：备份异常';
+
+async function scenarioWatchdog() {
+  const mig = makeMigrationsDir();
+  const sink = await startSmtpSink();
+  try {
+    await withInstance({ migrationsDir: mig.dir, hooksFrom: 'deploy/pb_hooks' }, async ({ baseUrl, su }) => {
+      const json = async (p, init) => {
+        const r = await su(p, init);
+        let body = null;
+        try {
+          body = await r.json();
+        } catch {
+          body = null;
+        }
+        return { status: r.status, body };
+      };
+      const post = (p) => su(p, { method: 'POST' });
+      const patchSettings = (obj) =>
+        json('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+
+      const crons = (await json('/api/crons')).body;
+      const list = Array.isArray(crons) ? crons : [];
+      const watch = list.find((c) => c && c.id === 'usj-backup-watch');
+      const auto = list.find((c) => c && c.id === '__pbAutoBackup__');
+      check('W-01', '定时任务里有看门狗（30 20 * * *）和内置自动备份（0 19 * * *）', !!watch && watch.expression === '30 20 * * *' && !!auto && auto.expression === '0 19 * * *');
+
+      // 本机收件端当 SMTP；发件人和收件人都是合成地址
+      const senderAddr = 'backup@example.com';
+      const patch = await patchSettings({
+        smtp: { enabled: true, host: '127.0.0.1', port: sink.port, tls: false, username: '', password: '' },
+        meta: { senderAddress: senderAddr, senderName: 'usj' },
+      });
+      const recs = (await json('/api/collections/_superusers/records')).body;
+      const suEmail = recs && recs.items && recs.items[0] ? String(recs.items[0].email).toLowerCase() : '';
+      const r1 = await post('/api/crons/usj-backup-watch');
+      await waitFor(() => sink.mails.length >= 1, 10000);
+      await sleep(1000);
+      const m1 = sink.mails[0];
+      const w02 =
+        patch.status === 200 &&
+        r1.status === 204 &&
+        sink.mails.length === 1 &&
+        !!m1 &&
+        suEmail !== '' &&
+        m1.rcpt.map((a) => a.toLowerCase()).join() === suEmail &&
+        m1.from === senderAddr &&
+        subjectOf(m1.raw) === WATCH_SUBJECT;
+      check('W-02', '没有自动备份时看门狗恰好给超级用户发 1 封「计划手记：备份异常」', w02);
+
+      const r2 = await post('/api/crons/__pbAutoBackup__');
+      const hasBackup = async () => {
+        const b = (await json('/api/backups')).body;
+        return Array.isArray(b) && b.some((f) => f && String(f.key).startsWith('@auto_pb_backup_usj_'));
+      };
+      const got = await waitFor(hasBackup, 30000, 500);
+      check('W-03', '运行内置自动备份任务后出现 @auto_pb_backup_usj_ 开头的备份', r2.status === 204 && !!got);
+
+      const before = sink.mails.length;
+      const r3 = await post('/api/crons/usj-backup-watch');
+      await sleep(5000);
+      check('W-04', '有新备份时再运行看门狗，5 秒内没有新信', r3.status === 204 && sink.mails.length === before);
+
+      // 打开指向没人监听的本机端口的 S3，内置备份任务失败后应给超级用户发告警邮件
+      const dead = await freePort();
+      const p2 = await patchSettings({
+        backups: { s3: { enabled: true, endpoint: `http://127.0.0.1:${dead}`, bucket: 'b', region: 'auto', accessKey: 'ak', secret: 'sk', forcePathStyle: true } },
+      });
+      const r4 = await post('/api/crons/__pbAutoBackup__');
+      const alerted = await waitFor(() => sink.mails.length >= before + 1, 15000);
+      const last = sink.mails[sink.mails.length - 1];
+      const w05 =
+        p2.status === 200 &&
+        r4.status === 204 &&
+        !!alerted &&
+        !!last &&
+        last.rcpt.map((a) => a.toLowerCase()).join() === suEmail &&
+        subjectOf(last.raw) !== '' &&
+        subjectOf(last.raw) !== WATCH_SUBJECT;
+      check('W-05', '备份上传失败时 PocketBase 自带告警邮件发给超级用户', w05);
+
+      const h = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+      check('W-06', '钩子运行后实例仍然健康', h.status === 200);
+    });
+  } finally {
+    await sink.close();
+    mig.cleanup();
+  }
+}
+
 const SCENARIOS = {
   settings: { ids: ['S-01', 'S-02', 'S-03', 'S-04', 'S-05', 'S-06', 'S-07', 'S-08', 'S-09'], run: scenarioSettings },
+  watchdog: { ids: ['W-01', 'W-02', 'W-03', 'W-04', 'W-05', 'W-06'], run: scenarioWatchdog },
 };
 
 // ---------- 自检 ----------
 
-function selfTest() {
+async function selfTest() {
   const out = [];
   const t = (name, ok) => {
     out.push(!!ok);
@@ -237,11 +438,62 @@ function selfTest() {
     only.cleanup();
   }
 
+  const b64 = Buffer.from('计划手记：备份异常', 'utf8').toString('base64');
+  t('主题解码：B 编码', decodeMimeWords(`=?UTF-8?B?${b64}?=`) === '计划手记：备份异常');
+  const qp = Buffer.from('计划手记：备份异常', 'utf8').toString('hex').toUpperCase().replace(/(..)/g, '=$1');
+  t('主题解码：Q 编码', decodeMimeWords(`=?UTF-8?Q?${qp}?=`) === '计划手记：备份异常');
+  t('主题解码：相邻编码字拼接并丢掉中间空白', decodeMimeWords('=?UTF-8?Q?=E8=AE=A1?= =?UTF-8?Q?=E5=88=92?=') === '计划');
+  t('主题解码：没有编码字时原样返回', decodeMimeWords('plain subject') === 'plain subject');
+  t('主题提取：折行的主题头', subjectOf(`From: a\r\nSubject: =?UTF-8?B?${b64}?=\r\nTo: b\r\n\r\nbody`) === '计划手记：备份异常');
   t('参数：--self-test', parseArgs(['--self-test']).mode === 'self-test');
   t('参数：--local 不带场景时全部运行', parseArgs(['--local']).scenarios.length === SCENARIO_NAMES.length);
   t('参数：--local settings', parseArgs(['--local', 'settings']).scenarios[0] === 'settings');
   t('参数：未知场景报错', typeof parseArgs(['--local', 'nope']).error === 'string');
   t('参数：没有参数或多余参数报错', typeof parseArgs([]).error === 'string' && typeof parseArgs(['--local', 'settings', 'x']).error === 'string');
+
+  // 收件端的对话：用一个本机 socket 走一遍 EHLO -> MAIL -> RCPT -> DATA -> QUIT，应收到恰好一封
+  const sink = await startSmtpSink();
+  try {
+    const subj = `=?UTF-8?B?${b64}?=`;
+    const lines = [
+      'EHLO test',
+      'MAIL FROM:<from@example.com>',
+      'RCPT TO:<to@example.com>',
+      'DATA',
+      `Subject: ${subj}\r\n\r\nbody\r\n.`,
+      'QUIT',
+    ];
+    const reply = await new Promise((resolve) => {
+      const sock = net.connect({ host: '127.0.0.1', port: sink.port });
+      let got = '';
+      let step = 0;
+      const timer = setTimeout(() => {
+        sock.destroy();
+        resolve(got);
+      }, 5000);
+      sock.on('data', (d) => {
+        got += d.toString('utf8');
+        const complete = got.split('\r\n').filter(Boolean).length;
+        if (complete > step && step < lines.length) {
+          sock.write(`${lines[step]}\r\n`);
+          step += 1;
+        }
+      });
+      sock.on('close', () => {
+        clearTimeout(timer);
+        resolve(got);
+      });
+      sock.on('error', () => {});
+    });
+    const m = sink.mails[0];
+    t(
+      '收件端：EHLO 到 QUIT 走完，收到一封，发件人、收件人和主题都对',
+      reply.includes('221') && sink.mails.length === 1 && !!m && m.from === 'from@example.com' && m.rcpt.join() === 'to@example.com' && subjectOf(m.raw) === '计划手记：备份异常',
+    );
+    t('收件端：不宣告 STARTTLS 和 AUTH', !/STARTTLS|AUTH/i.test(reply));
+  } finally {
+    await sink.close();
+  }
 
   const all = out.every(Boolean);
   console.log(all ? `SELF-TEST OK (${out.length} cases)` : `SELF-TEST FAIL (${out.filter((x) => !x).length} of ${out.length})`);
@@ -291,7 +543,7 @@ if (isEntry(import.meta.url)) {
     console.error(p.error);
     process.exit(2);
   } else if (p.mode === 'self-test') {
-    process.exit(selfTest() ? 0 : 1);
+    process.exit((await selfTest()) ? 0 : 1);
   } else {
     process.exit(await runLocal(p.scenarios));
   }
