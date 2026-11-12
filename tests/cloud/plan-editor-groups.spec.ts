@@ -31,6 +31,7 @@ import {
   PE_ERR_TASK_TEXT,
   PE_ERR_UNIT_LONG,
   PE_HINT_DIRTY,
+  PE_HINT_NONE,
   PE_LIMIT_GROUPS,
   PE_LIMIT_TASKS,
   PE_LIVE_ARCHIVED_PREFIX,
@@ -636,4 +637,17 @@ test('PLAN-02 a loaded plan over the D-17 limits cannot be saved until the exces
   expect(saved.groups[1].tasks.length).toBe(50);
   expect(saved.lifts[0].unit).toBe('kg');
   expect(saved.presets.pro).toEqual(['SYNTH-wl tag']);
+});
+
+test('PLAN-02 typing in an empty group note and clearing it again leaves the draft unchanged (IN-01)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('nt', 2);
+  plan.groups[0].note = '';
+  await app.open({ mode: 'cloud', seed: syntheticState('nt'), plan, login: 0 });
+  await openEditor(page);
+  await expand(page, 'g:g-nt1');
+  await field(page, 'g:g-nt1:note').fill('SYNTH-nt note');
+  expect((await readEditor(page)).hint).toBe(PE_HINT_DIRTY);
+  await field(page, 'g:g-nt1:note').fill('');
+  const ed = await readEditor(page);
+  expect([ed.hint, ed.saveDisabled]).toEqual([PE_HINT_NONE, true]);
 });

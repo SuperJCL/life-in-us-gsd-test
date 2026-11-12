@@ -2295,13 +2295,15 @@ function showTab(k){
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===k));
   ["wk","cal","goal","tl","plan"].forEach(x=>$("tab-"+x).classList.toggle("hidden",x!==k));
 }
-function planDirty(){return !!pe&&canon(pe.draft)!==pe.orig}
+/* IN-01：组备注为空串和没有备注键是同一件事（输入框清空会删掉 note 键），比较「有没有修改」时两边都当作没有备注 */
+function peCanon(d){return canon({...d,groups:d.groups.map(g=>{if(g.note!=="")return g;const o={...g};delete o.note;return o})})}
+function planDirty(){return !!pe&&peCanon(pe.draft)!==pe.orig}
 /* D-07：编辑期间别的设备（或同一浏览器的另一个标签页）保存了计划。判断只比较内容：现在的计划要和打开时的 pe.orig 不同（对方存了同样的内容不算；编辑页开着时本机的恢复、撤销导入换掉计划也算，CR-02，所以不能看 docs.plan.base，导入不会前移它）；现在的计划 = 挂起槽里的计划（读不出来按示例计划）或工作计划。草稿从不被改 */
 const T_PE_NOTICE="计划在别的设备上改过了。你的草稿没有变，点「保存计划」时可以选择怎么处理。",T_PE_HINT_REMOTE="计划在别的设备上改过了";
 const T_PE_CF_TITLE="计划在别的设备上改过了",T_PE_CF_L1="你打开编辑页之后，别的设备保存了新的计划。",T_PE_CF_L2="用我的覆盖：保存你现在这份草稿；别的设备上的那一版会在本机留一份，可以下载。",T_PE_CF_L3="放弃我的修改，用新版：丢掉你的草稿，改用别的设备上的新计划。",T_PE_CF_L4="回去继续改：回到编辑页，什么都不变。";
 const T_PE_BACK="回去继续改",T_PE_TAKE="放弃我的修改，用新版",T_PE_OVERWRITE="用我的覆盖",T_PE_SAVED_KEPT="计划已保存，别的设备上的那一版已在本机留底",T_PE_TAKEN="已改用别的设备上的新计划，你的修改没有保存";
 function peNow(){const ps=pendRemote.plan;return ps?(normalizePlan(ps.data)||normalizePlan(DEFAULT_PLAN)):plan}
-function peChanged(){return !!pe&&canon(peNow())!==pe.orig}
+function peChanged(){return !!pe&&peCanon(peNow())!==pe.orig}
 function peRemote(){
   if(!pe)return;
   pe.remote=peChanged();
@@ -2317,7 +2319,7 @@ function openPlanEditor(from){
   if(pe)return;
   /* 草稿从最新的计划开始：挂起的远端版本先并入 */
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
-  pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],archOpen:false,busy:false,remote:false,tooLarge:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
+  pe={draft:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],archOpen:false,busy:false,remote:false,tooLarge:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
   /* 所有者决定（2026-11-11）：打开时草稿里已有的规则问题（服务器或导入的计划里的起始值为负、天数颠倒等）立即标出：字段键进 pe.seen，所在卡片展开，提示行显示数量；保存被 planProblems 挡住直到改好。normalizePlan 不拒绝这样的计划，所以目标页、本周页照常显示 */
   const pr0=planProblems(pe.draft);
   if(pr0.length){pe.preErr=true;pr0.forEach(x=>{pe.seen.add(x.key);const c=peCardOf(x.key);if(c)pe.open.add(c)})}
