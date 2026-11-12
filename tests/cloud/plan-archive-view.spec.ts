@@ -251,3 +251,16 @@ test('PLAN-03 WR-02 a custom to-do whose group is not in the plan is listed in t
   expect(app.fake.lastState(0).tasks?.['c-or1'], '待办的进度键应当一起删掉').toBeUndefined();
   expect((await readArchived(page)).present).toBe(false);
 });
+
+test('PLAN-03 an archived lift without history shows its note and counts as 0 history entries even when the note has a comma (IN-03)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('an', 2);
+  plan.lifts.push({ id: 'l-an2', n: 'SYNTH-an lift two', unit: 'kg', def: 10, target: 30, note: 'SYNTH-an note one，note two', archived: true });
+  await app.open({ mode: 'cloud', seed: syntheticState('an'), plan, login: 0 });
+  await gotoGoals(page);
+  await page.locator('#goalsArch > summary').click();
+  const arch = await readArchived(page);
+  expect(arch.liftIds).toEqual(['l-an2']);
+  expect(arch.liftHistCounts).toEqual({ 'l-an2': 0 });
+  // 备注仍然显示在原来的位置
+  expect(await page.locator('#goalsArch [data-arch="l:l-an2"] .hist').textContent()).toBe('SYNTH-an note one，note two');
+});

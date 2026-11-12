@@ -230,8 +230,9 @@ export async function readArchived(page: Page): Promise<ArchivedRead> {
       orphanIds: Array.from(el.querySelectorAll('[data-deltask]')).map((b) => b.getAttribute('data-deltask') ?? ''),
       liftHistCounts: Object.fromEntries(
         Array.from(el.querySelectorAll('[data-arch^="l:"]')).map((e) => {
-          const text = (e.querySelector('.hist')?.textContent ?? '').trim();
-          return [(e.getAttribute('data-arch') ?? '').slice(2), text === '' ? 0 : text.split('，').length];
+          // 历史条数读应用写在 .hist 上的 data-hist：没有历史时 .hist 里放的是力量项的备注，不能按文字数逗号（IN-03）
+          const n = Number(e.querySelector('.hist')?.getAttribute('data-hist') ?? '0');
+          return [(e.getAttribute('data-arch') ?? '').slice(2), n];
         }),
       ),
       inputs: el.querySelectorAll('input,textarea,select').length,

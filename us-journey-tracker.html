@@ -2151,7 +2151,7 @@ function archivedHTML(){
     const h=s.hist.map(x=>`${esc(md(x.date))} ${esc(x.v)}`).join("，");
     return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
     <div class="lbar"><i style="width:${pct}%"></i></div>
-    <div class="hist">${h||esc(L.note)}</div></div>`}).join("");
+    <div class="hist" data-hist="${s.hist.length}">${h||esc(L.note)}</div></div>`}).join("");
   const orphans=orph.length?`<p class="note">${T_ORPHAN_TASKS}</p>${orph.map(x=>`<div class="task ro" data-arch="o:${esc(x.id)}"><span class="tt">${esc(x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button></span></div>`).join("")}`:"";
   return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}${lifts}${orphans}</details>`;
 }
