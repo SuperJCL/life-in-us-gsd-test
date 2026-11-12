@@ -265,11 +265,23 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 .pe-empty p{font-size:14px;margin:0 0 16px}
 .pe-empty-act{display:flex;flex-wrap:wrap;gap:8px}
 .goals-bar{display:flex;justify-content:flex-end;margin-bottom:12px}
+/* Phase 12-06：编辑页「已归档」区（S13），只在 #pe-archived 里生效 */
+#pe-archived{margin-top:24px}
+#pe-archived>summary{min-height:36px;padding:8px 0;font-size:14px;color:var(--muted);cursor:pointer}
+#pe-archived .pe-arch-h{font-size:12px;font-weight:400;color:var(--muted);margin:12px 0 4px}
+#pe-archived .pe-arch-list{list-style:none;margin:0;padding:0}
+#pe-archived .pe-arch-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+#pe-archived .pe-arch-txt{min-width:0}
+#pe-archived .pe-arch-name,#pe-archived .pe-arch-desc{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pe-archived .pe-arch-name{font-size:14px;line-height:1.55}
+#pe-archived .pe-arch-desc{font-size:12px;color:var(--muted)}
+#pe-archived .pe-arch-lim{grid-column:1 / -1;margin:0}
 @media (max-width:560px){
   #tab-plan :is(input,textarea,.seg button,.pe-toggle),#tab-plan .pe-act button,#pe-bar button,#planEditBtn,.pe-empty-act button{min-height:44px}
   .pe-row{grid-template-columns:24px minmax(0,1fr)}
   .pe-act{grid-column:2}#tab-plan .pe-act button{flex:1}
   .pe-empty-act button{flex:1 1 100%}
+  #pe-archived .pe-arch-row .pe-act{grid-column:1 / -1}
 }
 
 /* timeline */
@@ -2267,7 +2279,7 @@ function openPlanEditor(from){
   if(pe)return;
   /* 草稿从最新的计划开始：挂起的远端版本先并入 */
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
-  pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],busy:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
+  pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],archOpen:false,busy:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
   /* 所有者决定（2026-11-11）：打开时草稿里已有的规则问题（服务器或导入的计划里的起始值为负、天数颠倒等）立即标出：字段键进 pe.seen，所在卡片展开，提示行显示数量；保存被 planProblems 挡住直到改好。normalizePlan 不拒绝这样的计划，所以目标页、本周页照常显示 */
   const pr0=planProblems(pe.draft);
   if(pr0.length){pe.preErr=true;pr0.forEach(x=>{pe.seen.add(x.key);const c=peCardOf(x.key);if(c)pe.open.add(c)})}
@@ -2352,7 +2364,7 @@ function renderPlanEditor(){
     if(typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
   }
   const lbl=groupLabels(pe.draft),gs=pe.draft.groups.filter(g=>!g.archived);
-  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.map((g,gi)=>{
+  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups" tabindex="-1">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.map((g,gi)=>{
     const key="g:"+g.id,open=pe.open.has(key),n=g.tasks.filter(t=>!t.archived).length;
     return `<div class="pe-card k-${kOf(g.cat)}" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-g-${esc(g.id)}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-no">${esc(lbl.get(g.id))}</span><span class="pe-name" id="pe-n-g-${esc(g.id)}" title="${esc(g.name)}">${esc(g.name||T_PE_UNNAMED)}</span></button><span class="pe-sum">${esc(g.cat)} · ${n} 项</span><span class="pe-bad" hidden></span><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="${esc(key)}" aria-label="上移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="${esc(key)}" aria-label="下移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===gs.length-1?" disabled":""}>${T_PE_DOWN}</button></div></div>
     <div class="pe-body" id="pe-b-g-${esc(g.id)}" role="group" aria-labelledby="pe-n-g-${esc(g.id)}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-g-${esc(g.id)}-name" data-pefield="${esc(key)}:name" maxlength="${PLAN_MAX.name}" value="${esc(g.name)}" aria-describedby="pe-e-g-${esc(g.id)}-name">${peCnt("g-"+g.id+"-name",g.name.length,32,PLAN_MAX.name)}</label><p class="pe-err" id="pe-e-g-${esc(g.id)}-name" hidden></p>
@@ -2360,7 +2372,7 @@ function renderPlanEditor(){
     <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
 ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
     <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML()+pePresetsHTML();
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML()+pePresetsHTML()+peArchivedHTML();
   peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
@@ -2382,6 +2394,7 @@ peRoot.addEventListener("click",e=>{
   else if(a==="up"||a==="down")peMove(k,a==="up"?-1:1);
   else if(a==="del")k.charAt(0)==="p"?peDelTag(k):peDelete("task",k.slice(2));
   else if(a==="delgroup")peDelete("group",k.slice(2));
+  else if(a==="restore")peRestore(k);
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
 function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.draft.lifts.forEach(l=>u.add(l.id));pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
@@ -2557,6 +2570,57 @@ async function peArchive(kind,id){
   cur.archived=true;
   renderPlanEditor();peBar();peFocusNear(kind,L&&L.parent,near&&near.nx);
   peSay(T_PE_LIVE_ARCHIVED+peName(cur));
+}
+/* 编辑页「已归档」区（D-02、S13）：n = 草稿里归档的组 + 所在组没归档的单独归档任务 + 归档的力量项；所属组也归档的任务跟着组走，不单独列出。展开状态存在 pe.archOpen，重画不会把展开的区收起来。恢复（不需要确认）：删掉 archived 键，组和力量项排到各自数组末尾、任务排到原组末尾，id 不变，进度随 id 回来；恢复会超出数量上限时按钮 disabled（A10，归档项不占名额） */
+const T_PE_AR_SUM=n=>"已归档（"+n+"）",T_PE_AR_H_GROUPS="目标组",T_PE_AR_H_TASKS="任务",T_PE_AR_H_LIFTS="力量项",T_PE_AR_RESTORE="恢复",T_PE_AR_PURGE="彻底删除";
+const T_PE_AR_LIM=(w,n,u)=>w+"已满（"+n+" "+u+"），先删掉一个再恢复";
+function peArch(){
+  const d=pe.draft,ts=[];
+  d.groups.forEach(g=>{if(!g.archived)g.tasks.forEach(t=>{if(t.archived)ts.push({t,g})})});
+  return {gs:d.groups.filter(g=>g.archived),ts,ls:d.lifts.filter(l=>l.archived)};
+}
+function peArchRow(key,name,desc,lim,verb){
+  const e=esc(key),nm=esc(name||T_PE_UNNAMED);
+  return `<li class="pe-arch-row" data-row="${e}"><div class="pe-arch-txt"><span class="pe-arch-name" title="${esc(name)}">${nm}</span><span class="pe-arch-desc" title="${esc(desc)}">${esc(desc)}</span></div><div class="pe-act"><button type="button" class="ghost" data-peact="restore" data-pekey="${e}" aria-label="恢复${verb}：${nm}"${lim?" disabled":""}>${T_PE_AR_RESTORE}</button><button type="button" class="danger" data-peact="purge" data-pekey="${e}" aria-label="彻底删除${verb}：${nm}">${T_PE_AR_PURGE}</button></div>${lim?`<p class="pe-lim pe-arch-lim">${esc(lim)}</p>`:""}</li>`;
+}
+function peArchivedHTML(){
+  const a=peArch(),n=a.gs.length+a.ts.length+a.ls.length;if(!n)return "";
+  const d=pe.draft,full=d.groups.filter(g=>!g.archived).length>=PLAN_MAX.groups,fullL=d.lifts.filter(l=>!l.archived).length>=PLAN_MAX.lifts;
+  const sect=(h,rows)=>rows.length?`<h4 class="pe-arch-h">${h}</h4><ul class="pe-arch-list">${rows.join("")}</ul>`:"";
+  const gr=a.gs.map(g=>peArchRow("g:"+g.id,g.name,g.cat+" · "+g.tasks.length+" 项任务，其中 "+g.tasks.filter(t=>tstate(t.id).done).length+" 项已完成",full?T_PE_AR_LIM("目标组",PLAN_MAX.groups,"个"):"","目标组"));
+  const tk=a.ts.map(r=>peArchRow("t:"+r.t.id,r.t.text,"来自「"+(r.g.name||T_PE_UNNAMED)+"」· "+archStatus(tstate(r.t.id)),r.g.tasks.filter(x=>!x.archived).length>=PLAN_MAX.tasks?T_PE_AR_LIM("任务",PLAN_MAX.tasks,"项"):"","任务"));
+  const lf=a.ls.map(l=>peArchRow("l:"+l.id,l.n,liftHistoryCount(state,l.id)+" 条力量记录",fullL?T_PE_AR_LIM("力量项",PLAN_MAX.lifts,"个"):"","力量项"));
+  return `<details class="pe-arch" id="pe-archived"${pe.archOpen?" open":""}><summary>${T_PE_AR_SUM(n)}</summary>${sect(T_PE_AR_H_GROUPS,gr)}${sect(T_PE_AR_H_TASKS,tk)}${sect(T_PE_AR_H_LIFTS,lf)}</details>`;
+}
+peRoot.addEventListener("toggle",e=>{if(pe&&e.target&&e.target.id==="pe-archived")pe.archOpen=e.target.open},true);
+/* 恢复和彻底删除之后的焦点：区里下一个可用的「恢复」，没有了就到「已归档」摘要，区消失了就到目标组分区的标题 */
+function peArchFocus(order,key){
+  const i=order.indexOf(key),cand=order.slice(i+1).concat(order.slice(0,Math.max(i,0)).reverse());
+  for(const c of cand){const b=document.querySelector(`#pe-archived [data-peact="restore"][data-pekey="${c}"]`);if(b&&!b.disabled){b.focus();return}}
+  const sm=document.querySelector("#pe-archived>summary");if(sm){sm.focus();return}
+  const h=$("pe-h-groups");if(h)h.focus();
+}
+function peArchOrder(){return Array.from(document.querySelectorAll('#pe-archived [data-peact="restore"]')).map(b=>b.dataset.pekey)}
+function peRestore(key){
+  const k=key.charAt(0),id=key.slice(2),d=pe.draft,order=peArchOrder();let it=null;
+  if(k==="g"){
+    const i=d.groups.findIndex(x=>x.id===id&&x.archived);
+    if(i<0||d.groups.filter(x=>!x.archived).length>=PLAN_MAX.groups)return;
+    it=d.groups.splice(i,1)[0];d.groups.push(it);
+  }else if(k==="l"){
+    const i=d.lifts.findIndex(x=>x.id===id&&x.archived);
+    if(i<0||d.lifts.filter(x=>!x.archived).length>=PLAN_MAX.lifts)return;
+    it=d.lifts.splice(i,1)[0];d.lifts.push(it);
+  }else{
+    const g=d.groups.find(x=>!x.archived&&x.tasks.some(t=>t.id===id&&t.archived));
+    if(!g||g.tasks.filter(x=>!x.archived).length>=PLAN_MAX.tasks)return;
+    it=g.tasks.splice(g.tasks.findIndex(t=>t.id===id),1)[0];g.tasks.push(it);
+  }
+  delete it.archived;
+  const nm=peName(it);
+  renderPlanEditor();peBar();peArchFocus(order,key);
+  peSay(T_PE_LIVE_RESTORED+nm);
+  toast(T_PE_LIVE_RESTORED+peShort(nm==="（未命名）"?"":nm),null,3000);
 }
 peRoot.addEventListener("input",e=>{
   const f=e.target.dataset&&e.target.dataset.pefield;if(!f||!pe)return;

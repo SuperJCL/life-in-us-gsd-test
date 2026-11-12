@@ -585,3 +585,16 @@ export const pePresetCount = (n: number) => `${n} 个标签`;
 export const PE_ERR_TAG_EMPTY = '请填写标签内容';
 export const PE_ERR_TAG_DUP = '这个分类里已经有这个标签了';
 export const PE_LIMIT_TAGS = '最多 20 个';
+
+// Phase 12-06 Task 1：编辑页底部「已归档」区（应用里 T_PE_AR_SUM、T_PE_AR_H_*、T_PE_AR_RESTORE、T_PE_AR_PURGE、T_PE_LIVE_RESTORED，逐字相同）。
+// 摘要和 12-01 目标页的「已归档（n）」同一个写法；恢复的 toast 是「已恢复：」加短名（超过 10 个字截断加 …，只给合成名用）
+export const PE_ARCHIVED_TITLE = archivedSummary;
+export const BTN_RESTORE = '恢复';
+export const BTN_PURGE = '彻底删除';
+export const PE_ARCH_GROUPS = '目标组';
+export const PE_ARCH_TASKS = '任务';
+export const PE_ARCH_LIFTS = '力量项';
+export const toastRestored = (name: string): string => {
+  const chars = Array.from(name || PE_UNNAMED);
+  return `已恢复：${chars.length > 10 ? `${chars.slice(0, 10).join('')}…` : chars.join('')}`;
+};

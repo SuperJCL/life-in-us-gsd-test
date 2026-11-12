@@ -58,6 +58,10 @@ export type EditorRead = {
   // 显示中的错误：字段键和错误文字（界面文案，不是计划文字）
   errors: Array<{ key: string; text: string }>;
   addGroupDisabled: boolean;
+  // 底部「已归档」区（12-06）：是否渲染、是否展开、摘要文字（界面文案加数字）、三类归档项的键（g:、t:、l: 加 id，不含计划文字）
+  archived: { present: boolean; open: boolean; summary: string; groups: string[]; tasks: string[]; lifts: string[] };
+  // 被禁用的「恢复」按钮的键（超出数量上限时）
+  restoreDisabled: string[];
 };
 
 // 一次 page.evaluate 读回编辑页的状态：只有 hash、界面文案、布尔、编号和键，不读计划文字
@@ -99,6 +103,20 @@ export async function readEditor(page: Page): Promise<EditorRead> {
         return { key: f.getAttribute('data-pefield') ?? '', text: document.getElementById(id)?.textContent ?? '' };
       }),
       addGroupDisabled: !!document.querySelector<HTMLButtonElement>('#pe-main [data-peact="addgroup"]')?.disabled,
+      archived: ((a) => {
+        const rows = (p: string) => (a ? Array.from(a.querySelectorAll(`[data-row^="${p}"]`)).map((r) => r.getAttribute('data-row') ?? '') : []);
+        return {
+          present: !!a,
+          open: !!a?.open,
+          summary: a?.querySelector('summary')?.textContent ?? '',
+          groups: rows('g:'),
+          tasks: rows('t:'),
+          lifts: rows('l:'),
+        };
+      })(document.querySelector<HTMLDetailsElement>('#pe-archived')),
+      restoreDisabled: Array.from(document.querySelectorAll<HTMLButtonElement>('#pe-archived [data-peact="restore"]'))
+        .filter((b) => b.disabled)
+        .map((b) => b.getAttribute('data-pekey') ?? ''),
     };
   });
 }
