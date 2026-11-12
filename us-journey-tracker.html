@@ -275,7 +275,7 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 #pe-archived .pe-arch-name,#pe-archived .pe-arch-desc{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #pe-archived .pe-arch-name{font-size:14px;line-height:1.55}
 #pe-archived .pe-arch-desc{font-size:12px;color:var(--muted)}
-#pe-archived .pe-arch-lim{grid-column:1 / -1;margin:0}
+#pe-archived .pe-arch-lim{grid-column:1 / -1;margin:0;font-family:var(--sans);font-size:12px;font-weight:400;color:var(--muted)}
 @media (max-width:560px){
   #tab-plan :is(input,textarea,.seg button,.pe-toggle),#tab-plan .pe-act button,#pe-bar button,#planEditBtn,.pe-empty-act button{min-height:44px}
   .pe-row{grid-template-columns:24px minmax(0,1fr)}
@@ -2395,6 +2395,7 @@ peRoot.addEventListener("click",e=>{
   else if(a==="del")k.charAt(0)==="p"?peDelTag(k):peDelete("task",k.slice(2));
   else if(a==="delgroup")peDelete("group",k.slice(2));
   else if(a==="restore")peRestore(k);
+  else if(a==="purge")pePurge(k);
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
 function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.draft.lifts.forEach(l=>u.add(l.id));pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
@@ -2581,7 +2582,7 @@ function peArch(){
 }
 function peArchRow(key,name,desc,lim,verb){
   const e=esc(key),nm=esc(name||T_PE_UNNAMED);
-  return `<li class="pe-arch-row" data-row="${e}"><div class="pe-arch-txt"><span class="pe-arch-name" title="${esc(name)}">${nm}</span><span class="pe-arch-desc" title="${esc(desc)}">${esc(desc)}</span></div><div class="pe-act"><button type="button" class="ghost" data-peact="restore" data-pekey="${e}" aria-label="恢复${verb}：${nm}"${lim?" disabled":""}>${T_PE_AR_RESTORE}</button><button type="button" class="danger" data-peact="purge" data-pekey="${e}" aria-label="彻底删除${verb}：${nm}">${T_PE_AR_PURGE}</button></div>${lim?`<p class="pe-lim pe-arch-lim">${esc(lim)}</p>`:""}</li>`;
+  return `<li class="pe-arch-row" data-row="${e}"><div class="pe-arch-txt"><span class="pe-arch-name" title="${esc(name)}">${nm}</span><span class="pe-arch-desc" title="${esc(desc)}">${esc(desc)}</span></div><div class="pe-act"><button type="button" class="ghost" data-peact="restore" data-pekey="${e}" aria-label="恢复${verb}：${nm}"${lim?" disabled":""}>${T_PE_AR_RESTORE}</button><button type="button" class="danger" data-peact="purge" data-pekey="${e}" aria-label="彻底删除${verb}：${nm}">${T_PE_AR_PURGE}</button></div>${lim?`<p class="pe-arch-lim">${esc(lim)}</p>`:""}</li>`;
 }
 function peArchivedHTML(){
   const a=peArch(),n=a.gs.length+a.ts.length+a.ls.length;if(!n)return "";
@@ -2601,6 +2602,34 @@ function peArchFocus(order,key){
   const h=$("pe-h-groups");if(h)h.focus();
 }
 function peArchOrder(){return Array.from(document.querySelectorAll('#pe-archived [data-peact="restore"]')).map(b=>b.dataset.pekey)}
+/* 彻底删除（D-02、S7）：只在「已归档」区里；先确认一次（.danger 按钮，默认焦点在「不删除」），确认框写明连进度一起删、日历和时间线里的完成记录也会消失，组的确认框还写明组里有几个自定义待办会一起删。确认后只是从草稿移除（不进 pe.gone：那是给“没有进度、直接移除”的项用的，用户已经在这里明确选了“连进度一起删”），保存时 savePlanDraft 按旧新计划的 id 差集删掉进度、组的自定义待办和力量项的 state.lifts；点「放弃这次修改」整份草稿丢弃，这次删除也就撤回了 */
+const T_PE_PG_NO="不删除",T_PE_PG_LAST="点「保存计划」后生效，保存之后无法找回；点「放弃这次修改」可以撤回这次删除。",T_PE_LIVE_PURGED="已彻底删除：";
+const T_PE_PG_TASK_TITLE="彻底删除这个任务？",T_PE_PG_TASK_YES="彻底删除任务",T_PE_PG_TASK_REC="日历和时间线里对应的完成记录也会消失。";
+const T_PE_PG_GROUP_TITLE="彻底删除这个目标组？",T_PE_PG_GROUP_YES="彻底删除目标组",T_PE_PG_GROUP_REC="任务的进度会一起删除，日历和时间线里对应的完成记录也会消失。",T_PE_PG_CUSTOM=c=>"组里的 "+c+" 个自定义待办也会一起删除。";
+const T_PE_PG_LIFT_TITLE="彻底删除这个力量项？",T_PE_PG_LIFT_YES="彻底删除力量项";
+async function pePurge(key){
+  const s=pe,k=key.charAt(0),id=key.slice(2),kind=k==="g"?"group":k==="l"?"lift":"task",it=peItem(kind,id);
+  if(!it||!it.archived)return;
+  const nm=peName(it),cut=peQuote(nm==="（未命名）"?"":nm);let lines,title,yes;
+  if(kind==="task"){
+    const x=tstate(id);
+    lines=["「"+cut+"」的进度（"+(x.done?"已完成":x.due?"设了截止日期（"+md(x.due)+"）":"未完成")+"）会一起删除。",T_PE_PG_TASK_REC,T_PE_PG_LAST];title=T_PE_PG_TASK_TITLE;yes=T_PE_PG_TASK_YES;
+  }else if(kind==="lift"){
+    lines=["「"+cut+"」的 "+liftHistoryCount(state,id)+" 条力量记录会一起删除。",T_PE_PG_LAST];title=T_PE_PG_LIFT_TITLE;yes=T_PE_PG_LIFT_YES;
+  }else{
+    const c=groupProgress(state,it).custom;
+    lines=["「"+cut+"」和它的 "+it.tasks.length+" 项任务会被彻底删除。",T_PE_PG_GROUP_REC].concat(c?[T_PE_PG_CUSTOM(c)]:[],[T_PE_PG_LAST]);title=T_PE_PG_GROUP_TITLE;yes=T_PE_PG_GROUP_YES;
+  }
+  const ok=await confirmBox({title,lines,cancel:T_PE_PG_NO,ok:yes,scope:"plan"});
+  if(!ok||pe!==s)return;
+  const cur=peItem(kind,id);if(!cur||!cur.archived)return;
+  const order=peArchOrder(),d=pe.draft;
+  if(kind==="group")d.groups.splice(d.groups.indexOf(cur),1);
+  else if(kind==="lift")d.lifts.splice(d.lifts.indexOf(cur),1);
+  else{const g=d.groups.find(x=>x.tasks.includes(cur));if(g)g.tasks.splice(g.tasks.indexOf(cur),1)}
+  renderPlanEditor();peBar();peArchFocus(order,key);
+  peSay(T_PE_LIVE_PURGED+nm);
+}
 function peRestore(key){
   const k=key.charAt(0),id=key.slice(2),d=pe.draft,order=peArchOrder();let it=null;
   if(k==="g"){

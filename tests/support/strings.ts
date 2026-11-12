@@ -598,3 +598,20 @@ export const toastRestored = (name: string): string => {
   const chars = Array.from(name || PE_UNNAMED);
   return `已恢复：${chars.length > 10 ? `${chars.slice(0, 10).join('')}…` : chars.join('')}`;
 };
+
+// Phase 12-06 Task 2：彻底删除的三种确认框、读屏句子前缀和恢复的数量上限文字（应用里 T_PE_PG_*、T_PE_LIVE_PURGED、T_PE_AR_LIM 拼出的整句，逐字相同）
+export const BTN_PURGE_NO = '不删除';
+export const PE_PURGE_LAST = '点「保存计划」后生效，保存之后无法找回；点「放弃这次修改」可以撤回这次删除。';
+export const PE_LIVE_PURGED_PREFIX = '已彻底删除：';
+export const PE_PURGE_TASK_TITLE = '彻底删除这个任务？';
+export const BTN_PURGE_TASK = '彻底删除任务';
+export const PE_PURGE_TASK_RECORDS = '日历和时间线里对应的完成记录也会消失。';
+export const PE_PURGE_GROUP_TITLE = '彻底删除这个目标组？';
+export const BTN_PURGE_GROUP = '彻底删除目标组';
+export const PE_PURGE_GROUP_RECORDS = '任务的进度会一起删除，日历和时间线里对应的完成记录也会消失。';
+export const pePurgeCustom = (c: number): string => `组里的 ${c} 个自定义待办也会一起删除。`;
+export const PE_PURGE_LIFT_TITLE = '彻底删除这个力量项？';
+export const BTN_PURGE_LIFT = '彻底删除力量项';
+export const PE_RESTORE_LIMIT_GROUPS = '目标组已满（20 个），先删掉一个再恢复';
+export const PE_RESTORE_LIMIT_TASKS = '任务已满（50 项），先删掉一个再恢复';
+export const PE_RESTORE_LIMIT_LIFTS = '力量项已满（8 个），先删掉一个再恢复';
