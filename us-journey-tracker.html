@@ -199,6 +199,12 @@ ul.items li{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-r
 .arch .lift .lv{font-size:16px;font-weight:600}
 .arch>summary{min-height:36px;padding:8px 0;font-size:14px;color:var(--muted);cursor:pointer}
 .group.arch-g,.lift.arch-l{--c:var(--c-oth);--s:var(--c-oth-s);color:var(--muted)}
+/* Phase 12 UI 审查修复（12-UI-REVIEW）：编辑页选中的类别按钮用浅底、正文色文字和类别色边框；编辑页和「已归档」区的禁用按钮变淡、不显示手型、悬停不变色；「已归档」区的删除按钮放大点击区域 */
+#tab-plan .seg button[aria-pressed="true"]{background:var(--s);color:var(--ink);border-color:var(--c)}
+#tab-plan button:disabled,.arch button:disabled{opacity:.4;cursor:not-allowed}
+#tab-plan .ghost:disabled:hover,.arch .ghost:disabled:hover{color:var(--muted);border-color:var(--line)} #tab-plan .danger:disabled:hover,.arch .danger:disabled:hover{border-color:var(--line)}
+.arch .x{font-size:16px;min-width:36px;min-height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+@media (max-width:560px){.arch .x{min-width:44px;min-height:44px}}
 .arch-mark{font-size:12px;padding:0 8px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
 .task.ro{grid-template-columns:1fr auto}
 /* Phase 12：编辑计划页。只在下面的作用域里生效，不改现有视图；全局的 .ghost/.primary/.danger/.panel/.seg/.empty/dialog#confirm 规则不动，作用域覆盖把新界面放到 4 的倍数网格和 12/14/16/24 字号上 */
@@ -2152,7 +2158,7 @@ function archivedHTML(){
     return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
     <div class="lbar"><i style="width:${pct}%"></i></div>
     <div class="hist" data-hist="${s.hist.length}">${h||esc(L.note)}</div></div>`}).join("");
-  const orphans=orph.length?`<p class="note">${T_ORPHAN_TASKS}</p>${orph.map(x=>`<div class="task ro" data-arch="o:${esc(x.id)}"><span class="tt">${esc(x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button></span></div>`).join("")}`:"";
+  const orphans=orph.length?`<p class="note">${T_ORPHAN_TASKS}</p>${orph.map(x=>`<div class="task ro" data-arch="o:${esc(x.id)}"><span class="tt">${esc(x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办" title="删除待办">×</button></span></div>`).join("")}`:"";
   return `<details class="arch" id="goalsArch"${goalsArchOpen?" open":""}><summary>已归档（${n}）</summary>${groups}${alone}${lifts}${orphans}</details>`;
 }
 
