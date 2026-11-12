@@ -46,7 +46,7 @@
 - [x] **Phase 9: 登录与云端存储（Login & Cloud Storage）** - 登录、退出、会话保持；记录和个人计划按账号存在服务器上；先对账再允许编辑；页面只加载同源资源 (completed 2026-11-09)
 - [x] **Phase 10: 离线与实时同步（Offline & Realtime Sync）** - 断网先存、联网自动上传；同账号多设备几秒内同步且不毁草稿；状态栏五种状态；保存失败和登录过期都不丢数据 (completed 2026-11-10)
 - [x] **Phase 11: 导出、导入与迁移（Export, Import & Migration）** - 按账号导出 JSON 和 CSV；导入先识别、摘要确认、快照可撤销；修 N3、B2；旧 Artifact 备份的迁移先用合成文件演练 (completed 2026-11-11)
-- [ ] **Phase 12: 编辑计划页（Plan Editor）** - 在应用里增删改、排序和归档个人计划，草稿式保存，跨设备同步
+- [x] **Phase 12: 编辑计划页（Plan Editor）** - 在应用里增删改、排序和归档个人计划，草稿式保存，跨设备同步 (completed 2026-11-11)
 - [ ] **Phase 13: 部署、加固与验收（Deploy, Hardening & Acceptance）** - 正式部署、重启自恢复、每日异地备份和恢复演练、CSP 与后台加固、冷启动离线（含断网刷新）；两台真实设备在大陆和美国验收
 
 ## Phase Details
@@ -351,7 +351,7 @@ Plans:
   3. 点取消后，计划完全不变；有未保存的修改时离开页面会先确认；空名称或超出规模上限的输入不能保存，并有提示。
   4. 在一台设备上保存计划后，同一账号的另一台设备几秒内按新计划显示。另一台设备如果正在编辑计划，它的草稿不会被远端更新冲掉。
   5. 新增的项拿到 `g-`/`t-`/`l-` 前缀的新 id，已有 id 保持不变；编辑计划后导出再导入，任务进度仍然对应到正确的任务。
-**Plans:** 8/8 plans executed
+**Plans:** 8/8 plans complete
 Plans:
 **Wave 1**
 - [x] 12-01-PLAN.md — 计划数据层与读侧 tracer：normalizePlan 保留组和力量项的 archived、接受空计划（数值规则只在编辑页，所有者决定）；找不到组的待办用 GROUP_NONE 标记；目标页 P 编号自动生成、归档的组和任务进「已归档」区；日面板、时间线、CSV 的组标签（D-03、D-05、D-06、D-14、D-16、IN-05）
@@ -400,6 +400,7 @@ Plans:
 - nginx（certbot 管证书）按 Phase 6 验证过的参数反代 PocketBase：实时连接的位置关闭代理缓冲、HTTP/1.1、长读超时；PocketBase 只监听 127.0.0.1，由 systemd 以非 root 用户运行（`Restart=always`、`GOMEMLIMIT`、内存上限）；DNS 只做解析；页面加 `noindex`。
 - 冷启动离线的用例要单独放开 Playwright 的 `serviceWorkers: 'block'`。
 - 所有者操作：在服务器上输入凭据、开 R2 存储桶和密钥、用真实设备验收、从原 Artifact 导出自己的备份。Claude 不接触真实数据，验收只记结论。
+- 总体验收（所有者 2026-11-12 决定）：各阶段不再单独做人工验收，部署到服务器后由所有者一次做总体验收。届时一并过之前推迟的人工验收项：Phase 10 的真机“几秒内”同步与断网记录、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 `.planning/phases/12-plan-editor/12-UAT.md` 的 Deferred Follow-Ups：桌面与 375 px 完整走查、UI-SPEC 三条 backstop、暗色主题、三句新文案、真实浏览器的返回键）。
 
 ## Progress
 
@@ -419,5 +420,5 @@ Plans:
 | 9. 登录与云端存储 | v2.0 | 14/14 | Complete    | 2026-11-09 |
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
 | 11. 导出、导入与迁移 | v2.0 | 11/11 | Complete    | 2026-11-11 |
-| 12. 编辑计划页 | v2.0 | 8/8 | In Progress | - |
+| 12. 编辑计划页 | v2.0 | 8/8 | Complete    | 2026-11-11 |
 | 13. 部署、加固与验收 | v2.0 | 0/TBD | Not started | - |

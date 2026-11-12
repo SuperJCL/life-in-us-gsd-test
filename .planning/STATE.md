@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 12
-current_phase_name: 编辑计划页（Plan Editor）
-status: verifying
-stopped_at: Completed 12-08-PLAN.md
-last_updated: "2026-11-12T04:41:58.808Z"
+current_phase: 13
+current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
+status: planning
+stopped_at: Phase 12 complete, ready to plan Phase 13
+last_updated: "2026-11-12T05:01:46.488Z"
 last_activity: 2026-11-11
-last_activity_desc: Phase 12 execution started
-state_head: 56a6dea9698547407cba0a5908f01efde947b916
+last_activity_desc: Phase 12 complete, transitioned to Phase 13
+state_head: 127297ceaa4855e934dbc4bb22842ce67b2208ad
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 66
   completed_plans: 66
-  percent: 75
+  percent: 88
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
+See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 12 — 编辑计划页（Plan Editor）
+**Current focus:** Phase 13 — 部署、加固与验收（Deploy, Hardening & Acceptance）
 
 ## Current Position
 
-Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
-Plan: 8 of 8
-Status: Phase complete — ready for verification
-Last activity: 2026-11-11 — Phase 12 execution started
+Phase: 13 — 部署、加固与验收（Deploy, Hardening & Acceptance）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-11 — Phase 12 complete, transitioned to Phase 13
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 88%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 78
+- Total plans completed: 86
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -59,6 +59,7 @@ Progress: [████████░░] 75%
 | 09 | 14 | - | - |
 | 10 | 9 | - | - |
 | 11 | 11 | - | - |
+| 12 | 8 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -309,6 +310,11 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 12]: 12-06: 空计划 = planEmpty()（没有未归档的组和力量项）；载入示例计划把 DEFAULT_PLAN 的组、任务、力量项换成新的 g-、t-、l- id 追加到草稿，预设和健身目标不动
 - [Phase 12]: 12-07: peRemote also called from syncOnce finally; D-08 re-merges after its dialog and returns to the editor if the plan changed without an overwrite choice
 - [Phase 12]: 12-08: tests/README.md 字段键按应用实际写（力量项 l:<id>:n/unit/def/target/note，另有 fit:note）；两个完整套件 193 和 231 条 REPORT OK；真实 Edge 验收清单交阶段验收
+Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
+- 编辑计划页完成（PLAN-02..PLAN-04）：`#plan` 路由、草稿 `pe`、`savePlanDraft`（校验 → 并入远端 → 三选一 → D-08 复查 → 容量 → 读不出来时留底 → 覆盖留底 → 写入 → 按 id 差集清理 state）；归档与恢复、彻底删除、空计划和载入示例计划。
+- 执行中所有者批准 3 处计划外测试改动（readGroupIds、SEC-01 只排除 `details#goalsArch`、过期提示断言）；代码审查 7 条全部修完（含 CR-01 覆盖留底、CR-02 导入后静默覆盖），UI 审计 3 处首要修复已应用（56a6dea）。
+- 安全 28/28 关闭；回归 cloud 239 条、默认 193 条（编排者在 HEAD 6f6d314 上亲自跑过）。执行器提交署名 `Claude Sonnet 5.5`。
+- 人工验收 5 项按所有者 2026-11-12 的决定推迟到部署后的总体验收（12-UAT.md Deferred Follow-Ups），验证报告记为所有者批准的绕过。
 
 ### Pending Todos
 
@@ -317,6 +323,7 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
 - Phase 10：确认 10-REVIEW-FIX 的 WR-01（退出登录时中止进行中的同步）和 WR-03（同步超时随文档大小放宽）的写法，以及 10-SECURITY 的低风险 AR-02、AR-03；判断三处体验问题（点击可能要再点一次、改开始日期清草稿、结果不明的上传之后重做会盖掉别处对同一条目的修改）；决定 IN-01 的死代码删不删。
 - Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
+- Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，用真实设备验收。
 
@@ -334,7 +341,7 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条、Phase 12 补到 239 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
 - ~~[Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造~~ 已解决（Phase 10，10-02）：假服务器新增 dropRealtime、refuseRealtime、按上下文的故障。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
 - [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
@@ -347,7 +354,10 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 11 审查]: 9 条发现全部修完（`11-REVIEW-FIX.md`、`11-REVIEW-DISPOSITION.md` 无未处理项）；IN-03（登录过期后换账号不提示上一个账号的撤销副本）只写进 11-CONTEXT 的规划备注。
 - [Phase 13，来自 Phase 11 验收]: 部署后在真实手机上再查一次下载备份、日历 CSV 和导入时选文件（11-CONTEXT 把真机检查留到部署之后）。
 - [Phase 13，来自 Phase 10 验收]: 两台真实设备上的“几秒内”同步和断网记录（10-UAT 第 1 项推迟到这里，对应 Phase 13 成功标准 5）。
-- [Phase 12，来自 Phase 7 审查]: WR-02（自定义待办的组不在当前计划里时看不到、删不掉）和 IN-05（`archived` 还没有行为）推迟到编辑计划页处理。
+- ~~[Phase 12，来自 Phase 7 审查]: WR-02、IN-05~~ 已解决（Phase 12，12-01、12-02）：找不到组的待办在「已归档」区能看到、能删；`archived` 在组、任务、力量项上都有行为。
+- [Phase 12 安全]: `12-SECURITY.md` verified，28 条威胁全部关闭；审计建议 S-2（SEC-01 源码门槛覆盖不到编辑页新函数）记录未处理。
+- [Phase 12 审查]: 7 条发现全部修完（`12-REVIEW-FIX.md` all_fixed，`12-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，首要 3 处已修。
+- [Phase 13，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
 
@@ -373,13 +383,12 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T03:43:08.925Z
-Stopped at: Completed 12-08-PLAN.md
+Last session: 2026-11-12T05:03:13.000Z
+Stopped at: Phase 12 complete, ready to plan Phase 13
 Resume file: None
 
 ## Operator Next Steps
 
-- Phase 11 已完成并转场（2026-11-11）：验收 4/4 通过，验证 passed，安全报告未解决威胁 0
-- 本地提交还没推送，推送前要所有者确认
+- Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
-- 下一阶段：`/gsd-discuss-phase 12`（编辑计划页）；路线图要求在规划前做 UI 设计契约（`/gsd-ui-phase 12`）
+- 下一阶段：`/gsd-plan-phase --research-phase 13`（路线图要求先做专项调研），再讨论和规划部署、加固与验收
