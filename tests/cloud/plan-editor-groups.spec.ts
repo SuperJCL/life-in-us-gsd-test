@@ -23,8 +23,13 @@ import {
   PE_ARCH_RESTORE,
   PE_ARCH_TASK_BODY,
   PE_ARCH_TASK_TITLE,
+  PE_ERR_GROUP_LIMIT,
   PE_ERR_GROUP_NAME,
+  PE_ERR_TAG_LONG,
+  PE_ERR_TASK_LIMIT,
+  PE_ERR_TASK_LONG,
   PE_ERR_TASK_TEXT,
+  PE_ERR_UNIT_LONG,
   PE_HINT_DIRTY,
   PE_LIMIT_GROUPS,
   PE_LIMIT_TASKS,
@@ -587,4 +592,48 @@ test('PLAN-02 after editing the plan an exported backup imports back with every 
   expect((await readGroupIds(page))[0]).toBe(gKey.slice(2));
   await expect.poll(() => app.fake.lastState(0)?.tasks?.[tid]?.done === true, { message: '等待导入后的进度上传' }).toBe(true);
   expect(app.fake.lastPlan(0).groups[0].tasks[0].id).toBe(tid);
+});
+
+test('PLAN-02 a loaded plan over the D-17 limits cannot be saved until the excess is gone, and saving trims names and texts (WR-02)', async ({ app, page }) => {
+  // 21 个组；第 2 组 51 项任务；第 1 组第 1 项任务 201 个字；力量项单位 9 个字；一个预设标签 31 个字。服务器的计划不拒绝这些，编辑页打开时就标出来
+  const plan: any = syntheticPlan('wl', 21);
+  plan.groups[0].tasks[0].text = 'x'.repeat(201);
+  plan.groups[1].tasks = Array.from({ length: 51 }, (_, i) => ({ id: `t-wl2x${i + 1}`, text: `SYNTH-wl task 2.${i + 1}` }));
+  plan.lifts[0].unit = 'u'.repeat(9);
+  plan.presets.pro = ['p'.repeat(31)];
+  await app.open({ mode: 'cloud', seed: syntheticState('wl'), plan, login: 0 });
+  await openEditor(page);
+  expect((await readEditor(page)).errors).toEqual([
+    { key: 't:t-wl1x1:text', text: PE_ERR_TASK_LONG },
+    { key: 't:t-wl2x51:text', text: PE_ERR_TASK_LIMIT },
+    { key: 'g:g-wl21:name', text: PE_ERR_GROUP_LIMIT },
+    { key: 'l:l-wl1:unit', text: PE_ERR_UNIT_LONG },
+    { key: 'p:pro:0', text: PE_ERR_TAG_LONG },
+  ]);
+
+  // 改第 3 组的名称（带首尾空格）后点保存：被挡住，服务器计划不变
+  await expand(page, 'g:g-wl3');
+  await field(page, 'g:g-wl3:name').fill('  SYNTH-wl trimmed  ');
+  await savePlan(page);
+  expect((await readEditor(page)).hint).toBe(peHintErrors(5));
+  expect((await readEditor(page)).open).toBe(true);
+  expect(app.fake.lastPlan(0).groups.length).toBe(21);
+
+  // 逐个改好：缩短任务文字、删掉第 21 组和第 2 组的第 51 项任务、缩短单位和标签
+  await field(page, 't:t-wl1x1:text').fill('SYNTH-wl short');
+  await act(page, 'delgroup', 'g:g-wl21').click();
+  await act(page, 'del', 't:t-wl2x51').click();
+  await field(page, 'l:l-wl1:unit').fill('kg');
+  await field(page, 'p:pro:0').fill('SYNTH-wl tag');
+  expect((await readEditor(page)).errors).toEqual([]);
+
+  // 能保存了：名称首尾空格去掉
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(20);
+  const saved = app.fake.lastPlan(0);
+  expect(saved.groups[2].name === 'SYNTH-wl trimmed').toBe(true);
+  expect(saved.groups[1].tasks.length).toBe(50);
+  expect(saved.lifts[0].unit).toBe('kg');
+  expect(saved.presets.pro).toEqual(['SYNTH-wl tag']);
 });

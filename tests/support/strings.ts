@@ -586,6 +586,16 @@ export const PE_ERR_TAG_EMPTY = '请填写标签内容';
 export const PE_ERR_TAG_DUP = '这个分类里已经有这个标签了';
 export const PE_LIMIT_TAGS = '最多 20 个';
 
+// Phase 12 审查修复 WR-02：保存关口的数量和长度上限错误（应用里 PE_ERR 的 glimit、tlimit、llimit、taglimit、nlong、tlong、ulong、taglong，逐字相同）
+export const PE_ERR_GROUP_LIMIT = '目标组最多 20 个，请先删掉或归档多余的';
+export const PE_ERR_TASK_LIMIT = '每组最多 50 项任务，请先删掉或归档多余的';
+export const PE_ERR_LIFT_LIMIT = '力量项最多 8 个，请先删掉或归档多余的';
+export const PE_ERR_TAG_LIMIT = '每个分类最多 20 个标签，请先删掉多余的';
+export const PE_ERR_NAME_LONG = '名称最多 40 个字';
+export const PE_ERR_TASK_LONG = '任务内容最多 200 个字';
+export const PE_ERR_UNIT_LONG = '单位最多 8 个字';
+export const PE_ERR_TAG_LONG = '标签最多 30 个字';
+
 // Phase 12-06 Task 1：编辑页底部「已归档」区（应用里 T_PE_AR_SUM、T_PE_AR_H_*、T_PE_AR_RESTORE、T_PE_AR_PURGE、T_PE_LIVE_RESTORED，逐字相同）。
 // 摘要和 12-01 目标页的「已归档（n）」同一个写法；恢复的 toast 是「已恢复：」加短名（超过 10 个字截断加 …，只给合成名用）
 export const PE_ARCHIVED_TITLE = archivedSummary;

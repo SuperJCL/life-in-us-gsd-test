@@ -793,10 +793,20 @@ const PLAN_MAX={groups:20,tasks:50,lifts:8,tags:20,name:40,text:200,note:200,tag
 /* 保存前的检查：返回 [{key,code}]，按页面顺序（组、再它的任务）；只看未归档的组和其中未归档的任务，名称或文字 trim 之后为空分别报 gname、ttext（12-05 往这里补力量项、健身和标签的规则）。不碰 DOM */
 function planProblems(p){
   const out=[],fin=v=>typeof v==="number"&&isFinite(v);
+  /* D-17 的数量和长度上限在保存关口也要检查（WR-02）：导入、迁移或别的设备带来的超限计划不能原样保存。数量超限标在第一个多出来的项上（删掉或归档一个，下一个才轮到），长度按去掉首尾空格后算（保存时会 trim），和输入框的 maxlength 一样按 UTF-16 码元数 */
+  let ga=0;
   p.groups.forEach(g=>{
     if(g.archived)return;
-    if(!String(g.name).trim())out.push({key:"g:"+g.id+":name",code:"gname"});
-    g.tasks.forEach(t=>{if(!t.archived&&!String(t.text).trim())out.push({key:"t:"+t.id+":text",code:"ttext"})});
+    const gk="g:"+g.id+":name",gn=String(g.name).trim();
+    if(ga++===PLAN_MAX.groups)out.push({key:gk,code:"glimit"});
+    if(!gn)out.push({key:gk,code:"gname"});else if(gn.length>PLAN_MAX.name)out.push({key:gk,code:"nlong"});
+    let ta=0;
+    g.tasks.forEach(t=>{
+      if(t.archived)return;
+      const tk="t:"+t.id+":text",tx=String(t.text).trim();
+      if(ta++===PLAN_MAX.tasks)out.push({key:tk,code:"tlimit"});
+      if(!tx)out.push({key:tk,code:"ttext"});else if(tx.length>PLAN_MAX.text)out.push({key:tk,code:"tlong"});
+    });
   });
   /* 健身：每个数要是 0 到 7 的整数（fitint，键 fit:min、fit:max）；两个都合法而最少大于最多时两个键都报 fitorder。数值规则只在编辑页执行，normalizePlan 仍接受任何有限数（所有者决定 2026-11-11） */
   if(Array.isArray(p.fitGoal)){
@@ -805,11 +815,13 @@ function planProblems(p){
     if(day(f[0])&&day(f[1])&&f[0]>f[1]){out.push({key:"fit:min",code:"fitorder"});out.push({key:"fit:max",code:"fitorder"})}
   }
   /* 力量项（只看未归档的）：名称、单位 trim 后为空；目标值要是大于 0 的有限数；默认起始值要是不小于 0 的有限数（小数允许） */
+  let la=0;
   (p.lifts||[]).forEach(L=>{
     if(L.archived)return;
-    const k="l:"+L.id+":";
-    if(!String(L.n).trim())out.push({key:k+"n",code:"lname"});
-    if(!String(L.unit).trim())out.push({key:k+"unit",code:"lunit"});
+    const k="l:"+L.id+":",ln=String(L.n).trim(),lu=String(L.unit).trim();
+    if(la++===PLAN_MAX.lifts)out.push({key:k+"n",code:"llimit"});
+    if(!ln)out.push({key:k+"n",code:"lname"});else if(ln.length>PLAN_MAX.name)out.push({key:k+"n",code:"nlong"});
+    if(!lu)out.push({key:k+"unit",code:"lunit"});else if(lu.length>PLAN_MAX.unit)out.push({key:k+"unit",code:"ulong"});
     if(!(fin(L.target)&&L.target>0))out.push({key:k+"target",code:"ltarget"});
     if(!(fin(L.def)&&L.def>=0))out.push({key:k+"def",code:"ldef"});
   });
@@ -818,7 +830,8 @@ function planProblems(p){
     const seen=new Set();
     ((p.presets&&p.presets[C.k])||[]).forEach((x,i)=>{
       const v=String(x).trim(),key="p:"+C.k+":"+i;
-      if(!v)out.push({key,code:"tag"});else if(seen.has(v))out.push({key,code:"tagdup"});else seen.add(v);
+      if(i===PLAN_MAX.tags)out.push({key,code:"taglimit"});
+      if(!v)out.push({key,code:"tag"});else if(v.length>PLAN_MAX.tag)out.push({key,code:"taglong"});else if(seen.has(v))out.push({key,code:"tagdup"});else seen.add(v);
     });
   });
   return out;
@@ -2270,7 +2283,7 @@ const T_PE_UP="上移",T_PE_DOWN="下移",T_PE_DEL="删除",T_PE_DEL_GROUP="删�
 const T_PE_REMOVED="已从草稿移除：",T_PE_UNDO_REMOVE="撤销移除",T_PE_LIVE_RESTORED="已恢复：",T_PE_LIVE_ARCHIVED="已归档：";
 const T_PE_ARCH_NO="不归档",T_PE_ARCH_TASK_TITLE="归档这个任务？",T_PE_ARCH_TASK_YES="归档任务",T_PE_ARCH_GROUP_TITLE="归档这个目标组？",T_PE_ARCH_GROUP_YES="归档目标组";
 const T_PE_ARCH_TASK_BODY="归档后它会变灰，放到目标页底部的「已归档」里，不能再勾选；日历和时间线里的完成记录照常显示。",T_PE_ARCH_DUE_NOTE="它在日历上的截止提醒也会先隐藏，恢复后回来。",T_PE_ARCH_GROUP_BODY="整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。",T_PE_ARCH_RESTORE="可以在编辑页的「已归档」里恢复。点「保存计划」后生效。";
-const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容",lname:"请填写力量项名称",lunit:"请填写单位",ltarget:"目标值要大于 0",ldef:"起始值不能小于 0",fitint:"请填 0 到 7 之间的整数",fitorder:"最少天数不能大于最多天数",tag:"请填写标签内容",tagdup:"这个分类里已经有这个标签了"},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
+const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容",lname:"请填写力量项名称",lunit:"请填写单位",ltarget:"目标值要大于 0",ldef:"起始值不能小于 0",fitint:"请填 0 到 7 之间的整数",fitorder:"最少天数不能大于最多天数",tag:"请填写标签内容",tagdup:"这个分类里已经有这个标签了",glimit:`目标组最多 ${PLAN_MAX.groups} 个，请先删掉或归档多余的`,tlimit:`每组最多 ${PLAN_MAX.tasks} 项任务，请先删掉或归档多余的`,llimit:`力量项最多 ${PLAN_MAX.lifts} 个，请先删掉或归档多余的`,taglimit:`每个分类最多 ${PLAN_MAX.tags} 个标签，请先删掉多余的`,nlong:`名称最多 ${PLAN_MAX.name} 个字`,tlong:`任务内容最多 ${PLAN_MAX.text} 个字`,ulong:`单位最多 ${PLAN_MAX.unit} 个字`,taglong:`标签最多 ${PLAN_MAX.tag} 个字`},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
 const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要修改，已标在对应位置";
 const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_DEL_LIFT="删除这个力量项",T_PE_LIM_LIFTS="最多 8 个",T_PE_ARCH_LIFT_TITLE="归档这个力量项？",T_PE_ARCH_LIFT_YES="归档力量项",T_PE_ARCH_LIFT_BODY="归档后目标页只读显示它的历史，不能再记录新的重量。";
@@ -2836,6 +2849,8 @@ async function savePlanDraft(){
   }
   const np=normalizePlan(s.draft);
   if(!np){back();return}
+  /* WR-02：名称、任务文字、单位和标签保存时去掉首尾空格（planProblems 判空和判重复本来就按 trim 之后的值） */
+  np.groups.forEach(g=>{g.name=g.name.trim();g.tasks.forEach(t=>{t.text=t.text.trim()})});np.lifts.forEach(L=>{L.n=L.n.trim();L.unit=L.unit.trim()});Object.keys(np.presets).forEach(k=>{np.presets[k]=np.presets[k].map(x=>x.trim())});
   /* S9 第 5 步：4 MB 容量检查。超限就不保存、不留底、不上传，提示行和现有的容量超限横幅说明，留在编辑页；通过了就收起自己显示过的横幅。两种留底（读不出来的计划、用我的覆盖）都在这一步之后、写入之前 */
   if(sizeOf(np)>CLOUD_MAX){s.tooLarge=true;showTooLarge();back();return}
   if(s.tooLarge){s.tooLarge=false;peClearTooLarge()}
