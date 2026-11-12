@@ -1393,6 +1393,8 @@ async function relogin(){
   resetSession();showLogin("","expired");
 }
 async function syncOnce(){
+  /* no token at all: another tab signed out and has already removed it from the shared storage; this tab's own storage event for the token signs it out as "other tab", so a sync that gets there first must not call it an expiry */
+  if(!pb.authStore.token)return;
   if(!pb.authStore.isValid){goExpired();return}
   const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal},bump=bumpReq;bumpReq=false;
   let timedOut=false,authing=false,sentOps=0;

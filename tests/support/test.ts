@@ -105,6 +105,17 @@ export async function attachGuard(
     const url = route.request().url();
     const kind = classifyRequest(url, policy);
     if (kind === 'allow') {
+      // 清单和主屏图标（OPS-04、D-09）：浏览器会在页面载入之后才去取（图标、清单的取用时机不由页面脚本和 page.clock 控制）。
+      // 用例里 context.setOffline(true) 之后才取到的话，route.continue() 会走被断开的网络，多出一条 ERR_INTERNET_DISCONNECTED 的 console.error，
+      // 让断网用例的 console.error 条数忽多忽少。这里由 route.fetch() 取（不受 setOffline 影响）再 fulfill：
+      // 效果等同真实断网时由 Service Worker 缓存答出这些静态文件，请求仍只发往同源静态服务器。
+      const pathname = new URL(url).pathname;
+      if (pathname === MANIFEST_PATH || ICON_PATHS.includes(pathname)) {
+        return route
+          .fetch()
+          .then((response) => route.fulfill({ response }))
+          .catch(() => route.continue().catch(() => undefined));
+      }
       return route.continue();
     }
     if (kind === 'font') {
