@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: executing
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-11-12T00:17:02.621Z"
+stopped_at: Completed 12-03-PLAN.md
+last_updated: "2026-11-12T00:47:27.550Z"
 last_activity: 2026-11-11
 last_activity_desc: Phase 12 execution started
-state_head: 17991f607172b34833e8994b4fb142d7dea1ea21
+state_head: fa838315e6686cc74756338d5d13d7c36fed99e9
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 66
-  completed_plans: 60
+  completed_plans: 61
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 ## Current Position
 
 Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-11-11 — Phase 12 execution started
 
@@ -149,6 +149,7 @@ Progress: [████████░░] 75%
 | Phase 11 P11 | 40 min | 2 tasks | 3 files |
 | Phase 12 P01 | 19 min | 3 tasks | 12 files |
 | Phase 12 P02 | 24 min | 2 tasks | 9 files |
+| Phase 12 P03 | 28 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -292,6 +293,8 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 12]: 12-01: numeric plan rules stay out of normalizePlan (editor-only, owner decision 2026-11-11); cloud tests read group ids via readGroupIds after D-14
 - [Phase 12]: 12-02: 找不到所属组的自定义待办不算归档，截止提醒照常显示、本周计数按「其他」算（所有者 2026-11-11 确认）
 - [Phase 12]: 12-02: SEC-01 注入检测器排除应用自己的 details#goalsArch，第二个 #goalsArch 仍算外来元素（所有者 2026-11-11 批准）
+- [Phase 12]: 12-03：#plan 在未登录（登录页可见）和本地版一样去掉 hash 回到目标页；刷新带 #plan 且会话有效时，对账结束后才打开编辑页
+- [Phase 12]: 12-03：账号计划读不出来时，保存先 keepConflict(plan) 留本机底，写不进就整个不保存；savePlanDraft 的校验放在 normalizePlan 之前，三选一放在并入远端版本之后
 
 ### Pending Todos
 
@@ -355,8 +358,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T00:17:00.944Z
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-11-12T00:47:25.421Z
+Stopped at: Completed 12-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
