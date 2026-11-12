@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = 'fa70cffa9f55690776b1f8f60b62c64b1852c7a06fdc4e9cc27418b2f4959a0c';
+export const APP_SHA256 = '05e45a52e36982e4de3eca060b11c2939a988000eea61d1547231ee6f0dbc5e4';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
@@ -66,6 +66,10 @@ export const SW_PATH = '/sw.js';
 
 // 测试静态服务器把 sw.js 里的版本占位换成的版本号；缓存名因此固定为 usj-shell-test
 export const SW_TEST_VERSION = 'test';
+
+// 测试静态服务器上只供测试的版本开关路径（OPS-04、D-08）：GET 这个路径加版本号，服务器之后提供的 sw.js 就带那个版本，
+// 浏览器因此看到“新版本发布”；只有 tests/cloud/sw-update.spec.ts 用，每条用例结束时必须调回 SW_TEST_VERSION
+export const SW_VERSION_CONTROL_PATH = '/__test/sw-version/';
 
 // Service Worker 缓存名的前缀，完整缓存名是前缀加版本号
 export const SW_CACHE_PREFIX = 'usj-shell-';

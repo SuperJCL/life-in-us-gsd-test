@@ -25,6 +25,11 @@ const SITE_DIR = path.resolve(__dirname, '..', '..', 'deploy', 'site');
 const SW_FILE = path.join(SITE_DIR, 'sw.js');
 let swVersion = 'test';
 
+// 只供测试的版本开关（OPS-04、D-08）：GET /__test/sw-version/<v> 把上面的 swVersion 改成 <v>（回 204），格式不对回 400，
+// /__test/ 下的其他路径落到最后的 404。只给 tests/cloud/sw-update.spec.ts 用：Playwright 拦截不了 Service Worker 的更新请求，
+// 所以“新版本发布”只能由服务器自己变；仍只绑回环、只接受两个 Host，也不读写任何文件；线上 nginx 没有这个路径。
+const SW_VERSION_CONTROL_PATH = '/__test/sw-version/';
+
 // 清单和主屏图标（OPS-04、D-09）：同样直接读 deploy/site/，路径是精确白名单，不拼接请求里的任何片段
 const MANIFEST_PATH = '/manifest.webmanifest';
 const MANIFEST_FILE = path.join(SITE_DIR, 'manifest.webmanifest');
@@ -137,6 +142,17 @@ const server = http.createServer((req, res) => {
     // 4 个主屏图标（OPS-04、D-09）：精确白名单，直接读 deploy/site/icons/ 里的原文件；其余 /icons/ 路径仍是 404
     file = ICON_FILES[pathname];
     headers = { 'content-type': 'image/png', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
+  } else if (pathname.startsWith(SW_VERSION_CONTROL_PATH)) {
+    // 只供 tests/cloud/sw-update.spec.ts 用的版本开关：版本必须匹配 ^[a-z0-9]{1,16}$，只改内存里的一个字符串，不读写任何文件
+    const v = pathname.slice(SW_VERSION_CONTROL_PATH.length);
+    if (/^[a-z0-9]{1,16}$/.test(v)) {
+      swVersion = v;
+      res.writeHead(204, { 'cache-control': 'no-store' });
+    } else {
+      res.writeHead(400);
+    }
+    res.end();
+    return;
   } else if (pathname === SW_PATH) {
     // 每次都读文件并换版本，不缓存；占位在文件里恰好一处（启动时已核对）
     let body;

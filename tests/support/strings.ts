@@ -666,3 +666,11 @@ export const peD08More = (n: number): string => `还有 ${n} 项`;
 export const PE_HINT_EXPIRED = '登录已过期，重新登录后再保存';
 export const PE_HINT_OFFLINE = '联网后再保存';
 export const PE_HINT_TOOLARGE = '保存失败：计划超过容量上限（4 MB）。请先删掉一些内容，或联系管理员。';
+
+// Phase 13-03 Task 1：新版本发布后的更新横幅（应用里 T_SW_UPDATE、T_SW_BTN、T_SW_BUSY，逐字相同；D-08）。
+// #syncbar 的 data-tone 为 info，只有一个按钮；点击后按钮立刻 disabled 并换成 BTN_SW_UPDATING
+export const BANNER_SW_UPDATE = '有新版本';
+// 更新横幅上的按钮文字
+export const BTN_SW_UPDATE = '点此更新';
+// 点了更新之后按钮上的文字（按钮同时 disabled）
+export const BTN_SW_UPDATING = '正在更新…';

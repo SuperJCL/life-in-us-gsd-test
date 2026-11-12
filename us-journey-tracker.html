@@ -1108,7 +1108,8 @@ function gateGuard(e){
 }
 ["click","keydown","dragstart","drop","change","input"].forEach(n=>window.addEventListener(n,gateGuard,true));
 /* sync bar: one banner at a time, highest priority first (S2); text and buttons are built with textContent and createElement */
-const SB_ORDER=["expired","unreachable","slow","toolarge","cachefail","snapfail","remote","sizewarn"],sbs={};
+/* update (a new version waits to be activated, D-08) comes last: the lowest priority, shown only when nothing above it is */
+const SB_ORDER=["expired","unreachable","slow","toolarge","cachefail","snapfail","remote","sizewarn","update"],sbs={};
 function drawBar(){
   const el=$("syncbar"),key=SB_ORDER.find(k=>sbs[k]),msg=el.querySelector(".sb-msg");
   el.querySelectorAll("button").forEach(b=>b.remove());
@@ -1993,10 +1994,28 @@ async function onLogoutClick(){
 $("logoutBtn").addEventListener("click",onLogoutClick);
 
 /* ---------- offline shell (OPS-04, Phase 13) ---------- */
-let swReg=null;
+/* D-08: a new sw.js waits (it never skips waiting on its own); the page offers "有新版本 / 点此更新" in #syncbar and reloads only after the click.
+   swGo: the click has been taken, so controllerchange reloads exactly once; the first install (no controller yet) offers nothing.
+   A controllerchange nobody here asked for (another tab activated the new version) only shows the banner: this tab never reloads by itself */
+const T_SW_UPDATE="有新版本",T_SW_BTN="点此更新",T_SW_BUSY="正在更新…";
+let swReg=null,swGo=false,swReloaded=false;
+function swBar(busy){showBar("update",{tone:"info",msg:T_SW_UPDATE,btns:[{text:busy?T_SW_BUSY:T_SW_BTN,cls:"primary",fn:swUpdate,disabled:busy}]})}
+function swOffer(){if(swGo||!navigator.serviceWorker.controller)return;swBar(false)}
+function swUpdate(){
+  if(swGo)return;
+  swGo=true;swBar(true);
+  const w=swReg&&swReg.waiting;
+  if(w)w.postMessage({type:"SKIP_WAITING"});else location.reload();
+}
 function swInit(){
   if(!("serviceWorker" in navigator)||!window.isSecureContext)return;
-  navigator.serviceWorker.register("/sw.js").then(r=>{if(!r)return;swReg=r}).catch(()=>{});
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!swGo)swOffer();else if(!swReloaded){swReloaded=true;location.reload()}});
+  navigator.serviceWorker.register("/sw.js").then(r=>{
+    if(!r)return;swReg=r;
+    if(r.waiting)swOffer();
+    r.addEventListener("updatefound",()=>{const w=r.installing;if(w)w.addEventListener("statechange",()=>{if(w.state==="installed")swOffer()})});
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")r.update().catch(()=>{})});
+  }).catch(()=>{});
 }
 
 /* ---------- shared ---------- */
