@@ -1998,12 +1998,25 @@ $("logoutBtn").addEventListener("click",onLogoutClick);
    swGo: the click has been taken, so controllerchange reloads exactly once; the first install (no controller yet) offers nothing.
    A controllerchange nobody here asked for (another tab activated the new version) only shows the banner: this tab never reloads by itself */
 const T_SW_UPDATE="有新版本",T_SW_BTN="点此更新",T_SW_BUSY="正在更新…";
-let swReg=null,swGo=false,swReloaded=false;
+const T_SW_CF_TITLE="现在更新？",T_SW_CF_LINE1="有没保存的修改，更新会刷新页面，这些修改会丢失。",T_SW_CF_LINE2="已经记下、还没上传的修改不受影响，刷新后会照常上传。",T_SW_CF_CANCEL="先不更新",T_SW_CF_OK="仍然更新";
+let swReg=null,swGo=false,swAsk=false,swReloaded=false;
 function swBar(busy){showBar("update",{tone:"info",msg:T_SW_UPDATE,btns:[{text:busy?T_SW_BUSY:T_SW_BTN,cls:"primary",fn:swUpdate,disabled:busy}]})}
-function swOffer(){if(swGo||!navigator.serviceWorker.controller)return;swBar(false)}
-function swUpdate(){
-  if(swGo)return;
-  swGo=true;swBar(true);
+function swOffer(){if(swGo||swAsk||!navigator.serviceWorker.controller)return;swBar(false)}
+/* unsaved work an update would throw away: a plan edit with changes, any other editing state isBusy knows (dialog, drafts, open inputs, a typed to-do...), or, while the plan editor is open (isBusy is always true there),
+   only a real draft in the two composers. Entries already recorded but not yet uploaded live in the local cache and are uploaded after the reload, so they do not count */
+function swUnsaved(){
+  if(planDirty())return true;
+  if(!pe)return isBusy();
+  return ["w-text","c-text"].some(id=>{const e=$(id);return !!e&&!!e.value.trim()});
+}
+async function swUpdate(){
+  if(swGo||swAsk)return;
+  swAsk=true;swBar(true);
+  if(swUnsaved()){
+    const ok=await confirmBox({title:T_SW_CF_TITLE,lines:[T_SW_CF_LINE1,T_SW_CF_LINE2],cancel:T_SW_CF_CANCEL,ok:T_SW_CF_OK});
+    if(!ok){swAsk=false;swBar(false);return}
+  }
+  swAsk=false;swGo=true;
   const w=swReg&&swReg.waiting;
   if(w)w.postMessage({type:"SKIP_WAITING"});else location.reload();
 }
@@ -2819,7 +2832,7 @@ window.addEventListener("hashchange",()=>{
   peLeave().then(ok=>{if(pe!==s)return;if(ok)closePlanEditor(s.from);else history.pushState({pe:1},"","#plan")});
 });
 /* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
-window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.returnValue=""}});
+window.addEventListener("beforeunload",e=>{if(planDirty()&&!swGo){e.preventDefault();e.returnValue=""}});
 /* D-10：点「保存计划」直接生效，不显示改动摘要。写法照 applyImport 的计划部分；persist 只管 state，计划要自己请求同步。上传失败走现有的脏标记加退避重试 */
 /* D-08 的复查（S9 第 4 步）：pe.gone 的一项在最新的工作 state 里有了进度：任务已完成或设了截止日期，目标组的三项统计之和大于 0（含自定义待办），力量项有历史 */
 const T_PE_D8_TITLE="这些项刚在别的设备上有了进度",T_PE_D8_INTRO="你在草稿里删除了下面这些项，但它们刚在别的设备上有了进度：",T_PE_D8_Q="要把它们归档，还是连进度一起删除？",T_PE_D8_ARCHIVE="全部归档",T_PE_D8_DELETE="连进度一起删";
