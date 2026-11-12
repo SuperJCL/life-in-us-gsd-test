@@ -25,6 +25,16 @@ const SITE_DIR = path.resolve(__dirname, '..', '..', 'deploy', 'site');
 const SW_FILE = path.join(SITE_DIR, 'sw.js');
 let swVersion = 'test';
 
+// 清单和主屏图标（OPS-04、D-09）：同样直接读 deploy/site/，路径是精确白名单，不拼接请求里的任何片段
+const MANIFEST_PATH = '/manifest.webmanifest';
+const MANIFEST_FILE = path.join(SITE_DIR, 'manifest.webmanifest');
+const ICON_FILES = {
+  '/icons/icon-192.png': path.join(SITE_DIR, 'icons', 'icon-192.png'),
+  '/icons/icon-512.png': path.join(SITE_DIR, 'icons', 'icon-512.png'),
+  '/icons/icon-maskable-512.png': path.join(SITE_DIR, 'icons', 'icon-maskable-512.png'),
+  '/icons/apple-touch-icon-180.png': path.join(SITE_DIR, 'icons', 'apple-touch-icon-180.png'),
+};
+
 // 应用文件随仓库提供（Phase 7 起），缺少它说明工作区不完整。缺少时在 listen 之前就失败，
 // 给出清楚的中文提示。提示里只用仓库相对的说法，不打印解析后的绝对路径。
 const MISSING_APP_MESSAGE =
@@ -115,6 +125,18 @@ const server = http.createServer((req, res) => {
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
     };
+  } else if (pathname === MANIFEST_PATH) {
+    // 网页应用清单（OPS-04、D-09）：直接读 deploy/site/manifest.webmanifest，不复制第二份
+    file = MANIFEST_FILE;
+    headers = {
+      'content-type': 'application/manifest+json; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    };
+  } else if (Object.prototype.hasOwnProperty.call(ICON_FILES, pathname)) {
+    // 4 个主屏图标（OPS-04、D-09）：精确白名单，直接读 deploy/site/icons/ 里的原文件；其余 /icons/ 路径仍是 404
+    file = ICON_FILES[pathname];
+    headers = { 'content-type': 'image/png', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
   } else if (pathname === SW_PATH) {
     // 每次都读文件并换版本，不缓存；占位在文件里恰好一处（启动时已核对）
     let body;

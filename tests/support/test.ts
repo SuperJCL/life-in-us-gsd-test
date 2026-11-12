@@ -2,7 +2,7 @@
 // 这个出口挂两个 auto fixture：guard（网络护栏和页面错误收集）和 frozenClock（固定时钟）。
 // 注入脚本只用 addInitScript(fn, arg) 的形式，不拼接字符串。
 import { test as base, expect, type BrowserContext, type Page } from '@playwright/test';
-import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, PB_SDK_PATH, SW_PATH } from './constants';
+import { APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, ICON_PATHS, MANIFEST_PATH, PB_SDK_PATH, SW_PATH } from './constants';
 import { AppHarness } from './app';
 
 // guard 收集的全部状态；用例可以通过 ({ guard }) 读取 guard.state
@@ -55,11 +55,13 @@ export function guardPolicy(...args: [env?: string | undefined]): GuardPolicy {
 
 // 应用来源下放行的路径白名单：每条都要写明原因，不允许用别的方式放宽。
 // v1：页面本身，加上静态服务器返回应用文件的别名；v1 页面不加载 SDK，也不发任何 /api 请求。
-export const V1_APP_PATHS = ['/', '/us-journey-tracker.html'];
+// MANIFEST_PATH 和 ICON_PATHS（OPS-04、D-09）：两种模式的页面 head 都带清单和图标链接，浏览器可能去取它们，所以两档都放行；它们是同源的静态文件。
+export const V1_APP_PATHS = ['/', '/us-journey-tracker.html', MANIFEST_PATH, ...ICON_PATHS];
 // cloud：页面、应用文件，以及同源提供的、哈希已钉死的 PocketBase SDK。
 // SW_PATH（OPS-04、D-07）：云端页面注册的 Service Worker 脚本，由静态服务器从 deploy/site/sw.js 提供；只进 cloud 档，本地版（v1）不注册。
+// MANIFEST_PATH 和 ICON_PATHS 的原因同上（页面 head 的链接）。
 // /api/* 不在这里：假服务器接得住的路径由它后注册的 route 先处理，接不住的经 route.fallback() 落回这里，记为违规。
-export const CLOUD_APP_PATHS = ['/', '/us-journey-tracker.html', PB_SDK_PATH, SW_PATH];
+export const CLOUD_APP_PATHS = ['/', '/us-journey-tracker.html', PB_SDK_PATH, SW_PATH, MANIFEST_PATH, ...ICON_PATHS];
 
 // 判定一条请求 URL：allow 放行，font 是已预期拦截的字体主机，violation 记录并 abort。
 // 纯函数：不碰页面和 Playwright 对象，route 处理函数和单元断言共用这一个入口。

@@ -10,7 +10,7 @@
 //  - 新版本装好后进入等待，只有用户点击更新、页面发来 SKIP_WAITING 消息才生效，
 //    所以已经打开的旧页面始终配着旧缓存，不会新旧混用。
 const V = '__BUILD_VERSION__', CACHE = 'usj-shell-' + V;
-const SHELL = ['/', '/vendor/pocketbase.iife.js'];
+const SHELL = ['/', '/vendor/pocketbase.iife.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png', '/icons/apple-touch-icon-180.png'];
 
 self.addEventListener('install', (e) => e.waitUntil(
   caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) =>

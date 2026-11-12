@@ -8,7 +8,18 @@ import { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
 import { syntheticState } from '../support/cloud-data';
 import { loadAppPure } from '../support/app-source';
-import { APP_FILE_NAME, APP_ORIGIN, FONT_HOSTS, FROZEN_NOW, PB_SDK_PATH, PB_SDK_SHA256, STATE_KEY } from '../support/constants';
+import {
+  APP_FILE_NAME,
+  APP_ORIGIN,
+  FONT_HOSTS,
+  FROZEN_NOW,
+  ICON_PATHS,
+  MANIFEST_PATH,
+  PB_SDK_PATH,
+  PB_SDK_SHA256,
+  STATE_KEY,
+  SW_PATH,
+} from '../support/constants';
 import { LOGIN_ERR_UNREACHABLE, NOTICE_OTHER_TAB, STATUS_CLOUD_SYNCED } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -43,7 +54,14 @@ test('INFRA-03 the cloud page requests only its own origin while signing in, loa
   for (const url of urls) {
     const parsed = new URL(url);
     expect(parsed.origin, url).toBe(APP_ORIGIN);
-    const allowed = parsed.pathname === '/' || parsed.pathname === PB_SDK_PATH || parsed.pathname.startsWith('/api/');
+    // 同源的外壳文件（OPS-04、D-07、D-09）：Service Worker、清单和主屏图标，都是页面 head 或注册带来的静态请求
+    const allowed =
+      parsed.pathname === '/' ||
+      parsed.pathname === PB_SDK_PATH ||
+      parsed.pathname === MANIFEST_PATH ||
+      parsed.pathname === SW_PATH ||
+      ICON_PATHS.includes(parsed.pathname) ||
+      parsed.pathname.startsWith('/api/');
     expect(allowed, url).toBe(true);
   }
   // 护栏没有放过也没有拦下任何外部请求（cloud 策略下字体主机同样记为违规）

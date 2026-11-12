@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = 'c54c9a81b41b3757f6875fe7e0c5ce29381ccd32ebbfd16279afa781bfa8df0e';
+export const APP_SHA256 = '9220286833c15763589a2b8fc1a266e27aeb9b0e46425c121a5296341a55c800';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
@@ -73,8 +73,20 @@ export const SW_CACHE_PREFIX = 'usj-shell-';
 // 同源提供真实 PocketBase SDK 的路径：静态服务器从 tools/probe/page/vendor/ 读原文件，不复制第二份（08-02）
 export const PB_SDK_PATH = '/vendor/pocketbase.iife.js';
 
-// 外壳预缓存的路径集合（13-02 再加清单和图标）：缓存里的条目路径必须恰好等于它
-export const SHELL_PATHS = ['/', PB_SDK_PATH];
+// 网页应用清单的路径（OPS-04、D-09）：静态服务器从 deploy/site/manifest.webmanifest 提供，不复制第二份
+export const MANIFEST_PATH = '/manifest.webmanifest';
+
+// 主屏图标的路径（OPS-04、D-09），顺序：icon-192、icon-512、icon-maskable-512、apple-touch-icon-180；
+// 静态服务器从 deploy/site/icons/ 提供原文件，页面 head 和清单都链接它们
+export const ICON_PATHS = [
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon-180.png',
+];
+
+// 外壳预缓存的路径集合：页面、SDK、清单和 4 个主屏图标（D-07、D-09）；缓存里的条目路径必须恰好等于它
+export const SHELL_PATHS = ['/', PB_SDK_PATH, MANIFEST_PATH, ...ICON_PATHS];
 
 // 页面里运行的 SDK 版本，和 tools/probe/page/vendor/README.md 一致
 export const PB_SDK_VERSION = '0.28.1';
