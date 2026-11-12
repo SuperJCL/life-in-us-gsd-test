@@ -2847,7 +2847,7 @@ async function savePlanDraft(){
   }
   /* 用我的覆盖：此刻的工作计划就是被盖掉的那一版（已并入最新的挂起版本），写入之前存成本机留底（可下载）；留底存不下时照常保存，离开后用「留底没存上」横幅说明，不说假话 */
   let kept=null;
-  if(overwrite)kept=keepConflict("plan",{data:JSON.parse(JSON.stringify(plan))});
+  if(overwrite&&!unread)kept=keepConflict("plan",{data:JSON.parse(JSON.stringify(plan))});
   /* 离开计划的任务、组和力量项（直接移除、以后的彻底删除）：它们的进度键、组里的自定义待办和待办的进度、力量项的 state.lifts[id]（当前值和历史）经 commit 从 state 删除；归档的项仍在新计划里，进度原样。计划读不出来时（keepOrphans）页面显示的是示例计划，下一次加载本来就会丢掉对不上的进度键，这里不动 state。差集在 usePlan 换掉旧计划之前算 */
   const outT=[],outC=[],outL=[];
   if(!keepOrphans){

@@ -35,6 +35,7 @@ import {
   PE_NOTICE,
   TOAST_PLAN_SAVED,
   TOAST_PLAN_SAVED_KEPT,
+  TOAST_PLAN_SAVED_UNREAD,
   TOAST_PLAN_TAKEN,
   peD08Lift,
   peD08More,
@@ -512,4 +513,47 @@ test("PLAN-04 a plan saved in another tab of the same browser shows the notice i
   } finally {
     await other.close();
   }
+});
+
+test('PLAN-04 overwriting after the account plan became unreadable during the edit keeps the unreadable original, not the sample plan (CR-01)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('un', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('un'), plan, login: 0 });
+  const userId = app.fake.users[0].id;
+
+  // 打开编辑页时计划读得出来；改第 1 组的名称
+  await openEditor(page);
+  await expand(page, 'g:g-un1');
+  await field(page, 'g:g-un1:name').fill('SYNTH-un mine');
+  await expect(page.locator('#pe-notice')).toBeHidden();
+
+  // 编辑期间别的设备写入了一份应用读不出来的计划（缺 lifts）：页面拿到新版本，提示出现，草稿不动
+  const base0 = (await planCache(page, userId)).base as string;
+  const bad = { _synthetic: true, marker: 'SYNTH-un unreadable original', groups: [{ id: 'g-bad' }] };
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, { data: bad, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+  await waitPlanVersion(page, userId, base0);
+  await expect(page.locator('#pe-notice')).toBeVisible();
+  expect(await field(page, 'g:g-un1:name').inputValue()).toBe('SYNTH-un mine');
+
+  // 保存 → 三选一 → 用我的覆盖：toast 说读不出来的那一份已留底
+  await savePlan(page);
+  await readConfirm(page);
+  await confirmOk(page);
+  await expectToast(page, TOAST_PLAN_SAVED_UNREAD);
+  await expect(page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+
+  // 留底和下载出来的是服务器上原来那一份读不出来的数据，不是示例计划
+  const snap = await snapshotOf(page, userId);
+  expect(snap?.kind).toBe('plan');
+  expect(snap?.data).toEqual(bad);
+  const file = await downloadOf(page, () => page.locator('#toast button').click());
+  const body = JSON.parse(file.text);
+  expect([body.app, body.format, body.kind]).toEqual([BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_PLAN]);
+  expect(body.plan?.marker).toBe('SYNTH-un unreadable original');
+
+  // 服务器计划随后是本机的草稿（第 1 组新名称）
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.[0]?.name, { message: '等待本机的计划上传' }).toBe('SYNTH-un mine');
 });
