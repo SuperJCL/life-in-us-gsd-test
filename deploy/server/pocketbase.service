@@ -1,0 +1,61 @@
+# pocketbase.service —— 应用站点的 PocketBase systemd unit（Phase 13，13-06，D-02、D-11；由 Phase 6 的探针 unit 改来）
+#
+# 装到 /etc/systemd/system/pocketbase.service（04-start-pocketbase.sh 负责）。
+# 以 pocketbase 用户运行，只监听 127.0.0.1:8090，外部只能经 nginx 访问；不使用 PM2。
+# 二进制放在 /opt/pocketbase（root 所有，对 pocketbase 用户只读），数据放在 /var/lib/pocketbase。
+# --dir 一定要显式写：漏写时 PocketBase 会去二进制旁边找 pb_data，那里对它只读，会直接报错而不是悄悄建出另一份库。
+#
+# 环境文件：EnvironmentFile 指向 /etc/usj/pocketbase.env，里面有两行：加密钥匙（PB_ENCRYPTION_KEY）和站点地址（USJ_ORIGIN）。
+#   这个文件由 03-configure-pocketbase.sh 在服务器上生成（root:pocketbase 0640），不在仓库里，仓库里只有这个路径。
+#   ExecStart 里的 ${USJ_ORIGIN}（带花括号）由 systemd 展开成恰好一个参数，所以 unit 里没有域名；
+#   --encryptionEnv 只写环境变量的名字，不写值，所以 unit 里也没有钥匙。没有写着密钥值的 Environment= 行。
+# --automigrate=false：在管理后台里改集合选项时，不要在服务器上自动生成迁移文件（迁移只来自仓库，经批准的脚本安装）。
+# --hooksWatch=false：钩子只在启动时加载，部署后用 restart 生效。--hooksPool=3：把默认预热的 15 个 JS 运行时降到 3 个，
+#   为了省内存（服务器只有约 0.9 GB；具体节省量没有测过，部署后看 RSS，RESEARCH A7）。
+# --origins：只允许站点自己的源（应用是同源的，收紧不影响功能）。
+#
+# 内存：GOMEMLIMIT 是软上限（让 GC 更积极），MemoryHigh 和 MemoryMax 是 cgroup 上限，OOMScoreAdjust 让内存紧张时
+# 先杀它（Restart=always 会把它拉起来），而不是拖垮 nginx 和 sshd。1 GB 的 swap 文件由 01-swap.sh 建，fstab 里有一行。
+# 开机自恢复靠两样：unit 是 enabled，加上 Restart=always（OPS-02）。
+#
+# 没有加 SystemCallFilter 和 MemoryDenyWriteExecute：没有在这台机器上验证它们不会让 Go 运行时出问题。
+# 其余沙箱项都是 systemd 的通用加固；启动失败时 04-start-pocketbase.sh 会 disable --now 停掉服务。
+#
+# 回滚：systemctl disable --now pocketbase，然后删除这个 unit 文件并 systemctl daemon-reload。
+#   环境文件和钥匙留在 /etc/usj（钥匙丢了设置就读不出来，不要随手删）。
+
+[Unit]
+Description=PocketBase (计划手记)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pocketbase
+Group=pocketbase
+WorkingDirectory=/var/lib/pocketbase
+EnvironmentFile=/etc/usj/pocketbase.env
+Environment=GOMEMLIMIT=256MiB
+ExecStart=/opt/pocketbase/pocketbase serve --http=127.0.0.1:8090 --dir=/var/lib/pocketbase/pb_data --migrationsDir=/var/lib/pocketbase/pb_migrations --hooksDir=/var/lib/pocketbase/pb_hooks --hooksWatch=false --hooksPool=3 --publicDir=/var/lib/pocketbase/pb_public --indexFallback=false --automigrate=false --encryptionEnv=PB_ENCRYPTION_KEY --origins=${USJ_ORIGIN}
+Restart=always
+RestartSec=5s
+LimitNOFILE=4096
+MemoryHigh=320M
+MemoryMax=400M
+OOMScoreAdjust=300
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pocketbase
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
