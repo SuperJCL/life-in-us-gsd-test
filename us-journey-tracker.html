@@ -2313,11 +2313,15 @@ function openPlanEditor(from){
   showTab("plan");renderPlanEditor();peRemote();window.scrollTo(0,0);$("pe-title").focus();
   if(remoteView)maybeApplyView();
 }
+/* 编辑页自己显示的容量超限横幅：只在 state 和计划本身都没超限时收起（state 超限的横幅归同步所有） */
+function peClearTooLarge(){if(sizeOf(state)<=CLOUD_MAX&&sizeOf(planBody())<=CLOUD_MAX)hideBar("toolarge")}
 function closePlanEditor(tab){
+  const big=!!pe&&pe.tooLarge;
   pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("pe-unread").classList.add("hidden");
   if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
   const k=tab||"goal";
   showTab(k);renderAll();
+  if(big)peClearTooLarge();
   if(k==="goal"){const b=$("planEditBtn")||$("planEditBtn2");(b||$("goals")).focus()}
   /* 不再忙了：挂起的远端更新按 Phase 10 的规则应用 */
   if(remoteView)maybeApplyView();
@@ -2332,12 +2336,21 @@ function planRoute(){
   history.replaceState(null,"",location.pathname+location.search);
   showTab("goal");
 }
+/* S2、D-11、D-12：登录已过期，或状态行是 offline、retrying、unreachable、slow（断网、连不上服务器）时不能保存：返回提示句，否则空串。保存按钮此时用 aria-disabled（不用 disabled，留在 Tab 顺序里，aria-describedby 指向提示行），点击或按 Enter 只弹同一句 toast，草稿留在页面上 */
+const T_PE_HINT_EXPIRED="登录已过期，重新登录后再保存",T_PE_HINT_OFFLINE="联网后再保存",T_PE_HINT_TOOLARGE="保存失败：计划超过容量上限（4 MB）。请先删掉一些内容，或联系管理员。";
+function peBlock(){
+  if(net==="expired")return T_PE_HINT_EXPIRED;
+  return ["offline","retrying","unreachable","slow"].includes($("status").getAttribute("data-state"))?T_PE_HINT_OFFLINE:"";
+}
+/* 提示行按优先级只显示一条：登录已过期 > 断网 > 容量超限 > 校验错误 > 别的设备改过 > 有没保存的修改 > 还没有修改 */
 function peBar(){
   if(!pe)return;
-  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),bn=(pe.tried||pe.preErr)?planProblems(pe.draft).length:0,t=bn?T_PE_HINT_ERRORS(bn):pe.remote?T_PE_HINT_REMOTE:d?T_PE_HINT_DIRTY:T_PE_HINT_NONE;
+  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),bn=(pe.tried||pe.preErr)?planProblems(pe.draft).length:0,blk=peBlock(),
+    t=blk||(pe.tooLarge?T_PE_HINT_TOOLARGE:bn?T_PE_HINT_ERRORS(bn):pe.remote?T_PE_HINT_REMOTE:d?T_PE_HINT_DIRTY:T_PE_HINT_NONE);
   if(h.textContent!==t)h.textContent=t;
-  if(bn)h.setAttribute("data-tone","error");else if(pe.remote)h.setAttribute("data-tone","warn");else if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
-  sv.disabled=!d||pe.busy;
+  if(blk)h.setAttribute("data-tone","warn");else if(pe.tooLarge||bn)h.setAttribute("data-tone","error");else if(pe.remote)h.setAttribute("data-tone","warn");else if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
+  if(blk)sv.setAttribute("aria-disabled","true");else sv.removeAttribute("aria-disabled");
+  sv.disabled=blk?pe.busy:!d||pe.busy;
   if(pe.busy)sv.setAttribute("aria-busy","true");else sv.removeAttribute("aria-busy");
   const st=pe.busy?T_PE_SAVING:T_PE_SAVE;
   if(sv.textContent!==st)sv.textContent=st;
@@ -2779,7 +2792,11 @@ function peArchiveGone(hs){
 }
 async function savePlanDraft(){
   const s=pe;
-  if(!s||s.busy||!planDirty())return;
+  if(!s||s.busy)return;
+  /* D-11、D-12：过期或断网（连不上服务器）时不保存，只弹和提示行同一句的 toast，草稿不动 */
+  const blk=peBlock();
+  if(blk){toast(blk,null,3000);return}
+  if(!planDirty())return;
   const ep=sessionEpoch,live=()=>pe===s&&ep===sessionEpoch;
   /* D-17、S6：先检查草稿；有问题就不保存，展开含错误的卡，提示行写数量，焦点移到第一个出错的字段。要并入远端版本、存计划都在这之后 */
   const pr=planProblems(s.draft);
@@ -2818,6 +2835,9 @@ async function savePlanDraft(){
   }
   const np=normalizePlan(s.draft);
   if(!np){back();return}
+  /* S9 第 5 步：4 MB 容量检查。超限就不保存、不留底、不上传，提示行和现有的容量超限横幅说明，留在编辑页；通过了就收起自己显示过的横幅。两种留底（读不出来的计划、用我的覆盖）都在这一步之后、写入之前 */
+  if(sizeOf(np)>CLOUD_MAX){s.tooLarge=true;showTooLarge();back();return}
+  if(s.tooLarge){s.tooLarge=false;peClearTooLarge()}
   /* 所有者决定（2026-11-11）：账号的计划读不出来（keepOrphans 仍为真，并入的远端版本也读不出来）时，先把服务器上那份存成本机留底（与 D-07 的覆盖留底同一个机制，可下载），然后才替换；留底存不下就不保存，草稿留在页面上 */
   let unread=false;
   if(keepOrphans){

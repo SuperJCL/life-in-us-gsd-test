@@ -651,3 +651,8 @@ export const BTN_PE_DELETE_ALL = '连进度一起删';
 export const peD08Task = (text: string, done: boolean): string => `任务「${text}」（${done ? '已完成' : '设了截止日期'}）`;
 export const peD08Lift = (name: string, n: number): string => `力量项「${name}」（${n} 条记录）`;
 export const peD08More = (n: number): string => `还有 ${n} 项`;
+
+// Phase 12-07 Task 3：保存按钮在过期、断网、容量超限时的提示行（应用里 T_PE_HINT_EXPIRED、T_PE_HINT_OFFLINE、T_PE_HINT_TOOLARGE，逐字相同）
+export const PE_HINT_EXPIRED = '登录已过期，重新登录后再保存';
+export const PE_HINT_OFFLINE = '联网后再保存';
+export const PE_HINT_TOOLARGE = '保存失败：计划超过容量上限（4 MB）。请先删掉一些内容，或联系管理员。';

@@ -23,6 +23,7 @@ import {
   CONFIRM_LOGOUT_UNSAVED,
   LOGOUT_LINE_PLAN,
   PE_HINT_DIRTY,
+  PE_HINT_EXPIRED,
   PE_HINT_NONE,
   PE_UNREAD,
   STATUS_CLOUD_SYNCED,
@@ -251,7 +252,8 @@ test.describe('manual clock', () => {
     await confirmCancel(page);
     await expect(page.locator('#login')).toBeHidden();
     ed = await readEditor(page);
-    expect([ed.open, ed.hash, ed.hint]).toEqual([true, '#plan', PE_HINT_DIRTY]);
+    // 12-07（所有者 2026-11-11 批准）：登录已过期时提示行是 D-12 的过期提示，不再是「有没保存的修改」
+    expect([ed.open, ed.hash, ed.hint]).toEqual([true, '#plan', PE_HINT_EXPIRED]);
     expect(await field(page, 'g:g-pe1:name').inputValue()).toBe(renamed);
 
     // 「仍然重新登录」：到登录页，hash 不再是 #plan
