@@ -501,3 +501,14 @@ export const PE_HINT_DIRTY = '有没保存的修改';
 export const TOAST_PLAN_SAVED = '计划已保存';
 export const PE_UNNAMED = '（未命名）';
 export const PE_SAVING = '保存中…';
+
+// Phase 12-03 Task 2：离开编辑页的确认、退出登录的条件行、重新登录的确认（应用里 T_PE_LEAVE_TITLE、T_PE_LEAVE_BODY、T_PE_LEAVE_NO、T_PE_LEAVE_YES、T_CF_PLAN、T_PE_RELOGIN_TITLE、T_PE_RELOGIN_BODY、T_PE_RELOGIN_NO、T_PE_RELOGIN_YES 的逐字复制）
+export const PE_LEAVE_TITLE = '放弃没保存的修改？';
+export const PE_LEAVE_BODY = '计划页里的修改还没有保存，现在离开会丢失。';
+export const BTN_PE_LEAVE_STAY = '继续编辑';
+export const BTN_PE_LEAVE_GO = '放弃修改';
+export const LOGOUT_LINE_PLAN = '编辑计划页里有没保存的修改，退出后会丢失。';
+export const PE_RELOGIN_TITLE = '重新登录？';
+export const PE_RELOGIN_BODY = '未保存的计划修改会丢失。';
+export const BTN_PE_RELOGIN_STAY = '先不登录';
+export const BTN_PE_RELOGIN_GO = '仍然重新登录';

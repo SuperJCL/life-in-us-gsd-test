@@ -1281,7 +1281,14 @@ function goExpired(){
   showBar("expired",{tone:"warn",msg:"登录已过期，本机的修改还在，重新登录后会继续上传。",btns:[{text:"重新登录",cls:"primary",fn:relogin}]});
   showSync();
 }
-function relogin(){resetSession();showLogin("","expired")}
+/* D-12：编辑计划页有未保存修改时，重新登录先问；拒绝后草稿原样留在页面上 */
+async function relogin(){
+  if(planDirty()){
+    const s=pe;
+    if(!await confirmBox({title:T_PE_RELOGIN_TITLE,lines:[T_PE_RELOGIN_BODY],cancel:T_PE_RELOGIN_NO,ok:T_PE_RELOGIN_YES,scope:"plan"})||pe!==s)return;
+  }
+  resetSession();showLogin("","expired");
+}
 async function syncOnce(){
   if(!pb.authStore.isValid){goExpired();return}
   const ep=sessionEpoch,ctrl=mkCtrl(),sg={signal:ctrl.signal},bump=bumpReq;bumpReq=false;
@@ -1437,11 +1444,14 @@ function confirmBox(o){
     const body=$("cf-body");body.textContent="";
     o.lines.forEach((t,i)=>{const p=document.createElement("p");if(i===0&&o.who)p.className="cf-who";if(o.warn&&o.warn.includes(i))p.classList.add("cf-warn");p.textContent=t;body.appendChild(p)});
     cancel.textContent=o.cancel;okb.textContent=o.ok;
+    /* 可选参数：okClass 是确认按钮的 class（缺省 danger，传 primary 用 .primary）；scope 为 "plan" 时给对话框加 class pe（编辑计划页的确认框外观）；两者在 close 里恢复，现有调用不传，行为和外观不变 */
+    okb.className=o.okClass==="primary"?"primary":"danger";
+    if(o.scope==="plan")cfDlg.classList.add("pe");
     cancel.onclick=()=>cfDlg.close();
     okb.onclick=()=>{val=true;cfDlg.close()};
     cfDlg.onclick=e=>{if(e.target===cfDlg)cfDlg.close()};
     cfDlg.addEventListener("close",()=>{
-      cancel.onclick=okb.onclick=cfDlg.onclick=null;
+      cancel.onclick=okb.onclick=cfDlg.onclick=null;okb.className="danger";cfDlg.classList.remove("pe");
       try{if(back&&back.isConnected&&typeof back.focus==="function")back.focus()}catch(e){}
       res(val);
     },{once:true});
@@ -1806,6 +1816,7 @@ document.addEventListener("input",()=>{if(remoteView)maybeApplyView()});
 /* D-05: unsaved = a save debounce waiting, a save running, a dirty cache, or a weekly review still in its debounce;
    the cache is shared by every tab of this browser, so logout also reads the dirty bit another tab left there (onLogoutClick adds unsentOf) */
 function hasUnsaved(){return savePending||saving||rvPending||!!(docs.state&&docs.state.dirty)||!!(docs.plan&&docs.plan.dirty)}
+const T_CF_PLAN="编辑计划页里有没保存的修改，退出后会丢失。";
 const T_CF_OUT="退出登录？",T_CF_ACCOUNT="当前账号：",T_CF_UNSAVED="有修改还没保存到服务器，退出后会丢失。",T_CF_SNAP="有一份另一台设备的旧版本留底还没下载，退出后会丢失。",T_CF_UNDO="这台设备上还能撤销上一次导入，退出后就不能撤销了。";
 function showWho(){
   const em=(pb.authStore.record&&pb.authStore.record.email)||"",w=$("who");
@@ -1816,6 +1827,10 @@ function resetSession(){
   clearTimeout(saveTimer);clearTimeout(rvT);rvJob=null;dirty=false;savePending=false;rvPending=false;stopPoll();pendRemote={plan:null,state:null};remoteView=false;
   clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;slowRuns=0;bumpReq=false;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(pb)stopRealtime();
+  /* 编辑计划页：草稿丢掉，页面收起，四个视图里总有一个可见 */
+  const peWas=!!pe;pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("tab-plan").classList.add("hidden");
+  if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
+  if(peWas)showTab("goal");
   if(cfDlg.open)cfDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
@@ -1851,10 +1866,11 @@ async function logout(){
 /* the toolbar button: ask first only when something would be lost (D-05); the confirm does not wait for a running save, and a save answering later is stopped by sessionEpoch */
 async function onLogoutClick(){
   if(loggingOut||!me)return;
-  const u=unsentOf(me),unsaved=hasUnsaved()||u.edits,snap=!!snapGet()||u.snap,undo=!!undoGet();
-  if(unsaved||snap||undo){
+  const u=unsentOf(me),unsaved=hasUnsaved()||u.edits,snap=!!snapGet()||u.snap,undo=!!undoGet(),pdirty=planDirty();
+  if(unsaved||snap||undo||pdirty){
     const lines=[T_CF_ACCOUNT+((pb.authStore.record&&pb.authStore.record.email)||"")];
     if(unsaved)lines.push(T_CF_UNSAVED);
+    if(pdirty)lines.push(T_CF_PLAN);
     if(snap)lines.push(T_CF_SNAP);
     if(undo)lines.push(T_CF_UNDO);
     if(!await confirmBox({title:T_CF_OUT,lines,who:true,cancel:"不退出",ok:"仍然退出"}))return;
@@ -2053,7 +2069,9 @@ function renderTimeline(){
 }
 
 /* ---------- events ---------- */
-document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;showTab(b.dataset.tab)});
+document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;
+  if(pe){const s=pe,k=b.dataset.tab;peLeave().then(ok=>{if(ok&&pe===s)closePlanEditor(k)});return}
+  showTab(b.dataset.tab)});
 $("arrival").addEventListener("change",e=>{const v=e.target.value;commit(["arrival"],s=>{s.arrival=v});renderAll()});
 function deleteLog(id){takeRemote();const i=state.logs.findIndex(l=>l.id===id);if(i<0){if(remoteView)applyView();return}const gone=JSON.parse(JSON.stringify(state.logs[i]));commit(["log:"+id],s=>{s.logs=s.logs.filter(l=>l.id!==id)});renderAll();
   toast("已删除这条记录",{label:"撤销",fn:()=>{commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.splice(Math.min(i,s.logs.length),0,JSON.parse(JSON.stringify(gone)))});renderAll();toast("已恢复")}})}
@@ -2231,7 +2249,24 @@ peRoot.addEventListener("input",e=>{
 });
 peRoot.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input"))e.preventDefault()});
 $("pe-save").addEventListener("click",()=>savePlanDraft());
-$("pe-discard").addEventListener("click",()=>{if(pe)closePlanEditor(pe.from)});
+/* 离开编辑页的三条路径（切换标签、浏览器返回键、「放弃这次修改」）都先经 peLeave：没有修改直接走，有修改先问；每处 await 之后都核对 pe 还是同一个会话（会话被 resetSession 清掉时什么都不做） */
+const T_PE_LEAVE_TITLE="放弃没保存的修改？",T_PE_LEAVE_BODY="计划页里的修改还没有保存，现在离开会丢失。",T_PE_LEAVE_NO="继续编辑",T_PE_LEAVE_YES="放弃修改";
+const T_PE_RELOGIN_TITLE="重新登录？",T_PE_RELOGIN_BODY="未保存的计划修改会丢失。",T_PE_RELOGIN_NO="先不登录",T_PE_RELOGIN_YES="仍然重新登录";
+async function peLeave(){
+  const s=pe;if(!s)return true;
+  if(!planDirty())return true;
+  const ok=await confirmBox({title:T_PE_LEAVE_TITLE,lines:[T_PE_LEAVE_BODY],cancel:T_PE_LEAVE_NO,ok:T_PE_LEAVE_YES,scope:"plan"});
+  return ok&&pe===s;
+}
+$("pe-discard").addEventListener("click",async()=>{const s=pe;if(!s)return;if(await peLeave()&&pe===s)closePlanEditor(s.from)});
+/* 返回键：hash 不再是 #plan 而编辑页开着 → 先确认；拒绝就把地址栏恢复为 #plan（pushState 不触发 hashchange） */
+window.addEventListener("hashchange",()=>{
+  if(location.hash==="#plan")return;
+  const s=pe;if(!s)return;
+  peLeave().then(ok=>{if(pe!==s)return;if(ok)closePlanEditor(s.from);else history.pushState(null,"","#plan")});
+});
+/* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
+window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.returnValue=""}});
 /* D-10：点「保存计划」直接生效，不显示改动摘要。写法照 applyImport 的计划部分；persist 只管 state，计划要自己请求同步。上传失败走现有的脏标记加退避重试 */
 function savePlanDraft(){
   const s=pe;
