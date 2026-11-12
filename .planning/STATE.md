@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-08-PLAN.md
-last_updated: "2026-11-12T20:55:51.290Z"
+stopped_at: Completed 13-09-PLAN.md
+last_updated: "2026-11-12T21:25:28.286Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: cba0d6c1fc6b142137d94fc355b431e25c80c5f6
+state_head: d45af013a7bf5c76a73acc70c66a668c752f3708
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 74
+  completed_plans: 75
   percent: 88
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 9 of 15
+Plan: 10 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
@@ -164,6 +164,7 @@ Progress: [█████████░] 88%
 | Phase 13 P06 | 8 min | 2 tasks | 9 files |
 | Phase 13 P07 | 19 min | 2 tasks | 10 files |
 | Phase 13 P08 | 18min | 3 tasks | 9 files |
+| Phase 13 P09 | 28min | 3 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -337,6 +338,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-07: 05 重跑无改动时只跑 nginx -t 并输出 NGINX_APP=already；兜底 404 位置也 include 通用头文件；HSTS 先用一天
 - [Phase 13]: 13-08: acceptance large file is compact JSON (indented would exceed the 5 MB import limit); about 3.3 MB passes the 70% capacity warning line
 - [Phase 13]: 13-08: verify-site online stages (baseline 3, full 19) are written but only verified against local stubs; first real run is 13-11 in an approved step
+- [Phase 13]: A12 keep：保留探针时期的数据库和 Phase 6 的超级用户，探针集合和账号由清理迁移在第一次启动时删除；本机已演练新钥匙加明文设置行
+- [Phase 13]: 整批部署 approve-all：上传包清单 sha256 ac686d29…98b7、BUILD_VERSION a1159ad93165；每个改动服务器的步骤执行前仍需所有者即时确认
 
 ### Pending Todos
 
@@ -405,8 +408,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T20:55:47.895Z
-Stopped at: Completed 13-08-PLAN.md
+Last session: 2026-11-12T21:25:24.845Z
+Stopped at: Completed 13-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
