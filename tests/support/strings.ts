@@ -450,7 +450,7 @@ export function importOrphanPlanLine(n: number): string {
 }
 // WR-01：自定义待办的目标组不在导入后所用的计划里的条数（醒目行；应用里 T_IMP_ORPHAN_CUSTOM 的逐字复制，三种文件共用）
 export function importOrphanCustomLine(n: number): string {
-  return `${n} 条自定义待办的目标组不在计划里，导入后在目标页看不到。`;
+  return `${n} 条自定义待办的目标组不在计划里，导入后放在目标页底部的「已归档」里。`;
 }
 
 // Phase 11-04 Task 1：导入的两个上限（应用里 T_IMP_TOO_BIG、T_IMP_TOO_LARGE 的逐字复制）。
@@ -484,6 +484,7 @@ export const GROUP_UNKNOWN_LABEL = '未知目标组';
 export const ARCHIVED_MARK = '已归档';
 export const archivedSummary = (n: number): string => `已归档（${n}）`;
 export const ARCHIVED_TASKS_TITLE = '已归档的任务';
+export const ORPHAN_TASKS_TITLE = '没有所属目标组的待办';
 export const ARCHIVE_STATUS_OPEN = '未完成';
 export const ARCHIVE_STATUS_DONE = '已完成';
 export const archiveDoneOn = (md: string): string => `已完成于 ${md}`;

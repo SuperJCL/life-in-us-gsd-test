@@ -159,7 +159,7 @@ export function reportLines(result, outPath) {
   if (c.logs !== undefined) out.push(`记录 ${c.logs} 条、复盘 ${c.reviews} 周、完成的任务 ${c.done} 项、力量记录 ${c.liftEntries} 条`);
   out.push(`计划 ${c.groups} 组、${c.tasks} 项任务、${c.lifts} 个力量项`);
   if (c.orphans !== undefined) out.push(`对不上计划的任务进度 ${c.orphans} 条（已丢弃，先导入计划再导一次可以找回）`);
-  if (c.orphanCustom !== undefined) out.push(`目标组不在计划里的自定义待办 ${c.orphanCustom} 条（保留在记录里，导入后目标页看不到）`);
+  if (c.orphanCustom !== undefined) out.push(`目标组不在计划里的自定义待办 ${c.orphanCustom} 条（保留在记录里，导入后在目标页的「已归档」里）`);
   if (typeof outPath === 'string') out.push(`已写入 ${outPath}`);
   out.push('MIGRATION OK');
   return out;
@@ -450,7 +450,7 @@ function runSelfTest() {
   expect('不泄露：解析失败的报错是固定文案、不含输入里的文字', [seedErr, legacyErr, planErr].every((e) => e instanceof SafeError && e.message.includes('JSON 解析失败') && !e.message.includes(leakMarker) && !e.message.includes('SYNTH')));
   expect('不泄露：报错标明是种子还是旧备份', seedErr.message.startsWith('种子 ') && legacyErr.message.startsWith('旧备份 '));
   const okLines = reportLines(ok, 'private/synth-out.json');
-  expect('reportLines：成功时的行数和结尾', okLines.length === 6 && okLines.at(-1) === 'MIGRATION OK' && okLines[0] === '记录 3 条、复盘 2 周、完成的任务 2 项、力量记录 2 条' && okLines[1] === '计划 2 组、4 项任务、1 个力量项' && okLines[2].startsWith('对不上计划的任务进度 1 条') && okLines[3] === '目标组不在计划里的自定义待办 0 条（保留在记录里，导入后目标页看不到）' && okLines[4] === '已写入 private/synth-out.json');
+  expect('reportLines：成功时的行数和结尾', okLines.length === 6 && okLines.at(-1) === 'MIGRATION OK' && okLines[0] === '记录 3 条、复盘 2 周、完成的任务 2 项、力量记录 2 条' && okLines[1] === '计划 2 组、4 项任务、1 个力量项' && okLines[2].startsWith('对不上计划的任务进度 1 条') && okLines[3] === '目标组不在计划里的自定义待办 0 条（保留在记录里，导入后在目标页的「已归档」里）' && okLines[4] === '已写入 private/synth-out.json');
   expect('reportLines：不含演示数据里的任何文字和日期范围', !leaks(okLines) && !okLines.join('\n').includes('2026-01') && demoText.length > 20);
   const failLines = ['seed-shape', 'seed-plan', 'already-new', 'not-backup', 'roundtrip', 'problem:log', 'problem:custom', 'problem:task', 'problem:lift', 'problem:review', 'problem:arrival', 'problem:weird', 'nonsense'].map((reason) => reportLines({ ok: false, reason }));
   expect('reportLines：失败时一行固定说明、没有 MIGRATION OK、不含演示文字', failLines.every((l) => l.length === 1 && l[0] !== 'MIGRATION OK' && !leaks(l)) && failLines[5][0] === '旧备份没有通过导入检查：记录（log）' && failLines[2][0] === '这个文件已经是新格式，不需要迁移');

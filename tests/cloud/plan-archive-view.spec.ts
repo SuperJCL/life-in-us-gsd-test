@@ -5,15 +5,17 @@ import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { downloadOf } from '../support/download';
 import { gotoGoals, readArchived, readGroups } from '../support/goals';
-import { gotoCalendar } from '../support/calendar';
+import { gotoCalendar, readDayPanel, readMonth } from '../support/calendar';
 import { gotoTimeline } from '../support/timeline';
 import { FROZEN_TODAY } from '../support/constants';
 import {
   ARCHIVE_STATUS_OPEN,
   ARCHIVED_MARK,
+  DAY_SECTION_DUE,
   FILENAME_CSV,
   TAB_LABELS,
   GROUP_UNKNOWN_LABEL,
+  ORPHAN_TASKS_TITLE,
   archiveDoneOn,
   archiveDueOn,
   archivedSummary,
@@ -161,4 +163,91 @@ test('PLAN-03 archived tasks and lifts are listed read-only in the archived area
   expect(arch.liftHistCounts).toEqual({ 'l-al2': 5 });
   expect(arch.inputs, '归档区里不应有输入控件').toBe(0);
   expect(arch.buttons, '归档区里不应有按钮').toBe(0);
+});
+
+const LIST_PATH = '/api/collections/journey_docs/records';
+
+test('PLAN-03 an archived task keeps its done record in the calendar and the timeline while its due date leaves the calendar and the calendar CSV until the plan no longer archives it (D-04)', async ({
+  app,
+  page,
+}) => {
+  // 第 1 组的两个任务都归档：第 1 个已完成（冻结日当月），第 2 个设了截止日期、未完成
+  const plan: any = syntheticPlan('du', 2);
+  plan.groups[0].tasks[0].archived = true;
+  plan.groups[0].tasks[1].archived = true;
+  const doneDate = '2026-03-10';
+  const dueDate = '2026-03-20';
+  const seed = syntheticState('du', {
+    logs: [],
+    tasks: { 't-du1x1': { done: true, doneDate }, 't-du1x2': { due: dueDate } },
+  });
+  await app.open({ mode: 'cloud', seed, plan, login: 0 });
+
+  const kindsOn = async (date: string) =>
+    (await readMonth(page)).cells.find((c) => c.date === date)?.kinds ?? [];
+  const dueLines = (text: string) => text.split('\n').filter((l) => l.startsWith('截止：')).length;
+  const doneLines = (text: string) => text.split('\n').filter((l) => l.startsWith('完成：')).length;
+
+  // 归档着：日历格子没有截止 chip，完成的 chip 照常在；日面板没有「这天到期」，完成的计划照常在
+  await gotoCalendar(page);
+  expect(await kindsOn(dueDate), '归档任务的截止日格子').toEqual([]);
+  expect(await kindsOn(doneDate), '归档任务的完成日格子').toEqual(['done']);
+  await page.locator(`#grid [data-date="${dueDate}"]`).click();
+  expect((await readDayPanel(page)).sections, '截止日的日面板分区').not.toContain(DAY_SECTION_DUE);
+  await page.locator(`#grid [data-date="${doneDate}"]`).click();
+  expect((await readDayPanel(page)).doneIds).toEqual(['t-du1x1']);
+  // 时间线里完成的记录照常显示
+  await gotoTimeline(page);
+  expect(await page.locator('#timeline [data-edittask="t-du1x1"]').count()).toBe(1);
+  // CSV：没有截止行，完成行还在
+  let csv = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(dueLines(csv.text), 'CSV 里的截止行').toBe(0);
+  expect(doneLines(csv.text), 'CSV 里的完成行').toBe(1);
+
+  // 另一个写入方把计划改成不再归档这两个任务；刷新后提醒回来
+  const data = app.fake.lastPlan(0);
+  for (const t of data.groups[0].tasks) delete t.archived;
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, { data, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+  await page.reload();
+  await gotoCalendar(page);
+  expect(await kindsOn(dueDate), '不再归档后截止日格子').toEqual(['due']);
+  await page.locator(`#grid [data-date="${dueDate}"]`).click();
+  expect((await readDayPanel(page)).dueGroups, '不再归档后日面板的到期项').toEqual(['P1']);
+  csv = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(dueLines(csv.text), '不再归档后 CSV 里的截止行').toBe(1);
+  expect(doneLines(csv.text), '不再归档后 CSV 里的完成行').toBe(1);
+});
+
+test('PLAN-03 WR-02 a custom to-do whose group is not in the plan is listed in the archived area and can be deleted there (D-05)', async ({
+  app,
+  page,
+}) => {
+  // 一条自定义待办的组 g-gone 不在计划里，设了截止日期
+  const dueDate = '2026-03-25';
+  const seed = syntheticState('or', {
+    custom: [{ id: 'c-or1', group: 'g-gone', text: 'SYNTH-or orphan' }],
+    tasks: { 'c-or1': { due: dueDate } },
+  });
+  await app.open({ mode: 'cloud', seed, plan: syntheticPlan('or', 2), login: 0 });
+
+  // 它不算归档：截止提醒照常在日历上（所有者 2026-11-11 确认）
+  await gotoCalendar(page);
+  expect((await readMonth(page)).cells.find((c) => c.date === dueDate)?.kinds, '找不到组的待办的截止日格子').toEqual(['due']);
+
+  await gotoGoals(page);
+  expect((await readGroups(page)).flatMap((g) => g.taskIds), '主列表里不应有它').not.toContain('c-or1');
+  await page.locator('#goalsArch > summary').click();
+  const arch = await readArchived(page);
+  expect(arch.summary).toBe(archivedSummary(1));
+  expect(arch.orphanIds).toEqual(['c-or1']);
+  expect(arch.buttons, '区里只有这一个删除按钮').toBe(1);
+  expect(arch.inputs, '区里没有输入控件').toBe(0);
+  await expect(page.locator('#goalsArch > p.note')).toHaveText(ORPHAN_TASKS_TITLE);
+
+  // 点删除：服务器上的待办和它的进度都没了，「已归档」区不再渲染
+  await page.locator('#goalsArch [data-deltask="c-or1"]').click();
+  await expect.poll(() => app.fake.lastState(0)?.custom?.length, { message: '等待服务器拿到删除' }).toBe(0);
+  expect(app.fake.lastState(0).tasks?.['c-or1'], '待办的进度键应当一起删掉').toBeUndefined();
+  expect((await readArchived(page)).present).toBe(false);
 });

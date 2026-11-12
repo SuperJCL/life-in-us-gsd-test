@@ -6,7 +6,7 @@ import { test, expect } from '../support/test';
 import { bulkyState, syntheticPlan, syntheticState } from '../support/cloud-data';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { openDevice } from '../support/devices';
-import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
+import { gotoGoals, readArchived, readGroupIds, readGroups } from '../support/goals';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
@@ -121,13 +121,14 @@ test('IO-08 WR-01 a custom to-do whose group is not in the plan is highlighted i
 
   await confirmOk(page);
   await expectToast(page, TOAST_IMPORTED);
-  // 不丢：两条待办都在服务器的记录里；目标页只显示 P2 组里的那条
+  // 不丢：两条待办都在服务器的记录里；目标页主列表只显示 P2 组里的那条，另一条在「已归档」区
   await expect.poll(() => app.fake.lastState(0)?.custom?.length, { message: '等待服务器拿到导入的待办' }).toBe(2);
   expect(app.fake.lastState(0).custom.map((c: any) => c.group).sort()).toEqual(['P2', 'P9']);
   await gotoGoals(page);
   const shown = (await readGroups(page)).flatMap((g) => g.taskIds);
   expect(shown).toContain('c-wr1-1');
   expect(shown).not.toContain('c-wr1-2');
+  expect((await readArchived(page)).orphanIds).toContain('c-wr1-2');
 });
 
 // 计划去掉 _synthetic 标记、其余原样（normalizePlan 的结果）；用例独立写出期望值

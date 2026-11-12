@@ -44,11 +44,15 @@ type Injection = { flag: number; marked: number; foreign: number; handlers: numb
 // 注入检测器：window.__synthXss 的值（缺省为 0）、带 data-synth-xss 的元素数、
 // s / details / img / iframe / svg / object / embed 元素数、带任何 on 开头属性的元素数、document.scripts.length。
 // 应用本身没有这些元素，只有一个脚本，所以“干净”就是前四项为 0、scripts 为 1。
+// 例外（Phase 12-02，所有者 2026-11-11 批准）：应用自己的目标页「已归档」区 details#goalsArch 不算外来元素；
+// 但第二个及以后的 #goalsArch 仍算外来元素，所以注入一个借用这个 id 的元素照样被检测到。
 async function readInjection(page: Page): Promise<Injection> {
   return page.evaluate(() => ({
     flag: Number((window as unknown as { __synthXss?: number }).__synthXss || 0),
     marked: document.querySelectorAll('[data-synth-xss]').length,
-    foreign: document.querySelectorAll('s, details, img, iframe, svg, object, embed').length,
+    foreign:
+      document.querySelectorAll('s, details:not(#goalsArch), img, iframe, svg, object, embed').length +
+      Math.max(0, document.querySelectorAll('#goalsArch').length - 1),
     handlers: Array.from(document.querySelectorAll('*')).filter((el) =>
       Array.from(el.attributes).some((a) => a.name.startsWith('on')),
     ).length,
