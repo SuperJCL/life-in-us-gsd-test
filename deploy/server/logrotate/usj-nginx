@@ -1,0 +1,21 @@
+# usj-nginx —— 应用站点访问日志的轮转（Phase 13，13-07，D-03）
+#
+# 装到 /etc/logrotate.d/usj-nginx（05-nginx-app.sh 负责，装完用 logrotate -d 干跑核对）。
+# 日志放在自己的目录 /var/log/usj/，所以不会和 nginx 包自带的 /var/log/nginx/*.log 通配符重复定义。
+# 按天轮转，保留 30 天（D-03）；压缩从第二天起（delaycompress，让 nginx 先用完旧文件）。
+# create 0640 www-data adm：新日志只有 adm 组能读。轮转后给 nginx 主进程发 USR1，让它重新打开日志文件。
+# nginx 的错误日志不在这里：它按包自带的配置保留约 14 天（README 写明）。
+
+/var/log/usj/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 www-data adm
+    sharedscripts
+    postrotate
+        if [ -s /run/nginx.pid ]; then kill -USR1 "$(cat /run/nginx.pid)"; fi
+    endscript
+}

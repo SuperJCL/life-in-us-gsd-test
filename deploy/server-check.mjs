@@ -647,6 +647,167 @@ export function c19(ctx) {
   return problems;
 }
 
+function lastIndex(lines, re) {
+  for (let i = lines.length - 1; i >= 0; i--) if (re.test(lines[i])) return i;
+  return -1;
+}
+
+// C-20 06：所有 install、ln、mv 都在 SHA256SUMS 核对（含 SDK 自己的哈希）之后；切换用 mv -T；ERR 回滚和 nginx -t
+export function c20(ctx) {
+  const text = ctx.sh['06-install-site.sh'];
+  if (text === undefined) return ['缺少 06-install-site.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  const iCall = idx(/^verify_uploads\s/);
+  const iVendor = idx(/cd "\$UP\/site\/vendor".*sha256sum -c/);
+  if (iCall < 0) problems.push('06 没有调用 verify_uploads 核对 SHA256SUMS');
+  if (iVendor < 0) problems.push('06 没有按 site/vendor/SHA256SUMS 再核对 SDK');
+  const mutating = /^\s*(?:sudo -n\s+)?(?:install|ln|mv)\s/;
+  const iFirstMut = idx(mutating);
+  if (iFirstMut < 0) problems.push('06 没有任何 install、ln 或 mv');
+  else if (iCall >= 0 && iFirstMut < iCall) problems.push('06 在核对 SHA256SUMS 之前就有 install、ln 或 mv');
+  else if (iVendor >= 0 && iFirstMut < iVendor) problems.push('06 在核对 SDK 哈希之前就有 install、ln 或 mv');
+  if (!/\[0-9a-f\]\{12\}/.test(lines.join('\n'))) problems.push('06 没有核对 BUILD_VERSION 是 12 位十六进制');
+  const iTrap = idx(/^trap rollback ERR\s*$/);
+  const iTrapClear = idx(/^trap - ERR\s*$/);
+  const iSwap = lastIndex(lines, /\bmv -T "\$SITE_NEW" "\$SITE_LINK"/);
+  const iLn = lastIndex(lines, /\bln -sfn "releases\/\$VER" "\$SITE_NEW"/);
+  if (iTrap < 0) problems.push('06 没有 trap rollback ERR');
+  if (iSwap < 0) problems.push('06 切换符号链接没有用 mv -T');
+  if (iLn < 0) problems.push('06 没有先 ln -sfn 建新链接');
+  if (iSwap >= 0 && iLn >= 0 && iLn > iSwap) problems.push('06 的 ln -sfn 在 mv -T 之后');
+  if (iSwap >= 0 && iTrap >= 0 && iSwap < iTrap) problems.push('06 在挂 ERR trap 之前就切换了符号链接');
+  const iNginxT = lastIndex(lines, /\bnginx -t\b/);
+  if (iSwap >= 0 && iNginxT < iSwap) problems.push('06 切换之后没有 nginx -t');
+  if (iTrapClear < 0) problems.push('06 成功路径没有 trap - ERR');
+  else if (iNginxT >= 0 && iTrapClear < iNginxT) problems.push('06 在 nginx -t 之前就解除了回滚');
+  const rb = funcBody(text, 'rollback');
+  if (rb === null) problems.push('06 没有 rollback 函数');
+  else {
+    const t = rb.indexOf('nginx -t');
+    const r = rb.indexOf('systemctl reload nginx');
+    if (t < 0 || r < 0 || t > r) problems.push('06 的 rollback 没有先 nginx -t 再 reload');
+    if (!/ln -sfn/.test(rb)) problems.push('06 的 rollback 没有把符号链接指回旧版本');
+    if (!/usj-csp\.conf|CSP_DST/.test(rb)) problems.push('06 的 rollback 没有恢复旧的 CSP 头');
+    if (!/trap - ERR/.test(rb)) problems.push('06 的 rollback 没有先解除 ERR trap');
+  }
+  if (!lines.some((l) => /\binstall\b.*"\$CSP_SRC"\s+"\$CSP_DST"/.test(l))) problems.push('06 没有装同一次构建的 usj-csp.conf');
+  return problems;
+}
+
+// C-21 logrotate：按天、保留 30 个、压缩、create 0640 www-data adm、USR1、/var/log/usj/*.log
+export function c21(ctx) {
+  const text = ctx.logrotate;
+  if (text === undefined || text === null) return ['缺少 deploy/server/logrotate/usj-nginx'];
+  const code = codeLines(text).join('\n');
+  const problems = [];
+  if (!/^\/var\/log\/usj\/\*\.log \{/m.test(code)) problems.push('没有 /var/log/usj/*.log 这个目标');
+  if (/\/var\/log\/nginx/.test(code)) problems.push('不该和包自带的 /var/log/nginx/*.log 重复定义');
+  for (const [re, what] of [
+    [/^\s*daily\s*$/m, 'daily'],
+    [/^\s*rotate 30\s*$/m, 'rotate 30'],
+    [/^\s*compress\s*$/m, 'compress'],
+    [/^\s*delaycompress\s*$/m, 'delaycompress'],
+    [/^\s*missingok\s*$/m, 'missingok'],
+    [/^\s*create 0640 www-data adm\s*$/m, 'create 0640 www-data adm'],
+    [/^\s*postrotate\s*$/m, 'postrotate'],
+  ]) {
+    if (!re.test(code)) problems.push(`没有 ${what}`);
+  }
+  if (!/kill -USR1\b/.test(code)) problems.push('轮转后没有给 nginx 发 USR1');
+  return problems;
+}
+
+// C-22 restore-drill：时间窗、端口、目录、RuntimeMaxSec、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份
+export function c22(ctx) {
+  const text = ctx.sh['restore-drill.sh'];
+  if (text === undefined) return ['缺少 restore-drill.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const code = lines.join('\n');
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  for (const s of ['127.0.0.1:8091', '/var/lib/pocketbase-drill']) {
+    if (!code.includes(s)) problems.push(`restore-drill 里没有 ${s}`);
+  }
+  if (!/RuntimeMaxSec=900(?![0-9])/.test(code)) problems.push('restore-drill 的 RuntimeMaxSec 不是 900');
+  if (!/^UNIT=usj-drill\s*$/m.test(code)) problems.push('restore-drill 的临时单元名不是 usj-drill');
+  if (!/^trap cleanup EXIT\s*$/m.test(code)) problems.push('restore-drill 没有 trap cleanup EXIT');
+  const cl = funcBody(text, 'cleanup');
+  if (cl === null || !/rm -rf "\$DRILL_DIR"/.test(cl) || !/systemctl stop "\$UNIT"/.test(cl)) problems.push('restore-drill 的 cleanup 没有停临时单元并删演练目录');
+  if (!/\b1840\b/.test(code) || !/\b1920\b/.test(code) || !code.includes('DRILL_WINDOW_OK=no')) problems.push('restore-drill 没有 18:40–19:20 UTC 的时间窗守卫');
+
+  // 线上库只以 mode=ro 打开；所有 sqlite 连接要么 mode=ro，要么在演练目录里；写语句和备份目标只作用于演练目录
+  for (const l of lines) {
+    if (/\/var\/lib\/pocketbase\/pb_data/.test(l) && !/mode=ro/.test(l)) problems.push(`有不是 mode=ro 的线上库路径：${l.trim().slice(0, 60)}`);
+  }
+  const conns = {};
+  for (const l of lines) {
+    const mc = /^\s*(\w+)\s*=\s*sqlite3\.connect\((.*)\)\s*$/.exec(l);
+    if (mc) {
+      const ro = /mode=ro/.test(mc[2]);
+      const drill = mc[2].includes('/var/lib/pocketbase-drill/');
+      if (!ro && !drill) problems.push(`sqlite 连接既不是 mode=ro 也不在演练目录：${l.trim().slice(0, 60)}`);
+      conns[mc[1]] = { ro, drill };
+      continue;
+    }
+    const mw = /^\s*(\w+)\.(?:execute|executemany|executescript)\(\s*"\s*(?:UPDATE|INSERT|DELETE|DROP|ALTER|REPLACE|VACUUM|CREATE)\b/i.exec(l);
+    if (mw) {
+      const c = conns[mw[1]];
+      if (!c || c.ro || !c.drill) problems.push(`写语句不是作用于演练目录里的库：${l.trim().slice(0, 60)}`);
+    }
+    const mb = /^\s*(\w+)\.backup\((\w+)\)/.exec(l);
+    if (mb) {
+      const s = conns[mb[1]];
+      const d = conns[mb[2]];
+      if (!s || !s.ro) problems.push('备份接口的来源不是 mode=ro 的线上库连接');
+      if (!d || d.ro || !d.drill) problems.push('备份接口的目标不在演练目录');
+    }
+  }
+
+  // 不对线上的 pocketbase 单元做 stop、start、restart、disable 等
+  for (const l of lines) {
+    if (/systemctl\s+(?:-\S+\s+)*(?:stop|start|restart|disable|enable|kill|mask|reload)\s+pocketbase(?:\.service)?(?![\w-])/.test(l)) problems.push(`对 pocketbase 单元做了改动：${l.trim().slice(0, 60)}`);
+  }
+
+  // 先关 cron 和 SMTP，再列备份
+  const iPatch = idx(/-X PATCH\b.*\/api\/settings/);
+  const iBackups = idx(/\/api\/backups/);
+  if (iPatch < 0) problems.push('restore-drill 没有 PATCH /api/settings');
+  else if (!/"cron":""/.test(lines[iPatch]) || !/"enabled":false/.test(lines[iPatch])) problems.push('PATCH /api/settings 没有把 backups.cron 置空和 smtp.enabled 置假');
+  if (iBackups < 0) problems.push('restore-drill 没有访问 /api/backups');
+  if (iPatch >= 0 && iBackups >= 0 && iBackups < iPatch) problems.push('GET /api/backups 在关 cron 和 SMTP 的 PATCH 之前');
+
+  // 守卫在任何复制、建目录、systemd-run 之前，refused 分支以非 0 退出
+  const iGuardRead = idx(/sqlite3\.connect\("file:\/var\/lib\/pocketbase\/pb_data\/data\.db\?mode=ro"/);
+  const iRefused = idx(/DRILL_GUARD=refused/);
+  const iFirstMut = idx(/^\s*(?:sudo\s+(?:-n\s+)?)?(?:install|mkdir|cp|rsync|tee|systemd-run)\s|\.backup\(|\bsystemd-run\b/);
+  if (iGuardRead < 0) problems.push('restore-drill 没有只读检查线上库的守卫');
+  if (iRefused < 0) problems.push('restore-drill 没有 DRILL_GUARD=refused 分支');
+  if (iFirstMut < 0) problems.push('restore-drill 没有任何建目录或复制的动作');
+  if (iGuardRead >= 0 && iRefused >= 0 && iGuardRead > iRefused) problems.push('守卫的检查在 refused 分支之后');
+  if (iRefused >= 0 && iFirstMut >= 0 && iRefused > iFirstMut) problems.push('守卫在第一个 install、mkdir、复制或 systemd-run 之后才拒绝');
+  if (iGuardRead >= 0 && iFirstMut >= 0 && iGuardRead > iFirstMut) problems.push('守卫的只读检查在第一个 install、mkdir、复制或 systemd-run 之后');
+  if (iRefused >= 0) {
+    const branch = lines.slice(iRefused, iRefused + 6).join('\n');
+    if (!/^\s*exit [1-9]\s*$/m.test(branch)) problems.push('refused 分支没有以非 0 退出');
+    if (/^\s*exit 0\s*$/m.test(branch)) problems.push('refused 分支以 0 退出');
+  }
+  const emailRe = '^test-[a-z0-9-]+@example\\.com$';
+  if (code.split(emailRe).length - 1 < 2) problems.push('restore-drill 里测试账号的邮箱正则不是出现在守卫和恢复后核对两处');
+  if (!code.includes('DRILL_RESTORED_TEST_ONLY')) problems.push('restore-drill 没有恢复后的 DRILL_RESTORED_TEST_ONLY 检查');
+
+  // 所有输出键都以 DRILL_ 开头
+  for (const l of lines) {
+    const me = /^\s*echo\s+"([A-Z][A-Z0-9_]*)=/.exec(l);
+    if (me && !me[1].startsWith('DRILL_')) problems.push(`输出键 ${me[1]} 没有 DRILL_ 前缀`);
+    const mo = /\bout\["([A-Za-z0-9_]+)"\]/.exec(l);
+    if (mo && !mo[1].startsWith('DRILL_')) problems.push(`输出键 ${mo[1]} 没有 DRILL_ 前缀`);
+  }
+  if (!/DRILL_RESULT=/.test(code)) problems.push('restore-drill 没有 DRILL_RESULT');
+  return problems;
+}
+
 // ---------- 检查清单 ----------
 
 export const CHECKS = [
@@ -669,6 +830,9 @@ export const CHECKS = [
   { id: 'C-17', title: 'HSTS 是 max-age=86400，没有 includeSubDomains、preload', run: c17 },
   { id: 'C-18', title: 'anchor-block.awk 与 Phase 6 的逐字节相同，合成的 443 ssl 块输出 ANCHOR_BLOCK=443ssl、80 块不输出', run: c18 },
   { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
+  { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t', run: c20 },
+  { id: 'C-21', title: 'logrotate：/var/log/usj/*.log 按天、rotate 30、压缩、create 0640 www-data adm、USR1', run: c21 },
+  { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_', run: c22 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -688,9 +852,10 @@ export function loadContext(bash) {
   if (fs.existsSync(nginxDir)) {
     for (const n of fs.readdirSync(nginxDir).filter((x) => x.endsWith('.conf')).sort()) nginx[n] = fs.readFileSync(path.join(nginxDir, n), 'utf8');
   }
+  const logrotate = readOpt(path.join(SERVER_DIR, 'logrotate', 'usj-nginx'));
   const awk = readOpt(path.join(nginxDir, 'anchor-block.awk'));
   const awk6 = readOpt(path.join(REPO, 'tools', 'probe', 'server', 'nginx', 'anchor-block.awk'));
-  return { bash, sh, unit, probe02, retire, nginx, awk, awk6 };
+  return { bash, sh, unit, probe02, retire, nginx, awk, awk6, logrotate };
 }
 
 export function runChecks(ctx) {
@@ -924,10 +1089,114 @@ const GOOD_AWK = [
   '',
 ].join('\n');
 
+// ---------- 13-07 Task 2 的合成好文件：06、logrotate、restore-drill ----------
+
+const GOOD_06 =
+  GOOD_HEADER +
+  GOOD_UPLOAD +
+  [
+    'verify_uploads() {',
+    '  echo x',
+    '}',
+    'verify_uploads site/index.html server/nginx/usj-csp.conf BUILD_VERSION',
+    '(cd "$UP/site/vendor" && sha256sum -c --strict --status SHA256SUMS </dev/null)',
+    'VER=0123456789ab',
+    'if ! [[ "$VER" =~ ^[0-9a-f]{12}$ ]]; then exit 1; fi',
+    'rollback() {',
+    '  trap - ERR',
+    '  sudo -n ln -sfn "$OLD_LINK" "$SITE_NEW" </dev/null || true',
+    '  sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null || true',
+    '  sudo -n cp -p "$CSP_OLD" "$CSP_DST" </dev/null || true',
+    '  sudo -n nginx -t </dev/null',
+    '  sudo -n systemctl reload nginx </dev/null',
+    '}',
+    'sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null',
+    'trap rollback ERR',
+    'sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null',
+    'sudo -n ln -sfn "releases/$VER" "$SITE_NEW" </dev/null',
+    'sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null',
+    'sudo -n nginx -t </dev/null',
+    'sudo -n systemctl reload nginx </dev/null',
+    'trap - ERR',
+    '',
+  ].join('\n');
+
+const GOOD_LOGROTATE = [
+  '# 注释',
+  '/var/log/usj/*.log {',
+  '    daily',
+  '    rotate 30',
+  '    missingok',
+  '    notifempty',
+  '    compress',
+  '    delaycompress',
+  '    create 0640 www-data adm',
+  '    sharedscripts',
+  '    postrotate',
+  '        if [ -s /run/nginx.pid ]; then kill -USR1 "$(cat /run/nginx.pid)"; fi',
+  '    endscript',
+  '}',
+  '',
+].join('\n');
+
+const DRILL_EMAIL_RE = '^test-[a-z0-9-]+@example\\.com$';
+const GOOD_DRILL =
+  GOOD_HEADER +
+  [
+    'UNIT=usj-drill',
+    'fail_early() { echo "x" >&2; exit 1; }',
+    'HHMM=$((10#$(date -u +%H%M)))',
+    'if [ "$HHMM" -ge 1840 ] && [ "$HHMM" -le 1920 ]; then',
+    '  echo "DRILL_WINDOW_OK=no"',
+    '  exit 1',
+    'fi',
+    'GUARD="$(runuser -u pocketbase -- python3 -I - <<\'PY\' 2>/dev/null || echo "ERR"',
+    'import sqlite3',
+    `TEST = re.compile(r"${DRILL_EMAIL_RE}")`,
+    'con = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True, timeout=10)',
+    'PY',
+    ')"',
+    'if [ "$GUARD" != "0 0" ]; then',
+    '  echo "DRILL_GUARD=refused"',
+    '  echo "x" >&2',
+    '  exit 1',
+    'fi',
+    'cleanup() {',
+    '  systemctl stop "$UNIT" </dev/null >/dev/null 2>&1',
+    '  rm -rf "$DRILL_DIR"',
+    '  echo "DRILL_CLEANUP=done"',
+    '}',
+    'trap cleanup EXIT',
+    'install -d -o pocketbase -g pocketbase -m 0700 /var/lib/pocketbase-drill',
+    "runuser -u pocketbase -- python3 -I - <<'PY' || die x",
+    'src = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True, timeout=10)',
+    'dst = sqlite3.connect("/var/lib/pocketbase-drill/pb_data/data.db")',
+    'src.backup(dst)',
+    'con = sqlite3.connect("/var/lib/pocketbase-drill/pb_data/data.db")',
+    'con.execute("UPDATE _collections SET options = ? WHERE name = \'_superusers\'", (x,))',
+    'PY',
+    'systemd-run --unit="$UNIT" --collect --property=RuntimeMaxSec=900 "$PB_BIN" serve --http=127.0.0.1:8091',
+    'printf \'%s\' \'{"backups":{"cron":""},"smtp":{"enabled":false}}\' | api -X PATCH --data-binary @- "$BASE/api/settings"',
+    'api "$BASE/api/backups"',
+    'systemctl stop "$UNIT"',
+    "VERIFY=\"$(runuser -u pocketbase -- env X=1 python3 -I - <<'PY' 2>/dev/null || echo ERR",
+    'live = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True, timeout=10)',
+    'rest = sqlite3.connect("file:/var/lib/pocketbase-drill/pb_data/data.db?mode=ro", uri=True, timeout=10)',
+    `TEST = re.compile(r"${DRILL_EMAIL_RE}")`,
+    'out["DRILL_RESTORED_TEST_ONLY"] = "yes"',
+    'PY',
+    ')"',
+    'echo "DRILL_RESULT=PASS"',
+    '',
+  ].join('\n');
+
 export function goodContext(bash) {
   return {
     bash,
+    logrotate: GOOD_LOGROTATE,
     sh: {
+      '06-install-site.sh': GOOD_06,
+      'restore-drill.sh': GOOD_DRILL,
       '00-status.sh': GOOD_00,
       '01-swap.sh': GOOD_01,
       '02-install-pocketbase.sh': GOOD_02,
@@ -982,7 +1251,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-19 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-22 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -1198,6 +1467,67 @@ function selfTest() {
   expect('C-19 坏：没有输出 WWW_REDIRECT=', () => fails(c19, g05((t) => t.replace('echo "WWW_REDIRECT=$S"\n', ''))));
   expect('C-19 坏：usj-app.conf 里写了 if ($host', () => fails(c19, mutate(good, 'nginx/usj-app.conf', (t) => `${t}if ($host ~* ^www\\.(.+)$) { return 301 https://$1$request_uri; }\n`)));
   expect('C-19 坏：缺少 05', () => fails(c19, { ...good, sh: { 'x.sh': '' } }));
+
+  // C-20
+  const g06 = (fn) => mutate(good, '06-install-site.sh', fn);
+  expect('C-20 好：06 的顺序和回滚都对', () => passes(c20, good));
+  expect('C-20 坏：install 在核对之前', () => fails(c20, g06((t) => t.replace('verify_uploads site/index.html', 'sudo -n install -d /x </dev/null\nverify_uploads site/index.html'))));
+  expect('C-20 坏：没有调用 verify_uploads', () => fails(c20, g06((t) => t.replace('verify_uploads site/index.html server/nginx/usj-csp.conf BUILD_VERSION\n', ''))));
+  expect('C-20 坏：没有 SDK 自己的哈希核对', () => fails(c20, g06((t) => t.replace(/\(cd "\$UP\/site\/vendor".*\n/, ''))));
+  expect('C-20 坏：ln 在 SDK 核对之前', () => fails(c20, g06((t) => t.replace('(cd "$UP/site/vendor"', 'sudo -n ln -sfn a b </dev/null\n(cd "$UP/site/vendor"'))));
+  expect('C-20 坏：切换没有用 mv -T', () => fails(c20, g06((t) => t.replace('sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n nginx', 'sudo -n mv "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n nginx'))));
+  expect('C-20 坏：没有 ERR trap', () => fails(c20, g06((t) => t.replace('trap rollback ERR\n', ''))));
+  expect('C-20 坏：没有 trap - ERR', () => fails(c20, g06((t) => t.replace(/\ntrap - ERR\n$/, '\n'))));
+  expect('C-20 坏：切换之后没有 nginx -t', () => fails(c20, g06((t) => t.replace('sudo -n nginx -t </dev/null\nsudo -n systemctl reload nginx </dev/null\ntrap - ERR', 'trap - ERR'))));
+  expect('C-20 坏：rollback 不核对 nginx -t', () => fails(c20, g06((t) => t.replace('  sudo -n nginx -t </dev/null\n  sudo -n systemctl reload nginx </dev/null\n}', '  sudo -n systemctl reload nginx </dev/null\n}'))));
+  expect('C-20 坏：rollback 不恢复 CSP', () => fails(c20, g06((t) => t.replace('  sudo -n cp -p "$CSP_OLD" "$CSP_DST" </dev/null || true\n', ''))));
+  expect('C-20 坏：版本号不核对格式', () => fails(c20, g06((t) => t.replace('^[0-9a-f]{12}$', '^.+$'))));
+  expect('C-20 坏：没有装 CSP 头', () => fails(c20, g06((t) => t.replace('"$CSP_SRC" "$CSP_DST"', '"$X" "$Y"'))));
+  expect('C-20 坏：在 ERR trap 之前切换', () => fails(c20, g06((t) => t.replace('trap rollback ERR\n', '').replace('sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null\n', 'sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null\n') + 'trap rollback ERR\n')));
+  expect('C-20 坏：缺少 06', () => fails(c20, { ...good, sh: { 'x.sh': '' } }));
+
+  // C-21
+  expect('C-21 好：logrotate 满足', () => passes(c21, good));
+  expect('C-21 坏：不是按天', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('    daily\n', '    weekly\n') }));
+  expect('C-21 坏：保留 14 个', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('rotate 30', 'rotate 14') }));
+  expect('C-21 坏：不压缩', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('    compress\n', '') }));
+  expect('C-21 坏：create 的属主不对', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('www-data adm', 'root root') }));
+  expect('C-21 坏：没有 USR1', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('USR1', 'HUP') }));
+  expect('C-21 坏：目标不是 /var/log/usj', () => fails(c21, { ...good, logrotate: GOOD_LOGROTATE.replace('/var/log/usj/*.log', '/var/log/nginx/*.log') }));
+  expect('C-21 坏：缺少文件', () => fails(c21, { ...good, logrotate: null }));
+
+  // C-22
+  const gd = (fn) => mutate(good, 'restore-drill.sh', fn);
+  expect('C-22 好：演练脚本满足', () => passes(c22, good));
+  expect('C-22 坏：没有时间窗', () => fails(c22, gd((t) => t.replace('DRILL_WINDOW_OK=no', 'DRILL_WINDOW_OK=maybe').replace('1840', '1000'))));
+  expect('C-22 坏：端口不对', () => fails(c22, gd((t) => t.replace('127.0.0.1:8091', '127.0.0.1:8092'))));
+  expect('C-22 坏：没有 RuntimeMaxSec', () => fails(c22, gd((t) => t.replace('RuntimeMaxSec=900', 'RuntimeMaxSec=9000'))));
+  expect('C-22 坏：没有 EXIT 清理', () => fails(c22, gd((t) => t.replace('trap cleanup EXIT\n', ''))));
+  expect('C-22 坏：cleanup 不删演练目录', () => fails(c22, gd((t) => t.replace('  rm -rf "$DRILL_DIR"\n', ''))));
+  expect('C-22 坏：线上库不是只读', () => fails(c22, gd((t) => t.replace('src = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro"', 'src = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db"'))));
+  expect('C-22 坏：写语句作用于线上只读连接', () => fails(c22, gd((t) => t.replace('con = sqlite3.connect("/var/lib/pocketbase-drill/pb_data/data.db")\ncon.execute', 'con = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True)\ncon.execute'))));
+  expect('C-22 坏：备份目标不在演练目录', () => fails(c22, gd((t) => t.replace('dst = sqlite3.connect("/var/lib/pocketbase-drill/pb_data/data.db")', 'dst = sqlite3.connect("/tmp/x.db")'))));
+  expect('C-22 坏：停了线上的 pocketbase 单元', () => fails(c22, gd((t) => t.replace('systemctl stop "$UNIT"\nVERIFY', 'systemctl stop pocketbase\nVERIFY'))));
+  expect('C-22 坏：重启了线上的 pocketbase.service', () => fails(c22, gd((t) => `${t}systemctl restart pocketbase.service\n`)));
+  expect('C-22 坏：PATCH 在列备份之后', () =>
+    fails(c22, gd((t) => {
+      const patch = t.split('\n').find((l) => l.includes('-X PATCH'));
+      return t.replace(`${patch}\n`, '').replace('api "$BASE/api/backups"\n', `api "$BASE/api/backups"\n${patch}\n`);
+    })));
+  expect('C-22 坏：PATCH 没有关 SMTP', () => fails(c22, gd((t) => t.replace('"enabled":false', '"enabled":true'))));
+  expect('C-22 坏：守卫在 install 之后', () =>
+    fails(c22, gd((t) => {
+      const inst = 'install -d -o pocketbase -g pocketbase -m 0700 /var/lib/pocketbase-drill\n';
+      return t.replace(inst, '').replace('GUARD="$(runuser', `${inst}GUARD="$(runuser`);
+    })));
+  expect('C-22 坏：refused 分支以 0 退出', () => fails(c22, gd((t) => t.replace('  echo "x" >&2\n  exit 1\nfi\ncleanup', '  echo "x" >&2\n  exit 0\nfi\ncleanup'))));
+  expect('C-22 坏：没有守卫的 refused 分支', () => fails(c22, gd((t) => t.replace('DRILL_GUARD=refused', 'DRILL_GUARD=no'))));
+  expect('C-22 坏：没有恢复后的测试账号检查', () => fails(c22, gd((t) => t.replace('DRILL_RESTORED_TEST_ONLY', 'DRILL_OTHER'))));
+  expect('C-22 坏：恢复后核对没有账号正则', () => fails(c22, gd((t) => t.replace(`TEST = re.compile(r"${DRILL_EMAIL_RE}")\nout[`, 'out['))));
+  expect('C-22 坏：输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => `${t}echo "RESULT=PASS"\n`)));
+  expect('C-22 坏：python 输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => t.replace('out["DRILL_RESTORED_TEST_ONLY"]', 'out["RESTORED"]'))));
+  expect('C-22 坏：没有 DRILL_RESULT', () => fails(c22, gd((t) => t.replace('DRILL_RESULT', 'DRILL_END'))));
+  expect('C-22 坏：缺少脚本', () => fails(c22, { ...good, sh: { 'x.sh': '' } }));
 
   console.log(bad === 0 ? `SELF-TEST OK (${n} cases)` : `SELF-TEST FAIL (${bad} of ${n})`);
   return bad === 0 ? 0 : 1;
