@@ -519,3 +519,12 @@ export const BANNER_REMOTE_PE = '其他设备有新的修改，保存或放弃�
 export const PE_UNREAD = '账号的计划读不出来，这里显示的是示例计划。保存时会先把服务器上那一份存成本机留底。';
 export const TOAST_PLAN_SAVED_UNREAD = '计划已保存，原来读不出来的那一份已在本机留底';
 export const TOAST_PLAN_UNREAD_NOKEEP = '本机空间不够，没能先留下服务器上原来那一份计划，所以没有保存';
+
+// Phase 12-04 Task 1：编辑页里目标组和任务的字段、添加按钮、空任务提示和读屏句子（应用里 T_PE_ADD_GROUP、T_PE_ADD_TASK、T_PE_TASKS_EMPTY、T_PE_LIVE_ADDED_GROUP、T_PE_LABEL_NAME、T_PE_LABEL_NOTE、T_PE_TASKS_TITLE，逐字相同）
+export const BTN_ADD_GROUP = '＋ 添加目标组';
+export const BTN_ADD_TASK = '＋ 添加任务';
+export const PE_GROUP_TASKS_EMPTY = '这个目标组还没有任务。';
+export const PE_LIVE_ADDED_GROUP = '已添加：新的目标组';
+export const PE_LABEL_NAME = '名称';
+export const PE_LABEL_NOTE = '备注';
+export const PE_TASKS_TITLE = '任务';

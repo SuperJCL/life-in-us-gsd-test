@@ -51,7 +51,7 @@ export type EditorRead = {
   saveDisabled: boolean;
   saveAriaDisabled: boolean;
   saveBusy: boolean;
-  groups: Array<{ key: string; no: string; expanded: boolean }>;
+  groups: Array<{ key: string; no: string; expanded: boolean; cat: string; taskKeys: string[] }>;
 };
 
 // 一次 page.evaluate 读回编辑页的状态：只有 hash、界面文案、布尔、编号和键，不读计划文字
@@ -72,6 +72,10 @@ export async function readEditor(page: Page): Promise<EditorRead> {
         key: c.getAttribute('data-key') ?? '',
         no: c.querySelector('.pe-no')?.textContent ?? '',
         expanded: c.querySelector('[data-peact="toggle"]')?.getAttribute('aria-expanded') === 'true',
+        // 类别：.seg 里被按下的按钮的 data-pecat（固定的五个类别名，不是个人文字）
+        cat: c.querySelector('.seg [aria-pressed="true"]')?.getAttribute('data-pecat') ?? '',
+        // 任务行的键 t:<tid>（按页面顺序，不含任务文字）
+        taskKeys: Array.from(c.querySelectorAll('.pe-row [data-pefield]')).map((i) => (i.getAttribute('data-pefield') ?? '').replace(/:text$/, '')),
       })),
     };
   });
