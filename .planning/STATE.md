@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: executing
-stopped_at: Completed 12-05-PLAN.md
-last_updated: "2026-11-12T02:09:47.731Z"
+stopped_at: Completed 12-06-PLAN.md
+last_updated: "2026-11-12T02:47:45.356Z"
 last_activity: 2026-11-11
 last_activity_desc: Phase 12 execution started
-state_head: 8959ccc90c19cb76fd1a3ff858fe1af8401d4ee5
+state_head: 0492da5e2d8c3826781554e27c7a61ff8ef2f86b
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 66
-  completed_plans: 63
+  completed_plans: 64
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 ## Current Position
 
 Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-11-11 — Phase 12 execution started
 
@@ -152,6 +152,7 @@ Progress: [████████░░] 75%
 | Phase 12 P03 | 28 min | 3 tasks | 7 files |
 | Phase 12 P04 | 55min | 3 tasks | 6 files |
 | Phase 12 P05 | 37 min | 3 tasks | 6 files |
+| Phase 12 P06 | 34 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -301,6 +302,9 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 12]: 12-04: 失焦产生的错误行在鼠标或手指按下期间推迟到 click 结束，避免错误行把按钮顶走导致点击丢失
 - [Phase 12]: 12-05：基础标签原样写进草稿、保存时不 trim（只在判重和判空时 trim）；删除标签不进 pe.gone，撤销用 toast 闭包按原下标放回
 - [Phase 12]: 12-05：打开编辑页时先跑 planProblems，已有问题进 pe.seen、所在卡展开、pe.preErr 让提示行显示数量；数值规则只在编辑页，normalizePlan 不收紧
+- [Phase 12]: 12-06: 恢复上限的说明行用 .pe-arch-lim，不用编辑页已有的 .pe-lim（12-04、12-05 的用例按 #pe-main .pe-lim 读各分区上限）
+- [Phase 12]: 12-06: 彻底删除只从草稿 splice 掉、不进 pe.gone，保存时由 savePlanDraft 的 id 差集连进度、组的自定义待办、state.lifts 一起清掉；12-07 的 D-08 复查不会再问这些项
+- [Phase 12]: 12-06: 空计划 = planEmpty()（没有未归档的组和力量项）；载入示例计划把 DEFAULT_PLAN 的组、任务、力量项换成新的 g-、t-、l- id 追加到草稿，预设和健身目标不动
 
 ### Pending Todos
 
@@ -364,8 +368,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T02:09:42.215Z
-Stopped at: Completed 12-05-PLAN.md
+Last session: 2026-11-12T02:47:43.017Z
+Stopped at: Completed 12-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
