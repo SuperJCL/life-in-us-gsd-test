@@ -247,6 +247,7 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 .pe-sub{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:400;color:var(--muted);margin:4px 0 8px}
 #tab-plan textarea{min-height:64px;resize:vertical}
 .pe-add{margin-top:8px}
+.pe-add+.pe-add{margin-left:8px}
 #tab-plan [hidden]{display:none}
 .pe-body>.pe-err{margin:-8px 0 12px}
 .pe-cnt{display:block;text-align:right;font-size:12px;color:var(--muted)}
@@ -436,6 +437,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
       <h2 id="wkTitle"></h2><span class="range" id="wkRange"></span>
       <div class="nav"><button class="icon" id="wkPrev" aria-label="上一周">‹</button><button class="ghost" id="wkNow">本周</button><button class="icon" id="wkNext" aria-label="下一周">›</button></div>
     </div>
+    <p class="empty hidden" id="wkEmpty">当前计划是空的，这里只统计你记下的内容。可以在「目标」页载入示例计划或编辑计划。</p>
     <div class="areas" id="areas"></div>
     <div class="wk-layout">
       <div>
@@ -616,6 +618,8 @@ function isArchived(t){const m=planMeta();return m.arch.has(t.id)||m.garch.has(t
 function activeTasks(){return allTasks().filter(t=>!isArchived(t))}
 function activeGroups(){return plan.groups.filter(g=>!g.archived)}
 function activeLifts(){return plan.lifts.filter(L=>!L.archived)}
+/* D-16：空计划 = 没有未归档的组，也没有未归档的力量项（可以保存，不会被示例计划顶替）；目标页换成空计划卡片，本周页多一行说明 */
+function planEmpty(){return !activeGroups().length&&!activeLifts().length}
 
 let state={arrival:"",tasks:{},custom:[],logs:[],lifts:{},reviews:{},presets:{}};
 let store=null;
@@ -2031,6 +2035,7 @@ function renderWeek(){
   else if(wk===monday(today()))title="本周";
   $("wkTitle").textContent=title;
   $("wkRange").textContent=md(wk)+" – "+(wk.slice(5,7)===end.slice(5,7)?(+end.slice(8))+"日":md(end));
+  $("wkEmpty").classList.toggle("hidden",!planEmpty());
   const dates=[...Array(7)].map((_,i)=>addDays(wk,i));
   const logs=state.logs.filter(l=>l.date>=wk&&l.date<=end);
   const doneT=activeTasks().filter(t=>{const s=tstate(t.id);return s.done&&s.doneDate>=wk&&s.doneDate<=end});
@@ -2086,12 +2091,13 @@ function renderGoals(){
   const t=today();
   const fit=`<div class="group k-fit"><div class="group-h"><span class="p">健身</span><h3>力量目标</h3></div>
     <p class="note">${esc(plan.fitNote)}</p>
-    <div class="lifts">${activeLifts().map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
+    ${activeLifts().length?"":`<p class="empty">${T_GOALS_NO_LIFTS}</p>`}<div class="lifts">${activeLifts().map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
       const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${esc(x.v)}`).join("，");
       return `<div class="lift"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
       <div class="lbar"><i style="width:${pct}%"></i></div>
       <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
       <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
+  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN}</button><button type="button" class="ghost" id="planSampleBtn">${T_PE_SAMPLE_BTN}</button></div>`:""}</div>`+archivedHTML();applyGate();return}
   $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+fit+activeGroups().map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
@@ -2101,7 +2107,7 @@ function renderGoals(){
       return `<div class="task ${s.done?"isdone":""}"><input type="checkbox" data-task="${esc(x.id)}" ${s.done?"checked":""} aria-label="${esc(x.text)}">
       <span class="tt">${esc(x.text)}</span>
       <span class="meta">${s.done?(s.doneDate?`完成于 ${md(s.doneDate)}`:"已完成"):`<span class="${od?"od":""}">${od?"已过期":"截止"}</span><input type="date" data-due="${esc(x.id)}" value="${esc(s.due||"")}" aria-label="截止日期">`}${custom?`<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办">×</button>`:""}</span></div>`}).join("")}
-    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+archivedHTML();applyGate();
+    <div class="addtask"><input type="text" placeholder="添加一项待办" data-addto="${esc(g.id)}" aria-label="给「${esc(g.name)}」添加待办"><button class="ghost" data-addbtn="${esc(g.id)}">添加</button></div></div>`}).join("")+(activeGroups().length?"":`<p class="empty">${T_GOALS_NO_GROUPS}</p>`)+archivedHTML();applyGate();
 }
 /* D-03、D-05、IN-05：目标页底部默认折叠的「已归档（n）」区，灰色只读，没有任何输入和按钮。n = 归档的组 + 所在组没归档的单独归档任务 + 归档的力量项 + 找不到所属组的自定义待办（后者带删除按钮，WR-02）。
    展开状态存在 goalsArchOpen，重画不会把展开的区收起来 */
@@ -2244,7 +2250,7 @@ function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(in
 $("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
   if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
 function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;const id="c-"+uid();commit(["custom:"+id],s=>{if(!s.custom.some(x=>x.id===id))s.custom.push({id,group:g,text:v})});renderAll()}
-$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn")){goPlan();return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
+$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){const had=!!pe;goPlan();if(!had&&pe)loadSampleDraft(false);return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
   if(a)addTask(a);if(d){commit(["custom:"+d],s=>{s.custom=s.custom.filter(t=>t.id!==d);delete s.tasks[d]});renderAll()}});
 $("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
@@ -2263,6 +2269,7 @@ const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要
 const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_DEL_LIFT="删除这个力量项",T_PE_LIM_LIFTS="最多 8 个",T_PE_ARCH_LIFT_TITLE="归档这个力量项？",T_PE_ARCH_LIFT_YES="归档力量项",T_PE_ARCH_LIFT_BODY="归档后目标页只读显示它的历史，不能再记录新的重量。";
 const T_PE_PRESETS_TITLE="基础预设标签",T_PE_PRESETS_NOTE="这里改的是基础标签。在「记一笔」里自己加的标签、隐藏的标签不受影响。",T_PE_PRESETS_EMPTY="这个类别还没有基础标签。",T_PE_ADD_TAG="＋ 添加标签",T_PE_LIM_TAGS="最多 20 个",T_PE_TAG_COUNT=n=>n+" 个标签",T_PE_LABEL_TAG="标签 ",T_PE_LIVE_ADDED_TAG="已添加：新的标签";
+const T_PE_EMPTY_TITLE="计划是空的",T_PE_EMPTY_BODY="目标页还没有目标组和力量项。你可以自己建一份，也可以先载入示例计划，再慢慢改。",T_PE_SAMPLE_BTN="载入示例计划",T_PE_SAMPLE_LOADED="已载入示例的目标组和力量项，点「保存计划」后生效",T_GOALS_NO_LIFTS="还没有力量项，可以在「编辑计划」里添加。",T_GOALS_NO_GROUPS="还没有目标组，可以在「编辑计划」里添加。",T_PE_GROUPS_EMPTY="还没有目标组。";
 const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2293,7 +2300,7 @@ function closePlanEditor(tab){
   if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
   const k=tab||"goal";
   showTab(k);renderAll();
-  if(k==="goal"){const b=$("planEditBtn");(b||$("goals")).focus()}
+  if(k==="goal"){const b=$("planEditBtn")||$("planEditBtn2");(b||$("goals")).focus()}
   /* 不再忙了：挂起的远端更新按 Phase 10 的规则应用 */
   if(remoteView)maybeApplyView();
 }
@@ -2364,7 +2371,7 @@ function renderPlanEditor(){
     if(typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
   }
   const lbl=groupLabels(pe.draft),gs=pe.draft.groups.filter(g=>!g.archived);
-  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups" tabindex="-1">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.map((g,gi)=>{
+  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups" tabindex="-1">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.length?"":`<p class="empty">${T_PE_GROUPS_EMPTY}</p>`}${gs.map((g,gi)=>{
     const key="g:"+g.id,open=pe.open.has(key),n=g.tasks.filter(t=>!t.archived).length;
     return `<div class="pe-card k-${kOf(g.cat)}" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-g-${esc(g.id)}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-no">${esc(lbl.get(g.id))}</span><span class="pe-name" id="pe-n-g-${esc(g.id)}" title="${esc(g.name)}">${esc(g.name||T_PE_UNNAMED)}</span></button><span class="pe-sum">${esc(g.cat)} · ${n} 项</span><span class="pe-bad" hidden></span><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="${esc(key)}" aria-label="上移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="${esc(key)}" aria-label="下移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===gs.length-1?" disabled":""}>${T_PE_DOWN}</button></div></div>
     <div class="pe-body" id="pe-b-g-${esc(g.id)}" role="group" aria-labelledby="pe-n-g-${esc(g.id)}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-g-${esc(g.id)}-name" data-pefield="${esc(key)}:name" maxlength="${PLAN_MAX.name}" value="${esc(g.name)}" aria-describedby="pe-e-g-${esc(g.id)}-name">${peCnt("g-"+g.id+"-name",g.name.length,32,PLAN_MAX.name)}</label><p class="pe-err" id="pe-e-g-${esc(g.id)}-name" hidden></p>
@@ -2372,7 +2379,7 @@ function renderPlanEditor(){
     <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
 ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
     <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML()+pePresetsHTML()+peArchivedHTML();
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}${!gs.length&&!pe.draft.lifts.some(l=>!l.archived)?`<button type="button" class="ghost pe-add" data-peact="sample">${T_PE_SAMPLE_BTN}</button>`:""}</section>`+peFitHTML()+pePresetsHTML()+peArchivedHTML();
   peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
@@ -2396,6 +2403,7 @@ peRoot.addEventListener("click",e=>{
   else if(a==="delgroup")peDelete("group",k.slice(2));
   else if(a==="restore")peRestore(k);
   else if(a==="purge")pePurge(k);
+  else if(a==="sample")loadSampleDraft(true);
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
 function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.draft.lifts.forEach(l=>u.add(l.id));pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
@@ -2650,6 +2658,18 @@ function peRestore(key){
   renderPlanEditor();peBar();peArchFocus(order,key);
   peSay(T_PE_LIVE_RESTORED+nm);
   toast(T_PE_LIVE_RESTORED+peShort(nm==="（未命名）"?"":nm),null,3000);
+}
+/* 载入示例计划（D-16、A16）：只在草稿里没有未归档的组和力量项时可用（按钮也只在这时出现）。示例的目标组和力量项深拷贝后每一项换成全新的 g-、t-、l- id（不复用 P1、bench 等示例 id：会撞上同 id 的归档项、接上旧进度），追加到草稿末尾；预设标签、健身目标、健身说明不动。草稿立刻有未保存的修改，保存才生效 */
+function loadSampleDraft(fromEditor){
+  if(!pe||pe.draft.groups.some(g=>!g.archived)||pe.draft.lifts.some(l=>!l.archived))return;
+  const u=peUsedIds(),nid=p=>{let id;do{id=p+uid()}while(u.has(id));u.add(id);return id};
+  const smp=JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  smp.groups.forEach(g=>{g.id=nid("g-");g.tasks.forEach(t=>{t.id=nid("t-")});pe.draft.groups.push(g)});
+  smp.lifts.forEach(l=>{l.id=nid("l-");pe.draft.lifts.push(l)});
+  renderPlanEditor();peBar();
+  if(fromEditor){const h=$("pe-h-groups");if(h)h.focus()}
+  peSay(T_PE_SAMPLE_LOADED);
+  toast(T_PE_SAMPLE_LOADED,null,4000);
 }
 peRoot.addEventListener("input",e=>{
   const f=e.target.dataset&&e.target.dataset.pefield;if(!f||!pe)return;

@@ -8,7 +8,21 @@ import { gotoTimeline } from '../support/timeline';
 import { act, discardPlan, expand, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { expectToast } from '../support/toast';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
+import { composer } from '../support/composer';
+import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
+  BTN_ADD_GROUP,
+  BTN_LOAD_SAMPLE,
+  BTN_PLAN_EDIT,
+  GOALS_NO_GROUPS,
+  GOALS_NO_LIFTS,
+  PE_EMPTY_BODY,
+  PE_EMPTY_TITLE,
+  PE_GROUPS_EMPTY,
+  PE_HINT_DIRTY,
+  TAB_LABELS,
+  TOAST_SAMPLE_LOADED,
+  WEEK_EMPTY_PLAN,
   BTN_PURGE,
   BTN_PURGE_GROUP,
   BTN_PURGE_LIFT,
@@ -318,4 +332,97 @@ test('PLAN-03 an archived group carries its custom to-dos, a task archived on it
   // 恢复的组里的进度还在（保存清理没有误删）
   const st: any = app.fake.lastState(0);
   expect([st.tasks['t-gazx2'], st.tasks['c-ga-1'], (st.custom ?? []).map((c: any) => c.id)]).toEqual([done, done, ['c-ga-1']]);
+});
+
+test('PLAN-02 an emptied plan shows the empty plan card and the week hint, and the sample plan loads into the draft with new ids (D-16, A16)', async ({
+  app,
+  page,
+}) => {
+  // 1 组（2 个任务都没有进度）、1 个力量项（没有历史）
+  const plan: any = syntheticPlan('em', 1);
+  await app.open({ mode: 'cloud', seed: syntheticState('em'), plan, login: 0 });
+
+  // 先删掉力量项（没有历史，直接移除）→ 保存 → 目标页力量卡里写「还没有力量项…」，组照常
+  await openEditor(page);
+  await expand(page, 'l:l-em1');
+  await act(page, 'dellift', 'l:l-em1').click();
+  expect((await readEditor(page)).lifts).toEqual([]);
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => app.fake.lastPlan(0)?.lifts?.length, { message: '等待新计划上传' }).toBe(0);
+  await expect(page.locator('#goals .group.k-fit > p.empty')).toHaveText(GOALS_NO_LIFTS);
+  expect(await readGroupIds(page)).toEqual(['g-em1']);
+  await expect(page.locator('#planEditBtn')).toHaveCount(1);
+
+  // 再删掉那个组（没有进度，直接移除）：编辑页目标组分区显示「还没有目标组。」、「＋ 添加目标组」和「载入示例计划」
+  await page.locator('#planEditBtn').click();
+  await expand(page, 'g:g-em1');
+  await act(page, 'delgroup', 'g:g-em1').click();
+  expect((await readEditor(page)).groups).toEqual([]);
+  await expect(page.locator('#pe-main [aria-labelledby="pe-h-groups"] > p.empty')).toHaveText(PE_GROUPS_EMPTY);
+  await expect(act(page, 'addgroup')).toHaveText(BTN_ADD_GROUP);
+  await expect(act(page, 'sample')).toHaveText(BTN_LOAD_SAMPLE);
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+
+  // 服务器计划 groups 和 lifts 都是 []；目标页是「计划是空的」卡片
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(0);
+  expect(app.fake.lastPlan(0).lifts).toEqual([]);
+  await expect(page.locator('#goals .pe-empty h3')).toHaveText(PE_EMPTY_TITLE);
+  await expect(page.locator('#goals .pe-empty p')).toHaveText(PE_EMPTY_BODY);
+  await expect(page.locator('#planEditBtn')).toHaveCount(0);
+  await expect(page.locator('#planEditBtn2')).toHaveText(BTN_PLAN_EDIT);
+  await expect(page.locator('#planEditBtn2')).toHaveClass(/primary/);
+  await expect(page.locator('#planSampleBtn')).toHaveText(BTN_LOAD_SAMPLE);
+  expect(await readGroupIds(page)).toEqual([]);
+
+  // 本周页：说明可见，记一笔照常
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  await expect(page.locator('#wkEmpty')).toBeVisible();
+  await expect(page.locator('#wkEmpty')).toHaveText(WEEK_EMPTY_PLAN);
+  const wk = composer(page, 'w');
+  await wk.pickCategory('语言');
+  await wk.type('SYNTH-em new log');
+  await wk.submit();
+  await expect.poll(() => app.fake.lastState(0)?.logs?.length, { message: '等待新记录上传' }).toBe(2);
+
+  // 刷新：仍是空计划（没有换成示例计划），服务器计划仍是空的
+  await app.reload();
+  await gotoGoals(page);
+  await expect(page.locator('#goals .pe-empty')).toHaveCount(1);
+  expect(await readGroupIds(page)).toEqual([]);
+  expect([app.fake.lastPlan(0).groups, app.fake.lastPlan(0).lifts]).toEqual([[], []]);
+
+  // 载入示例计划：编辑页打开，草稿马上有未保存的修改，toast 说明；组数、每组任务数、力量项个数对得上，id 全新；预设和健身目标不动
+  await page.locator('#planSampleBtn').click();
+  await expect(page.locator('#tab-plan')).toBeVisible();
+  await expectToast(page, TOAST_SAMPLE_LOADED);
+  const ed = await readEditor(page);
+  expect(ed.hint).toBe(PE_HINT_DIRTY);
+  expect(ed.groups.length).toBe(Object.keys(BUILTIN_GROUP_SIZES).length);
+  expect(ed.groups.map((g) => g.taskKeys.length)).toEqual(Object.values(BUILTIN_GROUP_SIZES));
+  expect(ed.groups.every((g) => /^g:g-[A-Za-z0-9_-]+$/.test(g.key))).toBe(true);
+  expect(ed.groups.every((g) => g.taskKeys.every((k) => /^t:t-[A-Za-z0-9_-]+$/.test(k)))).toBe(true);
+  expect(ed.lifts.length).toBe(4);
+  expect(ed.lifts.every((l) => /^l:l-[A-Za-z0-9_-]+$/.test(l.key))).toBe(true);
+  expect(ed.fit, '健身目标不动').toEqual({ min: '1', max: '3' });
+  expect(ed.archived.present).toBe(false);
+  // 载入之后「载入示例计划」按钮不再出现
+  await expect(act(page, 'sample')).toHaveCount(0);
+
+  // 保存：服务器计划的 id 都是新的，预设和健身说明与原来相同；目标页编号 P1 到 P7，本周页说明隐藏
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(7);
+  const saved: any = app.fake.lastPlan(0);
+  expect(saved.groups.every((g: any) => /^g-/.test(g.id) && g.tasks.every((t: any) => /^t-/.test(t.id)))).toBe(true);
+  expect(saved.lifts.map((l: any) => l.id).every((id: string) => /^l-/.test(id))).toBe(true);
+  expect(saved.lifts.length).toBe(4);
+  expect(JSON.stringify(saved.presets) === JSON.stringify(plan.presets), '预设标签不动').toBe(true);
+  expect(saved.fitGoal).toEqual(plan.fitGoal);
+  expect(saved.fitNote === plan.fitNote, '健身说明不动').toBe(true);
+  await gotoGoals(page);
+  expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  await expect(page.locator('#wkEmpty')).toBeHidden();
 });
