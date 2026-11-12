@@ -625,3 +625,19 @@ export const GOALS_NO_LIFTS = '还没有力量项，可以在「编辑计划」�
 export const GOALS_NO_GROUPS = '还没有目标组，可以在「编辑计划」里添加。';
 export const WEEK_EMPTY_PLAN = '当前计划是空的，这里只统计你记下的内容。可以在「目标」页载入示例计划或编辑计划。';
 export const PE_GROUPS_EMPTY = '还没有目标组。';
+
+// Phase 12-07 Task 1：编辑期间别的设备改了计划（D-07、A14）：提示行、#pe-notice、三选一对话框、两个 toast（应用里 T_PE_NOTICE、T_PE_HINT_REMOTE、T_PE_CF_*、T_PE_BACK、T_PE_TAKE、T_PE_OVERWRITE、T_PE_SAVED_KEPT、T_PE_TAKEN，逐字相同）
+export const PE_NOTICE = '计划在别的设备上改过了。你的草稿没有变，点「保存计划」时可以选择怎么处理。';
+export const PE_HINT_REMOTE = '计划在别的设备上改过了';
+export const PE_CONFLICT_TITLE = '计划在别的设备上改过了';
+export const PE_CONFLICT_LINES = [
+  '你打开编辑页之后，别的设备保存了新的计划。',
+  '用我的覆盖：保存你现在这份草稿；别的设备上的那一版会在本机留一份，可以下载。',
+  '放弃我的修改，用新版：丢掉你的草稿，改用别的设备上的新计划。',
+  '回去继续改：回到编辑页，什么都不变。',
+];
+export const BTN_PE_BACK = '回去继续改';
+export const BTN_PE_TAKE_THEIRS = '放弃我的修改，用新版';
+export const BTN_PE_OVERWRITE = '用我的覆盖';
+export const TOAST_PLAN_SAVED_KEPT = '计划已保存，别的设备上的那一版已在本机留底';
+export const TOAST_PLAN_TAKEN = '已改用别的设备上的新计划，你的修改没有保存';

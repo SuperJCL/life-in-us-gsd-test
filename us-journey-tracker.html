@@ -211,7 +211,8 @@ dialog#confirm.pe{padding:24px}
 dialog#confirm.pe #cf-body p+p{margin-top:8px}
 @media (max-width:560px){dialog#confirm.pe{padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px))}}
 dialog#confirm #cf-body{max-height:50vh;overflow:auto}
-.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+dialog#confirm .ed-foot.three{flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:560px){dialog#confirm .ed-foot.three{flex-direction:column;align-items:stretch}dialog#confirm .ed-foot.three button{flex:none;width:100%;min-height:44px}}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #tab-plan{max-width:800px;margin:0 auto;padding-bottom:32px}
 #tab-plan .pe-head h2{font-family:var(--serif);font-weight:600;font-size:24px;line-height:1.2;margin:0}
 #tab-plan .pe-head p{font-size:14px;color:var(--muted);margin:8px 0 0}
@@ -485,7 +486,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <dialog id="editor" aria-labelledby="ed-title"><form method="dialog" id="ed-form"></form></dialog>
-<dialog id="confirm" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-body"><form method="dialog"><div class="ed-h"><h3 id="cf-title"></h3></div><div id="cf-body"></div><div class="ed-foot"><span class="sp"></span><button type="button" class="ghost" id="cfCancel" autofocus></button><button type="button" class="danger" id="cfOk"></button></div></form></dialog>
+<dialog id="confirm" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-body"><form method="dialog"><div class="ed-h"><h3 id="cf-title"></h3></div><div id="cf-body"></div><div class="ed-foot"><span class="sp"></span><button type="button" class="ghost" id="cfCancel" autofocus></button><button type="button" id="cfMid" class="hidden"></button><button type="button" class="danger" id="cfOk"></button></div></form></dialog>
 
 <script>
 (function(){
@@ -1506,7 +1507,7 @@ async function syncOnce(){
     /* any offline failure, at whatever step (refresh, list, create, upload), may have let another device write meanwhile: ops no longer covers the gap (D-03 applies, not a redo) */
     if(net==="offline")opsOk=false;
     scheduleRetry(bump);showSync();
-  }finally{clearTimeout(tm);syncCtrls.delete(ctrl);if(ep===sessionEpoch)trying=false}
+  }finally{clearTimeout(tm);syncCtrls.delete(ctrl);if(ep===sessionEpoch){trying=false;if(pe)peRemote()}}
 }
 window.addEventListener("online",()=>{if(CLOUD&&me){stopRetry();requestSync("online")}});
 /* logout (D-06): unsubscribe realtime, clear this account's caches and kept version, clear the token, then reset the page and show the login page (which prefills the last email, D-07).
@@ -1525,11 +1526,15 @@ function confirmBox(o){
     /* 可选参数：okClass 是确认按钮的 class（缺省 danger，传 primary 用 .primary）；scope 为 "plan" 时给对话框加 class pe（编辑计划页的确认框外观）；两者在 close 里恢复，现有调用不传，行为和外观不变 */
     okb.className=o.okClass==="primary"?"primary":"danger";
     if(o.scope==="plan")cfDlg.classList.add("pe");
+    /* 可选参数 mid：{text,cls} 在取消和确认之间多一个按钮 #cfMid（三选一，Phase 12 D-07、D-08），点它返回 "mid"，确认按钮仍返回 true，其余关闭方式 false；.ed-foot 加 three 类，close 里恢复 */
+    const mid=$("cfMid"),foot=cancel.parentNode;
+    if(o.mid){mid.textContent=o.mid.text;mid.className=o.mid.cls==="primary"?"primary":"danger";foot.classList.add("three");mid.onclick=()=>{val="mid";cfDlg.close()}}
     cancel.onclick=()=>cfDlg.close();
     okb.onclick=()=>{val=true;cfDlg.close()};
     cfDlg.onclick=e=>{if(e.target===cfDlg)cfDlg.close()};
     cfDlg.addEventListener("close",()=>{
-      cancel.onclick=okb.onclick=cfDlg.onclick=null;okb.className="danger";cfDlg.classList.remove("pe");
+      cancel.onclick=okb.onclick=cfDlg.onclick=mid.onclick=null;okb.className="danger";cfDlg.classList.remove("pe");
+      mid.className="hidden";mid.textContent="";foot.classList.remove("three");
       try{if(back&&back.isConnected&&typeof back.focus==="function")back.focus()}catch(e){}
       res(val);
     },{once:true});
@@ -1752,6 +1757,7 @@ function adoptPlanTab(rec){
   if(!remoteView){pendRemote.plan=null;if(!pendRemote.state)hideBar("remote")}
   if($("status").getAttribute("data-state")!=="toolarge")showSync();
   if(remoteView)maybeApplyView();
+  if(pe)peRemote();
 }
 /* realtime (SYNC-02): a push only says "something changed", it never carries the document. The subscription starts after the first reconcile (and only while rt is "off", so a topic is never subscribed twice: the SDK adds one listener per subscribe);
    every event or (re)connect that is not our own echo goes through requestSync, i.e. the same whole-document reconcile and the same waiting-slot rules as the 60 s pull, which stays on as the baseline.
@@ -2277,6 +2283,18 @@ function showTab(k){
   ["wk","cal","goal","tl","plan"].forEach(x=>$("tab-"+x).classList.toggle("hidden",x!==k));
 }
 function planDirty(){return !!pe&&canon(pe.draft)!==pe.orig}
+/* D-07：编辑期间别的设备（或同一浏览器的另一个标签页）保存了计划。判断用打开时记下的版本 pe.base（docs.plan.base 会被挂起槽前移），并且内容要和打开时不同（本机上一次保存的回声、对方存了同样的内容都不算）；现在的计划 = 挂起槽里的计划（读不出来按示例计划）或工作计划。草稿从不被改 */
+const T_PE_NOTICE="计划在别的设备上改过了。你的草稿没有变，点「保存计划」时可以选择怎么处理。",T_PE_HINT_REMOTE="计划在别的设备上改过了";
+const T_PE_CF_TITLE="计划在别的设备上改过了",T_PE_CF_L1="你打开编辑页之后，别的设备保存了新的计划。",T_PE_CF_L2="用我的覆盖：保存你现在这份草稿；别的设备上的那一版会在本机留一份，可以下载。",T_PE_CF_L3="放弃我的修改，用新版：丢掉你的草稿，改用别的设备上的新计划。",T_PE_CF_L4="回去继续改：回到编辑页，什么都不变。";
+const T_PE_BACK="回去继续改",T_PE_TAKE="放弃我的修改，用新版",T_PE_OVERWRITE="用我的覆盖",T_PE_SAVED_KEPT="计划已保存，别的设备上的那一版已在本机留底",T_PE_TAKEN="已改用别的设备上的新计划，你的修改没有保存";
+function peNow(){const ps=pendRemote.plan;return ps?(normalizePlan(ps.data)||normalizePlan(DEFAULT_PLAN)):plan}
+function peChanged(){return !!pe&&!!docs.plan&&docs.plan.base!==pe.base&&canon(peNow())!==pe.orig}
+function peRemote(){
+  if(!pe)return;
+  pe.remote=peChanged();
+  const n=$("pe-notice");n.querySelector(".sb-msg").textContent=T_PE_NOTICE;n.classList.toggle("hidden",!pe.remote);
+  peBar();
+}
 function goPlan(){
   if(pe||!CLOUD||!me||!docs.plan||document.body.hasAttribute("data-gate"))return;
   history.pushState(null,"","#plan");
@@ -2286,13 +2304,13 @@ function openPlanEditor(from){
   if(pe)return;
   /* 草稿从最新的计划开始：挂起的远端版本先并入 */
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
-  pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],archOpen:false,busy:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
+  pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,preErr:false,gone:[],archOpen:false,busy:false,remote:false,tooLarge:false,origIds:new Set(plan.groups.flatMap(g=>[g.id].concat(g.tasks.map(t=>t.id))).concat(plan.lifts.map(l=>l.id)))};
   /* 所有者决定（2026-11-11）：打开时草稿里已有的规则问题（服务器或导入的计划里的起始值为负、天数颠倒等）立即标出：字段键进 pe.seen，所在卡片展开，提示行显示数量；保存被 planProblems 挡住直到改好。normalizePlan 不拒绝这样的计划，所以目标页、本周页照常显示 */
   const pr0=planProblems(pe.draft);
   if(pr0.length){pe.preErr=true;pr0.forEach(x=>{pe.seen.add(x.key);const c=peCardOf(x.key);if(c)pe.open.add(c)})}
   /* 所有者决定：账号的计划读不出来、页面显示示例计划时，编辑页照常可用，顶部说明这一点 */
   const un=$("pe-unread");un.querySelector(".sb-msg").textContent=T_PE_UNREAD;un.classList.toggle("hidden",!keepOrphans);
-  showTab("plan");renderPlanEditor();peBar();window.scrollTo(0,0);$("pe-title").focus();
+  showTab("plan");renderPlanEditor();peRemote();window.scrollTo(0,0);$("pe-title").focus();
   if(remoteView)maybeApplyView();
 }
 function closePlanEditor(tab){
@@ -2316,9 +2334,9 @@ function planRoute(){
 }
 function peBar(){
   if(!pe)return;
-  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),bn=(pe.tried||pe.preErr)?planProblems(pe.draft).length:0,t=bn?T_PE_HINT_ERRORS(bn):d?T_PE_HINT_DIRTY:T_PE_HINT_NONE;
+  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),bn=(pe.tried||pe.preErr)?planProblems(pe.draft).length:0,t=bn?T_PE_HINT_ERRORS(bn):pe.remote?T_PE_HINT_REMOTE:d?T_PE_HINT_DIRTY:T_PE_HINT_NONE;
   if(h.textContent!==t)h.textContent=t;
-  if(bn)h.setAttribute("data-tone","error");else if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
+  if(bn)h.setAttribute("data-tone","error");else if(pe.remote)h.setAttribute("data-tone","warn");else if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
   sv.disabled=!d||pe.busy;
   if(pe.busy)sv.setAttribute("aria-busy","true");else sv.removeAttribute("aria-busy");
   const st=pe.busy?T_PE_SAVING:T_PE_SAVE;
@@ -2732,9 +2750,10 @@ window.addEventListener("hashchange",()=>{
 /* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
 window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.returnValue=""}});
 /* D-10：点「保存计划」直接生效，不显示改动摘要。写法照 applyImport 的计划部分；persist 只管 state，计划要自己请求同步。上传失败走现有的脏标记加退避重试 */
-function savePlanDraft(){
+async function savePlanDraft(){
   const s=pe;
   if(!s||s.busy||!planDirty())return;
+  const ep=sessionEpoch,live=()=>pe===s&&ep===sessionEpoch;
   /* D-17、S6：先检查草稿；有问题就不保存，展开含错误的卡，提示行写数量，焦点移到第一个出错的字段。要并入远端版本、存计划都在这之后 */
   const pr=planProblems(s.draft);
   if(pr.length){
@@ -2744,9 +2763,19 @@ function savePlanDraft(){
     return;
   }
   s.busy=true;peBar();
-  if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
+  const merge=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}},back=()=>{s.busy=false;peBar()};
+  merge();
+  /* S9 第 3 步（D-07）：打开编辑页之后别的设备改过了计划 → 三选一。回去继续改（对话框的取消、Esc、点遮罩）什么都不变，提示照旧；放弃我的修改，用新版（A14）丢草稿、改用新计划、回目标页、不上传；用我的覆盖继续保存，被盖掉的那一版在写入之前按计划留底。每处 await 之后核对会话 */
+  let overwrite=false;
+  if(peChanged()){
+    const r=await confirmBox({title:T_PE_CF_TITLE,lines:[T_PE_CF_L1,T_PE_CF_L2,T_PE_CF_L3,T_PE_CF_L4],cancel:T_PE_BACK,mid:{text:T_PE_TAKE,cls:"danger"},ok:T_PE_OVERWRITE,scope:"plan"});
+    if(!live())return;
+    if(r===false){back();return}
+    if(r==="mid"){closePlanEditor("goal");toast(T_PE_TAKEN,null,6000);return}
+    overwrite=true;merge();
+  }
   const np=normalizePlan(s.draft);
-  if(!np){s.busy=false;peBar();return}
+  if(!np){back();return}
   /* 所有者决定（2026-11-11）：账号的计划读不出来（keepOrphans 仍为真，并入的远端版本也读不出来）时，先把服务器上那份存成本机留底（与 D-07 的覆盖留底同一个机制，可下载），然后才替换；留底存不下就不保存，草稿留在页面上 */
   let unread=false;
   if(keepOrphans){
@@ -2754,6 +2783,9 @@ function savePlanDraft(){
     if(!(pc&&keepConflict("plan",{data:pc.data}))){toast(T_PE_UNREAD_NOKEEP,null,6000);s.busy=false;peBar();return}
     unread=true;
   }
+  /* 用我的覆盖：此刻的工作计划就是被盖掉的那一版（已并入最新的挂起版本），写入之前存成本机留底（可下载）；留底存不下时照常保存，离开后用「留底没存上」横幅说明，不说假话 */
+  let kept=null;
+  if(overwrite)kept=keepConflict("plan",{data:JSON.parse(JSON.stringify(plan))});
   /* 离开计划的任务、组和力量项（直接移除、以后的彻底删除）：它们的进度键、组里的自定义待办和待办的进度、力量项的 state.lifts[id]（当前值和历史）经 commit 从 state 删除；归档的项仍在新计划里，进度原样。计划读不出来时（keepOrphans）页面显示的是示例计划，下一次加载本来就会丢掉对不上的进度键，这里不动 state。差集在 usePlan 换掉旧计划之前算 */
   const outT=[],outC=[],outL=[];
   if(!keepOrphans){
@@ -2772,7 +2804,8 @@ function savePlanDraft(){
   showSync();requestSync("save");
   closePlanEditor("goal");
   if(unread){snapShow();toast(T_PE_SAVED_UNREAD,{label:"下载留底",fn:snapDownload},8000);snapTold()}
-  else toast(T_PE_SAVED,null,3000);
+  else if(overwrite&&kept){snapShow();toast(T_PE_SAVED_KEPT,{label:"下载留底",fn:snapDownload},8000);snapTold()}
+  else{if(overwrite)conflictNotice(false);toast(T_PE_SAVED,null,3000)}
 }
 
 /* ---------- export / import ---------- */
