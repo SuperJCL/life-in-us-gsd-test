@@ -5,17 +5,17 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-11-12T08:14:51.202Z"
-last_activity: 2026-11-11
-last_activity_desc: Phase 12 complete, transitioned to Phase 13
-state_head: 073e0ed27b6a270c91d810c306a83f42c797aa00
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-11-12T18:02:05.791Z"
+last_activity: 2026-11-12
+last_activity_desc: Phase 13 execution started
+state_head: cccc84844a34390d0d70e1108a9a40da1a515322
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 66
-  percent: 81
+  completed_plans: 67
+  percent: 83
 ---
 
 # Project State
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 
 ## Current Position
 
-Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — READY TO EXECUTE
-Plan: Not started
+Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
+Plan: 2 of 15
 Status: Ready to execute
-Last activity: 2026-11-11 — Phase 12 complete, transitioned to Phase 13
+Last activity: 2026-11-12 — Phase 13 execution started
 
-Progress: [████████░░] 81%
+Progress: [████████░░] 83%
 
 
 ## Performance Metrics
@@ -156,6 +156,7 @@ Progress: [████████░░] 81%
 | Phase 12 P06 | 34 min | 3 tasks | 5 files |
 | Phase 12 P07 | 35 min | 3 tasks | 6 files |
 | Phase 12 P08 | 14 min | 2 tasks | 1 files |
+| Phase 13 P01 | 16 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -315,6 +316,7 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - 执行中所有者批准 3 处计划外测试改动（readGroupIds、SEC-01 只排除 `details#goalsArch`、过期提示断言）；代码审查 7 条全部修完（含 CR-01 覆盖留底、CR-02 导入后静默覆盖），UI 审计 3 处首要修复已应用（56a6dea）。
 - 安全 28/28 关闭；回归 cloud 239 条、默认 193 条（编排者在 HEAD 6f6d314 上亲自跑过）。执行器提交署名 `Claude Sonnet 5.5`。
 - 人工验收 5 项按所有者 2026-11-12 的决定推迟到部署后的总体验收（12-UAT.md Deferred Follow-Ups），验证报告记为所有者批准的绕过。
+- [Phase 13]: 13-01: Service Worker SHELL is / and the SDK, cache usj-shell-<version>; /sw.js is in the cloud guard allow-list only; new worker neither skipWaiting nor claims, so first install fires no controllerchange
 
 ### Pending Todos
 
@@ -383,9 +385,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T05:23:17.605Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-deploy-hardening-acceptance/13-CONTEXT.md
+Last session: 2026-11-12T18:02:02.667Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
