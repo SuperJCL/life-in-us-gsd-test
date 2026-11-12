@@ -37,7 +37,7 @@
 |------|--------|
 | `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作，含读「已归档」区的 `readArchived`）、`plan-editor.ts`（编辑计划页的 helper，见“Phase 12 的云端用例”一节）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
-| `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、干净克隆（SEC-04）、运行时探针、已知 bug 登记护栏 |
+| `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、干净克隆（SEC-04）、运行时探针、已知 bug 登记护栏；Phase 13 的 `site-assets.spec.ts`（清单和图标的文件级检查）和 `deploy-tools.spec.ts`（部署工具自检和上传包离线核对，见“Phase 13 的用例”一节） |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts`，以及 USJ_CONFIG 配置缝 |
 | `tests/e2e/data/` | 合成数据用例：完整 fixture、旧类别名、最小状态在三个视图里的呈现，以及冻结 id 和旧备份映射、normalizePlan 单元用例 |
 | `tests/e2e/week/` | 本周视图：渲染、周导航、记一笔、预设标签、拖放、复盘，以及已知 bug 的成对用例 |
@@ -49,7 +49,7 @@
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节）、Phase 12 的六个 spec（`plan-archive-view.spec.ts`、`plan-editor.spec.ts`、`plan-editor-groups.spec.ts`、`plan-editor-fit.spec.ts`、`plan-editor-archive.spec.ts`、`plan-editor-sync.spec.ts`，见“Phase 12 的云端用例”一节） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节）、Phase 12 的六个 spec（`plan-archive-view.spec.ts`、`plan-editor.spec.ts`、`plan-editor-groups.spec.ts`、`plan-editor-fit.spec.ts`、`plan-editor-archive.spec.ts`、`plan-editor-sync.spec.ts`，见“Phase 12 的云端用例”一节）、Phase 13 的三个 spec（`sw-offline.spec.ts`、`sw-update.spec.ts`、`csp.spec.ts`，见“Phase 13 的用例”一节） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地计划工具：`extract-plan.mjs` 只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容；`migrate-backup.mjs` 把种子计划和原 Artifact 的旧备份合成一个新格式文件（用法见“Phase 11 的云端用例”一节，默认模式和 `--plan-only` 只由所有者运行） |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -229,6 +229,18 @@ Phase 12 的云端用例（编辑计划页）同样只在 `npm run test:cloud` �
   - 另一个写入方改服务器文档：`app.fake.request(0, 'PATCH', 路径, { data, writer: 'synth-other-writer' })`，写入方 id 与本页不同，应用把它当作别的设备的保存。
   - 编辑页用例里的计划文字都以 `SYNTH-` 开头；不打印、不拼进断言消息。
 - **已修复的已知 bug：** Phase 7 代码审查登记的 WR-02（找不到组的自定义待办看不到也删不掉）和 IN-05（任务的 `archived` 没有任何行为）已在 Phase 12 修复，见 `tests/KNOWN-BUGS.md` 的“已修复”。
+
+### Phase 13 的用例
+
+Phase 13（部署、加固与验收）的用例：Service Worker 和 CSP 的三个 spec 在 `tests/cloud/`（只在 `npm run test:cloud` 里运行），文件检查和部署工具的两个 spec 在 `tests/e2e/platform/`（默认套件，不开浏览器）。全部只用合成数据，不连任何真实服务器。
+
+- **`tests/cloud/sw-offline.spec.ts`、`tests/cloud/sw-update.spec.ts`：** 全仓库只有这两个文件放开 Service Worker（`test.use({ serviceWorkers: 'allow' })`，作用于默认的 context fixture；`playwright.config.ts` 和 `playwright.cloud.config.ts` 的默认值不变，其余 spec 仍然屏蔽）。
+  - 断网只证明**外壳来自缓存**（页面、SDK、清单和图标）；`/api` 不经过 Service Worker，也不会缓存。
+  - “连不上服务器”一律用假服务器的 refuse 开关（`app.fake.fault({ …, mode: 'refuse' })`），因为 `context.setOffline` 管不到 `context.route` 应答的请求（PROBE-9）。
+  - 更新用例靠静态服务器的 `GET /__test/sw-version/<版本>` 换版本（用例经 `request` fixture 调它，再在页面里 `registration.update()` 让浏览器取一次）。静态服务器在整个运行里共用，所以**每条用例的 `finally` 里都要把版本调回** `test`（`SW_TEST_VERSION`），否则后面的用例缓存名对不上。
+- **`tests/cloud/csp.spec.ts`：** 用 `node deploy/build-site.mjs` 的真实产物——发布版页面和构建生成的 `usj-csp.conf` 里的同一条头——再用页面级 route 把 `/` 换成这份页面、给它挂上这条头，页面和策略就是线上 nginx 发的那一对。正向用例走完登录、四个视图、编辑计划、导出和导入，零 CSP 违规；反向对照用例故意去掉一个样式哈希，证明违规事件和 console.error 都会出现（零违规的断言不是空转）。不手抄策略。
+- **`tests/e2e/platform/site-assets.spec.ts`：** 清单和主屏图标的文件级检查（名称、图标尺寸和用途、页面里的 link 和 noindex、Service Worker 预缓存恰好是外壳）。
+- **`tests/e2e/platform/deploy-tools.spec.ts`：** 两条 OPS-03 用例：五个部署工具（`build-site`、`server-check`、`server-config-check`、`verify-site`、`make-acceptance-data`）的 `--self-test` 都通过；新构建的上传包用 `verify-site.mjs --check-bundle` 离线核对（不联网，输出写在 `testInfo.outputPath('bundle')`）。线上阶段 `--stage baseline|full` 不在测试里，只在批准的步骤里对真实站点运行。
 
 ## 14. 已知 bug
 

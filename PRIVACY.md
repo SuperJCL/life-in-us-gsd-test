@@ -90,6 +90,13 @@ git config core.hooksPath .githooks
   - 只打印计数和固定说明（记录条数、复盘周数、完成的任务数、力量记录数、计划的组数、任务数和力量项数、对不上计划被丢弃的进度条数），从不打印计划或记录的原文，解析失败的报错也不带文件内容。
   - Claude 不对真实数据运行这个脚本，只用 `--self-test` 和合成数据的 `--demo` 验证；真实迁移由所有者在 Phase 13 于本机运行。导入完成后，可以删除 `private/` 里的迁移文件。
 
+- `deploy/`（部署模板、构建和检查脚本，Phase 13）的约定：
+  - 模板和脚本里只有占位（`<domain>`、`192.0.2.x`、`$EM`、`$PW`、`<account-id>`）；站点地址在服务器上从 certbot 管理的那一行读出，不写进任何被跟踪的文件。
+  - 加密钥匙和邮箱授权码只在服务器上（钥匙由服务器脚本生成、从不打印，授权码由所有者在后台填写）；Claude 不经手，也不读。
+  - 构建输出写 `private/deploy-out/`，验收用的合成大文件写 `private/acceptance/`，都被 git 忽略，不提交；两个生成脚本在写 `private/` 之前都先确认目录被忽略。
+  - 线上检查（`deploy/verify-site.mjs --stage baseline|full`）和服务器脚本的输出一律经 `node tools/privacy/redact.mjs` 过滤，再贴给别人或写进文档；检查脚本自己的输出也不含域名、IP、令牌和页面内容。
+  - nginx 访问日志和错误日志会记客户端 IP，只在服务器上，不会进仓库、SUMMARY 或验收记录。
+
 ## 6. 不要绕过检查
 
 禁止用 `git commit --no-verify` 或 `git push --no-verify` 绕过检查。遇到误报时，应该改写内容，或者调整本地的 denylist，而不是跳过钩子。

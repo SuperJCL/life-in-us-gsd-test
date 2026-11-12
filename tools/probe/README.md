@@ -1,5 +1,7 @@
 # 线路实测工具说明
 
+> **退役注记（Phase 13，D-10）：** 从 Phase 13 起探针站点已退役，不再对外提供。服务器脚本以 `deploy/server/` 为准（见 `deploy/README.md`），本目录里的 `server/` 脚本只是历史记录，不要再拿来执行。`page/vendor/` 仍是测试和部署共用的 PocketBase SDK 来源，**不要删**；本目录的 `verify-site.mjs` 同样只是探针期的历史版本，应用站点的检查用 `deploy/verify-site.mjs`。
+
 ## 1. 用途和边界
 
 这里是 Phase 6 的线路实测工具：一个探针页，加上把 PocketBase 和探针页装到服务器上的脚本，以及汇总实测结果的脚本。目的是在中国大陆三家运营商和美国实际打开一次，量出首屏、登录和实时推送的表现，给 Phase 10 和 Phase 13 当输入。
