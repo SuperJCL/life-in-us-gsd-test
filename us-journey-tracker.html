@@ -2750,6 +2750,33 @@ window.addEventListener("hashchange",()=>{
 /* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
 window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.returnValue=""}});
 /* D-10：点「保存计划」直接生效，不显示改动摘要。写法照 applyImport 的计划部分；persist 只管 state，计划要自己请求同步。上传失败走现有的脏标记加退避重试 */
+/* D-08 的复查（S9 第 4 步）：pe.gone 的一项在最新的工作 state 里有了进度：任务已完成或设了截止日期，目标组的三项统计之和大于 0（含自定义待办），力量项有历史 */
+const T_PE_D8_TITLE="这些项刚在别的设备上有了进度",T_PE_D8_INTRO="你在草稿里删除了下面这些项，但它们刚在别的设备上有了进度：",T_PE_D8_Q="要把它们归档，还是连进度一起删除？",T_PE_D8_ARCHIVE="全部归档",T_PE_D8_DELETE="连进度一起删";
+const T_PE_D8_MORE=n=>"还有 "+n+" 项";
+function peGoneHit(r){
+  if(r.kind==="task")return taskHasProgress(state,r.id);
+  if(r.kind==="lift")return liftHistoryCount(state,r.id)>0;
+  const p=groupProgress(state,r.item);return p.done+p.due+p.custom>0;
+}
+function peD8Line(r){
+  const it=r.item;
+  if(r.kind==="task")return "任务「"+peQuote(it.text)+"」（"+(tstate(r.id).done?"已完成":"设了截止日期")+"）";
+  if(r.kind==="lift")return "力量项「"+peQuote(it.n)+"」（"+liftHistoryCount(state,r.id)+" 条记录）";
+  const p=groupProgress(state,it),parts=[];
+  if(p.done)parts.push(p.done+" 项已完成");if(p.due)parts.push(p.due+" 项设了截止日期");if(p.custom)parts.push(p.custom+" 个自定义待办");
+  return "目标组「"+peQuote(it.name)+"」（"+parts.join("、")+"）";
+}
+/* 全部归档：把命中的项按原位置放回草稿并写 archived:true——先放组，再放任务（所属组在草稿里就放进它的 tasks；所属组也被直接移除了就连它一起放回，否则任务的进度会被保存时的清理删掉），最后放力量项；它们从 pe.gone 去掉 */
+function peArchiveGone(hs){
+  const put=(list,r)=>{r.item.archived=true;list.splice(Math.min(r.index,list.length),0,r.item);const i=pe.gone.indexOf(r);if(i>=0)pe.gone.splice(i,1)};
+  hs.filter(r=>r.kind==="group").forEach(r=>put(pe.draft.groups,r));
+  hs.filter(r=>r.kind==="task").forEach(r=>{
+    let g=peGroup(r.parent);
+    if(!g){const pr=pe.gone.find(x=>x.kind==="group"&&x.id===r.parent);if(pr){put(pe.draft.groups,pr);g=peGroup(r.parent)}}
+    if(g)put(g.tasks,r);
+  });
+  hs.filter(r=>r.kind==="lift").forEach(r=>put(pe.draft.lifts,r));
+}
 async function savePlanDraft(){
   const s=pe;
   if(!s||s.busy||!planDirty())return;
@@ -2773,6 +2800,21 @@ async function savePlanDraft(){
     if(r===false){back();return}
     if(r==="mid"){closePlanEditor("goal");toast(T_PE_TAKEN,null,6000);return}
     overwrite=true;merge();
+  }
+  /* S9 第 4 步（D-08）：草稿里直接移除的项（pe.gone），按最新的进度（上面已并入）再查一遍；刚在别的设备上有了进度的，一个框列出全部，回去继续改 / 全部归档 / 连进度一起删，两个选择对列出的全部项生效；没有这样的项不弹 */
+  const hits=s.gone.filter(peGoneHit);
+  if(hits.length){
+    const lines=[T_PE_D8_INTRO];
+    hits.slice(0,8).forEach(r=>lines.push(peD8Line(r)));
+    if(hits.length>8)lines.push(T_PE_D8_MORE(hits.length-8));
+    lines.push(T_PE_D8_Q);
+    const r=await confirmBox({title:T_PE_D8_TITLE,lines,cancel:T_PE_BACK,mid:{text:T_PE_D8_ARCHIVE,cls:"primary"},ok:T_PE_D8_DELETE,scope:"plan"});
+    if(!live())return;
+    if(r===false){back();return}
+    /* 对话框开着时又来了别的设备改的计划：没有选过覆盖就回到编辑页，提示出来，下次点保存再按三选一问 */
+    merge();
+    if(!overwrite&&peChanged()){back();peRemote();return}
+    if(r==="mid"){peArchiveGone(s.gone.filter(peGoneHit));renderPlanEditor()}
   }
   const np=normalizePlan(s.draft);
   if(!np){back();return}

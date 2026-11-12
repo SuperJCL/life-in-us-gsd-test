@@ -6,23 +6,32 @@ import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { downloadOf } from '../support/download';
 import { confirmCancel, confirmMid, confirmOk, readConfirm } from '../support/confirm';
-import { expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
+import { act, expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { expectToast } from '../support/toast';
 import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_PLAN } from '../support/constants';
 import {
   BANNER_REMOTE_PE,
   BTN_DOWNLOAD_SNAPSHOT,
+  BTN_PE_ARCHIVE_ALL,
   BTN_PE_BACK,
+  BTN_PE_DELETE_ALL,
   BTN_PE_OVERWRITE,
   BTN_PE_TAKE_THEIRS,
   PE_CONFLICT_LINES,
   PE_CONFLICT_TITLE,
+  PE_D08_INTRO,
+  PE_D08_QUESTION,
+  PE_D08_TITLE,
   PE_HINT_DIRTY,
   PE_HINT_NONE,
   PE_HINT_REMOTE,
   PE_NOTICE,
+  TOAST_PLAN_SAVED,
   TOAST_PLAN_SAVED_KEPT,
   TOAST_PLAN_TAKEN,
+  peD08Lift,
+  peD08More,
+  peD08Task,
 } from '../support/strings';
 
 test.use({ acceptDownloads: true });
@@ -198,4 +207,122 @@ test("PLAN-04 overwriting the other device's plan keeps it here as a downloadabl
   expect(planWrites()).toBe(before);
   expect(app.fake.lastPlan(0)).toEqual(theirs);
   expect(await snapshotOf(page, userId)).toBeNull();
+});
+
+// 另一个写入方保存了服务器上的 state：mutate 改一份深拷贝
+async function otherWriterSavesState(app: { fake: any }, mutate: (state: any) => void) {
+  const data = app.fake.lastState(0);
+  mutate(data);
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'state')}`, { data, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+}
+
+test('PLAN-04 items removed in the draft that gained progress on another device are listed before saving and can be archived or deleted with their progress (D-08)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('d8', 6);
+  plan.lifts.push({ id: 'l-d82', n: 'SYNTH-d8 lift 2', unit: 'kg', def: 10, target: 20, note: '' });
+  await app.open({ mode: 'cloud', seed: syntheticState('d8', { lifts: { 'l-d82': { cur: 10, hist: [] } } }), plan, login: 0 });
+  const bar = page.locator('#syncbar');
+  const dlg = page.locator('dialog#confirm');
+  const remoteBar = async () => {
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('.sb-msg')).toHaveText(BANNER_REMOTE_PE);
+  };
+  const planTasks = () => (app.fake.lastPlan(0).groups as any[]).flatMap((g) => g.tasks as any[]);
+
+  // 第一轮：直接移除一个任务和一个力量项，别的设备上它们刚有了进度（任务完成、力量项 1 条历史）
+  await openEditor(page);
+  await expand(page, 'g:g-d81');
+  await act(page, 'del', 't:t-d81x2').click();
+  await expand(page, 'l:l-d82');
+  await act(page, 'dellift', 'l:l-d82').click();
+  await otherWriterSavesState(app, (st) => {
+    st.tasks = { ...(st.tasks ?? {}), 't-d81x2': { done: true, doneDate: '2026-03-17' } };
+    st.lifts = { ...(st.lifts ?? {}), 'l-d82': { cur: 12, hist: [{ date: '2026-03-16', v: 12 }] } };
+  });
+  await remoteBar();
+
+  // 点保存：D-08 询问框，一个框列出两项，三个按钮
+  await savePlan(page);
+  let c = await readConfirm(page);
+  expect(c.title).toBe(PE_D08_TITLE);
+  expect(c.lines).toEqual([
+    PE_D08_INTRO,
+    peD08Task('SYNTH-d8 task 1.2', true),
+    peD08Lift('SYNTH-d8 lift 2', 1),
+    PE_D08_QUESTION,
+  ]);
+  expect(c.buttons).toEqual([
+    { id: 'cfCancel', text: BTN_PE_BACK, cls: 'ghost' },
+    { id: 'cfMid', text: BTN_PE_ARCHIVE_ALL, cls: 'primary' },
+    { id: 'cfOk', text: BTN_PE_DELETE_ALL, cls: 'danger' },
+  ]);
+  expect(c.focused).toBe('cfCancel');
+
+  // 全部归档：回到目标页，服务器计划里两项都在且 archived，进度还在
+  await confirmMid(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  expect((await readEditor(page)).open).toBe(false);
+  await expect
+    .poll(() => planTasks().find((t) => t.id === 't-d81x2')?.archived, { message: '等待新计划上传' })
+    .toBe(true);
+  expect((app.fake.lastPlan(0).lifts as any[]).find((l) => l.id === 'l-d82')?.archived).toBe(true);
+  expect(app.fake.lastState(0).tasks['t-d81x2'].done).toBe(true);
+  await expect.poll(() => app.fake.lastState(0).lifts?.['l-d82']?.hist?.length, { message: '等待进度上传' }).toBe(1);
+
+  // 第二轮：直接移除 t-d82x1，别的设备给它设了截止日期；连进度一起删
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await openEditor(page);
+  await expand(page, 'g:g-d82');
+  await act(page, 'del', 't:t-d82x1').click();
+  await otherWriterSavesState(app, (st) => {
+    st.tasks = { ...(st.tasks ?? {}), 't-d82x1': { due: '2026-03-25' } };
+  });
+  await remoteBar();
+  await savePlan(page);
+  c = await readConfirm(page);
+  expect(c.lines).toEqual([PE_D08_INTRO, peD08Task('SYNTH-d8 task 2.1', false), PE_D08_QUESTION]);
+  await confirmOk(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => planTasks().some((t) => t.id === 't-d82x1'), { message: '等待新计划上传' }).toBe(false);
+  await expect
+    .poll(() => Object.prototype.hasOwnProperty.call(app.fake.lastState(0).tasks ?? {}, 't-d82x1'), { message: '等待进度被删' })
+    .toBe(false);
+
+  // 没有这种项：直接移除一个仍然没有进度的任务，保存时不弹 D-08 对话框
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await openEditor(page);
+  await expand(page, 'g:g-d82');
+  await act(page, 'del', 't:t-d82x2').click();
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect((await readEditor(page)).open).toBe(false);
+  await expect.poll(() => planTasks().some((t) => t.id === 't-d82x2'), { message: '等待新计划上传' }).toBe(false);
+
+  // 9 项：8 段加「还有 1 项」，两个确认按钮对全部项生效；这里回去继续改，什么都不保存
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await openEditor(page);
+  const nine = ['t-d81x1', 't-d83x1', 't-d83x2', 't-d84x1', 't-d84x2', 't-d85x1', 't-d85x2', 't-d86x1', 't-d86x2'];
+  for (const g of ['g-d81', 'g-d83', 'g-d84', 'g-d85', 'g-d86']) await expand(page, `g:${g}`);
+  for (const t of nine) await act(page, 'del', `t:${t}`).click();
+  await otherWriterSavesState(app, (st) => {
+    const tasks: Record<string, unknown> = { ...(st.tasks ?? {}) };
+    for (const t of nine) tasks[t] = { done: true, doneDate: '2026-03-17' };
+    st.tasks = tasks;
+  });
+  await remoteBar();
+  await savePlan(page);
+  c = await readConfirm(page);
+  expect(c.lines.length).toBe(11);
+  expect(c.lines[0]).toBe(PE_D08_INTRO);
+  expect(c.lines.slice(1, 9).every((l) => l.startsWith('任务「') && l.endsWith('（已完成）'))).toBe(true);
+  expect(c.lines[9]).toBe(peD08More(1));
+  expect(c.lines[10]).toBe(PE_D08_QUESTION);
+  await confirmCancel(page);
+  const ed = await readEditor(page);
+  expect([ed.open, ed.hint, ed.saveDisabled, ed.saveBusy]).toEqual([true, PE_HINT_DIRTY, false, false]);
+  expect(planTasks().filter((t) => nine.includes(t.id)).length).toBe(nine.length);
 });

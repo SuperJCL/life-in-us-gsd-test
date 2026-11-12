@@ -641,3 +641,13 @@ export const BTN_PE_TAKE_THEIRS = '放弃我的修改，用新版';
 export const BTN_PE_OVERWRITE = '用我的覆盖';
 export const TOAST_PLAN_SAVED_KEPT = '计划已保存，别的设备上的那一版已在本机留底';
 export const TOAST_PLAN_TAKEN = '已改用别的设备上的新计划，你的修改没有保存';
+
+// Phase 12-07 Task 2：D-08 询问框（应用里 T_PE_D8_* 逐字相同）。项目行的引号里是合成的计划文字，由用例传入
+export const PE_D08_TITLE = '这些项刚在别的设备上有了进度';
+export const PE_D08_INTRO = '你在草稿里删除了下面这些项，但它们刚在别的设备上有了进度：';
+export const PE_D08_QUESTION = '要把它们归档，还是连进度一起删除？';
+export const BTN_PE_ARCHIVE_ALL = '全部归档';
+export const BTN_PE_DELETE_ALL = '连进度一起删';
+export const peD08Task = (text: string, done: boolean): string => `任务「${text}」（${done ? '已完成' : '设了截止日期'}）`;
+export const peD08Lift = (name: string, n: number): string => `力量项「${name}」（${n} 条记录）`;
+export const peD08More = (n: number): string => `还有 ${n} 项`;
