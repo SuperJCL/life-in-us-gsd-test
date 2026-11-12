@@ -33,8 +33,8 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 ### 个人计划（PLAN）
 
 - [x] **PLAN-01**：每个账号的个人计划都存在自己的账号里，包括目标组、任务、力量项、每周健身目标和预设标签；应用代码里只剩一份合成的示例计划。
-- [ ] **PLAN-02**：用户可以在“编辑计划”页增删改目标组、任务、力量项、每周健身目标和基础预设标签，并调整顺序。
-- [ ] **PLAN-03**：删除已经有进度的目标组、任务或力量项时，改为归档，日历和时间线里已完成的记录不会消失。
+- [x] **PLAN-02**：用户可以在“编辑计划”页增删改目标组、任务、力量项、每周健身目标和基础预设标签，并调整顺序。
+- [x] **PLAN-03**：删除已经有进度的目标组、任务或力量项时，改为归档，日历和时间线里已完成的记录不会消失。
 - [ ] **PLAN-04**：编辑计划用草稿方式，点保存才生效，可以取消；离开时如有未保存的修改会提示；保存后其他设备同步。
 - [x] **PLAN-05**：现有任务 id 保持不变，旧备份导入后，任务进度仍然对应到正确的任务。
 
@@ -114,8 +114,8 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | SYNC-05 | Phase 9 | Complete |
 | SYNC-06 | Phase 10 | Complete |
 | PLAN-01 | Phase 9 | Complete |
-| PLAN-02 | Phase 12 | Pending |
-| PLAN-03 | Phase 12 | Pending |
+| PLAN-02 | Phase 12 | Complete |
+| PLAN-03 | Phase 12 | Complete |
 | PLAN-04 | Phase 12 | Pending |
 | PLAN-05 | Phase 7 | Complete |
 | IO-06 | Phase 11 | Complete |
