@@ -1,7 +1,7 @@
 ---
 phase: 12-plan-editor
 verified: 2026-11-12T00:00:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 covered_files: [".planning/phases/12-plan-editor/12-01-PLAN.md",".planning/phases/12-plan-editor/12-01-SUMMARY.md",".planning/phases/12-plan-editor/12-02-PLAN.md",".planning/phases/12-plan-editor/12-02-SUMMARY.md",".planning/phases/12-plan-editor/12-03-PLAN.md",".planning/phases/12-plan-editor/12-03-SUMMARY.md",".planning/phases/12-plan-editor/12-04-PLAN.md",".planning/phases/12-plan-editor/12-04-SUMMARY.md",".planning/phases/12-plan-editor/12-05-PLAN.md",".planning/phases/12-plan-editor/12-05-SUMMARY.md",".planning/phases/12-plan-editor/12-06-PLAN.md",".planning/phases/12-plan-editor/12-06-SUMMARY.md",".planning/phases/12-plan-editor/12-07-PLAN.md",".planning/phases/12-plan-editor/12-07-SUMMARY.md",".planning/phases/12-plan-editor/12-08-PLAN.md",".planning/phases/12-plan-editor/12-08-SUMMARY.md","tests/support/constants.ts","us-journey-tracker.html"]
 covered_digest: "v4:sha256:b628379b0307ca6f5ea802943f58189914f624f41bd2dc65d712703aaca44797"
@@ -132,3 +132,7 @@ SKIPPED（本阶段计划没有声明 probe 脚本）。
 
 _Verified: 2026-11-12_
 _Verifier: Claude (gsd-verifier)_
+
+## 所有者批准的绕过（2026-11-12）
+
+自动核对已全部通过（5/5 成功标准、PLAN-02..PLAN-04、回归 cloud 239/239 与默认 193/193、安全 28/28、代码审查 7/7 已修、UI 审查首要修复已应用）。上面 `human_verification` 的 5 项人工验收**没有执行**：所有者 2026-11-12 决定“后续都不参与验收，到时候总体完成并部署到服务器上以后再来做总体的验收”。这 5 项记为推迟（见 12-UAT.md 的 Deferred Follow-Ups），并入 Phase 13 部署后的总体验收；本报告的 `status: passed` 是所有者批准的绕过，不表示这些人工项已通过。
