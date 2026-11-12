@@ -6,10 +6,10 @@ current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: verifying
 stopped_at: Completed 12-08-PLAN.md
-last_updated: "2026-11-12T03:43:11.337Z"
+last_updated: "2026-11-12T04:41:58.808Z"
 last_activity: 2026-11-11
 last_activity_desc: Phase 12 execution started
-state_head: a7fc2f792cb8ca9b96f0df4b6c91923582ef22e0
+state_head: 56a6dea9698547407cba0a5908f01efde947b916
 progress:
   total_phases: 8
   completed_phases: 6
@@ -361,6 +361,7 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 | 4 | 修 09-UI-REVIEW 的 4 条 CSS 警告：375px 下云端 toast 宽度、新界面按钮 14px、等待卡片进度条外边距、换账号确认框正文颜色（8a8f026） | 2026-11-09 | 8a8f026 | — |
 | 261109-inq | 应用改名为“计划手记”，页面里的美国字样改成通用说法；隐私规则保留旧导出文件名并加上新文件名 | 2026-11-09 | 4a5ab15 | [261109-inq-rename-app-title-and-neutral-wording](./quick/261109-inq-rename-app-title-and-neutral-wording/) |
 | 6 | 修 11-UI-REVIEW 的 4 处：恢复改为键盘可用的按钮、门控时导出可用、旧路径 5 MB 提示加宽延长、CSV 提示改为中性说法 | 2026-11-11 | abba25d | — |
+| 7 | 修 12-UI-REVIEW 的 3 处：编辑页选中的类别按钮改浅底加正文色文字、禁用按钮显示禁用外观、「已归档」区的 × 放大点击区域 | 2026-11-11 | 56a6dea | — |
 
 ## Deferred Items
 
