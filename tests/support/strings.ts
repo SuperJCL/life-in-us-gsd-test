@@ -489,3 +489,15 @@ export const ARCHIVE_STATUS_OPEN = '未完成';
 export const ARCHIVE_STATUS_DONE = '已完成';
 export const archiveDoneOn = (md: string): string => `已完成于 ${md}`;
 export const archiveDueOn = (md: string): string => `截止 ${md}`;
+
+// Phase 12-03 Task 1：编辑计划页的入口、页头、保存栏和保存后的提示（应用里 T_PE_BTN、T_PE_HINT_NONE、T_PE_HINT_DIRTY、T_PE_SAVE、T_PE_SAVING、T_PE_SAVED、T_PE_UNNAMED 和页头静态文字的逐字复制）
+export const BTN_PLAN_EDIT = '编辑计划';
+export const PE_TITLE = '编辑计划';
+export const PE_INTRO = '改动先存在这一页，点「保存计划」才生效；点「放弃这次修改」，计划完全不变。';
+export const BTN_PLAN_SAVE = '保存计划';
+export const BTN_PLAN_DISCARD = '放弃这次修改';
+export const PE_HINT_NONE = '还没有修改';
+export const PE_HINT_DIRTY = '有没保存的修改';
+export const TOAST_PLAN_SAVED = '计划已保存';
+export const PE_UNNAMED = '（未命名）';
+export const PE_SAVING = '保存中…';
