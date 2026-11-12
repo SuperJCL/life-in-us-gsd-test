@@ -24,7 +24,7 @@ status: all_fixed
 
 ## Fixed Issues
 
-### CR-01: 计划读不出来时选「用我的覆盖」，原始的读不出来的计划没有留底
+### CR-01: 计划读不出来时选「用我的覆盖」，原始的读不出来的计划没有留底，提示却说已留底（12-SECURITY.md S-1，已确认）
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/cloud/plan-editor-sync.spec.ts`
 **Commit:** 0ba2149
@@ -32,7 +32,7 @@ status: all_fixed
 **回归用例：** `plan-editor-sync.spec.ts` 新增「打开时可读，编辑期间远端换成读不出来的计划，保存时选覆盖」，断言本机留底和下载出来的备份里是服务器原来那份读不出来的数据（带合成标记字段），不是示例计划。已确认去掉修复后该用例失败。
 **状态：** fixed: requires human verification（逻辑类修复，语法检查不能证明语义，用例覆盖了审查描述的路径）。
 
-### CR-02: 编辑页开着时「恢复」或「撤销导入」绕过 D-07 冲突判断
+### CR-02: 编辑页开着时「恢复」（导入）或「撤销导入」会绕过 D-07 冲突判断，保存草稿时静默覆盖导入的计划并删掉对应进度
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/cloud/plan-editor-sync.spec.ts`
 **Commit:** 9c99a87
@@ -46,14 +46,14 @@ status: all_fixed
 - 「编辑页开着时撤销导入」：断言撤销后提示马上出现、保存弹三选一、留底是撤销后的计划。这一条在旧判断下也能通过（撤销流程里 `base` 因其他步骤已前移），所以它只是覆盖这条路径，不是 CR-02 最直接的判别用例；判别力来自上一条。
 **状态：** fixed: requires human verification
 
-### WR-01: 预设标签的校验错误不会展开所在的折叠卡
+### WR-01: 预设标签的校验错误不会展开所在的折叠卡，保存时焦点落空
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/cloud/plan-editor-fit.spec.ts`
 **Commit:** 0595a84
 **Applied fix:** `peCardOf` 增加 `if(p[0]==="p")return "p:"+p[1];`，与预设卡的 `data-key` 和 `pe.open` 的键一致。保存时和打开时（`preErr`）都会展开含错误的预设卡并把焦点放到出错的行。
 **回归用例：** `plan-editor-fit.spec.ts` 新增「加一个空标签、折叠这张卡、点保存」，断言卡片展开、焦点在 `p:lang:1`、错误文案正确、服务器计划不变。已确认去掉修复后失败。
 
-### WR-02: D-17 的数量和长度上限保存时不检查
+### WR-02: D-17 的数量和长度上限只靠按钮禁用和 `maxlength`，保存时不检查，超限的现有计划可以原样保存
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/support/strings.ts`, `tests/cloud/plan-editor-groups.spec.ts`
 **Commit:** 1ce6db1
@@ -62,7 +62,7 @@ status: all_fixed
 **回归用例：** `plan-editor-groups.spec.ts` 新增：加载 21 个组、第 2 组 51 项任务、一条 201 字的任务、9 字的单位、31 字的标签，断言打开时五处错误按页面顺序标出，点保存被挡住，逐个改好后能保存，并且组名首尾空格被去掉、服务器计划是 20 个组。
 **状态：** fixed: requires human verification
 
-### IN-01: 清空组备注会让没有修改的草稿被判为有修改
+### IN-01: 清空组备注会让「没有任何修改」的草稿被判为有修改
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/cloud/plan-editor-groups.spec.ts`
 **Commit:** 952a9f5
@@ -70,7 +70,7 @@ status: all_fixed
 **回归用例：** `plan-editor-groups.spec.ts` 新增：计划里组备注是空串，输入再删光，提示行回到「没有修改」且保存按钮仍禁用。已确认三处都改回去之后失败。
 **状态：** fixed: requires human verification
 
-### IN-02: 保存或放弃后用 `replaceState` 去掉 `#plan`，留下重复的历史记录
+### IN-02: 保存或放弃后用 `replaceState` 去掉 `#plan`，留下一条重复的历史记录
 
 **Files modified:** `us-journey-tracker.html`, `tests/support/constants.ts`, `tests/support/plan-editor.ts`, `tests/cloud/plan-editor.spec.ts`
 **Commit:** 98184bf
