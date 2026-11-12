@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 12
 current_phase_name: 编辑计划页（Plan Editor）
 status: executing
-stopped_at: Completed 12-04-PLAN.md
-last_updated: "2026-11-12T01:28:57.605Z"
+stopped_at: Completed 12-05-PLAN.md
+last_updated: "2026-11-12T02:09:47.731Z"
 last_activity: 2026-11-11
 last_activity_desc: Phase 12 execution started
-state_head: "0bca998b684061053359a8cfe7b2f41f7e89bdcc"
+state_head: 8959ccc90c19cb76fd1a3ff858fe1af8401d4ee5
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 66
-  completed_plans: 62
+  completed_plans: 63
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-11 after Phase 11)
 ## Current Position
 
 Phase: 12 (编辑计划页（Plan Editor）) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-11-11 — Phase 12 execution started
 
@@ -151,6 +151,7 @@ Progress: [████████░░] 75%
 | Phase 12 P02 | 24 min | 2 tasks | 9 files |
 | Phase 12 P03 | 28 min | 3 tasks | 7 files |
 | Phase 12 P04 | 55min | 3 tasks | 6 files |
+| Phase 12 P05 | 37 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -298,6 +299,8 @@ Phase 11 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 12]: 12-03：账号计划读不出来时，保存先 keepConflict(plan) 留本机底，写不进就整个不保存；savePlanDraft 的校验放在 normalizePlan 之前，三选一放在并入远端版本之后
 - [Phase 12]: 12-04: 保存时的 state 清理只在账号计划读得出来（keepOrphans 为假）时做，且只清理所属组在旧计划里、不在新计划里的自定义待办
 - [Phase 12]: 12-04: 失焦产生的错误行在鼠标或手指按下期间推迟到 click 结束，避免错误行把按钮顶走导致点击丢失
+- [Phase 12]: 12-05：基础标签原样写进草稿、保存时不 trim（只在判重和判空时 trim）；删除标签不进 pe.gone，撤销用 toast 闭包按原下标放回
+- [Phase 12]: 12-05：打开编辑页时先跑 planProblems，已有问题进 pe.seen、所在卡展开、pe.preErr 让提示行显示数量；数值规则只在编辑页，normalizePlan 不收紧
 
 ### Pending Todos
 
@@ -361,8 +364,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T01:28:52.812Z
-Stopped at: Completed 12-04-PLAN.md
+Last session: 2026-11-12T02:09:42.215Z
+Stopped at: Completed 12-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
