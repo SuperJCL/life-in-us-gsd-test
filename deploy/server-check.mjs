@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(HERE, '..');
 const SERVER_DIR = path.join(HERE, 'server');
 
 // 本脚本自身用低于正常的优先级运行（用户的电脑容易卡）
@@ -250,6 +251,95 @@ export function c08(ctx) {
   return problems;
 }
 
+function lineIndex(lines, re) {
+  return lines.findIndex((l) => re.test(l));
+}
+
+// C-09 01：补写 fstab 的位置在 SWAP=already 的输出之前（WR-07）
+export function c09(ctx) {
+  const text = ctx.sh['01-swap.sh'];
+  if (text === undefined) return ['缺少 01-swap.sh'];
+  const lines = codeLines(text);
+  const iCheck = lineIndex(lines, /grep\b.*\/swapfile.*\/etc\/fstab/);
+  const iAppend = lineIndex(lines, /tee -a \/etc\/fstab/);
+  const iAlready = lineIndex(lines, /echo "SWAP=already"/);
+  const problems = [];
+  if (iAlready < 0) problems.push('01 没有输出 SWAP=already');
+  if (iCheck < 0) problems.push('01 没有检查 fstab 里有没有 swap 那一行');
+  if (iAppend < 0) problems.push('01 没有往 fstab 追加 swap 那一行');
+  if (problems.length > 0) return problems;
+  if (iCheck > iAlready) problems.push('01 检查 fstab 的位置在 SWAP=already 之后（WR-07）');
+  if (iAppend > iAlready) problems.push('01 追加 fstab 的位置在 SWAP=already 之后（WR-07）');
+  return problems;
+}
+
+// C-10 02：对解压出的程序跑 --version 在 install 到 /opt/pocketbase/pocketbase 之前（IN-11）；两个钉死的 sha256 与 Phase 6 的相同
+export function c10(ctx) {
+  const text = ctx.sh['02-install-pocketbase.sh'];
+  if (text === undefined) return ['缺少 02-install-pocketbase.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const iVersion = lineIndex(lines, /"\$T\/x\/pocketbase".*--version/);
+  const iInstall = lineIndex(lines, /\binstall\b.*"\$T\/x\/pocketbase"\s+\/opt\/pocketbase\/pocketbase/);
+  if (iVersion < 0) problems.push('02 没有对解压出的程序跑 --version');
+  if (iInstall < 0) problems.push('02 没有 install 到 /opt/pocketbase/pocketbase');
+  if (iVersion >= 0 && iInstall >= 0 && iVersion > iInstall) problems.push('02 对解压出的程序跑 --version 的位置在 install 之后（IN-11）');
+  const pins = (t) => [...String(t).matchAll(/PINNED_SHA256='([0-9a-f]{64})'/g)].map((m) => m[1]).sort();
+  if (ctx.probe02 === undefined || ctx.probe02 === null) {
+    problems.push('找不到 Phase 6 的 tools/probe/server/02-install-pocketbase.sh，无法比对钉死的 sha256');
+  } else {
+    const mine = pins(text);
+    const theirs = pins(ctx.probe02);
+    if (mine.length !== 2) problems.push(`02 里钉死的 sha256 不是两个（是 ${mine.length}）`);
+    if (theirs.length === 0 || mine.join() !== theirs.join()) problems.push('02 里钉死的 sha256 与 Phase 6 的不相同');
+  }
+  return problems;
+}
+
+// C-11 07：--wipe 分支在 rm -rf 之前有非探针数据守卫，邮箱正则与清理迁移里的相同
+export function c11(ctx) {
+  const text = ctx.sh['07-retire-probe.sh'];
+  if (text === undefined) return ['缺少 07-retire-probe.sh'];
+  const problems = [];
+  const code = codeLines(text).join('\n');
+  const lines = codeLines(text);
+  if (!/--wipe\|--keep/.test(code)) problems.push('07 没有 --wipe 和 --keep 两个参数的判断');
+  const iRm = lineIndex(lines, /rm -rf .*DATA_DIR|rm -rf .*pb_data/);
+  const iGuardCall = lineIndex(lines, /^\s*guard_non_probe_data\s*$/);
+  if (iRm < 0) problems.push('07 的 --wipe 分支没有 rm -rf 数据目录');
+  if (iGuardCall < 0) problems.push('07 没有调用非探针数据守卫');
+  if (iRm >= 0 && iGuardCall >= 0 && iGuardCall > iRm) problems.push('07 的守卫在 rm -rf 之后');
+  if (!/journey_docs/.test(code)) problems.push('07 的守卫没有数 journey_docs');
+  if (!/^\s*exit 1$/m.test(code)) problems.push('07 的守卫没有 exit 1');
+  const re = '^probe-[0-9a-f]{8}@example\\.com$';
+  if (!text.includes(re)) problems.push('07 里没有探针邮箱的严格正则');
+  if (ctx.retire === undefined || ctx.retire === null) problems.push('找不到 deploy/pb_migrations/1794096150_retire_probe.js，无法比对邮箱正则');
+  else if (!ctx.retire.includes(re)) problems.push('清理迁移里的探针邮箱正则与 07 的不相同');
+  return problems;
+}
+
+// C-12 00-status：只读（没有改动命令、没有写文件的重定向、sqlite 只用 mode=ro），最后一个 kv 是 STATUS_DONE
+export function c12(ctx) {
+  const text = ctx.sh['00-status.sh'];
+  if (text === undefined) return ['缺少 00-status.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const mutating = /(?:^|[\s;&|(`$])(?:install|rm|mv|cp|tee|mkdir|chmod|chown|useradd|touch)\s/;
+  const service = /systemctl\s+(?:start|stop|restart|enable|disable|reload|daemon-reload|kill|mask)\b/;
+  const sql = /\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|REPLACE|VACUUM)\b/;
+  const redirect = /(?<![0-9<])>>?\s*(?!\/dev\/null|&)\S/;
+  for (const l of lines) {
+    if (mutating.test(l)) problems.push(`00-status 里有改动命令：${l.trim().slice(0, 50)}`);
+    else if (service.test(l)) problems.push(`00-status 里有改动服务的命令：${l.trim().slice(0, 50)}`);
+    else if (sql.test(l)) problems.push(`00-status 里有写库的 SQL：${l.trim().slice(0, 50)}`);
+    else if (redirect.test(l)) problems.push(`00-status 里有写文件的重定向：${l.trim().slice(0, 50)}`);
+    if (/sqlite3\.connect\(/.test(l) && !/mode=ro/.test(l)) problems.push('00-status 里有不是 mode=ro 的 sqlite 连接');
+  }
+  const kvLines = lines.filter((l) => /^\s*kv\s+\S+/.test(l));
+  if (kvLines.length === 0 || !/^\s*kv STATUS_DONE 1\s*$/.test(kvLines[kvLines.length - 1])) problems.push('00-status 的最后一个 kv 不是 STATUS_DONE');
+  return problems;
+}
+
 // ---------- 检查清单 ----------
 
 export const CHECKS = [
@@ -261,6 +351,10 @@ export const CHECKS = [
   { id: 'C-06', title: 'unit 有 Restart=always、User=pocketbase、MemoryMax=，除 GOMEMLIMIT 外没有别的 Environment= 行', run: c06 },
   { id: 'C-07', title: '04 有 systemctl restart，失败路径有 disable --now', run: c07 },
   { id: 'C-08', title: '03 用 openssl rand -hex 16 生成钥匙、核对长度 32，钥匙不进 echo 和别的命令参数', run: c08 },
+  { id: 'C-09', title: '01 补写 fstab 的位置在 SWAP=already 之前（WR-07）', run: c09 },
+  { id: 'C-10', title: '02 在 install 之前对解压出的程序跑 --version（IN-11），两个钉死的 sha256 与 Phase 6 的相同', run: c10 },
+  { id: 'C-11', title: '07 的 --wipe 在 rm -rf 之前有非探针数据守卫，邮箱正则与清理迁移里的相同', run: c11 },
+  { id: 'C-12', title: '00-status 只读（没有改动命令），最后一个 kv 是 STATUS_DONE', run: c12 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -272,7 +366,10 @@ export function loadContext(bash) {
   }
   const unitPath = path.join(SERVER_DIR, 'pocketbase.service');
   const unit = fs.existsSync(unitPath) ? fs.readFileSync(unitPath, 'utf8') : null;
-  return { bash, sh, unit };
+  const readOpt = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
+  const probe02 = readOpt(path.join(REPO, 'tools', 'probe', 'server', '02-install-pocketbase.sh'));
+  const retire = readOpt(path.join(HERE, 'pb_migrations', '1794096150_retire_probe.js'));
+  return { bash, sh, unit, probe02, retire };
 }
 
 export function runChecks(ctx) {
@@ -346,15 +443,77 @@ const GOOD_UNIT = [
   '',
 ].join('\n');
 
+const PIN_A = 'a'.repeat(64);
+const PIN_B = 'b'.repeat(64);
+
+const GOOD_01 =
+  GOOD_HEADER +
+  [
+    "sudo -n grep -qE '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab </dev/null",
+    "printf '/swapfile none swap sw 0 0\\n' | sudo -n tee -a /etc/fstab >/dev/null",
+    'echo "SWAP=already"',
+    '',
+  ].join('\n');
+
+const GOOD_02 =
+  GOOD_HEADER +
+  [
+    `PINNED_SHA256='${PIN_A}'`,
+    `PINNED_SHA256='${PIN_B}'`,
+    '"$T/x/pocketbase" --dir="$T/data" --version </dev/null',
+    'sudo -n install -o root -g root -m 0755 "$T/x/pocketbase" /opt/pocketbase/pocketbase </dev/null',
+    '',
+  ].join('\n');
+
+const GOOD_PROBE02 = [`PINNED_SHA256='${PIN_A}'`, `PINNED_SHA256='${PIN_B}'`, ''].join('\n');
+
+const PROBE_RE = '^probe-[0-9a-f]{8}@example\\.com$';
+
+const GOOD_07 =
+  GOOD_HEADER +
+  [
+    'case "$1" in --wipe|--keep) ;; esac',
+    'guard_non_probe_data() {',
+    "  sudo -n python3 -I - <<'PY'",
+    `PROBE = re.compile(r"${PROBE_RE}")`,
+    'docs = con.execute("SELECT COUNT(*) FROM journey_docs").fetchone()[0]',
+    'PY',
+    '  exit 1',
+    '}',
+    'guard_non_probe_data',
+    'sudo -n rm -rf "$DATA_DIR"',
+    '',
+  ].join('\n');
+
+const GOOD_RETIRE = `const PROBE = /${PROBE_RE}/\n`;
+
+const GOOD_00 =
+  GOOD_HEADER +
+  [
+    'kv A 1',
+    'sudo -n find /var/lib/pocketbase -type f </dev/null 2>/dev/null',
+    "sudo -n python3 -I - <<'PY' 2>/dev/null || kv DB unreadable",
+    'con = sqlite3.connect("file:x?mode=ro", uri=True)',
+    'PY',
+    'kv STATUS_DONE 1',
+    '',
+  ].join('\n');
+
 export function goodContext(bash) {
   return {
     bash,
     sh: {
+      '00-status.sh': GOOD_00,
+      '01-swap.sh': GOOD_01,
+      '02-install-pocketbase.sh': GOOD_02,
       '03-configure-pocketbase.sh': GOOD_03,
       '04-start-pocketbase.sh': GOOD_04,
+      '07-retire-probe.sh': GOOD_07,
       'pb-admin.sh': GOOD_ADMIN,
     },
     unit: GOOD_UNIT,
+    probe02: GOOD_PROBE02,
+    retire: GOOD_RETIRE,
   };
 }
 
@@ -385,7 +544,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-08 全部通过', () => [c02, c03, c04, c05, c06, c07, c08].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-12 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -457,6 +616,54 @@ function selfTest() {
   expect('C-08 坏：没有 unset', () => fails(c08, mutate(good, '03-configure-pocketbase.sh', (t) => t.replace('unset KEY\n', ''))));
   expect('C-08 坏：没有 openssl rand -hex 16', () => fails(c08, mutate(good, '03-configure-pocketbase.sh', (t) => t.replace('openssl rand -hex 16', 'openssl rand -hex 8'))));
   expect('C-08 坏：printf 没有交给 tee', () => fails(c08, mutate(good, '03-configure-pocketbase.sh', (t) => t.replace('| sudo -n tee "$ENV_FILE.new" >/dev/null', '> /tmp/x'))));
+
+  // C-09
+  expect('C-09 好：fstab 在 already 之前', () => passes(c09, good));
+  expect('C-09 坏：fstab 的检查和追加都在 already 之后', () =>
+    fails(c09, mutate(good, '01-swap.sh', (t) => {
+      const [head, rest] = [t.slice(0, t.indexOf('sudo -n grep')), t.slice(t.indexOf('sudo -n grep'))];
+      const lines = rest.split('\n');
+      return `${head}${lines[2]}\n${lines[0]}\n${lines[1]}\n`;
+    })));
+  expect('C-09 坏：根本不补写 fstab', () => fails(c09, mutate(good, '01-swap.sh', (t) => t.replace(/^.*\/etc\/fstab.*$/gm, ''))));
+  expect('C-09 坏：缺少 01', () => fails(c09, { ...good, sh: { 'x.sh': '' } }));
+
+  // C-10
+  expect('C-10 好：--version 在 install 之前，sha256 相同', () => passes(c10, good));
+  expect('C-10 坏：--version 在 install 之后', () =>
+    fails(c10, mutate(good, '02-install-pocketbase.sh', (t) => {
+      const lines = t.split('\n');
+      const v = lines.findIndex((l) => l.includes('--version'));
+      const i = lines.findIndex((l) => l.includes('install -o root'));
+      [lines[v], lines[i]] = [lines[i], lines[v]];
+      return lines.join('\n');
+    })));
+  expect('C-10 坏：没有对解压出的程序跑 --version', () => fails(c10, mutate(good, '02-install-pocketbase.sh', (t) => t.replace('"$T/x/pocketbase" --dir="$T/data" --version </dev/null\n', ''))));
+  expect('C-10 坏：钉死的 sha256 与 Phase 6 的不同', () => fails(c10, mutate(good, '02-install-pocketbase.sh', (t) => t.replace(PIN_B, 'c'.repeat(64)))));
+  expect('C-10 坏：丢了一个钉死的 sha256', () => fails(c10, mutate(good, '02-install-pocketbase.sh', (t) => t.replace(`PINNED_SHA256='${PIN_B}'\n`, ''))));
+  expect('C-10 坏：找不到 Phase 6 的脚本', () => fails(c10, { ...good, probe02: null }));
+
+  // C-11
+  expect('C-11 好：守卫在 rm -rf 之前，正则相同', () => passes(c11, good));
+  expect('C-11 坏：rm -rf 在守卫调用之前', () => fails(c11, mutate(good, '07-retire-probe.sh', (t) => t.replace('guard_non_probe_data\nsudo -n rm -rf "$DATA_DIR"', 'sudo -n rm -rf "$DATA_DIR"\nguard_non_probe_data'))));
+  expect('C-11 坏：没有调用守卫', () => fails(c11, mutate(good, '07-retire-probe.sh', (t) => t.replace('\nguard_non_probe_data\n', '\n'))));
+  expect('C-11 坏：邮箱正则与清理迁移不同', () => fails(c11, { ...good, retire: 'const PROBE = /^probe-[0-9]{8}@example\\.com$/\n' }));
+  expect('C-11 坏：07 里的正则被放宽', () => fails(c11, mutate(good, '07-retire-probe.sh', (t) => t.replace(PROBE_RE, '^probe-.*@example\\.com$'))));
+  expect('C-11 坏：守卫没有数 journey_docs', () => fails(c11, mutate(good, '07-retire-probe.sh', (t) => t.replace('journey_docs', 'other'))));
+  expect('C-11 坏：缺少 --wipe --keep 的判断', () => fails(c11, mutate(good, '07-retire-probe.sh', (t) => t.replace('--wipe|--keep', '--wipe'))));
+
+  // C-12
+  expect('C-12 好：只读的状态脚本', () => passes(c12, good));
+  expect('C-12 坏：有 install', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'sudo -n install -d /x\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：有 rm', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'rm -f /x\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：有 tee', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'echo x | tee /x\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：有 systemctl restart', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'sudo -n systemctl restart nginx\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：有写文件的重定向', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'echo x > /tmp/y\nkv STATUS_DONE 1'))));
+  expect('C-12 好：重定向到 /dev/null 和 2>&1 不算', () => passes(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'ls </dev/null >/dev/null 2>&1 || true\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：写库的 SQL', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1', 'con.execute("DELETE FROM x")\nkv STATUS_DONE 1'))));
+  expect('C-12 坏：sqlite 不是 mode=ro', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('?mode=ro', ''))));
+  expect('C-12 坏：最后一个 kv 不是 STATUS_DONE', () => fails(c12, mutate(good, '00-status.sh', (t) => `${t}kv LATE 1\n`)));
+  expect('C-12 坏：没有 STATUS_DONE', () => fails(c12, mutate(good, '00-status.sh', (t) => t.replace('kv STATUS_DONE 1\n', ''))));
 
   console.log(bad === 0 ? `SELF-TEST OK (${n} cases)` : `SELF-TEST FAIL (${bad} of ${n})`);
   return bad === 0 ? 0 : 1;
