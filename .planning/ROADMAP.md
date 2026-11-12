@@ -393,46 +393,52 @@ Plans:
   3. 网站响应带 CSP 和安全响应头，在 CSP 下四个视图、登录和编辑计划都正常工作。后台超级用户使用强密码和两步验证，登录有限流，代理 IP 头配置正确。用与线上相同的版本和迁移，在一次性实例上重跑隔离脚本（只用合成账号），全部通过。
   4. 页面打开过一次后，断网时重新打开也能进入应用并记录（冷启动离线）；断网时刷新页面也能打开，待上传的修改和数量还在（Phase 10 只验证了“连不上服务器时刷新”，见 10-CONTEXT D-08）；手机上可以把它添加到主屏幕；应用更新后，缓存会换成新版本。
   5. 两台真实设备分别在中国大陆和美国网络下验收：记一笔几秒内同步到同账号的另一台设备，断网时能记录，联网后自动上传。所有者把自己从原 Artifact 导出的旧备份和种子计划导入自己的账号，数据对应正确。最后 `npm test` 和 `npm run test:cloud` 全量通过。
-**Plans:** 13 plans
+**Plans:** 15 plans
 Plans:
 **Wave 1**
-- [ ] 13-01-PLAN.md — Service Worker tracer：只缓存应用外壳、断网刷新和断网冷启动、/api 从不进缓存；清单「计划手记」和本机 Edge 渲染的「记」字图标、head 的 noindex（D-07、D-09）
+- [ ] 13-01-PLAN.md — Service Worker tracer：只缓存应用外壳、断网刷新和断网冷启动、/api 从不进缓存（D-07）
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 13-02-PLAN.md — 「有新版本，点此更新」：横幅、点击后换新缓存只刷新一次、有草稿先确认、两个标签页互不干扰（D-08）
+- [ ] 13-02-PLAN.md — 添加到主屏幕：清单「计划手记」、本机 Edge 渲染的「记」字图标、head 链接和 noindex、外壳加上清单和图标（D-09）
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 13-03-PLAN.md — 严格 CSP：哈希放行内联脚本和样式、`style-src-attr 'none'`、进度条改 CSSOM；build-site 生成发布版页面（插入 USJ_CONFIG）、CSP 头和带版本号的 sw.js；零违规走查和反向对照
+- [ ] 13-03-PLAN.md — 「有新版本，点此更新」：横幅、点击后换新缓存只刷新一次、有草稿先确认、两个标签页互不干扰（D-08）
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 13-04-PLAN.md — PocketBase 服务器设置迁移、备份看门狗、探针清理迁移、钥匙轮换，全部在本机一次性 0.41.1 实例上实测；隔离重跑 48/48（D-01、D-03、D-04、D-06、D-10）
+- [ ] 13-04-PLAN.md — 严格 CSP：哈希放行内联脚本和样式、`style-src-attr 'none'`、进度条改 CSSOM；build-site 生成发布版页面（插入 USJ_CONFIG）、CSP 头和带版本号的 sw.js；零违规走查和反向对照
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 13-05-PLAN.md — deploy/server 模板（PocketBase 侧）：unit、环境文件与加密钥匙、pb-admin、启动、只读状态、swap、安装、探针退役；修 WR-07、WR-08、IN-09、IN-11（D-02、D-10、D-11）
+- [ ] 13-05-PLAN.md — PocketBase 服务器设置迁移、备份看门狗、探针清理迁移、钥匙轮换，全部在本机一次性 0.41.1 实例上实测；隔离重跑 48/48（D-01、D-03、D-04、D-06、D-10）
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 13-06-PLAN.md — deploy/server 模板（nginx、站点、恢复演练）：位置块、安全响应头、访问日志 30 天、站点与 CSP 原子切换、服务器上的恢复演练脚本；修 WR-09（D-01、D-03、D-05）
+- [ ] 13-06-PLAN.md — deploy/server 模板（PocketBase 侧）：unit、环境文件与加密钥匙、pb-admin、启动、只读状态（含“还没有真实数据”的计数）、swap、安装、探针退役；修 WR-07、WR-08、IN-09、IN-11（D-02、D-10、D-11）
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 13-07-PLAN.md — 完整上传包与离线核对、线上检查脚本、中文运行手册、总体验收清单和验收用的合成大文件（D-02、D-12、D-13）
+- [ ] 13-07-PLAN.md — deploy/server 模板（nginx、站点、恢复演练）：位置块、安全响应头、访问日志 30 天、按条件的 www 跳转、站点与 CSP 原子切换、带“只有测试账号”守卫的恢复演练脚本；修 WR-09（D-01、D-03、D-05 按所有者 2026-11-12 修订）
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 13-08-PLAN.md — 部署前：本机全量验证、构建上传包、只读查看服务器；所有者决定探针库清空还是保留、批准整批部署（D-04、D-10）
+- [ ] 13-08-PLAN.md — 完整上传包与离线核对、线上检查脚本、中文运行手册、总体验收清单和验收用的合成大文件（D-02、D-12、D-13）
 
 **Wave 9** *(blocked on Wave 8 completion)*
-- [ ] 13-09-PLAN.md — 按批准清单部署：退役探针、装配置和钥匙（所有者存钥匙、建超级用户）、启动 PocketBase、装站点、挂 nginx、线上全量检查
+- [ ] 13-09-PLAN.md — 部署前：本机全量验证、构建上传包、只读查看服务器；所有者决定探针库清空还是保留、批准整批部署（D-04、D-10）
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 13-10-PLAN.md — 真重启后自动恢复；所有者配 SMTP、收到测试邮件后开两步验证、开 R2、建测试账号（D-01、D-02、D-04、D-13）
+- [ ] 13-10-PLAN.md — 部署第一批：所有者对照命令原文即时确认后上传，退役探针（复述 --wipe/--keep）、装迁移、钩子、工具和钥匙
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 13-11-PLAN.md — 用 R2 里的自动备份在服务器临时实例上做恢复演练，所有者确认没有告警邮件（D-05、D-06）
+- [ ] 13-11-PLAN.md — 部署第二批：所有者在自己的网页终端存钥匙、建超级用户并即时确认；启动 PocketBase、装站点、挂 nginx、线上全量检查
 
 **Wave 12** *(blocked on Wave 11 completion)*
-- [ ] 13-12-PLAN.md — 真实服务器上的升级演练：无害新版本只变三个文件，批准后只跑 06，为验收的更新提示做准备
+- [ ] 13-12-PLAN.md — 所有者配 SMTP、收到测试邮件后开两步验证、开 R2、建按约定命名的测试账号；即时确认后真重启，证明自动恢复（D-01、D-02、D-04、D-13）
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 13-13-PLAN.md — 总体验收：所有者在两台真实设备上用测试账号验收，再迁移真实数据、删测试账号；完整 npm test 与 npm run test:cloud 收尾（D-12、D-13）
+- [ ] 13-13-PLAN.md — 在“还没有真实数据”时，用 R2 里的自动备份在服务器临时实例上做恢复演练（即时确认）；所有者确认没有告警邮件（D-05 按所有者 2026-11-12 修订、D-06）
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 13-14-PLAN.md — 真实服务器上的升级演练：无害新版本只变三个文件，原样贴出命令即时确认后只跑 06，为验收的更新提示做准备
+
+**Wave 15** *(blocked on Wave 14 completion)*
+- [ ] 13-15-PLAN.md — 总体验收：所有者在两台真实设备上用测试账号验收，再迁移真实数据、删测试账号；完整 npm test 与 npm run test:cloud 收尾（D-12、D-13）
 **UI hint**: no
 **Research:** 需要（`/gsd-plan-phase --research-phase 13`）— CSP 能否用哈希兼容单文件里的内联脚本、nginx 反代 SSE 的长期表现（以 Phase 6 验证过的参数为起点）、CORS 的默认行为、Service Worker 的缓存更新策略。
 **Notes:**
@@ -460,4 +466,4 @@ Plans:
 | 10. 离线与实时同步 | v2.0 | 9/9 | Complete    | 2026-11-10 |
 | 11. 导出、导入与迁移 | v2.0 | 11/11 | Complete    | 2026-11-11 |
 | 12. 编辑计划页 | v2.0 | 8/8 | Complete    | 2026-11-11 |
-| 13. 部署、加固与验收 | v2.0 | 0/13 | Not started | - |
+| 13. 部署、加固与验收 | v2.0 | 0/15 | Not started | - |

@@ -557,6 +557,8 @@ location ^~ / { return 404; }    # 兜底，防止露出默认站点的内容；
 
 ### 5. 恢复演练（`deploy/server/restore-drill.sh` 的步骤，所有者在阿里云网页终端运行）
 
+> **规划后的变更（所有者 2026-11-12 决定，D-05 的修订）：** 计划没有采用下面“所有者现场输入 R2 凭据”的做法，而是让临时实例从线上库的只读一致副本起步（沿用其中加密的 R2 设置，所有者不用重新输入 R2 密钥），再从 R2 恢复最新的自动备份；所有者批准这个做法的条件是一个机械守卫——脚本在复制任何东西之前先只读检查线上库，只要有测试账号约定（`test-…@example.com`）以外的账号或文档就拒绝运行、什么都不复制；临时实例和副本结束后删除。由 Claude 在所有者批准并即时确认后运行。具体步骤见 13-07 Task 2 和 13-13；下面的原始步骤只作背景。
+
 ```
 前提：已经按验收前的流程让 R2 里有一份只含测试账号的备份（后台手动“创建备份”或等到自动备份）
 1. 脚本自检：当前不在 18:50–19:10 UTC；/var/lib/pocketbase-drill 不存在
@@ -717,29 +719,35 @@ Chromium 系可安装的必需项是 `name`/`short_name`、192 和 512 的图标
 | A11 | 大请求体的 nginx 行为（`proxy_request_buffering`、`client_body_timeout`）够用 | Pitfall 6 | 慢线路上 4 MiB 保存超时；验收用接近上限的合成文档在真实线路上测一次 |
 | A12 | 清空 `pb_data` 是最干净的探针清理方式（而不是“前滚迁移删集合”） | Runtime State Inventory | 若所有者想保留 Phase 6 建的超级用户，就要走“前滚”路线，并需要 `pb-admin.sh` 之外的清理；需所有者确认 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **所有者的邮箱 SMTP 细节（服务商、端口、是否需要授权码、AuthMethod PLAIN 还是 LOGIN）**
+1. **所有者的邮箱 SMTP 细节（服务商、端口、是否需要授权码、AuthMethod PLAIN 还是 LOGIN）** RESOLVED
    - What we know: PocketBase 的 SMTP 设置字段是 `host`、`port`、`username`、`password`、`authMethod`（PLAIN/LOGIN）、`tls`、`localName`（`core/settings_model.go`，master）；后台有“发送测试邮件”。D-02 要求全部由所有者在后台填。
    - What's unclear: 服务商不同，465（隐式 TLS，对应 PocketBase 的 `tls` 开关）与 587（STARTTLS）的组合不同；香港机房能否外连。
    - Recommendation: README 写成“先填、点测试邮件、收到后才开 MFA”的检查点步骤；不假设服务商。
+   - RESOLVED: 不假设服务商——SMTP 主机、端口、用户名和授权码由所有者本人在后台填写（D-02），收到测试邮件之后才打开 OTP 和 MFA — 13-12 Task 2（所有者操作检查点，blocking-human），README 写法见 13-08 Task 2。
 
-2. **R2 令牌的删除权限与 `forcePathStyle`**
+2. **R2 令牌的删除权限与 `forcePathStyle`** RESOLVED
    - What we know: 官方文档只说 Object Read & Write 能读、写、列对象，没有明说删除；自动备份清理要 `DeleteObject`。
    - What's unclear: 实际行为。
    - Recommendation: 恢复演练的最后一步要求在后台删除演练用的手动备份，失败就改令牌权限；R2 生命周期规则（前缀 `@auto_pb_backup_`，约 35 天）作兜底，由所有者在 R2 控制台设置。
+   - RESOLVED: 删除权限保持为假设 A1，由恢复演练里“写入并删除一个 `drill_` 演练备份”实测（`DRILL_R2_DELETE=ok`，13-13 Task 3）；`forcePathStyle` 保持为假设 A2，同一次演练实测；35 天生命周期规则由所有者在 13-12 Task 2 可选设置 — 13-07（脚本）、13-12、13-13。
 
-3. **探针超级用户保留还是重建（A12）**
+3. **探针超级用户保留还是重建（A12）** RESOLVED
    - What we know: D-10 要求删探针数据；D-11 要求保留二进制和 pocketbase 用户。
    - What's unclear: 超级用户是否也算“探针数据”。
    - Recommendation: 默认清空 `pb_data` 并让所有者用新口令重建，这样新钥匙从第一次保存设置起就生效；在 `07-retire-probe.sh` 的批准说明里明确这一点，由所有者批准。
+   - RESOLVED: 由所有者在 13-09 Task 2 的 checkpoint:decision（blocking-human）里选“清空”（`--wipe`）或“保留”（`--keep`）；两条路线都在 13-05 的本机实例上演练（保留路线靠清理迁移 `1794096150_retire_probe.js`），13-10 Task 2 执行前再复述一次并请所有者即时确认 — 13-05、13-06、13-09、13-10。
 
-4. **certbot 的 server 块里是否已有 server 层 `add_header`（例如 HSTS）**
+4. **certbot 的 server 块里是否已有 server 层 `add_header`（例如 HSTS）** RESOLVED
    - Recommendation: 在 `00-status.sh` 里加一个只读检查（只报“有/无”，不输出内容），决定通用头文件里要不要自带 HSTS。
+   - RESOLVED: `00-status.sh` 输出 `NGINX_SERVER_ADD_HEADER=yes|no`（13-06），13-09 Task 1 只读运行并把结果告诉所有者；不论有无，应用的两个响应头文件都自带 HSTS，因为位置块里有 add_header 时 server 层的不继承 — 13-06、13-07、13-09。
 
-5. **`USJ_CONFIG` 脚本的位置**：插在主内联 `<script>` 之前（`<head>` 末尾或主脚本前）即可，因为 `readConfig()` 在主脚本顶层读取 `window.USJ_CONFIG`。构建脚本要对“找到恰好 1 处插入锚点”做断言，找不到就失败（与 `serveAppVariant` 的“每个标记恰好一次”同一思路）。
+5. **`USJ_CONFIG` 脚本的位置** RESOLVED：插在主内联 `<script>` 之前（`<head>` 末尾或主脚本前）即可，因为 `readConfig()` 在主脚本顶层读取 `window.USJ_CONFIG`。构建脚本要对“找到恰好 1 处插入锚点”做断言，找不到就失败（与 `serveAppVariant` 的“每个标记恰好一次”同一思路）。
+   - RESOLVED: `deploy/build-site.mjs` 的 `injectConfig` 要求“单独一行的 `<script>`”恰好出现一次，在它前面插入单独的小内联脚本，否则构建失败；仓库页面不带这一行，`APP_SHA256` 仍指仓库文件 — 13-04 Task 1。
 
-6. **清理 `tools/probe/` 的范围**：探针页相关文件可以删，`vendor/` 不能删（见 Runtime State Inventory）；`tools/probe/schema.json`、`schema-check.mjs`、`summarize.mjs`、`export-results.py` 随探针一起退役，但它们有 `--self-test` 被隐私检查和 `PRIVACY.md` 引用的可能，计划里先 grep 再删。
+6. **清理 `tools/probe/` 的范围** RESOLVED：探针页相关文件可以删，`vendor/` 不能删（见 Runtime State Inventory）；`tools/probe/schema.json`、`schema-check.mjs`、`summarize.mjs`、`export-results.py` 随探针一起退役，但它们有 `--self-test` 被隐私检查和 `PRIVACY.md` 引用的可能，计划里先 grep 再删。
+   - RESOLVED: 本阶段不删除仓库里 `tools/probe/` 的任何文件（Phase 6 的记录和自检照旧可用）；13-08 Task 3 在 `tools/probe/README.md` 开头加退役注记，说明服务器脚本以 `deploy/server/` 为准、`page/vendor/` 仍是测试和部署共用的 SDK 来源；服务器上的探针页、探针位置块和探针数据由 13-10（07）和 13-11（05）删除（D-10） — 13-08、13-10、13-11。
 
 ## Environment Availability
 
