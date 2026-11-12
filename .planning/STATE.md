@@ -5,17 +5,17 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-03-PLAN.md
-last_updated: "2026-11-12T19:12:48.423Z"
+stopped_at: Completed 13-04-PLAN.md
+last_updated: "2026-11-12T19:44:55.758Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: af409917b8cea2056df6f44781da32f113c00995
+state_head: aefc8c89037bc9703102874b45cd88298963cd5f
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 69
-  percent: 85
+  completed_plans: 70
+  percent: 86
 ---
 
 # Project State
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 4 of 15
+Plan: 5 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
-Progress: [█████████░] 85%
+Progress: [█████████░] 86%
 
 
 ## Performance Metrics
@@ -159,6 +159,7 @@ Progress: [█████████░] 85%
 | Phase 13 P01 | 16 min | 2 tasks | 8 files |
 | Phase 13 P02 | 120min | 2 tasks | 13 files |
 | Phase 13 P03 | 23 min | 2 tasks | 5 files |
+| Phase 13 P04 | 32 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -323,6 +324,7 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-02: syncOnce returns when the shared token is already gone, so a sign-out in another tab is never reported as an expiry
 - [Phase 13]: 13-03: swUnsaved 在编辑计划页打开时只看 planDirty() 和两个「记一笔」框的真实草稿（isBusy 那时恒为真）；待上传的修改在本机缓存里，不算未保存
 - [Phase 13]: 13-03: 更新横幅「有新版本」「点此更新」、确认框「现在更新？」（先不更新/仍然更新）的文案留给 13-15 总体验收请所有者表态
+- [Phase 13]: 13-04: 严格 CSP（哈希加 style-src-attr 'none'，无 unsafe-）；发布版页面与 usj-csp.conf 同一次构建；进度条改 data-w 加 CSSOM（goalsBars 两个分支都调用）；构建文本一律归一成 LF 再算哈希和版本 — RESEARCH 推荐的严格方案；archivedHTML 的进度条在空计划分支也出现；版本不随检出换行变化
 
 ### Pending Todos
 
@@ -391,8 +393,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T19:12:42.941Z
-Stopped at: Completed 13-03-PLAN.md
+Last session: 2026-11-12T19:44:52.343Z
+Stopped at: Completed 13-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
