@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-07-PLAN.md
-last_updated: "2026-11-12T20:35:23.695Z"
+stopped_at: Completed 13-08-PLAN.md
+last_updated: "2026-11-12T20:55:51.290Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: e6fd9b94f8fee4ba1b12f335a7ef634be1e53315
+state_head: cba0d6c1fc6b142137d94fc355b431e25c80c5f6
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 73
+  completed_plans: 74
   percent: 88
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 8 of 15
+Plan: 9 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
@@ -163,6 +163,7 @@ Progress: [█████████░] 88%
 | Phase 13 P05 | 11 min | 3 tasks | 5 files |
 | Phase 13 P06 | 8 min | 2 tasks | 9 files |
 | Phase 13 P07 | 19 min | 2 tasks | 10 files |
+| Phase 13 P08 | 18min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -334,6 +335,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-06: 07 --wipe runs its non-probe-data guard both before stopping the service and again right before rm -rf, and refuses when counts cannot be read
 - [Phase 13]: 13-07: restore-drill 的临时单元用 InaccessiblePaths 屏蔽线上数据目录，守卫在任何复制之前只读检查线上库（非测试账号数据就 DRILL_GUARD=refused）
 - [Phase 13]: 13-07: 05 重跑无改动时只跑 nginx -t 并输出 NGINX_APP=already；兜底 404 位置也 include 通用头文件；HSTS 先用一天
+- [Phase 13]: 13-08: acceptance large file is compact JSON (indented would exceed the 5 MB import limit); about 3.3 MB passes the 70% capacity warning line
+- [Phase 13]: 13-08: verify-site online stages (baseline 3, full 19) are written but only verified against local stubs; first real run is 13-11 in an approved step
 
 ### Pending Todos
 
@@ -402,8 +405,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T20:35:20.380Z
-Stopped at: Completed 13-07-PLAN.md
+Last session: 2026-11-12T20:55:47.895Z
+Stopped at: Completed 13-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
