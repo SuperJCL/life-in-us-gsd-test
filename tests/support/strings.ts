@@ -528,3 +528,18 @@ export const PE_LIVE_ADDED_GROUP = '已添加：新的目标组';
 export const PE_LABEL_NAME = '名称';
 export const PE_LABEL_NOTE = '备注';
 export const PE_TASKS_TITLE = '任务';
+
+// Phase 12-04 Task 2：直接移除的 toast、撤销按钮、读屏句子前缀、归档确认的文案（应用里 T_PE_REMOVED、T_PE_UNDO_REMOVE、T_PE_LIVE_RESTORED、T_PE_LIVE_ARCHIVED、T_PE_ARCH_*，逐字相同）
+export const TOAST_PE_REMOVED_PREFIX = '已从草稿移除：';
+export const BTN_PE_UNDO_REMOVE = '撤销移除';
+export const PE_LIVE_RESTORED_PREFIX = '已恢复：';
+export const PE_LIVE_ARCHIVED_PREFIX = '已归档：';
+export const PE_ARCH_TASK_TITLE = '归档这个任务？';
+export const PE_ARCH_GROUP_TITLE = '归档这个目标组？';
+export const BTN_PE_ARCH_NO = '不归档';
+export const BTN_PE_ARCH_TASK = '归档任务';
+export const BTN_PE_ARCH_GROUP = '归档目标组';
+export const PE_ARCH_TASK_BODY = '归档后它会变灰，放到目标页底部的「已归档」里，不能再勾选；日历和时间线里的完成记录照常显示。';
+export const PE_ARCH_DUE_NOTE = '它在日历上的截止提醒也会先隐藏，恢复后回来。';
+export const PE_ARCH_GROUP_BODY = '整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。';
+export const PE_ARCH_RESTORE = '可以在编辑页的「已归档」里恢复。点「保存计划」后生效。';
