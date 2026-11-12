@@ -5,7 +5,7 @@ import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
 import { openDevice } from '../support/devices';
 import { gotoGoals } from '../support/goals';
-import { discardPlan, expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
+import { discardPlan, expand, expectHashGone, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { expectToast } from '../support/toast';
@@ -96,7 +96,7 @@ test('PLAN-04 a group renamed in the plan editor is saved to the server and anot
     await expectToast(page, TOAST_PLAN_SAVED);
     ed = await readEditor(page);
     expect(ed.open).toBe(false);
-    expect(ed.hash).toBe('');
+    await expectHashGone(page);
     await expect(page.locator('#planEditBtn')).toBeFocused();
     await expect(page.locator('#tab-goal')).toBeVisible();
     expect(await goalsHave(page, renamed)).toBe(true);
@@ -130,7 +130,7 @@ test('PLAN-04 leaving the plan editor with unsaved changes asks first from a tab
   await expect(page.locator('#tab-wk')).toBeVisible();
   await expect(dialog).toHaveJSProperty('open', false);
   expect((await readEditor(page)).open).toBe(false);
-  expect((await readEditor(page)).hash).toBe('');
+  await expectHashGone(page);
 
   // 没有修改：「放弃这次修改」也直接离开
   await openEditor(page);
@@ -168,7 +168,8 @@ test('PLAN-04 leaving the plan editor with unsaved changes asks first from a tab
   expect(c.title).toBe(PE_LEAVE_TITLE);
   await confirmOk(page);
   ed = await readEditor(page);
-  expect([ed.open, ed.hash]).toEqual([false, '']);
+  expect(ed.open).toBe(false);
+  await expectHashGone(page);
   await expect(page.locator('#tab-goal')).toBeVisible();
   expect(await goalsHave(page, renamed)).toBe(false);
   expect(await goalsHave(page, plan.groups[0].name)).toBe(true);
@@ -309,7 +310,8 @@ test('PLAN-04 a remote change that arrives while the plan editor is open waits w
     await expectToast(sp, TOAST_REMOTE_UPDATED);
     await expect(bar).not.toBeVisible();
     ed = await readEditor(sp);
-    expect([ed.open, ed.hash]).toEqual([false, '']);
+    expect(ed.open).toBe(false);
+    await expectHashGone(sp);
     await sp.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
     await expect(sp.locator(`#days [data-edit="${id}"]`)).toBeVisible();
   } finally {
@@ -383,7 +385,8 @@ test('PLAN-04 an unreadable account plan is kept here as a downloadable copy bef
   await expect(page.locator('#toast.act button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
   await expect(page.locator('#snapshotBtn')).toBeVisible();
   ed = await readEditor(page);
-  expect([ed.open, ed.hash]).toEqual([false, '']);
+  expect(ed.open).toBe(false);
+  await expectHashGone(page);
 
   // 本机留底是服务器原来那一份（读不出来的），类型是 plan
   const snap = await readSnap();
@@ -446,4 +449,34 @@ test.describe('manual clock upload retry', () => {
     expect(app.fake.requests.filter((r) => r.method === 'POST').length).toBe(postsBefore);
     expect(app.fake.writes.filter((w) => w.path === 'journey_docs:plan').length).toBe(1);
   });
+});
+
+test('PLAN-04 leaving the plan editor from the app steps back to where it came from and leaves no duplicate history entry (IN-02)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('hi', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('hi'), plan, login: 0 });
+  // 浏览器的 Navigation API（Chromium 支持）：当前记录在历史里的序号
+  const navIndex = () => page.evaluate(() => (window as any).navigation.currentEntry.index as number);
+  await gotoGoals(page);
+  const i0 = await navIndex();
+
+  // 进入编辑页：多一条 #plan 记录；保存离开：退回去，序号回到进入前（以前是留下 [/, /] 两条一样的）
+  await openEditor(page);
+  expect(await navIndex()).toBe(i0 + 1);
+  await expand(page, 'g:g-hi1');
+  await field(page, 'g:g-hi1:name').fill('SYNTH-hi renamed');
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expectHashGone(page);
+  expect(await navIndex()).toBe(i0);
+
+  // 放弃修改离开同样退回去，之后再进再出仍然是这样
+  await openEditor(page);
+  expect(await navIndex()).toBe(i0 + 1);
+  await expand(page, 'g:g-hi1');
+  await field(page, 'g:g-hi1:name').fill('SYNTH-hi discarded');
+  await discardPlan(page);
+  await confirmOk(page);
+  await expectHashGone(page);
+  expect(await navIndex()).toBe(i0);
+  expect((await readEditor(page)).open).toBe(false);
 });

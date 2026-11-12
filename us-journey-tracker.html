@@ -2312,7 +2312,7 @@ function peRemote(){
 }
 function goPlan(){
   if(pe||!CLOUD||!me||!docs.plan||document.body.hasAttribute("data-gate"))return;
-  history.pushState(null,"","#plan");
+  history.pushState({pe:1},"","#plan");
   openPlanEditor(curTab());
 }
 function openPlanEditor(from){
@@ -2330,10 +2330,12 @@ function openPlanEditor(from){
 }
 /* 编辑页自己显示的容量超限横幅：只在 state 和计划本身都没超限时收起（state 超限的横幅归同步所有） */
 function peClearTooLarge(){if(sizeOf(state)<=CLOUD_MAX&&sizeOf(planBody())<=CLOUD_MAX)hideBar("toolarge")}
+let peBack=false;
 function closePlanEditor(tab){
   const big=!!pe&&pe.tooLarge;
   pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("pe-unread").classList.add("hidden");
-  if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
+  /* IN-02：进编辑页时自己 push 了一条历史（state 带 pe 标记，刷新后还在）：应用内离开就退回去，历史里不留一条重复的记录；peBack 让随后的 hashchange 不当成返回键。hash 是手输的（没有这个标记）就只去掉 hash */
+  if(location.hash==="#plan"){if(history.state&&history.state.pe===1){peBack=true;setTimeout(()=>{peBack=false},1000);history.back()}else history.replaceState(null,"",location.pathname+location.search)}
   const k=tab||"goal";
   showTab(k);renderAll();
   if(big)peClearTooLarge();
@@ -2772,9 +2774,10 @@ async function peLeave(){
 $("pe-discard").addEventListener("click",async()=>{const s=pe;if(!s)return;if(await peLeave()&&pe===s)closePlanEditor(s.from)});
 /* 返回键：hash 不再是 #plan 而编辑页开着 → 先确认；拒绝就把地址栏恢复为 #plan（pushState 不触发 hashchange） */
 window.addEventListener("hashchange",()=>{
+  if(peBack){peBack=false;if(location.hash!=="#plan")return}
   if(location.hash==="#plan"){planRoute();return}
   const s=pe;if(!s)return;
-  peLeave().then(ok=>{if(pe!==s)return;if(ok)closePlanEditor(s.from);else history.pushState(null,"","#plan")});
+  peLeave().then(ok=>{if(pe!==s)return;if(ok)closePlanEditor(s.from);else history.pushState({pe:1},"","#plan")});
 });
 /* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
 window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.returnValue=""}});

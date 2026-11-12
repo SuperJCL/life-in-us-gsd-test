@@ -35,6 +35,11 @@ export function act(page: Page, verb: string, key?: string): Locator {
   return page.locator(`#pe-main [data-peact="${verb}"]${key === undefined ? '' : `[data-pekey="${key}"]`}`);
 }
 
+// 应用内离开编辑页（保存、放弃、切换标签）时用 history.back() 退回进入时 push 的那一条历史，hash 是异步去掉的（IN-02）：轮询到 hash 为空
+export async function expectHashGone(page: Page) {
+  await expect.poll(() => page.evaluate(() => location.hash), { message: '等待 #plan 被去掉' }).toBe('');
+}
+
 export async function savePlan(page: Page) {
   await page.getByRole('button', { name: BTN_PLAN_SAVE, exact: true }).click();
 }
