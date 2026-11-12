@@ -562,3 +562,16 @@ export const PE_LIFTS_TITLE = '力量项';
 export const BTN_ADD_LIFT = '＋ 添加力量项';
 export const PE_UNIT_EXAMPLE = '例如 kg、次';
 export const weekFitGoalLine = (d: number, a: number, b: number) => `训练 ${d} 天，目标 ${a}～${b} 天`;
+
+// Phase 12-05 Task 2：力量项和健身的校验错误、力量项上限、力量项归档确认（应用里 PE_ERR 的 lname、lunit、ltarget、ldef、fitint、fitorder，T_PE_LIM_LIFTS，T_PE_ARCH_LIFT_TITLE、T_PE_ARCH_LIFT_BODY、T_PE_ARCH_LIFT_YES、T_PE_DEL_LIFT，逐字相同）
+export const PE_ERR_LIFT_NAME = '请填写力量项名称';
+export const PE_ERR_LIFT_UNIT = '请填写单位';
+export const PE_ERR_LIFT_TARGET = '目标值要大于 0';
+export const PE_ERR_LIFT_DEF = '起始值不能小于 0';
+export const PE_ERR_FIT_INT = '请填 0 到 7 之间的整数';
+export const PE_ERR_FIT_ORDER = '最少天数不能大于最多天数';
+export const PE_LIMIT_LIFTS = '最多 8 个';
+export const PE_DEL_LIFT = '删除这个力量项';
+export const PE_ARCH_LIFT_TITLE = '归档这个力量项？';
+export const PE_ARCH_LIFT_BODY = '归档后目标页只读显示它的历史，不能再记录新的重量。';
+export const BTN_PE_ARCH_LIFT = '归档力量项';

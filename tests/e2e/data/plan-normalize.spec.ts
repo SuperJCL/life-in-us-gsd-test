@@ -7,7 +7,7 @@ import { loadAppPure } from '../../support/app-source';
 import { CAT_LANGUAGE } from '../../support/strings';
 import { BUILTIN_GROUP_SIZES } from '../../support/task-ids';
 
-const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX'] as const;
+const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX', 'liftHistoryCount'] as const;
 const TOTAL_BUILTIN = Object.values(BUILTIN_GROUP_SIZES).reduce((a, b) => a + b, 0);
 const BUILTIN_IDS = Object.entries(BUILTIN_GROUP_SIZES).flatMap(([code, size]) =>
   Array.from({ length: size }, (_, i) => `${code}-${i + 1}`),
@@ -253,4 +253,78 @@ test('PLAN-02 planProblems reports empty names and texts of groups and tasks in 
 
   // 各项上限
   expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 8, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
+});
+
+test('PLAN-02 planProblems checks lift values and weekly fitness days and ignores archived lifts (D-15, D-17)', async () => {
+  const { DEFAULT_PLAN, planProblems, liftHistoryCount } = loadAppPure(NAMES);
+  const base = (): any => JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const problems = (p: unknown) => plain(planProblems(p));
+  const lid = base().lifts[0].id;
+
+  // 示例计划的力量项和健身天数没有问题
+  expect(problems(base()), 'DEFAULT_PLAN 不应报问题').toEqual([]);
+
+  // 名称和单位只有空白、目标值为 0、起始值为负：按卡片里的字段顺序报四项，键 l:<id>:n|unit|target|def
+  const a = base();
+  Object.assign(a.lifts[0], { n: '  ', unit: ' ', target: 0, def: -0.5 });
+  expect(problems(a), '名称、单位、目标值、起始值各报一项').toEqual([
+    { key: `l:${lid}:n`, code: 'lname' },
+    { key: `l:${lid}:unit`, code: 'lunit' },
+    { key: `l:${lid}:target`, code: 'ltarget' },
+    { key: `l:${lid}:def`, code: 'ldef' },
+  ]);
+
+  // 目标值为 -1、空串、不是数、无穷大都报 ltarget；起始值为空串、不是数都报 ldef
+  for (const bad of [-1, '', 'x', null, Infinity, NaN]) {
+    const b = base();
+    b.lifts[0].target = bad;
+    expect(problems(b).map((x: any) => x.code), `目标值 ${String(bad)}`).toEqual(['ltarget']);
+    const c = base();
+    c.lifts[0].def = bad === -1 ? -1 : bad;
+    expect(problems(c).map((x: any) => x.code), `起始值 ${String(bad)}`).toEqual(['ldef']);
+  }
+
+  // 起始值 0、2.5 和目标值 0.5 合规（小数允许，不取整）
+  for (const [def, target] of [[0, 20], [2.5, 0.5], [0, 0.5]]) {
+    const d = base();
+    Object.assign(d.lifts[0], { def, target });
+    expect(problems(d), `起始值 ${def} 目标值 ${target}`).toEqual([]);
+  }
+
+  // 健身天数：不是 0 到 7 的整数的数报 fitint（键 fit:min 或 fit:max）
+  for (const [fit, keys] of [
+    [[8, 3], ['fit:min']],
+    [[1, -1], ['fit:max']],
+    [[1.5, 3], ['fit:min']],
+    [['', 3], ['fit:min']],
+    [[1, ''], ['fit:max']],
+    [[9, 9], ['fit:min', 'fit:max']],
+  ] as Array<[unknown[], string[]]>) {
+    const b = base();
+    b.fitGoal = fit;
+    expect(problems(b), `fitGoal ${JSON.stringify(fit)}`).toEqual(keys.map((key) => ({ key, code: 'fitint' })));
+  }
+  // 两个都合法而最少大于最多：两个键都报 fitorder；相等和 0、7 的边界合规
+  const o = base();
+  o.fitGoal = [5, 3];
+  expect(problems(o), '最少大于最多').toEqual([
+    { key: 'fit:min', code: 'fitorder' },
+    { key: 'fit:max', code: 'fitorder' },
+  ]);
+  for (const fit of [[3, 3], [0, 7], [0, 0], [7, 7]]) {
+    const b = base();
+    b.fitGoal = fit;
+    expect(problems(b), `fitGoal ${JSON.stringify(fit)}`).toEqual([]);
+  }
+
+  // 归档的力量项（值全是错的）不报
+  const r = base();
+  Object.assign(r.lifts[0], { archived: true, n: '', unit: '', target: 0, def: -1 });
+  expect(problems(r), '归档的力量项不应报问题').toEqual([]);
+
+  // liftHistoryCount：没有键、没有 hist、3 条 hist 分别是 0、0、3
+  expect(liftHistoryCount({ lifts: {} }, 'l-x')).toBe(0);
+  expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5 } } }, 'l-x')).toBe(0);
+  expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5, hist: [{}, {}, {}] } } }, 'l-x')).toBe(3);
+  expect(liftHistoryCount({}, 'l-x')).toBe(0);
 });
