@@ -35,7 +35,7 @@ export const PROXY_BYPASS = '127.0.0.1,localhost';
 
 // 应用文件的 sha256 基线（SAFE-02）。Phase 7 起应用可以改，但每次改应用都要在同一次提交里
 // 有意识地更新这个基线；没更新时 SAFE-02 会失败。
-export const APP_SHA256 = '9dd0fbe4f68c6b983ed41eaa0c9359857f1c260aa8cb4e4d33dff068ea58bd53';
+export const APP_SHA256 = 'c54c9a81b41b3757f6875fe7e0c5ce29381ccd32ebbfd16279afa781bfa8df0e';
 
 // 合成数据标记：tests/fixtures 下的每个文件都必须带它（SAFE-03）
 export const SYNTHETIC_MARKER = '_synthetic';
@@ -61,8 +61,20 @@ export const ARRIVAL_DATE_FIXTURE = '2026-01-12';
 // mock 和 tests/mocks/CONTRACT.md 对齐的 Claude Artifact 运行时契约版本（MOCK-06）；契约升级时和 CONTRACT.md 一起改
 export const CLAUDE_CONTRACT_VERSION = '0.2.96';
 
+// 云端页面注册的 Service Worker 脚本路径（OPS-04、D-07）：静态服务器从 deploy/site/sw.js 提供，不复制第二份
+export const SW_PATH = '/sw.js';
+
+// 测试静态服务器把 sw.js 里的版本占位换成的版本号；缓存名因此固定为 usj-shell-test
+export const SW_TEST_VERSION = 'test';
+
+// Service Worker 缓存名的前缀，完整缓存名是前缀加版本号
+export const SW_CACHE_PREFIX = 'usj-shell-';
+
 // 同源提供真实 PocketBase SDK 的路径：静态服务器从 tools/probe/page/vendor/ 读原文件，不复制第二份（08-02）
 export const PB_SDK_PATH = '/vendor/pocketbase.iife.js';
+
+// 外壳预缓存的路径集合（13-02 再加清单和图标）：缓存里的条目路径必须恰好等于它
+export const SHELL_PATHS = ['/', PB_SDK_PATH];
 
 // 页面里运行的 SDK 版本，和 tools/probe/page/vendor/README.md 一致
 export const PB_SDK_VERSION = '0.28.1';

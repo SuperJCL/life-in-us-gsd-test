@@ -17,6 +17,14 @@ const SDK_DIR = path.resolve(__dirname, '..', '..', 'tools', 'probe', 'page', 'v
 const SDK_FILE = path.join(SDK_DIR, SDK_NAME);
 const SDK_SUMS = path.join(SDK_DIR, 'SHA256SUMS');
 
+// 云端页面注册的 Service Worker（OPS-04、D-07）：直接读 deploy/site/sw.js，不复制第二份；
+// 版本占位 __BUILD_VERSION__ 在每次响应里换成内存里的版本（默认 test），所以缓存名固定为 usj-shell-test。
+const SW_PATH = '/sw.js';
+const SW_PLACEHOLDER = '__BUILD_VERSION__';
+const SITE_DIR = path.resolve(__dirname, '..', '..', 'deploy', 'site');
+const SW_FILE = path.join(SITE_DIR, 'sw.js');
+let swVersion = 'test';
+
 // 应用文件随仓库提供（Phase 7 起），缺少它说明工作区不完整。缺少时在 listen 之前就失败，
 // 给出清楚的中文提示。提示里只用仓库相对的说法，不打印解析后的绝对路径。
 const MISSING_APP_MESSAGE =
@@ -44,6 +52,22 @@ function verifySdk() {
   if (lines.length !== 1) return SDK_REFUSE_MESSAGE;
   const digest = crypto.createHash('sha256').update(fs.readFileSync(SDK_FILE)).digest('hex');
   return digest === lines[0][1] ? null : SDK_REFUSE_MESSAGE;
+}
+
+// 启动时核对 sw.js 存在且版本占位恰好出现一次；否则在 listen 之前失败，提示里只用仓库相对的说法。
+const SW_PROBLEM_MESSAGE =
+  'deploy/site/sw.js 缺失或其中的版本占位不是恰好一处，已拒绝启动；请检查检出是否完整，恢复这个文件后再运行测试。';
+
+function verifySw() {
+  if (!fs.existsSync(SW_FILE)) return SW_PROBLEM_MESSAGE;
+  const text = fs.readFileSync(SW_FILE, 'utf8');
+  return text.split(SW_PLACEHOLDER).length === 2 ? null : SW_PROBLEM_MESSAGE;
+}
+
+const swProblem = verifySw();
+if (swProblem) {
+  process.stderr.write(swProblem + '\n');
+  process.exit(1);
 }
 
 const sdkProblem = verifySdk();
@@ -91,6 +115,23 @@ const server = http.createServer((req, res) => {
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
     };
+  } else if (pathname === SW_PATH) {
+    // 每次都读文件并换版本，不缓存；占位在文件里恰好一处（启动时已核对）
+    let body;
+    try {
+      body = fs.readFileSync(SW_FILE, 'utf8').split(SW_PLACEHOLDER).join(swVersion);
+    } catch (e) {
+      res.writeHead(500);
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      'content-type': 'text/javascript; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    });
+    res.end(req.method === 'HEAD' ? undefined : body);
+    return;
   } else {
     res.writeHead(404);
     res.end();

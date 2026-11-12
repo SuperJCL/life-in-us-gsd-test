@@ -1985,6 +1985,13 @@ async function onLogoutClick(){
 }
 $("logoutBtn").addEventListener("click",onLogoutClick);
 
+/* ---------- offline shell (OPS-04, Phase 13) ---------- */
+let swReg=null;
+function swInit(){
+  if(!("serviceWorker" in navigator)||!window.isSecureContext)return;
+  navigator.serviceWorker.register("/sw.js").then(r=>{if(!r)return;swReg=r}).catch(()=>{});
+}
+
 /* ---------- shared ---------- */
 function eventsOn(date){
   const logs=state.logs.filter(l=>l.date===date);const due=[],done=[];
@@ -2941,6 +2948,7 @@ let tt;function toast(m,act,ms){const t=$("toast");if(ms!=null)t.setAttribute("d
   if(act){const b=document.createElement("button");b.type="button";b.textContent=act.label;b.onclick=()=>{clearTimeout(tt);t.classList.remove("on","act");act.fn()};t.appendChild(b)}
   t.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("on","act"),ms!=null?ms:act?5000:1800)}
 window.addEventListener("pagehide",flush);
+if(CLOUD)swInit();
 init();
 })();
 </script>

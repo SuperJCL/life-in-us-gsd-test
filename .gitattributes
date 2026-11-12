@@ -10,3 +10,7 @@ tools/probe/** text eol=lf
 tools/probe/page/vendor/** -text
 # 迁移在 Phase 13 复制到 Linux 服务器使用，固定为 LF
 pb/** text eol=lf
+# 部署模板和站点文件在 Linux 上使用，固定为 LF；13-04 的版本号按字节计算，换行不能随检出环境变化
+deploy/** text eol=lf
+# 13-02 的 PNG 图标按字节提交，不做换行转换；必须写在 deploy/** 之后才能覆盖它
+deploy/site/icons/** -text

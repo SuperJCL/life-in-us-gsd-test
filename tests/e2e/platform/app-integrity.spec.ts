@@ -196,7 +196,7 @@ function freePort(): Promise<number> {
   });
 }
 
-// 在临时目录里按仓库的相对结构搭一份静态服务器、应用文件、SHA256SUMS 和 SDK；
+// 在临时目录里按仓库的相对结构搭一份静态服务器、应用文件、sw.js、SHA256SUMS 和 SDK；
 // flipSdk 为真时把 SDK 的最后一个字节异或 1。仓库里的文件一个字节都不改。
 function buildCopy(flipSdk: boolean): { dir: string; serverFile: string } {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'usj-static-'));
@@ -206,6 +206,9 @@ function buildCopy(flipSdk: boolean): { dir: string; serverFile: string } {
   mkdirSync(vendorDir, { recursive: true });
   cpSync(path.join(repoRoot, 'tests', 'support', 'static-server.cjs'), path.join(serverDir, 'static-server.cjs'));
   cpSync(appFile, path.join(dir, APP_FILE_NAME));
+  // 静态服务器启动时还要核对 deploy/site/sw.js（OPS-04、D-07）：副本里放一份，拒绝启动的原因才只会是 SDK 哈希
+  mkdirSync(path.join(dir, 'deploy', 'site'), { recursive: true });
+  cpSync(path.join(repoRoot, 'deploy', 'site', 'sw.js'), path.join(dir, 'deploy', 'site', 'sw.js'));
   cpSync(path.join(sdkDir, 'SHA256SUMS'), path.join(vendorDir, 'SHA256SUMS'));
   const sdkBytes = Buffer.from(readFileSync(path.join(sdkDir, 'pocketbase.iife.js')));
   if (flipSdk) sdkBytes[sdkBytes.length - 1] ^= 1;
