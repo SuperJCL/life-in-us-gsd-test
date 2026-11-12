@@ -35,7 +35,7 @@
 
 | 路径 | 放什么 |
 |------|--------|
-| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
+| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作，含读「已归档」区的 `readArchived`）、`plan-editor.ts`（编辑计划页的 helper，见“Phase 12 的云端用例”一节）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、干净克隆（SEC-04）、运行时探针、已知 bug 登记护栏 |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts`，以及 USJ_CONFIG 配置缝 |
@@ -43,13 +43,13 @@
 | `tests/e2e/week/` | 本周视图：渲染、周导航、记一笔、预设标签、拖放、复盘，以及已知 bug 的成对用例 |
 | `tests/e2e/editor/` | 编辑弹窗：从本周、日历、时间线三个入口修改，删除加撤销，完成计划的弹窗 |
 | `tests/e2e/calendar/` | 日历视图：月历网格、月份导航、日面板、删除加撤销和 toast 过期，以及 B1（日面板草稿）、N1（日面板删除）已知 bug 的对照加标记用例 |
-| `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例 |
+| `tests/e2e/goals/` | 目标视图：目标组和力量卡、力量值保存、任务勾选、截止日期和自定义待办，以及 N1（目标页勾选任务）已知 bug 的对照加标记用例；`plan-entry.spec.ts`：本地版没有编辑计划入口，`#plan` 显示目标页（D-13） |
 | `tests/e2e/io/` | 导出与导入：日历 CSV、JSON 备份，导入的确认、取消、错误文件、往返和旧类别迁移，以及 B2、N3 修复后的回归用例；导出内容读 Playwright 下载事件（`downloadOf`） |
 | `tests/e2e/security/` | 转义、导入白名单和加载修正：渲染防线（`escaping.spec.ts`：入口检查绕过的变体、计划值变体、检测器反向对照、源码门槛，以及两道防线合在一起的真实应用用例）、入口防线（`id-whitelist.spec.ts` 的页面用例和 `state-validation.spec.ts` 的 Node 侧单元用例）；两道防线各自独立成立，也要合在一起成立 |
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节）、Phase 12 的六个 spec（`plan-archive-view.spec.ts`、`plan-editor.spec.ts`、`plan-editor-groups.spec.ts`、`plan-editor-fit.spec.ts`、`plan-editor-archive.spec.ts`、`plan-editor-sync.spec.ts`，见“Phase 12 的云端用例”一节） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地计划工具：`extract-plan.mjs` 只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容；`migrate-backup.mjs` 把种子计划和原 Artifact 的旧备份合成一个新格式文件（用法见“Phase 11 的云端用例”一节，默认模式和 `--plan-only` 只由所有者运行） |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -142,7 +142,7 @@ PROBE-1 到 PROBE-9 的结论、证据和采用的方案见 `tests/PROBES.md`；
 - **`calendar.ts`（日历视图读回）：** `gotoCalendar`、`readMonth`、`readCellLogClasses`、`readDayPanelLogClasses`、`readDayPanel` 等，一次 `page.evaluate` 读回整月或整个日面板，再在 Node 侧与 `expect-from-fixture.ts` 的独立推导比较。只读日期、类名、aria-label、id、组号和数量，不读到期和完成 chip、日面板计划条目的文字（它们是个人计划原文）。
 - **`goals.ts`（目标视图读回和任务操作）：** `gotoGoals`、`readGroups`、`readLifts`、`liftHistoryEquals`、`checkTask`、`setDue`、`readTaskRow`。内置任务的复选框和截止日期只在页面内按位置 id 操作和读回（`checkTask`、`setDue`、`readTaskRow`），不做定位器动作、文字断言或可见性断言，因为它们的 aria-label 是任务原文，Playwright 的调用日志会打印；只有合成的自定义任务才用真实点击和填写。
 - **`timeline.ts`（时间线读回）：** `gotoTimeline`、`pickFilter`、`readTimeline`。一次 `page.evaluate` 读回筛选按钮状态、月份标题、条目的 id、日期、所属月份、记录的类别标签和固定文案；完成计划条目的文字是个人计划原文，不读，只读 id 和日期。
-- **`import-file.ts`（导入文件和确认框）：** `jsonImportFile`、`textImportFile`、`chooseImportFile`、`answerNextDialog`、`recordDialogs`。文件只存在于内存（`{ name, mimeType, buffer }`），文件名必须以 `synth-` 开头，helper 会检查；`answerNextDialog` 预先登记下一次对话框的处理并记录文案，`recordDialogs` 只记录、用来断言“没有弹对话框”。
+- **`import-file.ts`（导入文件和确认框）：** `jsonImportFile`、`textImportFile`、`chooseImportFile`、`answerNextDialog`、`recordDialogs`。文件只存在于内存（`{ name, mimeType, buffer }`），文件名必须以 `synth-` 开头，helper 会检查；`answerNextDialog` 预先登记下一次对话框的处理并记录文案，`recordDialogs` 只记录、用来断言“没有弹对话框”。`tests/support/confirm.ts` 的 `confirmMid` 点三按钮确认框（`dialog#confirm`）中间那个按钮（Phase 12：编辑页的“三选一”和 D-08 复查）。
 - **`app-source.ts`（`loadAppPure`，白盒）：** 在 Node 里用 `node:vm` 求值应用的纯函数段（第一个常量声明到 saving 横幅之间，只含常量和纯函数，不碰 DOM），返回需要的绑定，给 normalizePlan、normalize、导入检查这类分支多的单元用例用，不开浏览器。期望值仍在用例里独立写出，不读应用的实现；页面路径（加载、导入、渲染）仍由浏览器用例覆盖，两条路径不互相替代。
 - **`app-variant.ts`（`serveAppVariant`，白盒）：** 只在内存里提供改过的应用：读应用文件，把每处查找文字恰好替换一次，再用 `page.route` 只给这一个 page 提供改过的页面；磁盘上的应用文件和静态服务器不变，SAFE-02 照旧通过。用来分别证明两道防线：`BYPASS_NORMALIZE` 绕过入口检查才看得到渲染防线，`DISABLE_ESCAPING` 关掉转义证明检测器不是空转，`planValueEdit` 只在内存里改 DEFAULT_PLAN 来放计划值载荷。必须在 `app.open()` 之前调用；两道防线合在一起的用例不使用它。
 - **cloud 用例的三类设施（只在 `npm run test:cloud` 里用，只用合成账号）：**
@@ -206,6 +206,29 @@ Phase 11 的云端用例（导入、导入与同步、撤销导入、导出、�
   - `node tools/plan/migrate-backup.mjs --demo [目录]`：不读任何私有文件，用内置的合成种子和合成旧备份写出 `synth-legacy-backup.json`、`synth-plan-seed.json`、`synth-migrated.json`、`synth-plan-only.json`；仓库内的目录只接受 `private/` 和 `test-results/` 下的路径，缺省是 `private/migration-demo`；最后一行是 `MIGRATION OK`。用完可以删除这个目录。
   - 默认模式（`node tools/plan/migrate-backup.mjs <旧备份.json>`）和 `--plan-only` 会读 `private/plan-seed.json` 和真实备份，只由所有者在 Phase 13 运行（见 `PRIVACY.md`）；测试和执行者从不运行这两种模式，`migration.spec.ts` 只以 `--demo` 和 `--self-test` 调用脚本。
 - **和旧路径的分工：** 没有账号、不保存计划的旧版本的导入用例在 `tests/e2e/io/import.spec.ts`（原生 `confirm()`、拒绝只含计划的文件、5 MB 上限、新格式备份只导入记录）；云端路径的用例都在上面的五个 spec 里。
+
+### Phase 12 的云端用例
+
+Phase 12 的云端用例（编辑计划页）同样只在 `npm run test:cloud` 里运行，只用合成账号和合成计划，全部在假服务器上做，不连任何真实服务器；另有一条默认套件的用例证明本地版没有编辑入口。
+
+- **六个新的 cloud spec：**
+  - `tests/cloud/plan-archive-view.spec.ts`：读侧——服务器上的计划带归档的组、任务、力量项时，目标页主列表隐藏它们、其余的组按 P1、P2… 自动编号、底部「已归档」区灰色只读；日面板、时间线、日历 CSV 的组标签（P 编号、归档组的组名、找不到组的待办显示“未知目标组”）；归档任务的完成记录照常显示、不计入分类计数，截止提醒不再出现在日历和日历 CSV 里；找不到组的自定义待办（WR-02）列在「已归档」区、可以删除。
+  - `tests/cloud/plan-editor.spec.ts`：入口和外壳——改组名保存后服务器和另一台设备都更新（D-10）；有未保存修改时从标签页、返回键、放弃按钮离开都先确认，没有修改直接离开；关闭页面时的浏览器离开提示（beforeunload）；退出和重新登录前先确认；编辑期间到达的远端更新挂起、用无按钮的横幅提示、离开后再应用；在 `#plan` 上刷新后等对账完成再打开新草稿；读不出来的账号计划先留底（可下载）再替换；保存时上传失败自动重试、服务器上只落一份。
+  - `tests/cloud/plan-editor-groups.spec.ts`：组和任务——新增的组和任务拿到新的 `g-`、`t-` id，已有 id 不变；上移下移只在自己的列表里动，保存后目标页按新顺序编号；删除没有进度的项直接从草稿移除并给撤销，有进度的项先询问再归档；空的组名或任务文字阻止保存、错误显示在字段旁并展开卡片；添加按钮停在 20 个组和每组 50 项任务；带标记的计划文字在编辑页里按文本显示；编辑后导出的备份再导入，每条任务进度仍在对的任务上。
+  - `tests/cloud/plan-editor-fit.spec.ts`：健身分区——每周健身目标、健身备注和新力量项保存后目标页和本周页显示新值；力量项和健身目标的数值超出规则时阻止保存、力量项停在 8 个；已有计划里不合编辑规则的值照原样显示、编辑页立刻标出并阻止保存（所有者决定：数值规则只在编辑页）；删除没有历史的力量项给撤销，有历史的先询问再归档；基础预设标签按类别增改排序删除，重复或空标签阻止保存，用户自己的记一笔标签不动，两层都有的标签只显示一次。
+  - `tests/cloud/plan-editor-archive.spec.ts`：编辑页的「已归档」区——恢复归档的任务（回到组末尾，进度和截止提醒都在）；彻底删除归档的任务、组或力量项要再确认一次并写明损失，保存后进度、自定义待办、力量历史才被删；归档的组带着它的自定义待办，单独归档的任务在组恢复时仍归档，列表满时恢复按钮禁用；清空后的空计划卡片、本周页提示和“载入示例计划”（新 id）。
+  - `tests/cloud/plan-editor-sync.spec.ts`：同时编辑——别的设备在编辑期间保存了计划时草稿不变、显示提示，保存时三选一（覆盖、采用新版本、返回）；覆盖时对方的版本在本机留底、可下载为计划留底文件；采用新版本丢掉草稿；D-08 复查——草稿里移除的项在别的设备上刚有了进度时，先列出再选择归档或连同进度删除；断网和登录过期时保存按钮不可用、草稿保留；超过 4 MB 容量的计划不保存并提示；同一浏览器另一个标签页保存了计划时，这个标签页的编辑页也出提示。
+- **默认套件的一个 spec：** `tests/e2e/goals/plan-entry.spec.ts` 一条用例：本地版没有「编辑计划」入口，`#plan` 显示目标页（D-13）。另外 `tests/e2e/data/plan-normalize.spec.ts` 加了四条 normalizePlan 的单元用例（归档字段和空计划、数量上限和 id、力量项和健身目标的规则）。
+- **`tests/support/plan-editor.ts`（编辑页 helper）：** `openEditor`、`card(page, key)`、`expand`、`field`、`act`、`savePlan`、`discardPlan`、`readEditor`。它和 `goals.ts` 一样只依赖 `@playwright/test` 和 `./strings`。
+- **编辑页用例的写法：**
+  - 字段按 `data-pefield` 的键定位：`g:<组 id>:name`（组名）、`t:<任务 id>:text`（任务文字）、`l:<力量项 id>:target`（力量目标，同一张卡里还有 `:n`、`:unit`、`:def`、`:note`）、`fit:min` 和 `fit:max`（每周健身目标，另有 `fit:note`）、`p:<类别键>:<序号>`（基础预设标签）。卡片按 `data-key`（`g:<id>`、`l:<id>`）取。
+  - 动作按 `data-peact` 加 `data-pekey` 取（例如 `toggle`、`addgroup`），用 `act(page, 动作, 键?)` 拼选择器；操作卡片里的字段前先 `expand` 展开。
+  - `readEditor` 一次 `page.evaluate` 读回编辑页，只返回键、计数、布尔和界面文案：组和任务的键与顺序、是否展开、类别、显示中的错误（字段键加错误文字）、保存按钮的禁用和忙碌状态、「已归档」区的键、被禁用的恢复按钮的键；不读组名、任务文字和力量项名，它们是个人计划文字，失败输出里也不能出现。
+  - `readGroups` 只读目标页主列表（不含已归档的组）；底部「已归档」区用 `readArchived` 读（归档的组、任务、力量项和没有所属目标组的待办，只读 id、数量和界面文案）。
+  - 三按钮确认框（归档确认、三选一、D-08 复查）用 `confirmMid` 点中间的按钮。
+  - 另一个写入方改服务器文档：`app.fake.request(0, 'PATCH', 路径, { data, writer: 'synth-other-writer' })`，写入方 id 与本页不同，应用把它当作别的设备的保存。
+  - 编辑页用例里的计划文字都以 `SYNTH-` 开头；不打印、不拼进断言消息。
+- **已修复的已知 bug：** Phase 7 代码审查登记的 WR-02（找不到组的自定义待办看不到也删不掉）和 IN-05（任务的 `archived` 没有任何行为）已在 Phase 12 修复，见 `tests/KNOWN-BUGS.md` 的“已修复”。
 
 ## 14. 已知 bug
 
