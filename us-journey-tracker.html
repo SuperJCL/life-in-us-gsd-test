@@ -247,6 +247,11 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 .pe-sub{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:400;color:var(--muted);margin:4px 0 8px}
 #tab-plan textarea{min-height:64px;resize:vertical}
 .pe-add{margin-top:8px}
+#tab-plan [hidden]{display:none}
+.pe-body>.pe-err{margin:-8px 0 12px}
+.pe-cnt{display:block;text-align:right;font-size:12px;color:var(--muted)}
+.pe-row .pe-cnt,.pe-row .pe-err{grid-column:2 / -1}
+.pe-lim{margin-left:8px}
 .panel.pe-empty{padding:24px}
 .panel.pe-empty h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0 0 8px}
 .pe-empty p{font-size:14px;margin:0 0 16px}
@@ -754,6 +759,19 @@ function importPreview(b,cur){
 /* D-01：任务的“进度”= 已完成，或设了截止日期；组的进度 = 里面（含单独归档的）任务的这两项加上自定义待办。编辑页删除时据此决定直接移除还是确认后归档；只读 state，不碰 DOM */
 function taskHasProgress(s,id){const t=s&&isObj(s.tasks)?s.tasks[id]:null;return isObj(t)&&(t.done===true||(typeof t.due==="string"&&t.due!==""))}
 function groupProgress(s,g){let done=0,due=0;g.tasks.forEach(t=>{const x=s&&isObj(s.tasks)?s.tasks[t.id]:null;if(!isObj(x))return;if(x.done===true)done++;else if(typeof x.due==="string"&&x.due!=="")due++});return {done,due,custom:(s&&Array.isArray(s.custom)?s.custom:[]).filter(c=>isObj(c)&&c.group===g.id).length}}
+
+/* D-17：编辑页的数量和长度上限（12-05 补力量项、标签、单位的用法）。长度上限只靠输入框的 maxlength，浏览器 maxlength 和 String.length 都按 UTF-16 码元，输入框接受的文字保存时不会被拒绝 */
+const PLAN_MAX={groups:20,tasks:50,lifts:8,tags:20,name:40,text:200,note:200,tag:30,unit:8};
+/* 保存前的检查：返回 [{key,code}]，按页面顺序（组、再它的任务）；只看未归档的组和其中未归档的任务，名称或文字 trim 之后为空分别报 gname、ttext（12-05 往这里补力量项、健身和标签的规则）。不碰 DOM */
+function planProblems(p){
+  const out=[];
+  p.groups.forEach(g=>{
+    if(g.archived)return;
+    if(!String(g.name).trim())out.push({key:"g:"+g.id+":name",code:"gname"});
+    g.tasks.forEach(t=>{if(!t.archived&&!String(t.text).trim())out.push({key:"t:"+t.id+":text",code:"ttext"})});
+  });
+  return out;
+}
 
 /* ---------- saving ---------- */
 let saveTimer=null,saving=false,dirty=false,savePending=false,rvPending=false;
@@ -2194,6 +2212,8 @@ const T_PE_UP="上移",T_PE_DOWN="下移",T_PE_DEL="删除",T_PE_DEL_GROUP="删�
 const T_PE_REMOVED="已从草稿移除：",T_PE_UNDO_REMOVE="撤销移除",T_PE_LIVE_RESTORED="已恢复：",T_PE_LIVE_ARCHIVED="已归档：";
 const T_PE_ARCH_NO="不归档",T_PE_ARCH_TASK_TITLE="归档这个任务？",T_PE_ARCH_TASK_YES="归档任务",T_PE_ARCH_GROUP_TITLE="归档这个目标组？",T_PE_ARCH_GROUP_YES="归档目标组";
 const T_PE_ARCH_TASK_BODY="归档后它会变灰，放到目标页底部的「已归档」里，不能再勾选；日历和时间线里的完成记录照常显示。",T_PE_ARCH_DUE_NOTE="它在日历上的截止提醒也会先隐藏，恢复后回来。",T_PE_ARCH_GROUP_BODY="整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。",T_PE_ARCH_RESTORE="可以在编辑页的「已归档」里恢复。点「保存计划」后生效。";
+const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容"},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
+const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要修改，已标在对应位置";
 const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2237,9 +2257,9 @@ function planRoute(){
 }
 function peBar(){
   if(!pe)return;
-  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),t=d?T_PE_HINT_DIRTY:T_PE_HINT_NONE;
+  const d=planDirty(),h=$("pe-hint"),sv=$("pe-save"),bn=pe.tried?planProblems(pe.draft).length:0,t=bn?T_PE_HINT_ERRORS(bn):d?T_PE_HINT_DIRTY:T_PE_HINT_NONE;
   if(h.textContent!==t)h.textContent=t;
-  if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
+  if(bn)h.setAttribute("data-tone","error");else if(d)h.setAttribute("data-tone","muted");else h.removeAttribute("data-tone");
   sv.disabled=!d||pe.busy;
   if(pe.busy)sv.setAttribute("aria-busy","true");else sv.removeAttribute("aria-busy");
   const st=pe.busy?T_PE_SAVING:T_PE_SAVE;
@@ -2248,10 +2268,32 @@ function peBar(){
 function peGroup(id){return pe.draft.groups.find(g=>g.id===id)}
 function peTask(id){for(const g of pe.draft.groups){const t=g.tasks.find(x=>x.id===id);if(t)return t}return null}
 function peSay(t){$("pe-live").textContent=t}
+/* 字数计数：达到阈值才显示 {n}/{上限}（aria-hidden：上限由 maxlength 保证，不让计数混进字段的名字），input 时就地更新 */
+function peCnt(id,len,th,max){return `<span class="pe-cnt" id="pe-c-${esc(id)}" aria-hidden="true"${len>=th?"":" hidden"}>${len}/${max}</span>`}
+function peCount(f){
+  const k=f.dataset.pefield.split(":")[2],th=k==="name"?32:160,mx=k==="name"?PLAN_MAX.name:PLAN_MAX.text,el=$(f.id.replace("pe-f-","pe-c-"));
+  if(!el)return;
+  el.hidden=f.value.length<th;el.textContent=f.value.length+"/"+mx;
+}
+/* 校验提示（S6）：字段键在 pe.seen（失去过焦点）里或点过保存（pe.tried）才显示；显示时字段 aria-invalid、错误段落可见，输入变合法立刻消失；卡片头部 .pe-bad 写这张卡里显示中的错误数 */
+function peShowErrors(){
+  if(!pe)return;
+  const bad=new Map(planProblems(pe.draft).map(x=>[x.key,x.code]));
+  $("tab-plan").querySelectorAll("[data-pefield]").forEach(f=>{
+    const k=f.dataset.pefield,code=bad.get(k),on=!!code&&(pe.tried||pe.seen.has(k)),er=$(f.id.replace("pe-f-","pe-e-"));
+    if(on)f.setAttribute("aria-invalid","true");else f.removeAttribute("aria-invalid");
+    if(er){er.hidden=!on;er.textContent=on?PE_ERR[code]:""}
+  });
+  $("tab-plan").querySelectorAll(".pe-card").forEach(c=>{
+    const n=c.querySelectorAll('[aria-invalid="true"]').length,b=c.querySelector(".pe-bad");
+    if(b){b.hidden=!n;b.textContent=n?T_PE_BAD(n):""}
+  });
+}
+function peFid(key){const p=key.split(":");return "pe-f-"+p[0]+"-"+p[1]+"-"+p[2]}
 function peRows(g){
   const ts=g.tasks.filter(t=>!t.archived);
   if(!ts.length)return `<p class="empty">${T_PE_TASKS_EMPTY}</p>`;
-  return `<ul class="pe-rows">${ts.map((t,i)=>`<li class="pe-row"><span class="pe-n" aria-hidden="true">${i+1}</span><label class="sr-only" for="pe-f-t-${esc(t.id)}-text">任务 ${i+1}</label><input type="text" id="pe-f-t-${esc(t.id)}-text" data-pefield="t:${esc(t.id)}:text" maxlength="200" value="${esc(t.text)}"><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="t:${esc(t.id)}" aria-label="上移任务：${esc(t.text||T_PE_UNNAMED)}"${i===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="t:${esc(t.id)}" aria-label="下移任务：${esc(t.text||T_PE_UNNAMED)}"${i===ts.length-1?" disabled":""}>${T_PE_DOWN}</button><button type="button" class="danger" data-peact="del" data-pekey="t:${esc(t.id)}" aria-label="删除任务：${esc(t.text||T_PE_UNNAMED)}">${T_PE_DEL}</button></div><p class="pe-err" id="pe-e-t-${esc(t.id)}-text" hidden></p></li>`).join("")}</ul>`;
+  return `<ul class="pe-rows">${ts.map((t,i)=>`<li class="pe-row"><span class="pe-n" aria-hidden="true">${i+1}</span><label class="sr-only" for="pe-f-t-${esc(t.id)}-text">任务 ${i+1}</label><input type="text" id="pe-f-t-${esc(t.id)}-text" data-pefield="t:${esc(t.id)}:text" maxlength="${PLAN_MAX.text}" value="${esc(t.text)}" aria-describedby="pe-e-t-${esc(t.id)}-text"><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="t:${esc(t.id)}" aria-label="上移任务：${esc(t.text||T_PE_UNNAMED)}"${i===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="t:${esc(t.id)}" aria-label="下移任务：${esc(t.text||T_PE_UNNAMED)}"${i===ts.length-1?" disabled":""}>${T_PE_DOWN}</button><button type="button" class="danger" data-peact="del" data-pekey="t:${esc(t.id)}" aria-label="删除任务：${esc(t.text||T_PE_UNNAMED)}">${T_PE_DEL}</button></div><p class="pe-err" id="pe-e-t-${esc(t.id)}-text" hidden></p>${peCnt("t-"+t.id+"-text",t.text.length,160,PLAN_MAX.text)}</li>`).join("")}</ul>`;
 }
 function renderPlanEditor(){
   if(!pe)return;
@@ -2262,15 +2304,16 @@ function renderPlanEditor(){
     if(typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
   }
   const lbl=groupLabels(pe.draft),gs=pe.draft.groups.filter(g=>!g.archived);
-  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups">目标组</h3>${gs.map((g,gi)=>{
+  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.map((g,gi)=>{
     const key="g:"+g.id,open=pe.open.has(key),n=g.tasks.filter(t=>!t.archived).length;
-    return `<div class="pe-card k-${kOf(g.cat)}" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-g-${esc(g.id)}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-no">${esc(lbl.get(g.id))}</span><span class="pe-name" id="pe-n-g-${esc(g.id)}" title="${esc(g.name)}">${esc(g.name||T_PE_UNNAMED)}</span></button><span class="pe-sum">${esc(g.cat)} · ${n} 项</span><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="${esc(key)}" aria-label="上移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="${esc(key)}" aria-label="下移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===gs.length-1?" disabled":""}>${T_PE_DOWN}</button></div></div>
-    <div class="pe-body" id="pe-b-g-${esc(g.id)}" role="group" aria-labelledby="pe-n-g-${esc(g.id)}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-g-${esc(g.id)}-name" data-pefield="${esc(key)}:name" maxlength="40" value="${esc(g.name)}"></label>
+    return `<div class="pe-card k-${kOf(g.cat)}" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-g-${esc(g.id)}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-no">${esc(lbl.get(g.id))}</span><span class="pe-name" id="pe-n-g-${esc(g.id)}" title="${esc(g.name)}">${esc(g.name||T_PE_UNNAMED)}</span></button><span class="pe-sum">${esc(g.cat)} · ${n} 项</span><span class="pe-bad" hidden></span><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="${esc(key)}" aria-label="上移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="${esc(key)}" aria-label="下移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===gs.length-1?" disabled":""}>${T_PE_DOWN}</button></div></div>
+    <div class="pe-body" id="pe-b-g-${esc(g.id)}" role="group" aria-labelledby="pe-n-g-${esc(g.id)}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-g-${esc(g.id)}-name" data-pefield="${esc(key)}:name" maxlength="${PLAN_MAX.name}" value="${esc(g.name)}" aria-describedby="pe-e-g-${esc(g.id)}-name">${peCnt("g-"+g.id+"-name",g.name.length,32,PLAN_MAX.name)}</label><p class="pe-err" id="pe-e-g-${esc(g.id)}-name" hidden></p>
     <div class="seg" role="group" aria-label="类别">${CATS.map(c=>`<button type="button" class="k-${c.k}" aria-pressed="${c.n===g.cat}" data-peact="cat" data-pekey="${esc(key)}" data-pecat="${esc(c.n)}">${esc(c.n)}</button>`).join("")}</div>
-    <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="200" rows="3">
-${esc(g.note||"")}</textarea></label>
-    <h4 class="pe-sub">${T_PE_TASKS_TITLE}</h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}">${T_PE_ADD_TASK}</button>
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup">${T_PE_ADD_GROUP}</button></section>`;
+    <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
+${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
+    <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`;
+  peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
     if(e&&!e.disabled&&e!==document.activeElement){e.focus();if(sa!==null)try{e.setSelectionRange(sa,sb)}catch(x){}}
@@ -2398,9 +2441,15 @@ peRoot.addEventListener("input",e=>{
     const li=e.target.closest(".pe-row");
     if(li)li.querySelectorAll("[aria-label]").forEach(b=>b.setAttribute("aria-label",b.getAttribute("aria-label").split("：")[0]+"："+(t.text||T_PE_UNNAMED)));
   }
-  peBar();
+  peCount(e.target);peShowErrors();peBar();
 });
 peRoot.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input"))e.preventDefault()});
+/* 失去焦点之后这个字段才显示错误。鼠标或手指按在编辑页上时（pointerdown）错误的显示推迟到这次点击结束（click，最多 600 ms）：失焦时马上出现的错误行会把下面的按钮顶走，按下和抬起落在不同元素上，点击就丢了 */
+let peDefer=0;
+function peFlush(){if(!peDefer)return;clearTimeout(peDefer);peDefer=0;if(pe)peShowErrors()}
+document.addEventListener("pointerdown",e=>{if(pe&&peRoot.contains(e.target)){clearTimeout(peDefer);peDefer=setTimeout(peFlush,600)}},true);
+document.addEventListener("click",()=>{if(peDefer)setTimeout(peFlush,0)},true);
+peRoot.addEventListener("focusout",e=>{const f=e.target.dataset&&e.target.dataset.pefield;if(!f||!pe||pe.seen.has(f))return;pe.seen.add(f);if(!peDefer)peShowErrors()});
 $("pe-save").addEventListener("click",()=>savePlanDraft());
 /* 离开编辑页的三条路径（切换标签、浏览器返回键、「放弃这次修改」）都先经 peLeave：没有修改直接走，有修改先问；每处 await 之后都核对 pe 还是同一个会话（会话被 resetSession 清掉时什么都不做） */
 const T_PE_LEAVE_TITLE="放弃没保存的修改？",T_PE_LEAVE_BODY="计划页里的修改还没有保存，现在离开会丢失。",T_PE_LEAVE_NO="继续编辑",T_PE_LEAVE_YES="放弃修改";
@@ -2424,6 +2473,14 @@ window.addEventListener("beforeunload",e=>{if(planDirty()){e.preventDefault();e.
 function savePlanDraft(){
   const s=pe;
   if(!s||s.busy||!planDirty())return;
+  /* D-17、S6：先检查草稿；有问题就不保存，展开含错误的卡，提示行写数量，焦点移到第一个出错的字段。要并入远端版本、存计划都在这之后 */
+  const pr=planProblems(s.draft);
+  if(pr.length){
+    s.tried=true;
+    pr.forEach(x=>{const p=x.key.split(":"),g=p[0]==="g"?peGroup(p[1]):s.draft.groups.find(y=>y.tasks.some(t=>t.id===p[1]));if(g)s.open.add("g:"+g.id)});
+    renderPlanEditor();peBar();peFocus(peFid(pr[0].key));
+    return;
+  }
   s.busy=true;peBar();
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
   const np=normalizePlan(s.draft);

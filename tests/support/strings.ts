@@ -543,3 +543,11 @@ export const PE_ARCH_TASK_BODY = '归档后它会变灰，放到目标页底部�
 export const PE_ARCH_DUE_NOTE = '它在日历上的截止提醒也会先隐藏，恢复后回来。';
 export const PE_ARCH_GROUP_BODY = '整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。';
 export const PE_ARCH_RESTORE = '可以在编辑页的「已归档」里恢复。点「保存计划」后生效。';
+
+// Phase 12-04 Task 3：校验错误、卡片头的错误数、提示行的错误数和数量上限（应用里 PE_ERR、T_PE_BAD、T_PE_HINT_ERRORS、T_PE_LIM_GROUPS、T_PE_LIM_TASKS，逐字相同）
+export const PE_ERR_GROUP_NAME = '请填写目标组名称';
+export const PE_ERR_TASK_TEXT = '请填写任务内容';
+export const peBadCount = (n: number) => `有 ${n} 处要改`;
+export const peHintErrors = (n: number) => `有 ${n} 处需要修改，已标在对应位置`;
+export const PE_LIMIT_GROUPS = '最多 20 个';
+export const PE_LIMIT_TASKS = '最多 50 项';

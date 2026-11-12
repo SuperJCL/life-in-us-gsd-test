@@ -6,6 +6,9 @@ import { gotoGoals, readArchived, readGroupIds, readGroups } from '../support/go
 import { gotoTimeline } from '../support/timeline';
 import { act, card, expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { expectToast } from '../support/toast';
+import { downloadOf } from '../support/download';
+import { chooseImportFile, textImportFile } from '../support/import-file';
+import { DQ_PAYLOAD, IMG_PAYLOAD, SCRIPT_PAYLOAD, TAG_PAYLOAD } from '../fixtures/malicious-state';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import {
   BTN_ADD_GROUP,
@@ -20,11 +23,21 @@ import {
   PE_ARCH_RESTORE,
   PE_ARCH_TASK_BODY,
   PE_ARCH_TASK_TITLE,
+  PE_ERR_GROUP_NAME,
+  PE_ERR_TASK_TEXT,
+  PE_HINT_DIRTY,
+  PE_LIMIT_GROUPS,
+  PE_LIMIT_TASKS,
   PE_LIVE_ARCHIVED_PREFIX,
   PE_LIVE_RESTORED_PREFIX,
+  TOAST_IMPORTED,
   TOAST_PE_REMOVED_PREFIX,
   TOAST_PLAN_SAVED,
+  peBadCount,
+  peHintErrors,
 } from '../support/strings';
+
+test.use({ acceptDownloads: true });
 
 // 计划里每个组和它的任务的 id 列表（只比较 id，不涉及计划文字）
 const idsOf = (plan: any) => plan.groups.map((g: any) => [g.id, g.tasks.map((t: any) => t.id)]);
@@ -322,4 +335,256 @@ test('PLAN-03 deleting a task or a group without progress removes it from the dr
   const arch = await readArchived(page);
   // 归档组连同它的任务和自定义待办一起列出，再加上单独归档的 t-pd1x1
   expect([arch.present, arch.groupIds, [...arch.taskIds].sort()]).toEqual([true, ['g-pd2'], ['c-pd2a', 't-pd1x1', 't-pd2x1']]);
+});
+
+test('PLAN-02 an empty group name or task text blocks saving with the error next to the field and opens the card (D-17)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('pv', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('pv'), plan, login: 0 });
+  const original = plan.groups[0].name;
+  const hint = () => page.locator('#pe-hint');
+
+  await openEditor(page);
+  await expand(page, 'g:g-pv1');
+
+  // 失去焦点后才显示错误：清空组名，失焦之前没有错误，失焦之后出现；填回合法的值错误立刻消失
+  const name1 = field(page, 'g:g-pv1:name');
+  await name1.fill('');
+  expect((await readEditor(page)).errors).toEqual([]);
+  await name1.blur();
+  let ed = await readEditor(page);
+  expect(ed.errors).toEqual([{ key: 'g:g-pv1:name', text: PE_ERR_GROUP_NAME }]);
+  expect(ed.groups[0].bad).toBe(peBadCount(1));
+  await expect(name1).toHaveAttribute('aria-invalid', 'true');
+  const describedBy = (await name1.getAttribute('aria-describedby')) ?? '';
+  expect(await page.evaluate((id) => !!document.getElementById(id) && !document.getElementById(id)!.hidden, describedBy)).toBe(true);
+  await name1.fill(original);
+  ed = await readEditor(page);
+  expect([ed.errors, ed.groups[0].bad]).toEqual([[], '']);
+  await expect(name1).not.toHaveAttribute('aria-invalid', 'true');
+  // 改回原样：没有修改
+  expect((await readEditor(page)).saveDisabled).toBe(true);
+
+  // 新建一个组不填名称，给它加一个任务不填；点保存：不保存
+  await act(page, 'addgroup').click();
+  const key = (await readEditor(page)).groups[2].key;
+  await card(page, key).locator('[data-peact="addtask"]').click();
+  const writes = app.fake.writes.length;
+  await savePlan(page);
+  ed = await readEditor(page);
+  expect(app.fake.writes.length).toBe(writes);
+  expect(ed.open).toBe(true);
+  expect(ed.hint).toBe(peHintErrors(2));
+  expect(ed.tone).toBe('error');
+  expect(ed.saveDisabled).toBe(false);
+  expect(ed.groups[2].expanded).toBe(true);
+  expect(ed.groups[2].bad).toBe(peBadCount(2));
+  expect(ed.errors.map((e) => e.text)).toEqual([PE_ERR_GROUP_NAME, PE_ERR_TASK_TEXT]);
+  // 焦点在第一个出错的字段（名称框）
+  await expect(field(page, `${key}:name`)).toBeFocused();
+
+  // 折叠这张卡：头部仍显示「有 2 处要改」；再点保存会自动展开
+  await card(page, key).locator('[data-peact="toggle"]').click();
+  ed = await readEditor(page);
+  expect([ed.groups[2].expanded, ed.groups[2].bad]).toEqual([false, peBadCount(2)]);
+  await savePlan(page);
+  ed = await readEditor(page);
+  expect(ed.groups[2].expanded).toBe(true);
+  await expect(field(page, `${key}:name`)).toBeFocused();
+  expect(app.fake.writes.length).toBe(writes);
+
+  // 填上名称：名称的错误立刻消失，提示行变成「有 1 处…」
+  await field(page, `${key}:name`).fill('SYNTH-pv named');
+  ed = await readEditor(page);
+  expect(ed.errors.map((e) => e.text)).toEqual([PE_ERR_TASK_TEXT]);
+  expect(ed.hint).toBe(peHintErrors(1));
+  expect(ed.groups[2].bad).toBe(peBadCount(1));
+
+  // 填上任务：错误清零，提示行回到「有没保存的修改」，能保存
+  const taskKey = ed.groups[2].taskKeys[0];
+  await field(page, `${taskKey}:text`).fill('SYNTH-pv named task');
+  ed = await readEditor(page);
+  expect([ed.errors, ed.hint, ed.tone]).toEqual([[], PE_HINT_DIRTY, 'muted']);
+  await expect(hint()).toHaveText(PE_HINT_DIRTY);
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(3);
+  const saved: any = app.fake.lastPlan(0);
+  expect(saved.groups[2].name === 'SYNTH-pv named').toBe(true);
+  expect(saved.groups[2].tasks[0].text === 'SYNTH-pv named task').toBe(true);
+});
+
+test('PLAN-02 the add buttons stop at 20 groups and 50 tasks in a group (D-17)', async ({ app, page }) => {
+  // 20 个组（其中 1 个已归档，只算 19 个）；第 1 组 50 项任务（其中 1 项已归档，只算 49 项）：归档的不占名额
+  const plan: any = syntheticPlan('pl', 20);
+  plan.groups[19].archived = true;
+  plan.groups[0].tasks = Array.from({ length: 50 }, (_, i) => ({ id: `t-pl1x${i + 1}`, text: `SYNTH-pl task ${i + 1}` }));
+  plan.groups[0].tasks[49].archived = true;
+  await app.open({ mode: 'cloud', seed: syntheticState('pl'), plan, login: 0 });
+  await openEditor(page);
+  const counts = () =>
+    page.evaluate(() => ({
+      groups: document.querySelector('#pe-h-groups .pe-count')?.textContent ?? '',
+      tasks: document.querySelector('#pe-main .pe-card[data-key="g:g-pl1"] .pe-sub .pe-count')?.textContent ?? '',
+      lims: Array.from(document.querySelectorAll('#pe-main .pe-lim')).map((e) => e.textContent ?? ''),
+    }));
+
+  // 组：19/20，按钮可用，没有「最多」；点一下到 20/20，按钮 disabled，旁边写「最多 20 个」
+  expect(await counts()).toEqual({ groups: '19/20', tasks: '49/50', lims: [] });
+  await expect(act(page, 'addgroup')).toBeEnabled();
+  await act(page, 'addgroup').click();
+  expect((await readEditor(page)).groups.length).toBe(20);
+  expect(await counts()).toEqual({ groups: '20/20', tasks: '49/50', lims: [PE_LIMIT_GROUPS] });
+  await expect(act(page, 'addgroup')).toBeDisabled();
+  expect((await readEditor(page)).addGroupDisabled).toBe(true);
+
+  // 任务：第 1 组 49/50，点添加到 50/50，按钮 disabled，旁边写「最多 50 项」
+  await expand(page, 'g:g-pl1');
+  const addTask = card(page, 'g:g-pl1').locator('[data-peact="addtask"]');
+  await expect(addTask).toBeEnabled();
+  await addTask.click();
+  expect(await counts()).toEqual({ groups: '20/20', tasks: '50/50', lims: [PE_LIMIT_TASKS, PE_LIMIT_GROUPS] });
+  await expect(addTask).toBeDisabled();
+  // 别的组不受影响
+  await expand(page, 'g:g-pl2');
+  await expect(card(page, 'g:g-pl2').locator('[data-peact="addtask"]')).toBeEnabled();
+
+  // 长度上限：名称 40、备注 200、任务文字 200（属性读回）
+  await expect(field(page, 'g:g-pl2:name')).toHaveAttribute('maxlength', '40');
+  await expect(field(page, 'g:g-pl2:note')).toHaveAttribute('maxlength', '200');
+  await expect(field(page, 't:t-pl2x1:text')).toHaveAttribute('maxlength', '200');
+
+  // 计数：名称 32 个字时出现 32/40（31 个字时没有）；任务文字 160 个字时出现 160/200
+  const cnt = (id: string) =>
+    page.evaluate((i) => {
+      const e = document.getElementById(i) as HTMLElement | null;
+      return e && !e.hidden ? (e.textContent ?? '') : '';
+    }, id);
+  await field(page, 'g:g-pl2:name').fill('字'.repeat(31));
+  expect(await cnt('pe-c-g-g-pl2-name')).toBe('');
+  await field(page, 'g:g-pl2:name').fill('字'.repeat(32));
+  expect(await cnt('pe-c-g-g-pl2-name')).toBe('32/40');
+  await field(page, 't:t-pl2x1:text').fill('x'.repeat(160));
+  expect(await cnt('pe-c-t-t-pl2x1-text')).toBe('160/200');
+  await field(page, 't:t-pl2x1:text').fill('x'.repeat(159));
+  expect(await cnt('pe-c-t-t-pl2x1-text')).toBe('');
+});
+
+// 注入检测器（同 tests/e2e/security/escaping.spec.ts 的 readInjection）：window 标记、带 data-synth-xss 的元素、多出来的元素、on 属性、脚本个数
+async function readInjection(page: import('@playwright/test').Page) {
+  return page.evaluate(() => ({
+    flag: Number((window as unknown as { __synthXss?: number }).__synthXss || 0),
+    marked: document.querySelectorAll('[data-synth-xss]').length,
+    foreign:
+      document.querySelectorAll('s, details:not(#goalsArch), img, iframe, svg, object, embed').length +
+      Math.max(0, document.querySelectorAll('#goalsArch').length - 1),
+    handlers: Array.from(document.querySelectorAll('*')).filter((el) => Array.from(el.attributes).some((a) => a.name.startsWith('on'))).length,
+    scripts: document.scripts.length,
+  }));
+}
+
+test('PLAN-02 plan text with markup is shown as text in the plan editor', async ({ app, page }) => {
+  const plan: any = syntheticPlan('px', 2);
+  const gName = `${SCRIPT_PAYLOAD} name`;
+  const gNote = `${IMG_PAYLOAD} note`;
+  const t0 = `${TAG_PAYLOAD} task`;
+  const t1 = `${DQ_PAYLOAD} task`;
+  plan.groups[0].name = gName;
+  plan.groups[0].note = gNote;
+  plan.groups[0].tasks[0].text = t0;
+  plan.groups[0].tasks[1].text = t1;
+  plan.groups[1].name = `${TAG_PAYLOAD} second`;
+  await app.open({
+    mode: 'cloud',
+    seed: syntheticState('px', { tasks: { 't-px1x1': { done: true, doneDate: '2026-03-17' } } }),
+    plan,
+    login: 0,
+  });
+  const scriptsBefore = (await readInjection(page)).scripts;
+
+  await openEditor(page);
+  await expand(page, 'g:g-px1');
+  await expand(page, 'g:g-px2');
+  const clean = { flag: 0, marked: 0, foreign: 0, handlers: 0, scripts: scriptsBefore };
+  expect(await readInjection(page), '编辑页：有脚本执行或多出了元素').toEqual(clean);
+
+  // 输入框的值等于载荷原文；卡片标题只是文字，title 放全名
+  expect((await field(page, 'g:g-px1:name').inputValue()) === gName).toBe(true);
+  expect((await field(page, 'g:g-px1:note').inputValue()) === gNote).toBe(true);
+  expect((await field(page, 't:t-px1x1:text').inputValue()) === t0).toBe(true);
+  expect((await field(page, 't:t-px1x2:text').inputValue()) === t1).toBe(true);
+  expect(
+    await page.evaluate(
+      ([n]) => {
+        const e = document.querySelector('#pe-n-g-g-px1') as HTMLElement | null;
+        return !!e && e.textContent === n && e.title === n && e.children.length === 0;
+      },
+      [gName],
+    ),
+  ).toBe(true);
+
+  // 触发一次归档确认框（已完成的任务）：文字在框里也只是文字
+  await act(page, 'del', 't:t-px1x1').click();
+  await readConfirm(page);
+  expect(await readInjection(page), '归档确认框：有脚本执行或多出了元素').toEqual(clean);
+  expect(
+    await page.evaluate((t) => (document.querySelector('#cf-body p')?.textContent ?? '').includes(t.slice(0, 20)), t0),
+  ).toBe(true);
+  await confirmCancel(page);
+
+  // 直接移除（没有进度的任务）的 toast 也一样
+  await act(page, 'del', 't:t-px1x2').click();
+  expect(await readInjection(page), '移除 toast：有脚本执行或多出了元素').toEqual(clean);
+});
+
+test('PLAN-02 after editing the plan an exported backup imports back with every task progress on the right task', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('rt', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('rt'), plan, login: 0 });
+
+  // 编辑计划：新增一个组和任务，把新组上移到第 1 位，保存
+  await openEditor(page);
+  await act(page, 'addgroup').click();
+  let ed = await readEditor(page);
+  const gKey = ed.groups[2].key;
+  await field(page, `${gKey}:name`).fill('SYNTH-rt new group');
+  await card(page, gKey).locator('[data-peact="addtask"]').click();
+  ed = await readEditor(page);
+  const tKey = ed.groups[2].taskKeys[0];
+  const tid = tKey.slice(2);
+  await field(page, `${tKey}:text`).fill('SYNTH-rt new task');
+  await act(page, 'up', gKey).click();
+  await act(page, 'up', gKey).click();
+  expect((await readEditor(page)).groups[0].key).toBe(gKey);
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.[0]?.id, { message: '等待新计划上传' }).toBe(gKey.slice(2));
+
+  // 目标页勾选新任务，等服务器拿到进度
+  await gotoGoals(page);
+  const box = page.locator(`#goals [data-task="${tid}"]`);
+  await box.check();
+  await expect.poll(() => app.fake.lastState(0)?.tasks?.[tid]?.done === true, { message: '等待进度上传' }).toBe(true);
+
+  // 下载 JSON 备份；再取消勾选；导入刚才的文件并确认
+  const backup = await downloadOf(page, () => page.locator('#exportJson').click());
+  await box.uncheck();
+  await expect.poll(() => app.fake.lastState(0)?.tasks?.[tid]?.done === true, { message: '等待取消勾选上传' }).toBe(false);
+  await chooseImportFile(page, textImportFile('synth-roundtrip.json', backup.text));
+  await readConfirm(page);
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+
+  // 新任务又是已完成、仍在新组里（P1），服务器 state 里它的进度键在，计划里它还在新组下
+  await expect(page.locator(`#goals [data-task="${tid}"]`)).toBeChecked();
+  const groups = await readGroups(page);
+  expect(groups[0].taskIds).toEqual([tid]);
+  expect(groups[0].doneIds).toEqual([tid]);
+  expect((await readGroupIds(page))[0]).toBe(gKey.slice(2));
+  await expect.poll(() => app.fake.lastState(0)?.tasks?.[tid]?.done === true, { message: '等待导入后的进度上传' }).toBe(true);
+  expect(app.fake.lastPlan(0).groups[0].tasks[0].id).toBe(tid);
 });

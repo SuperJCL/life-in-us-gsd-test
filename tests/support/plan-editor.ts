@@ -51,7 +51,10 @@ export type EditorRead = {
   saveDisabled: boolean;
   saveAriaDisabled: boolean;
   saveBusy: boolean;
-  groups: Array<{ key: string; no: string; expanded: boolean; cat: string; taskKeys: string[] }>;
+  groups: Array<{ key: string; no: string; expanded: boolean; cat: string; taskKeys: string[]; bad: string }>;
+  // 显示中的错误：字段键和错误文字（界面文案，不是计划文字）
+  errors: Array<{ key: string; text: string }>;
+  addGroupDisabled: boolean;
 };
 
 // 一次 page.evaluate 读回编辑页的状态：只有 hash、界面文案、布尔、编号和键，不读计划文字
@@ -76,7 +79,14 @@ export async function readEditor(page: Page): Promise<EditorRead> {
         cat: c.querySelector('.seg [aria-pressed="true"]')?.getAttribute('data-pecat') ?? '',
         // 任务行的键 t:<tid>（按页面顺序，不含任务文字）
         taskKeys: Array.from(c.querySelectorAll('.pe-row [data-pefield]')).map((i) => (i.getAttribute('data-pefield') ?? '').replace(/:text$/, '')),
+        // 卡片头的「有 n 处要改」（没有显示时为空串）
+        bad: ((b) => (b && !b.hidden ? (b.textContent ?? '') : ''))(c.querySelector<HTMLElement>('.pe-bad')),
       })),
+      errors: Array.from(document.querySelectorAll('#pe-main [data-pefield][aria-invalid="true"]')).map((f) => {
+        const id = (f.getAttribute('aria-describedby') ?? '').split(' ')[0];
+        return { key: f.getAttribute('data-pefield') ?? '', text: document.getElementById(id)?.textContent ?? '' };
+      }),
+      addGroupDisabled: !!document.querySelector<HTMLButtonElement>('#pe-main [data-peact="addgroup"]')?.disabled,
     };
   });
 }

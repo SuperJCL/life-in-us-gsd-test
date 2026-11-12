@@ -7,7 +7,7 @@ import { loadAppPure } from '../../support/app-source';
 import { CAT_LANGUAGE } from '../../support/strings';
 import { BUILTIN_GROUP_SIZES } from '../../support/task-ids';
 
-const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE'] as const;
+const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX'] as const;
 const TOTAL_BUILTIN = Object.values(BUILTIN_GROUP_SIZES).reduce((a, b) => a + b, 0);
 const BUILTIN_IDS = Object.entries(BUILTIN_GROUP_SIZES).flatMap(([code, size]) =>
   Array.from({ length: size }, (_, i) => `${code}-${i + 1}`),
@@ -217,4 +217,40 @@ test('PLAN-02 normalizePlan keeps accepting any finite lift start value and any 
     mutate(p);
     expect(normalizePlan(p), `变体应当被拒绝：${name}`).toBeNull();
   }
+});
+
+test('PLAN-02 planProblems reports empty names and texts of groups and tasks in use and ignores archived ones (D-17)', async () => {
+  const { DEFAULT_PLAN, planProblems, PLAN_MAX } = loadAppPure(NAMES);
+  const base = (): any => JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const problems = (p: unknown) => plain(planProblems(p));
+
+  // 示例计划没有问题
+  expect(problems(base()), 'DEFAULT_PLAN 不应报问题').toEqual([]);
+
+  // 未归档的组名只有空白、未归档的任务文字为空：按页面顺序报两项，键是 g:<id>:name、t:<id>:text，代码 gname、ttext
+  const p = base();
+  p.groups[0].name = '  ';
+  p.groups[1].tasks[0].text = '';
+  expect(problems(p), '空组名和空任务文字都应报出').toEqual([
+    { key: `g:${p.groups[0].id}:name`, code: 'gname' },
+    { key: `t:${p.groups[1].tasks[0].id}:text`, code: 'ttext' },
+  ]);
+
+  // 只有空白的任务文字也算空；有内容的（含首尾空格）不报
+  const q = base();
+  q.groups[0].tasks[0].text = ' 	 ';
+  q.groups[0].tasks[1].text = ' x ';
+  expect(problems(q), '只有空白的文字应报出，有内容的不报').toEqual([{ key: `t:${q.groups[0].tasks[0].id}:text`, code: 'ttext' }]);
+
+  // 归档的组（名称空、任务空）和归档的任务（文字空）不报
+  const a = base();
+  a.groups[2].archived = true;
+  a.groups[2].name = '';
+  a.groups[2].tasks[0].text = '';
+  a.groups[3].tasks[0].archived = true;
+  a.groups[3].tasks[0].text = '';
+  expect(problems(a), '归档的组和任务不应报问题').toEqual([]);
+
+  // 各项上限
+  expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 8, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
 });
