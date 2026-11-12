@@ -1630,11 +1630,11 @@ function applyImport(b){
   remoteView=false;hideBar("remote");
   const pv=importPreview(b,state);
   /* a plan-only file is read under the state taken in just now: if that no longer fits, nothing is changed (the taken-in remote version is already shown) */
-  if(tooLarge(pv)){renderKeep();toast(T_IMP_TOO_LARGE,null,4000);return}
+  if(tooLarge(pv)){renderKeep();if(pe)peRemote();toast(T_IMP_TOO_LARGE,null,4000);return}
   /* the data before the import is kept on this device first (D-04): a copy that cannot be written means no import at all, and nothing has been changed yet. A waiting remote version was taken in above, so the copy holds it too (it stays on the server after an undo).
      after is the fingerprint of the plan and records this import produces (the file's plan read through withPlan, else the working plan) */
   const urec={at:new Date().toISOString(),plan:undoPlanData(),state:JSON.parse(JSON.stringify(state)),after:pv.plan?withPlan(pv.plan,()=>dataPrint(plan,pv.state)):dataPrint(plan,pv.state)};
-  try{localStorage.setItem(undoKey(),JSON.stringify(urec))}catch(e){renderKeep();toast(T_IMP_NO_UNDO,null,6000);return}
+  try{localStorage.setItem(undoKey(),JSON.stringify(urec))}catch(e){renderKeep();if(pe)peRemote();toast(T_IMP_NO_UNDO,null,6000);return}
   let planCached=true;
   if(pv.plan&&docs.plan){
     usePlan(pv.plan);keepOrphans=false;
@@ -1648,7 +1648,7 @@ function applyImport(b){
   if(!planCached)cacheNote(false);
   undoShow();
   renderKeep();
-  toast(T_IMPORTED,{label:T_UNDO_BTN,fn:undoImport},8000);
+  if(pe)peRemote();toast(T_IMPORTED,{label:T_UNDO_BTN,fn:undoImport},8000);
 }
 /* the account's plan data as it is kept on this device: the plan cache when readable, else the working plan (the same expression on both sides of an import and its undo) */
 function undoPlanData(){const pc=cacheGet("plan");return pc&&isObj(pc.data)?pc.data:plan}
@@ -1660,7 +1660,7 @@ async function undoImport(){
   let rec=undoGet();
   if(!rec){undoShow();return}
   if(!me||document.body.dataset.gate)return;
-  const ep=sessionEpoch,fold=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}};
+  const ep=sessionEpoch,fold=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep();if(pe)peRemote()}};
   fold();
   let seen=dataPrint(plan,state);
   if(seen!==rec.after){
@@ -1689,7 +1689,7 @@ async function undoImport(){
   try{localStorage.removeItem(undoKey())}catch(e){}
   undoShow();
   renderKeep();
-  toast(T_UNDONE,null,4000);
+  if(pe)peRemote();toast(T_UNDONE,null,4000);
 }
 /* ---------- remote updates (SYNC-02, SYNC-03) ---------- */
 /* the pull is the baseline: every POLL_MS while the page is visible, at once when the page becomes visible again, when the browser comes back online and when a retry is due; all go through requestSync, one sync at a time */
@@ -1878,7 +1878,7 @@ function applyView(fromCommit){
   if(!remoteView)return;
   /* an uncommitted weekly review is committed first by the same rule as its debounce; that commit takes the waiting version in and applies it, so there is nothing left to do here */
   if(rvPending&&rvJob){clearTimeout(rvT);rvJob();if(!remoteView)return}
-  takeRemote();remoteView=false;renderKeep();hideBar("remote");
+  takeRemote();remoteView=false;renderKeep();hideBar("remote");if(pe)peRemote();
   const note=()=>{if(!(syncing&&cfShown))toast(T_REMOTE_DONE,null,4000)};
   if(fromCommit)queueMicrotask(note);else note();
 }
@@ -2283,12 +2283,12 @@ function showTab(k){
   ["wk","cal","goal","tl","plan"].forEach(x=>$("tab-"+x).classList.toggle("hidden",x!==k));
 }
 function planDirty(){return !!pe&&canon(pe.draft)!==pe.orig}
-/* D-07：编辑期间别的设备（或同一浏览器的另一个标签页）保存了计划。判断用打开时记下的版本 pe.base（docs.plan.base 会被挂起槽前移），并且内容要和打开时不同（本机上一次保存的回声、对方存了同样的内容都不算）；现在的计划 = 挂起槽里的计划（读不出来按示例计划）或工作计划。草稿从不被改 */
+/* D-07：编辑期间别的设备（或同一浏览器的另一个标签页）保存了计划。判断只比较内容：现在的计划要和打开时的 pe.orig 不同（对方存了同样的内容不算；编辑页开着时本机的恢复、撤销导入换掉计划也算，CR-02，所以不能看 docs.plan.base，导入不会前移它）；现在的计划 = 挂起槽里的计划（读不出来按示例计划）或工作计划。草稿从不被改 */
 const T_PE_NOTICE="计划在别的设备上改过了。你的草稿没有变，点「保存计划」时可以选择怎么处理。",T_PE_HINT_REMOTE="计划在别的设备上改过了";
 const T_PE_CF_TITLE="计划在别的设备上改过了",T_PE_CF_L1="你打开编辑页之后，别的设备保存了新的计划。",T_PE_CF_L2="用我的覆盖：保存你现在这份草稿；别的设备上的那一版会在本机留一份，可以下载。",T_PE_CF_L3="放弃我的修改，用新版：丢掉你的草稿，改用别的设备上的新计划。",T_PE_CF_L4="回去继续改：回到编辑页，什么都不变。";
 const T_PE_BACK="回去继续改",T_PE_TAKE="放弃我的修改，用新版",T_PE_OVERWRITE="用我的覆盖",T_PE_SAVED_KEPT="计划已保存，别的设备上的那一版已在本机留底",T_PE_TAKEN="已改用别的设备上的新计划，你的修改没有保存";
 function peNow(){const ps=pendRemote.plan;return ps?(normalizePlan(ps.data)||normalizePlan(DEFAULT_PLAN)):plan}
-function peChanged(){return !!pe&&!!docs.plan&&docs.plan.base!==pe.base&&canon(peNow())!==pe.orig}
+function peChanged(){return !!pe&&canon(peNow())!==pe.orig}
 function peRemote(){
   if(!pe)return;
   pe.remote=peChanged();

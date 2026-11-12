@@ -8,6 +8,8 @@ import { AppHarness } from '../support/app';
 import { composer } from '../support/composer';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { downloadOf } from '../support/download';
+import { planOnlyFile } from '../support/backup-files';
+import { chooseImportFile, jsonImportFile } from '../support/import-file';
 import { confirmCancel, confirmMid, confirmOk, readConfirm } from '../support/confirm';
 import { act, expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { expectToast } from '../support/toast';
@@ -21,6 +23,7 @@ import {
   BTN_PE_DELETE_ALL,
   BTN_PE_OVERWRITE,
   BTN_PE_TAKE_THEIRS,
+  BTN_UNDO_IMPORT,
   PE_CONFLICT_LINES,
   PE_CONFLICT_TITLE,
   PE_D08_INTRO,
@@ -33,10 +36,12 @@ import {
   PE_HINT_REMOTE,
   PE_HINT_TOOLARGE,
   PE_NOTICE,
+  TOAST_IMPORTED,
   TOAST_PLAN_SAVED,
   TOAST_PLAN_SAVED_KEPT,
   TOAST_PLAN_SAVED_UNREAD,
   TOAST_PLAN_TAKEN,
+  TOAST_UNDONE,
   peD08Lift,
   peD08More,
   peD08Task,
@@ -556,4 +561,83 @@ test('PLAN-04 overwriting after the account plan became unreadable during the ed
 
   // 服务器计划随后是本机的草稿（第 1 组新名称）
   await expect.poll(() => app.fake.lastPlan(0)?.groups?.[0]?.name, { message: '等待本机的计划上传' }).toBe('SYNTH-un mine');
+});
+
+test('PLAN-04 importing a plan while the editor is open shows the notice and saving asks first and keeps the imported plan (CR-02, D-07)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('ci', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('ci'), plan, login: 0 });
+  const userId = app.fake.users[0].id;
+  const imported: any = syntheticPlan('cj', 2);
+  const notice = page.locator('#pe-notice');
+
+  // 编辑页里改第 1 组的名称，然后用工具栏的「恢复」导入一份带计划的文件；计划的上传被挂起（上传成功之前 docs.plan.base 没有前移，这正是 CR-02 的窗口）
+  await openEditor(page);
+  await expand(page, 'g:g-ci1');
+  await field(page, 'g:g-ci1:name').fill('SYNTH-ci mine');
+  const hold = app.fake.fault({ method: 'PATCH', path: `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, mode: 'hold', times: 1 });
+  await chooseImportFile(page, jsonImportFile('synth-pe-import.json', planOnlyFile(imported)));
+  await readConfirm(page);
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+
+  // 提示马上出现（不用等上传成功或下一次同步），草稿不动
+  await expect.poll(() => hold.hits, { message: '等待导入的计划上传被挂起' }).toBe(1);
+  await expect(notice).toBeVisible();
+  const ed = await readEditor(page);
+  expect([ed.open, ed.hint, ed.tone]).toEqual([true, PE_HINT_REMOTE, 'warn']);
+  expect(await field(page, 'g:g-ci1:name').inputValue()).toBe('SYNTH-ci mine');
+
+  // 点保存：弹三选一（以前会静默覆盖）；用我的覆盖 → 导入的计划在本机留底，服务器计划是草稿
+  await savePlan(page);
+  const c = await readConfirm(page);
+  expect(c.title).toBe(PE_CONFLICT_TITLE);
+  await confirmOk(page);
+  await expectToast(page, TOAST_PLAN_SAVED_KEPT);
+  const snap = await snapshotOf(page, userId);
+  expect(snap?.kind).toBe('plan');
+  expect(snap?.data?.groups?.map((g: any) => g.id)).toEqual(['g-cj1', 'g-cj2']);
+  await hold.release();
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.[0]?.name, { message: '等待草稿上传' }).toBe('SYNTH-ci mine');
+});
+
+test('PLAN-04 undoing an import while the editor is open shows the notice and saving asks first (CR-02, D-07)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('cu', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('cu'), plan, login: 0 });
+  const userId = app.fake.users[0].id;
+  const imported: any = syntheticPlan('cv', 2);
+
+  // 先导入（编辑页没开），再打开编辑页、改草稿
+  await chooseImportFile(page, jsonImportFile('synth-pe-import-undo.json', planOnlyFile(imported)));
+  await readConfirm(page);
+  await confirmOk(page);
+  await expectToast(page, TOAST_IMPORTED);
+  await openEditor(page);
+  await expand(page, 'g:g-cv1');
+  await field(page, 'g:g-cv1:name').fill('SYNTH-cu mine');
+  await expect(page.locator('#pe-notice')).toBeHidden();
+  await expect.poll(() => app.fake.lastPlan(0)?.groups?.[0]?.id, { message: '等待导入的计划上传' }).toBe('g-cv1');
+
+  // 编辑页开着时撤销导入（计划的上传被挂起，base 还没前移）：计划回到导入前，提示马上出现
+  const hold = app.fake.fault({ method: 'PATCH', path: `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, mode: 'hold', times: 1 });
+  await expect(page.locator('#undoImportBtn')).toHaveText(BTN_UNDO_IMPORT);
+  await page.locator('#undoImportBtn').click();
+  await expectToast(page, TOAST_UNDONE);
+  await expect.poll(() => hold.hits, { message: '等待撤销后的计划上传被挂起' }).toBe(1);
+  await expect(page.locator('#pe-notice')).toBeVisible();
+  expect((await readEditor(page)).hint).toBe(PE_HINT_REMOTE);
+  expect(await field(page, 'g:g-cv1:name').inputValue()).toBe('SYNTH-cu mine');
+
+  // 点保存：三选一；用我的覆盖 → 被盖掉的（撤销后的）计划在本机留底
+  await savePlan(page);
+  const c = await readConfirm(page);
+  expect(c.title).toBe(PE_CONFLICT_TITLE);
+  await confirmOk(page);
+  await expectToast(page, TOAST_PLAN_SAVED_KEPT);
+  const snap = await snapshotOf(page, userId);
+  expect(snap?.kind).toBe('plan');
+  expect(snap?.data?.groups?.map((g: any) => g.id)).toEqual(['g-cu1', 'g-cu2']);
+  await hold.release();
 });
