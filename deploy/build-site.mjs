@@ -6,9 +6,16 @@
 //   node deploy/build-site.mjs [--out <目录>]   构建；缺省输出到 private/deploy-out
 //   node deploy/build-site.mjs --self-test      内存里的合成输入自检，不读 private/，不写磁盘
 //
-// 输出（目录先清空再重建）：
+// 输出（目录先清空再重建）= 完整上传包，共 32 个文件加覆盖它们的 SHA256SUMS：
 //   site/index.html                发布版页面：仓库页面加一个单独的内联小脚本，只放云端开关
+//   site/（另 8 个）               sw.js（带版本号）、清单、4 个图标、SDK 和它的校验文件
 //   server/nginx/usj-csp.conf      一行 add_header Content-Security-Policy ...（哈希就是上面这个页面里的内联块算出来的）
+//   server/（另 16 个）            deploy/server/ 下的 10 个脚本和 unit、5 个 nginx 文件、1 个 logrotate，原相对路径、原字节；
+//                                  00-status.sh 不进包（只经标准输入运行，不上传）
+//   pb_migrations/                 pb/pb_migrations/ 的 2 个加 deploy/pb_migrations/ 的 2 个，原名原字节
+//   pb_hooks/                      deploy/pb_hooks/ 的 1 个
+//   BUILD_VERSION                  外壳版本号
+//   必需的来源文件写成固定清单（BUNDLE_SOURCES），缺任何一个就失败（退出 1，只说缺哪个相对路径）。
 //
 // 为什么页面和 CSP 头要出自同一次构建：策略里放行内联脚本和样式靠 sha256 哈希，页面里的内联块只要差一个字节，
 // 浏览器就会拦下它（白屏）。构建时从最终页面的内联块算哈希并写进头文件，部署时两者一起换。
@@ -36,6 +43,34 @@ const PLACEHOLDER = '__BUILD_VERSION__';
 
 // 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
 export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
+
+// 上传包里“原样复制”的文件：[包内路径, 仓库来源路径]。固定清单，缺一个就失败；00-status.sh 不在其中。
+// usj-csp.conf、site/ 下的文件和 BUILD_VERSION 由构建生成，不在这里。
+export const BUNDLE_SOURCES = [
+  ['server/01-swap.sh', 'deploy/server/01-swap.sh'],
+  ['server/02-install-pocketbase.sh', 'deploy/server/02-install-pocketbase.sh'],
+  ['server/03-configure-pocketbase.sh', 'deploy/server/03-configure-pocketbase.sh'],
+  ['server/04-start-pocketbase.sh', 'deploy/server/04-start-pocketbase.sh'],
+  ['server/05-nginx-app.sh', 'deploy/server/05-nginx-app.sh'],
+  ['server/06-install-site.sh', 'deploy/server/06-install-site.sh'],
+  ['server/07-retire-probe.sh', 'deploy/server/07-retire-probe.sh'],
+  ['server/pb-admin.sh', 'deploy/server/pb-admin.sh'],
+  ['server/restore-drill.sh', 'deploy/server/restore-drill.sh'],
+  ['server/pocketbase.service', 'deploy/server/pocketbase.service'],
+  ['server/nginx/anchor-block.awk', 'deploy/server/nginx/anchor-block.awk'],
+  ['server/nginx/usj-app.conf', 'deploy/server/nginx/usj-app.conf'],
+  ['server/nginx/usj-headers-common.conf', 'deploy/server/nginx/usj-headers-common.conf'],
+  ['server/nginx/usj-headers-proxy.conf', 'deploy/server/nginx/usj-headers-proxy.conf'],
+  ['server/nginx/usj-log-format.conf', 'deploy/server/nginx/usj-log-format.conf'],
+  ['server/logrotate/usj-nginx', 'deploy/server/logrotate/usj-nginx'],
+  ['pb_migrations/1794096000_users_lockdown.js', 'pb/pb_migrations/1794096000_users_lockdown.js'],
+  ['pb_migrations/1794096100_journey_docs.js', 'pb/pb_migrations/1794096100_journey_docs.js'],
+  ['pb_migrations/1794096150_retire_probe.js', 'deploy/pb_migrations/1794096150_retire_probe.js'],
+  ['pb_migrations/1794096200_server_settings.js', 'deploy/pb_migrations/1794096200_server_settings.js'],
+  ['pb_hooks/backup-watch.pb.js', 'deploy/pb_hooks/backup-watch.pb.js'],
+];
+// 上传包的文件总数（不含 SHA256SUMS 自己）：站点 9 + usj-csp.conf + BUILD_VERSION + 原样复制的 21 个
+export const BUNDLE_COUNT = 32;
 
 // 脚本自己写的固定文案才会被打印；其他错误顶层只打印固定文字
 export class BuildError extends Error {}
@@ -120,7 +155,8 @@ export function sumsOf(files) {
 }
 
 // 纯函数：输入都是内存里的文本和字节，输出是 { 相对路径: 文本或字节 }；文本一律 LF
-export function buildSite({ html, sw, manifest, icons, sdk, sdkSums }) {
+// extras：{ 包内路径: 字节 }，是 BUNDLE_SOURCES 的内容；给了就必须齐全，缺清单里的任何一项就抛错（只说缺哪个路径）
+export function buildSite({ html, sw, manifest, icons, sdk, sdkSums, extras }) {
   const indexHtml = injectConfig(html);
   const scripts = inlineBlocks(indexHtml, 'script').map(cspHash);
   const styles = inlineBlocks(indexHtml, 'style').map(cspHash);
@@ -145,6 +181,13 @@ export function buildSite({ html, sw, manifest, icons, sdk, sdkSums }) {
     BUILD_VERSION: `${version}\n`,
   };
   for (const name of ICON_NAMES) files[`site/icons/${name}`] = icons[name];
+  if (extras !== undefined) {
+    for (const [dest] of BUNDLE_SOURCES) {
+      if (!Buffer.isBuffer(extras[dest])) throw new BuildError(`缺少来源文件 ${dest}`);
+      if (dest in files) throw new BuildError(`来源文件和生成文件重名 ${dest}`);
+      files[dest] = extras[dest];
+    }
+  }
   files.SHA256SUMS = sumsOf(files);
   return { indexHtml, scripts, styles, cspHeader, cspConfText, version, files };
 }
@@ -284,6 +327,24 @@ export function selfTest() {
     const want = ['BUILD_VERSION', 'SHA256SUMS', 'server/nginx/usj-csp.conf', 'site/icons/apple-touch-icon-180.png', 'site/icons/icon-192.png', 'site/icons/icon-512.png', 'site/icons/icon-maskable-512.png', 'site/index.html', 'site/manifest.webmanifest', 'site/sw.js', 'site/vendor/SHA256SUMS', 'site/vendor/pocketbase.iife.js'];
     return names.join() === want.join();
   });
+  const synthExtras = () => Object.fromEntries(BUNDLE_SOURCES.map(([dest], i) => [dest, Buffer.from(`synth-extra-${i}`)]));
+  const full = () => buildSite(synthInputs({ extras: synthExtras() }));
+  expect('上传包：清单固定 21 个来源，00-status.sh 不在其中', () => BUNDLE_SOURCES.length === 21 && !BUNDLE_SOURCES.some(([d, s]) => d.includes('00-status') || s.includes('00-status')));
+  expect('上传包：文件恰好 32 个加 SHA256SUMS，00-status.sh 不在其中', () => {
+    const names = Object.keys(full().files);
+    return names.length === BUNDLE_COUNT + 1 && names.includes('SHA256SUMS') && !names.some((n) => n.includes('00-status')) && names.includes('server/nginx/usj-csp.conf') && names.includes('pb_hooks/backup-watch.pb.js');
+  });
+  expect('上传包：SHA256SUMS 恰好 32 行，每行都对得上文件字节', () => {
+    const b = full();
+    const lines = b.files.SHA256SUMS.trimEnd().split('\n');
+    return lines.length === BUNDLE_COUNT && lines.every((l) => sha256Hex(bytes(b.files[l.slice(66)])) === l.slice(0, 64));
+  });
+  expect('上传包：缺任何一个来源文件都抛错', () =>
+    BUNDLE_SOURCES.every(([dest]) => {
+      const e = synthExtras();
+      delete e[dest];
+      return throws(() => buildSite(synthInputs({ extras: e })));
+    }));
   const root = resolve(sep, 'synth-repo');
   expect('checkOutDir：仓库外、仓库根、deploy、test-results 本身、.. 都拒绝', () =>
     [resolve(sep, 'synth-elsewhere'), root, join(root, 'deploy'), join(root, 'test-results'), join(root, 'test-results', '..', 'deploy')].every((d) => throws(() => checkOutDir(d, root))));
@@ -298,6 +359,19 @@ export function selfTest() {
 
 // ---------- CLI ----------
 
+// 读固定清单里的来源文件；缺哪个就只说哪个路径
+function loadExtras(read) {
+  const extras = {};
+  for (const [dest, src] of BUNDLE_SOURCES) {
+    try {
+      extras[dest] = read(src);
+    } catch {
+      throw new BuildError(`缺少来源文件 ${src}`);
+    }
+  }
+  return extras;
+}
+
 function run(opts) {
   const rel = checkOutDir(resolve(opts.out), ROOT);
   const out = resolve(ROOT, rel);
@@ -310,6 +384,7 @@ function run(opts) {
     icons,
     sdk: read(`${SDK_DIR}/${SDK_FILE}`),
     sdkSums: read(`${SDK_DIR}/SHA256SUMS`).toString('utf8'),
+    extras: loadExtras(read),
   });
   rmSync(out, { recursive: true, force: true });
   for (const [name, data] of Object.entries(built.files)) {
