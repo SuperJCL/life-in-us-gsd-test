@@ -551,3 +551,14 @@ export const peBadCount = (n: number) => `有 ${n} 处要改`;
 export const peHintErrors = (n: number) => `有 ${n} 处需要修改，已标在对应位置`;
 export const PE_LIMIT_GROUPS = '最多 20 个';
 export const PE_LIMIT_TASKS = '最多 50 项';
+
+// Phase 12-05 Task 1：编辑页的健身分区（应用里 T_PE_FIT_TITLE、T_PE_FIT_GOAL_TITLE、T_PE_FIT_MIN、T_PE_FIT_MAX、T_PE_FIT_NOTE、T_PE_LIFTS_TITLE、T_PE_ADD_LIFT、T_PE_UNIT_EXAMPLE，逐字相同）和本周健身目标行（应用 renderWeek 里的模板）
+export const PE_FIT_TITLE = '健身';
+export const PE_FIT_GOAL_TITLE = '每周健身目标';
+export const PE_FIT_MIN = '最少';
+export const PE_FIT_MAX = '最多';
+export const PE_FIT_NOTE = '健身说明';
+export const PE_LIFTS_TITLE = '力量项';
+export const BTN_ADD_LIFT = '＋ 添加力量项';
+export const PE_UNIT_EXAMPLE = '例如 kg、次';
+export const weekFitGoalLine = (d: number, a: number, b: number) => `训练 ${d} 天，目标 ${a}～${b} 天`;

@@ -252,6 +252,13 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 .pe-cnt{display:block;text-align:right;font-size:12px;color:var(--muted)}
 .pe-row .pe-cnt,.pe-row .pe-err{grid-column:2 / -1}
 .pe-lim{margin-left:8px}
+#tab-plan .panel h4.pe-panel-t{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0 0 12px}
+.pe-fit{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}
+.pe-fitf{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.pe-fitf .pe-in{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+#tab-plan .pe-fitf input{width:96px}
+.pe-fitf .pe-err{grid-column:auto;max-width:200px}
+.pe-eg{font-size:12px;color:var(--muted)}
 .panel.pe-empty{padding:24px}
 .panel.pe-empty h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0 0 8px}
 .pe-empty p{font-size:14px;margin:0 0 16px}
@@ -2214,6 +2221,7 @@ const T_PE_ARCH_NO="不归档",T_PE_ARCH_TASK_TITLE="归档这个任务？",T_PE
 const T_PE_ARCH_TASK_BODY="归档后它会变灰，放到目标页底部的「已归档」里，不能再勾选；日历和时间线里的完成记录照常显示。",T_PE_ARCH_DUE_NOTE="它在日历上的截止提醒也会先隐藏，恢复后回来。",T_PE_ARCH_GROUP_BODY="整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。",T_PE_ARCH_RESTORE="可以在编辑页的「已归档」里恢复。点「保存计划」后生效。";
 const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容"},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
 const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要修改，已标在对应位置";
+const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2271,8 +2279,8 @@ function peSay(t){$("pe-live").textContent=t}
 /* 字数计数：达到阈值才显示 {n}/{上限}（aria-hidden：上限由 maxlength 保证，不让计数混进字段的名字），input 时就地更新 */
 function peCnt(id,len,th,max){return `<span class="pe-cnt" id="pe-c-${esc(id)}" aria-hidden="true"${len>=th?"":" hidden"}>${len}/${max}</span>`}
 function peCount(f){
-  const k=f.dataset.pefield.split(":")[2],th=k==="name"?32:160,mx=k==="name"?PLAN_MAX.name:PLAN_MAX.text,el=$(f.id.replace("pe-f-","pe-c-"));
-  if(!el)return;
+  const mx=f.maxLength,th=mx<=40?32:160,el=$(f.id.replace("pe-f-","pe-c-"));
+  if(!el||mx<0)return;
   el.hidden=f.value.length<th;el.textContent=f.value.length+"/"+mx;
 }
 /* 校验提示（S6）：字段键在 pe.seen（失去过焦点）里或点过保存（pe.tried）才显示；显示时字段 aria-invalid、错误段落可见，输入变合法立刻消失；卡片头部 .pe-bad 写这张卡里显示中的错误数 */
@@ -2289,7 +2297,7 @@ function peShowErrors(){
     if(b){b.hidden=!n;b.textContent=n?T_PE_BAD(n):""}
   });
 }
-function peFid(key){const p=key.split(":");return "pe-f-"+p[0]+"-"+p[1]+"-"+p[2]}
+function peFid(key){return "pe-f-"+key.split(":").join("-")}
 function peRows(g){
   const ts=g.tasks.filter(t=>!t.archived);
   if(!ts.length)return `<p class="empty">${T_PE_TASKS_EMPTY}</p>`;
@@ -2312,7 +2320,7 @@ function renderPlanEditor(){
     <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
 ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
     <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`;
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML();
   peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
@@ -2328,12 +2336,13 @@ peRoot.addEventListener("click",e=>{
   else if(a==="cat"){const g=peGroup(k.slice(2));if(g&&hasCat(t.dataset.pecat)){g.cat=t.dataset.pecat;renderPlanEditor();peBar()}}
   else if(a==="addgroup")peAddGroup();
   else if(a==="addtask")peAddTask(k.slice(2));
+  else if(a==="addlift")peAddLift();
   else if(a==="up"||a==="down")peMove(k,a==="up"?-1:1);
   else if(a==="del")peDelete("task",k.slice(2));
   else if(a==="delgroup")peDelete("group",k.slice(2));
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
-function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
+function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.draft.lifts.forEach(l=>u.add(l.id));pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
 function peFocus(id){const f=$(id);if(f){f.focus();try{f.scrollIntoView({block:"center"})}catch(x){}}}
 function peAddGroup(){
   const u=peUsedIds();let id;do{id="g-"+uid()}while(u.has(id));
@@ -2346,8 +2355,35 @@ function peAddTask(gid){
   g.tasks.push({id,text:""});
   renderPlanEditor();peBar();peFocus("pe-f-t-"+id+"-text");
 }
+function peLift(id){return pe.draft.lifts.find(l=>l.id===id)||null}
+/* 数字输入框写回草稿：空串存空串（保存前的检查会要求填写），否则存 Number(值)，不取整 */
+const peNum=v=>v===""?"":Number(v);
+function peAddLift(){
+  const u=peUsedIds();let id;do{id="l-"+uid()}while(u.has(id));
+  pe.draft.lifts.push({id,n:"",unit:"",def:0,target:"",note:""});
+  pe.open.add("l:"+id);renderPlanEditor();peBar();peFocus("pe-f-l-"+id+"-n");peSay(T_PE_LIVE_ADDED_LIFT);
+}
+/* 健身分区（S5）：每周健身目标面板（不折叠）和力量项折叠卡；力量项卡左边框用 --c-fit（.k-fit），头部摘要「{目标值} {单位}」 */
+const peLiftSum=L=>((L.target===""||L.target===undefined?"":String(L.target))+" "+L.unit).trim();
+function peLiftCard(L){
+  const key="l:"+L.id,open=pe.open.has(key),i=esc(L.id);
+  return `<div class="pe-card k-fit" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-l-${i}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-name" id="pe-n-l-${i}" title="${esc(L.n)}">${esc(L.n||T_PE_UNNAMED)}</span></button><span class="pe-sum" id="pe-s-l-${i}">${esc(peLiftSum(L))}</span><span class="pe-bad" hidden></span></div>
+    <div class="pe-body" id="pe-b-l-${i}" role="group" aria-labelledby="pe-n-l-${i}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-l-${i}-n" data-pefield="l:${i}:n" maxlength="${PLAN_MAX.name}" value="${esc(L.n)}" aria-describedby="pe-e-l-${i}-n">${peCnt("l-"+L.id+"-n",L.n.length,32,PLAN_MAX.name)}</label><p class="pe-err" id="pe-e-l-${i}-n" hidden></p>
+    <label class="f">${T_PE_LIFT_UNIT}<input type="text" id="pe-f-l-${i}-unit" data-pefield="l:${i}:unit" maxlength="${PLAN_MAX.unit}" value="${esc(L.unit)}" aria-describedby="pe-e-l-${i}-unit"><span class="pe-eg">${T_PE_UNIT_EXAMPLE}</span></label><p class="pe-err" id="pe-e-l-${i}-unit" hidden></p>
+    <label class="f">${T_PE_LIFT_TARGET}<input type="number" id="pe-f-l-${i}-target" data-pefield="l:${i}:target" inputmode="decimal" min="0" step="any" value="${esc(L.target)}" aria-describedby="pe-e-l-${i}-target"></label><p class="pe-err" id="pe-e-l-${i}-target" hidden></p>
+    <label class="f">${T_PE_LIFT_DEF}<input type="number" id="pe-f-l-${i}-def" data-pefield="l:${i}:def" inputmode="decimal" min="0" step="any" value="${esc(L.def)}" aria-describedby="pe-e-l-${i}-def"></label><p class="pe-err" id="pe-e-l-${i}-def" hidden></p>
+    <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-l-${i}-note" data-pefield="l:${i}:note" maxlength="${PLAN_MAX.note}" rows="3">\n${esc(L.note||"")}</textarea>${peCnt("l-"+L.id+"-note",(L.note||"").length,160,PLAN_MAX.note)}</label></div></div>`;
+}
+function peFitHTML(){
+  const d=pe.draft,ls=d.lifts.filter(l=>!l.archived);
+  return `<section class="pe-sec" aria-labelledby="pe-h-fit"><h3 id="pe-h-fit">${T_PE_FIT_TITLE}</h3><div class="panel"><h4 class="pe-panel-t">${T_PE_FIT_GOAL_TITLE}</h4><div class="pe-fit">
+    <div class="pe-fitf"><label for="pe-f-fit-min">${T_PE_FIT_MIN}</label><div class="pe-in"><input type="number" id="pe-f-fit-min" data-pefield="fit:min" inputmode="numeric" min="0" max="7" step="1" value="${esc(d.fitGoal[0])}" aria-describedby="pe-e-fit-min"><span>${T_PE_DAY_UNIT}</span></div><p class="pe-err" id="pe-e-fit-min" hidden></p></div>
+    <div class="pe-fitf"><label for="pe-f-fit-max">${T_PE_FIT_MAX}</label><div class="pe-in"><input type="number" id="pe-f-fit-max" data-pefield="fit:max" inputmode="numeric" min="0" max="7" step="1" value="${esc(d.fitGoal[1])}" aria-describedby="pe-e-fit-max"><span>${T_PE_DAY_UNIT}</span></div><p class="pe-err" id="pe-e-fit-max" hidden></p></div></div>
+    <label class="f">${T_PE_FIT_NOTE}<textarea id="pe-f-fit-note" data-pefield="fit:note" maxlength="${PLAN_MAX.note}" rows="3">\n${esc(d.fitNote||"")}</textarea>${peCnt("fit-note",(d.fitNote||"").length,160,PLAN_MAX.note)}</label></div>
+    <h4 class="pe-sub">${T_PE_LIFTS_TITLE}<span class="pe-count">${ls.length}/${PLAN_MAX.lifts}</span></h4>${ls.map(peLiftCard).join("")}<button type="button" class="ghost pe-add" data-peact="addlift">${T_PE_ADD_LIFT}</button></section>`;
+}
 /* 上移、下移（S3、S4）：只在同一个列表里，与最近的未归档邻居交换数组位置（归档项原地不动，不跨组），不改任何 id；焦点留在同一个按钮，到顶或到底变 disabled 时改到同一行的另一个排序按钮，再没有就到输入框（组卡折叠着就到开关）；不弹 toast，读屏区写一句 */
-const peName=x=>x.name!==undefined?x.name||T_PE_UNNAMED:x.text||T_PE_UNNAMED;
+const peName=x=>x.name!==undefined?x.name||T_PE_UNNAMED:x.n!==undefined?x.n||T_PE_UNNAMED:x.text||T_PE_UNNAMED;
 function peList(kind,id){
   if(kind==="group")return {list:pe.draft.groups,parent:null};
   const g=pe.draft.groups.find(x=>x.tasks.some(t=>t.id===id));
@@ -2440,6 +2476,15 @@ peRoot.addEventListener("input",e=>{
     t.text=e.target.value;
     const li=e.target.closest(".pe-row");
     if(li)li.querySelectorAll("[aria-label]").forEach(b=>b.setAttribute("aria-label",b.getAttribute("aria-label").split("：")[0]+"："+(t.text||T_PE_UNNAMED)));
+  }else if(p[0]==="fit"){
+    if(p[1]==="note")pe.draft.fitNote=e.target.value;else pe.draft.fitGoal[p[1]==="min"?0:1]=peNum(e.target.value);
+  }else if(p[0]==="l"){
+    const L=peLift(p[1]);if(!L)return;
+    if(p[2]==="target"||p[2]==="def")L[p[2]]=peNum(e.target.value);else L[p[2]]=e.target.value;
+    const card=e.target.closest(".pe-card"),nm=card&&card.querySelector(".pe-name"),sm=card&&card.querySelector(".pe-sum");
+    if(nm){nm.textContent=L.n||T_PE_UNNAMED;nm.title=L.n}
+    if(sm)sm.textContent=peLiftSum(L);
+    if(card)card.querySelectorAll(".pe-card-h [aria-label]").forEach(b=>b.setAttribute("aria-label",b.getAttribute("aria-label").split("：")[0]+"："+(L.n||T_PE_UNNAMED)));
   }
   peCount(e.target);peShowErrors();peBar();
 });
