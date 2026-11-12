@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
+import { SHELL_PATHS } from '../../support/constants';
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const siteDir = path.join(repoRoot, 'deploy', 'site');
@@ -53,4 +54,26 @@ test('OPS-04 the web app manifest names the app and lists 192, 512 and maskable 
     expect(header.height, `${src} 的高`).toBe(size);
     expect(header.colorType, `${src} 的颜色类型`).toBe(2);
   }
+});
+
+test('OPS-04 the page links the manifest, the icons, the theme color and noindex, and the Service Worker precaches exactly the shell', () => {
+  const html = readFileSync(path.join(repoRoot, 'us-journey-tracker.html'), 'utf8');
+  const count = (needle: string) => html.split(needle).length - 1;
+
+  // 页面 head 的五个标签各恰好一个
+  expect(count('<link rel="manifest" href="/manifest.webmanifest">')).toBe(1);
+  expect(count('<link rel="icon" href="/icons/icon-192.png">')).toBe(1);
+  expect(count('<link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">')).toBe(1);
+  expect(count('<meta name="theme-color" content="#1B2740">')).toBe(1);
+  expect(count('<meta name="robots" content="noindex,nofollow">')).toBe(1);
+
+  // sw.js 里 SHELL 数组的路径集合恰好等于测试里的 SHELL_PATHS
+  const sw = readFileSync(path.join(siteDir, 'sw.js'), 'utf8');
+  const match = sw.match(/const SHELL\s*=\s*\[([^\]]*)\]/);
+  expect(match, 'sw.js 里找不到 SHELL 数组').not.toBeNull();
+  const shell = match![1]
+    .split(',')
+    .map((item) => item.trim().replace(/^['"]|['"]$/g, ''))
+    .filter((item) => item.length > 0);
+  expect([...shell].sort()).toEqual([...SHELL_PATHS].sort());
 });
