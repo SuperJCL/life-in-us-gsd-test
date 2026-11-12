@@ -575,3 +575,13 @@ export const PE_DEL_LIFT = '删除这个力量项';
 export const PE_ARCH_LIFT_TITLE = '归档这个力量项？';
 export const PE_ARCH_LIFT_BODY = '归档后目标页只读显示它的历史，不能再记录新的重量。';
 export const BTN_PE_ARCH_LIFT = '归档力量项';
+
+// Phase 12-05 Task 3：基础预设标签分区和标签的校验错误（应用里 T_PE_PRESETS_TITLE、T_PE_PRESETS_NOTE、T_PE_PRESETS_EMPTY、T_PE_ADD_TAG、T_PE_LIM_TAGS、T_PE_TAG_COUNT、PE_ERR 的 tag 与 tagdup，逐字相同）
+export const PE_PRESETS_TITLE = '基础预设标签';
+export const PE_PRESETS_NOTE = '这里改的是基础标签。在「记一笔」里自己加的标签、隐藏的标签不受影响。';
+export const PE_PRESETS_EMPTY = '这个类别还没有基础标签。';
+export const BTN_ADD_TAG = '＋ 添加标签';
+export const pePresetCount = (n: number) => `${n} 个标签`;
+export const PE_ERR_TAG_EMPTY = '请填写标签内容';
+export const PE_ERR_TAG_DUP = '这个分类里已经有这个标签了';
+export const PE_LIMIT_TAGS = '最多 20 个';

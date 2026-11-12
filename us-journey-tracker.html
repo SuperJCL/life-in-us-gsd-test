@@ -259,6 +259,7 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 #tab-plan .pe-fitf input{width:96px}
 .pe-fitf .pe-err{grid-column:auto;max-width:200px}
 .pe-eg{font-size:12px;color:var(--muted)}
+.pe-note{font-size:12px;color:var(--muted);margin:0 0 12px}
 .panel.pe-empty{padding:24px}
 .panel.pe-empty h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0 0 8px}
 .pe-empty p{font-size:14px;margin:0 0 16px}
@@ -794,6 +795,14 @@ function planProblems(p){
     if(!String(L.unit).trim())out.push({key:k+"unit",code:"lunit"});
     if(!(fin(L.target)&&L.target>0))out.push({key:k+"target",code:"ltarget"});
     if(!(fin(L.def)&&L.def>=0))out.push({key:k+"def",code:"ldef"});
+  });
+  /* 基础预设标签（每个类别按页面顺序）：trim 后为空报 tag；trim 后与同类别前面某个标签相等（区分大小写）报 tagdup，标在后出现的那一行。键 p:<类别键>:<下标> */
+  CATS.forEach(C=>{
+    const seen=new Set();
+    ((p.presets&&p.presets[C.k])||[]).forEach((x,i)=>{
+      const v=String(x).trim(),key="p:"+C.k+":"+i;
+      if(!v)out.push({key,code:"tag"});else if(seen.has(v))out.push({key,code:"tagdup"});else seen.add(v);
+    });
   });
   return out;
 }
@@ -1946,7 +1955,7 @@ function addLog(date,cat,text){const id=uid(),rec={id,date,text,cat};commit(["lo
 const compEdit={},compAdding={};
 function pstateOf(s,cat){const v=s.presets[cat]||{};return {add:Array.isArray(v.add)?v.add:[],hide:Array.isArray(v.hide)?v.hide:[]}}
 function pstate(cat){return pstateOf(state,cat)}
-function presetsFor(cat){const C=CATS.find(c=>c.n===cat),s=pstate(cat);return (plan.presets[C.k]||[]).filter(x=>!s.hide.includes(x)).concat(s.add)}
+function presetsFor(cat){const C=CATS.find(c=>c.n===cat),s=pstate(cat);return (plan.presets[C.k]||[]).filter(x=>!s.hide.includes(x)).concat(s.add).filter((x,i,a)=>a.indexOf(x)===i)}
 const fills=x=>/[：:]$/.test(x);
 function presetsHTML(p,C){
   const list=presetsFor(C.n),ed=!!compEdit[p];
@@ -2237,10 +2246,11 @@ const T_PE_UP="上移",T_PE_DOWN="下移",T_PE_DEL="删除",T_PE_DEL_GROUP="删�
 const T_PE_REMOVED="已从草稿移除：",T_PE_UNDO_REMOVE="撤销移除",T_PE_LIVE_RESTORED="已恢复：",T_PE_LIVE_ARCHIVED="已归档：";
 const T_PE_ARCH_NO="不归档",T_PE_ARCH_TASK_TITLE="归档这个任务？",T_PE_ARCH_TASK_YES="归档任务",T_PE_ARCH_GROUP_TITLE="归档这个目标组？",T_PE_ARCH_GROUP_YES="归档目标组";
 const T_PE_ARCH_TASK_BODY="归档后它会变灰，放到目标页底部的「已归档」里，不能再勾选；日历和时间线里的完成记录照常显示。",T_PE_ARCH_DUE_NOTE="它在日历上的截止提醒也会先隐藏，恢复后回来。",T_PE_ARCH_GROUP_BODY="整组会变灰，放到目标页底部的「已归档」里，自定义待办跟着一起归档；日历和时间线里的完成记录照常显示。",T_PE_ARCH_RESTORE="可以在编辑页的「已归档」里恢复。点「保存计划」后生效。";
-const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容",lname:"请填写力量项名称",lunit:"请填写单位",ltarget:"目标值要大于 0",ldef:"起始值不能小于 0",fitint:"请填 0 到 7 之间的整数",fitorder:"最少天数不能大于最多天数"},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
+const PE_ERR={gname:"请填写目标组名称",ttext:"请填写任务内容",lname:"请填写力量项名称",lunit:"请填写单位",ltarget:"目标值要大于 0",ldef:"起始值不能小于 0",fitint:"请填 0 到 7 之间的整数",fitorder:"最少天数不能大于最多天数",tag:"请填写标签内容",tagdup:"这个分类里已经有这个标签了"},T_PE_LIM_GROUPS="最多 20 个",T_PE_LIM_TASKS="最多 50 项";
 const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要修改，已标在对应位置";
 const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_DEL_LIFT="删除这个力量项",T_PE_LIM_LIFTS="最多 8 个",T_PE_ARCH_LIFT_TITLE="归档这个力量项？",T_PE_ARCH_LIFT_YES="归档力量项",T_PE_ARCH_LIFT_BODY="归档后目标页只读显示它的历史，不能再记录新的重量。";
+const T_PE_PRESETS_TITLE="基础预设标签",T_PE_PRESETS_NOTE="这里改的是基础标签。在「记一笔」里自己加的标签、隐藏的标签不受影响。",T_PE_PRESETS_EMPTY="这个类别还没有基础标签。",T_PE_ADD_TAG="＋ 添加标签",T_PE_LIM_TAGS="最多 20 个",T_PE_TAG_COUNT=n=>n+" 个标签",T_PE_LABEL_TAG="标签 ",T_PE_LIVE_ADDED_TAG="已添加：新的标签";
 const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2350,7 +2360,7 @@ function renderPlanEditor(){
     <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
 ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
     <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML();
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML()+pePresetsHTML();
   peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
@@ -2367,9 +2377,10 @@ peRoot.addEventListener("click",e=>{
   else if(a==="addgroup")peAddGroup();
   else if(a==="addtask")peAddTask(k.slice(2));
   else if(a==="addlift")peAddLift();
+  else if(a==="addtag")peAddTag(k.slice(2));
   else if(a==="dellift")peDelete("lift",k.slice(2));
   else if(a==="up"||a==="down")peMove(k,a==="up"?-1:1);
-  else if(a==="del")peDelete("task",k.slice(2));
+  else if(a==="del")k.charAt(0)==="p"?peDelTag(k):peDelete("task",k.slice(2));
   else if(a==="delgroup")peDelete("group",k.slice(2));
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
@@ -2414,6 +2425,55 @@ function peFitHTML(){
     <label class="f">${T_PE_FIT_NOTE}<textarea id="pe-f-fit-note" data-pefield="fit:note" maxlength="${PLAN_MAX.note}" rows="3">\n${esc(d.fitNote||"")}</textarea>${peCnt("fit-note",(d.fitNote||"").length,160,PLAN_MAX.note)}</label></div>
     <h4 class="pe-sub">${T_PE_LIFTS_TITLE}<span class="pe-count">${ls.length}/${PLAN_MAX.lifts}</span></h4>${ls.map(peLiftCard).join("")}<button type="button" class="ghost pe-add" data-peact="addlift"${ls.length>=PLAN_MAX.lifts?" disabled":""}>${T_PE_ADD_LIFT}</button>${ls.length>=PLAN_MAX.lifts?`<span class="pe-lim">${T_PE_LIM_LIFTS}</span>`:""}</section>`;
 }
+/* 基础预设标签（S5）：五张类别卡按 CATS 的固定顺序（没有上移下移），每个标签一行；只读写 pe.draft.presets（计划里的基础列表），state.presets（用户在「记一笔」里加的、隐藏的标签）不经过这里（两层预设，路线图 Notes）。行的键 p:<类别键>:<下标>，结构变化后重画时重新编号 */
+function peTagRow(C,x,i,n){
+  const k=esc(C.k),at=esc(x||T_PE_UNNAMED);
+  return `<li class="pe-row"><span class="pe-n" aria-hidden="true">${i+1}</span><label class="sr-only" for="pe-f-p-${k}-${i}">${T_PE_LABEL_TAG}${i+1}</label><input type="text" id="pe-f-p-${k}-${i}" data-pefield="p:${k}:${i}" maxlength="${PLAN_MAX.tag}" value="${esc(x)}" aria-describedby="pe-e-p-${k}-${i}"><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="p:${k}:${i}" aria-label="上移标签：${at}"${i===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="p:${k}:${i}" aria-label="下移标签：${at}"${i===n-1?" disabled":""}>${T_PE_DOWN}</button><button type="button" class="danger" data-peact="del" data-pekey="p:${k}:${i}" aria-label="删除标签：${at}">${T_PE_DEL}</button></div><p class="pe-err" id="pe-e-p-${k}-${i}" hidden></p></li>`;
+}
+function pePresetsHTML(){
+  return `<section class="pe-sec" aria-labelledby="pe-h-presets"><h3 id="pe-h-presets">${T_PE_PRESETS_TITLE}</h3><p class="pe-note">${T_PE_PRESETS_NOTE}</p>${CATS.map(C=>{
+    const key="p:"+C.k,open=pe.open.has(key),tags=pe.draft.presets[C.k]||[],n=tags.length;
+    return `<div class="pe-card k-${C.k}" data-key="${key}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-p-${C.k}" data-peact="toggle" data-pekey="${key}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-name" id="pe-n-p-${C.k}">${esc(C.n)}</span></button><span class="pe-sum">${T_PE_TAG_COUNT(n)}</span><span class="pe-bad" hidden></span></div>
+    <div class="pe-body" id="pe-b-p-${C.k}" role="group" aria-labelledby="pe-n-p-${C.k}"${open?"":" hidden"}>${n?`<ul class="pe-rows">${tags.map((x,i)=>peTagRow(C,x,i,n)).join("")}</ul>`:`<p class="empty">${T_PE_PRESETS_EMPTY}</p>`}<button type="button" class="ghost pe-add" data-peact="addtag" data-pekey="${key}"${n>=PLAN_MAX.tags?" disabled":""}>${T_PE_ADD_TAG}</button>${n>=PLAN_MAX.tags?`<span class="pe-lim">${T_PE_LIM_TAGS}</span>`:""}</div></div>`}).join("")}</section>`;
+}
+/* 行的下标在增删、换位之后变了：pe.seen 里这一类别的 p:<类别键>:<下标> 跟着改（fn 返回新下标，负数表示丢掉），免得“失焦过”的状态落到别的行上 */
+function peSeenTag(ck,fn){const pre="p:"+ck+":",out=[];Array.from(pe.seen).forEach(x=>{if(x.startsWith(pre)){pe.seen.delete(x);const n=fn(+x.slice(pre.length));if(n>=0)out.push(pre+n)}});out.forEach(x=>pe.seen.add(x))}
+function peTagAt(key){const p=key.split(":"),l=pe.draft.presets[p[1]];return l?{ck:p[1],list:l,i:+p[2]}:null}
+function peAddTag(ck){
+  const l=pe.draft.presets[ck];if(!l||l.length>=PLAN_MAX.tags)return;
+  l.push("");pe.open.add("p:"+ck);renderPlanEditor();peBar();peFocus("pe-f-p-"+ck+"-"+(l.length-1));peSay(T_PE_LIVE_ADDED_TAG);
+}
+function peMoveTag(key,dir){
+  const r=peTagAt(key);if(!r)return;
+  const j=r.i+dir;if(j<0||j>=r.list.length)return;
+  const x=r.list[r.i];r.list[r.i]=r.list[j];r.list[j]=x;
+  peSeenTag(r.ck,n=>n===r.i?j:n===j?r.i:n);
+  renderPlanEditor();peBar();
+  peSay((dir<0?"已上移：":"已下移：")+(x||T_PE_UNNAMED)+"，现在是第 "+(j+1)+" 项，共 "+r.list.length+" 项");
+  const q=(a,i)=>document.querySelector(`#pe-main [data-peact="${a}"][data-pekey="p:${r.ck}:${i}"]`);
+  let e=q(dir<0?"up":"down",j);if(!e||e.disabled)e=q(dir<0?"down":"up",j);
+  if(!e||e.disabled)e=$("pe-f-p-"+r.ck+"-"+j);
+  if(e)e.focus();
+}
+/* 删除标签：标签没有“进度”，不走确认，直接从草稿移除，toast 带「撤销移除」（5000 ms），撤销放回原位；焦点落到下一行的输入框，没有就上一行，再没有就「＋ 添加标签」 */
+function peDelTag(key){
+  const r=peTagAt(key);if(!r||r.i>=r.list.length)return;
+  const s=pe,x=r.list[r.i],i=r.i,ck=r.ck;
+  r.list.splice(i,1);
+  peSeenTag(ck,n=>n===i?-1:n>i?n-1:n);
+  renderPlanEditor();peBar();
+  const f=r.list.length?$("pe-f-p-"+ck+"-"+Math.min(i,r.list.length-1)):document.querySelector(`#pe-main [data-peact="addtag"][data-pekey="p:${ck}"]`);
+  if(f)f.focus();
+  peSay(T_PE_REMOVED+(x||T_PE_UNNAMED));
+  toast(T_PE_REMOVED+peShort(x),{label:T_PE_UNDO_REMOVE,fn:()=>peUndoTag(s,ck,i,x)},5000);
+}
+function peUndoTag(s,ck,i,x){
+  if(pe!==s)return;
+  const l=pe.draft.presets[ck];if(!l||l.length>=PLAN_MAX.tags)return;
+  l.splice(Math.min(i,l.length),0,x);
+  peSeenTag(ck,n=>n>=i?n+1:n);
+  renderPlanEditor();peBar();peSay(T_PE_LIVE_RESTORED+(x||T_PE_UNNAMED));
+}
 /* 上移、下移（S3、S4）：只在同一个列表里，与最近的未归档邻居交换数组位置（归档项原地不动，不跨组），不改任何 id；焦点留在同一个按钮，到顶或到底变 disabled 时改到同一行的另一个排序按钮，再没有就到输入框（组卡折叠着就到开关）；不弹 toast，读屏区写一句 */
 const peName=x=>x.name!==undefined?x.name||T_PE_UNNAMED:x.n!==undefined?x.n||T_PE_UNNAMED:x.text||T_PE_UNNAMED;
 function peList(kind,id){
@@ -2423,6 +2483,7 @@ function peList(kind,id){
   return g?{list:g.tasks,parent:g.id}:null;
 }
 function peMove(key,dir){
+  if(key.charAt(0)==="p")return peMoveTag(key,dir);
   const kind=key.charAt(0)==="g"?"group":key.charAt(0)==="l"?"lift":"task",id=key.slice(2),L=peList(kind,id);if(!L)return;
   const list=L.list,i=list.findIndex(x=>x.id===id);if(i<0)return;
   let j=i+dir;while(j>=0&&j<list.length&&list[j].archived)j+=dir;
@@ -2516,6 +2577,11 @@ peRoot.addEventListener("input",e=>{
     if(li)li.querySelectorAll("[aria-label]").forEach(b=>b.setAttribute("aria-label",b.getAttribute("aria-label").split("：")[0]+"："+(t.text||T_PE_UNNAMED)));
   }else if(p[0]==="fit"){
     if(p[1]==="note")pe.draft.fitNote=e.target.value;else pe.draft.fitGoal[p[1]==="min"?0:1]=peNum(e.target.value);
+  }else if(p[0]==="p"){
+    const r=peTagAt(f);if(!r||r.i>=r.list.length)return;
+    r.list[r.i]=e.target.value;
+    const li=e.target.closest(".pe-row");
+    if(li)li.querySelectorAll("[aria-label]").forEach(b=>b.setAttribute("aria-label",b.getAttribute("aria-label").split("：")[0]+"："+(r.list[r.i]||T_PE_UNNAMED)));
   }else if(p[0]==="l"){
     const L=peLift(p[1]);if(!L)return;
     if(p[2]==="target"||p[2]==="def")L[p[2]]=peNum(e.target.value);else L[p[2]]=e.target.value;

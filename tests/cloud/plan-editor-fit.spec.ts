@@ -8,6 +8,7 @@ import { expectToast } from '../support/toast';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import {
   BTN_ADD_LIFT,
+  BTN_ADD_TAG,
   BTN_PE_ARCH_LIFT,
   BTN_PE_ARCH_NO,
   BTN_PE_UNDO_REMOVE,
@@ -15,16 +16,21 @@ import {
   PE_ARCH_LIFT_TITLE,
   PE_ARCH_RESTORE,
   PE_ERR_FIT_ORDER,
+  PE_ERR_TAG_DUP,
+  PE_ERR_TAG_EMPTY,
   PE_ERR_LIFT_DEF,
   PE_ERR_LIFT_TARGET,
   PE_ERR_LIFT_UNIT,
   PE_HINT_DIRTY,
   PE_LIMIT_LIFTS,
+  PE_LIMIT_TAGS,
+  PE_PRESETS_EMPTY,
   PE_UNIT_EXAMPLE,
   TAB_LABELS,
   TOAST_PLAN_SAVED,
   peBadCount,
   peHintErrors,
+  pePresetCount,
   weekFitGoalLine,
 } from '../support/strings';
 
@@ -322,4 +328,94 @@ test('PLAN-03 deleting a lift without history removes it with an undo, and with 
   const lifts: any = app.fake.lastState(0)?.lifts;
   expect(lifts['l-pr1'].hist.length).toBe(3);
   expect(lifts['l-pr1'].cur).toBe(15);
+});
+
+test("PLAN-02 base preset tags are added, renamed, reordered and deleted per category, a duplicate or empty tag blocks saving, the user's own composer tags stay and a tag in both lists shows once (D-15, A20)", async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('pt', 1);
+  // 用户自己在「记一笔」里加的标签（state.presets，键是类别显示名）：其中一个和基础标签重名
+  const userPresets = { 语言: { add: ['SYNTH-pt preset', 'SYNTH-pt mine'], hide: [] } };
+  await app.open({ mode: 'cloud', seed: syntheticState('pt', { presets: userPresets }), plan, login: 0 });
+  const tagBtn = (name: string) => page.locator(`#wkComp [data-preset="w|${name}"]`);
+  const toastState = () =>
+    page.evaluate(() => {
+      const t = document.querySelector('#toast');
+      return {
+        on: !!t?.classList.contains('on'),
+        prefix: (t?.querySelector('span')?.textContent ?? '').startsWith('已从草稿移除：'),
+        button: t?.querySelector('button')?.textContent ?? null,
+      };
+    });
+
+  // 重名去重：「记一笔」选「语言」时，两层都有的标签只显示一个（基础的那个），用户自己的也各一个
+  await expect(tagBtn('SYNTH-pt preset')).toHaveCount(1);
+  await expect(tagBtn('SYNTH-pt mine')).toHaveCount(1);
+
+  await openEditor(page);
+  // 五张类别卡，没有上移下移；「语言」摘要 1 个标签，「其他」展开显示空提示
+  const cards = page.locator('#pe-main .pe-card[data-key^="p:"]');
+  await expect(cards).toHaveCount(5);
+  await expect(cards.locator('.pe-card-h [data-peact="up"], .pe-card-h [data-peact="down"]')).toHaveCount(0);
+  await expect(card(page, 'p:lang').locator('.pe-sum')).toHaveText(pePresetCount(1));
+  await expand(page, 'p:oth');
+  await expect(card(page, 'p:oth').locator('.empty')).toHaveText(PE_PRESETS_EMPTY);
+  await expect(card(page, 'p:oth').locator('.pe-sum')).toHaveText(pePresetCount(0));
+  await expect(act(page, 'addtag', 'p:oth')).toHaveText(BTN_ADD_TAG);
+
+  // 在「语言」加两个标签 b、c；把 c 上移到第 2 位；第一个改名为 a；删除 b（撤销 toast 出现，不撤销）
+  await expand(page, 'p:lang');
+  await expect(field(page, 'p:lang:0')).toHaveAttribute('maxlength', '30');
+  await act(page, 'addtag', 'p:lang').click();
+  await expect(field(page, 'p:lang:1')).toBeFocused();
+  await field(page, 'p:lang:1').fill('SYNTH-pt b');
+  await act(page, 'addtag', 'p:lang').click();
+  await field(page, 'p:lang:2').fill('SYNTH-pt c');
+  await act(page, 'up', 'p:lang:2').click();
+  await expect(field(page, 'p:lang:1')).toHaveValue('SYNTH-pt c');
+  await expect(field(page, 'p:lang:2')).toHaveValue('SYNTH-pt b');
+  await field(page, 'p:lang:0').fill('SYNTH-pt a');
+  await act(page, 'del', 'p:lang:2').click();
+  await expect(field(page, 'p:lang:2')).toHaveCount(0);
+  await expect.poll(toastState).toEqual({ on: true, prefix: true, button: BTN_PE_UNDO_REMOVE });
+  await expect(card(page, 'p:lang').locator('.pe-sum')).toHaveText(pePresetCount(2));
+
+  // 再加一个标签，填 ` SYNTH-pt a `（首尾空格）：和第一个重复（比较时去掉首尾空格），点保存被挡住，这一行显示重复错误
+  await act(page, 'addtag', 'p:lang').click();
+  await field(page, 'p:lang:2').fill(' SYNTH-pt a ');
+  await savePlan(page);
+  let ed = await readEditor(page);
+  expect(ed.errors).toEqual([{ key: 'p:lang:2', text: PE_ERR_TAG_DUP }]);
+  expect(ed.hint).toBe(peHintErrors(1));
+  expect(app.fake.lastPlan(0)?.presets?.lang).toEqual(['SYNTH-pt preset']);
+  // 清空：改为「请填写标签内容」
+  await field(page, 'p:lang:2').fill('');
+  ed = await readEditor(page);
+  expect(ed.errors).toEqual([{ key: 'p:lang:2', text: PE_ERR_TAG_EMPTY }]);
+  // 删掉这一行：错误没了，能保存
+  await act(page, 'del', 'p:lang:2').click();
+  ed = await readEditor(page);
+  expect(ed.errors).toEqual([]);
+
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  // 服务器计划：语言是 [a, c]，其余类别不变；服务器 state 的 presets 和打开前逐字相同
+  await expect.poll(() => (app.fake.lastPlan(0)?.presets?.lang ?? []).join('|'), { message: '等待新计划上传' }).toBe('SYNTH-pt a|SYNTH-pt c');
+  expect(app.fake.lastPlan(0)?.presets).toEqual({ lang: ['SYNTH-pt a', 'SYNTH-pt c'], pro: [], fit: [], job: [], oth: [] });
+  expect(app.fake.lastState(0)?.presets).toEqual(userPresets);
+
+  // 「记一笔」：新的基础标签和用户自己的两个标签各显示一次（原来重名的 preset 现在只是用户自己的）
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  for (const name of ['SYNTH-pt a', 'SYNTH-pt c', 'SYNTH-pt preset', 'SYNTH-pt mine']) await expect(tagBtn(name)).toHaveCount(1);
+
+  // 上限：同一个账号里在「求职」加满 20 个标签，添加按钮 disabled，旁边写「最多 20 个」，摘要 20 个标签
+  await openEditor(page);
+  await expand(page, 'p:job');
+  for (let i = 0; i < 20; i += 1) await act(page, 'addtag', 'p:job').click();
+  await expect(card(page, 'p:job').locator('.pe-row')).toHaveCount(20);
+  await expect(act(page, 'addtag', 'p:job')).toBeDisabled();
+  await expect(card(page, 'p:job').locator('.pe-lim')).toHaveText(PE_LIMIT_TAGS);
+  await expect(card(page, 'p:job').locator('.pe-sum')).toHaveText(pePresetCount(20));
+  await expect(act(page, 'addtag', 'p:lang')).toBeEnabled();
 });
