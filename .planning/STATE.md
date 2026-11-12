@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-06-PLAN.md
-last_updated: "2026-11-12T20:14:15.200Z"
+stopped_at: Completed 13-07-PLAN.md
+last_updated: "2026-11-12T20:35:23.695Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: e954799a961e4a5621ae69e448193571e3445167
+state_head: e6fd9b94f8fee4ba1b12f335a7ef634be1e53315
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 72
+  completed_plans: 73
   percent: 88
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 7 of 15
+Plan: 8 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
@@ -162,6 +162,7 @@ Progress: [█████████░] 88%
 | Phase 13 P04 | 32 min | 2 tasks | 6 files |
 | Phase 13 P05 | 11 min | 3 tasks | 5 files |
 | Phase 13 P06 | 8 min | 2 tasks | 9 files |
+| Phase 13 P07 | 19 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -331,6 +332,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-05: 探针清理迁移 1794096150 只在 13-09 选保留数据库时装；超级用户 OTP/MFA 不进迁移，等 13-12 收到测试邮件后手动开
 - [Phase 13]: 13-06: 03 only requires the PocketBase service to be stopped when something must change, so re-running reports already; the env file is written to a temp file and renamed so a half-written key file never remains
 - [Phase 13]: 13-06: 07 --wipe runs its non-probe-data guard both before stopping the service and again right before rm -rf, and refuses when counts cannot be read
+- [Phase 13]: 13-07: restore-drill 的临时单元用 InaccessiblePaths 屏蔽线上数据目录，守卫在任何复制之前只读检查线上库（非测试账号数据就 DRILL_GUARD=refused）
+- [Phase 13]: 13-07: 05 重跑无改动时只跑 nginx -t 并输出 NGINX_APP=already；兜底 404 位置也 include 通用头文件；HSTS 先用一天
 
 ### Pending Todos
 
@@ -399,8 +402,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T20:14:11.849Z
-Stopped at: Completed 13-06-PLAN.md
+Last session: 2026-11-12T20:35:20.380Z
+Stopped at: Completed 13-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
