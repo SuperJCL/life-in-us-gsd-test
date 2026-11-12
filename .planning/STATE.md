@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
 current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
 status: executing
-stopped_at: Completed 13-10-PLAN.md
-last_updated: "2026-11-12T21:43:35.759Z"
+stopped_at: Completed 13-11-PLAN.md
+last_updated: "2026-11-12T22:00:40.482Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: b44481e4772b8d5416f858194ed16c27d2f3cfd2
+state_head: 860498a9d478fe90dffa9ccf342d4db799f3affb
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 81
-  completed_plans: 76
+  completed_plans: 77
   percent: 88
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 11 of 15
+Plan: 12 of 15
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
@@ -166,6 +166,7 @@ Progress: [█████████░] 88%
 | Phase 13 P08 | 18min | 3 tasks | 9 files |
 | Phase 13 P09 | 28min | 3 tasks | 0 files |
 | Phase 13 P10 | 20min | 3 tasks | 1 files |
+| Phase 13 P11 | 15min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -341,6 +342,7 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: 13-08: verify-site online stages (baseline 3, full 19) are written but only verified against local stubs; first real run is 13-11 in an approved step
 - [Phase 13]: A12 keep：保留探针时期的数据库和 Phase 6 的超级用户，探针集合和账号由清理迁移在第一次启动时删除；本机已演练新钥匙加明文设置行
 - [Phase 13]: 整批部署 approve-all：上传包清单 sha256 ac686d29…98b7、BUILD_VERSION a1159ad93165；每个改动服务器的步骤执行前仍需所有者即时确认
+- [Phase 13]: 13-11: key saved by owner only, A12=keep so no superuser created; WWW_REDIRECT=on; verify-site full 19/19; PB_HEALTH prints ok (not 200)
 
 ### Pending Todos
 
@@ -409,8 +411,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-12T21:43:32.249Z
-Stopped at: Completed 13-10-PLAN.md
+Last session: 2026-11-12T22:00:36.712Z
+Stopped at: Completed 13-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
