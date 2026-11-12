@@ -221,7 +221,7 @@ dialog#confirm #cf-body{max-height:50vh;overflow:auto}
 #pe-hint[data-tone]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
 #pe-hint[data-tone="warn"]{--tone:var(--c-job)} #pe-hint[data-tone="error"]{--tone:var(--red)}
 #pe-save[aria-disabled="true"]{opacity:.4;cursor:not-allowed}
-#pe-notice{margin:0 0 16px}
+#pe-notice,#pe-unread{margin:0 0 16px}
 .pe-sec{margin-top:24px}
 .pe-sec>h3{display:flex;align-items:baseline;gap:8px;font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0 0 8px}
 .pe-count,.pe-sec .sub,.pe-sum,.pe-lim{font-family:var(--sans);font-weight:400;font-size:12px;color:var(--muted)}
@@ -445,6 +445,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <div class="pe-head"><h2 id="pe-title" tabindex="-1">编辑计划</h2><p>改动先存在这一页，点「保存计划」才生效；点「放弃这次修改」，计划完全不变。</p></div>
     <div id="pe-bar"><p id="pe-hint" role="status"></p><button type="button" class="ghost" id="pe-discard">放弃这次修改</button><button type="button" class="primary" id="pe-save" aria-describedby="pe-hint">保存计划</button></div>
     <div id="pe-notice" class="syncbar hidden" data-tone="warn"><span class="sb-msg"></span></div>
+    <div id="pe-unread" class="syncbar hidden" data-tone="warn"><span class="sb-msg"></span></div>
     <div id="pe-main"></div>
     <div id="pe-live" class="sr-only" aria-live="polite"></div>
   </section>
@@ -775,7 +776,8 @@ function setStatus(t,st,btn){const e=$("status"),k=btn&&e.querySelector("button"
   /* the same line with the same button (the retry countdown, every second): only the sentence changes, the button node stays, so keyboard focus and a click in progress are not lost */
   if(k&&k.textContent===btn.text&&f&&f.nodeType===3&&e.childNodes.length===2){f.nodeValue=t;k.onclick=btn.fn}
   else{e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.onclick=btn.fn;e.appendChild(b)}}
-  if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state")}
+  if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state");
+  if(pe)peBar()}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
@@ -789,14 +791,14 @@ const CLOUD=USJ.backend==="pocketbase";
 async function init(){
   renderAll();
   if(CLOUD){await cloudInit();return}
-  if(USJ.backend!==null){setStatus("存储配置无效：这个版本还不支持所配置的后端，修改不会保存");return}
+  if(USJ.backend!==null){setStatus("存储配置无效：这个版本还不支持所配置的后端，修改不会保存");planRoute();return}
   let db=null,user=null,id=null;
   try{[db,user]=await Promise.all([window.claude?window.claude.use("db"):null,window.claude?window.claude.use("user"):null])}catch(e){}
   if(db&&user){try{id=await user.id()}catch(e){}}
   if(db&&id){const ref=db.doc("data/users/"+id+"/state");store={label:"已同步保存到你的账户",load:async()=>{const s=await ref.get();return s.exists?JSON.parse(JSON.stringify(s.data())):null},save:s=>ref.set(s)}}
   else store=localStore();
   try{const s=await store.load();if(s)state=normalize(s)}catch(e){store=localStore();const s=await store.load();if(s)state=normalize(s)}
-  setStatus(store.label);renderAll();
+  setStatus(store.label);renderAll();planRoute();
 }
 
 /* ---------- cloud ---------- */
@@ -871,7 +873,7 @@ function loginNotice(kind){
   [T_EXPIRED].concat(hasUnsent()?[T_EXPIRED_UNSENT]:[]).forEach(t=>{const p=document.createElement("p");p.textContent=t;n.appendChild(p)});
   n.setAttribute("data-tone","warn");n.classList.remove("hidden");
 }
-function showLogin(err,notice){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err;loginNotice(notice);prefillLogin()}
+function showLogin(err,notice){endRun(run);clearRunUI();setGate(null);document.querySelector(".wrap").classList.add("hidden");$("login").classList.remove("hidden");$("login-err").textContent=err;loginNotice(notice);prefillLogin();planRoute()}
 /* D-07: the login page always prefills the email of the last successful sign-in (also after a logout); the password is never prefilled and is always hidden again */
 const LAST_EMAIL_KEY="usj:v2:lastEmail",ERR_EMPTY="请填写邮箱和密码";
 function setPwShown(on){
@@ -996,7 +998,7 @@ function setGate(mode){
     el.removeAttribute("data-gated")});
 }
 /* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
-const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn]";
+const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn],[data-peact]";
 function gateGuard(e){
   if(!document.body.dataset.gate)return;
   const t=e.target;if(!t||!t.closest||!t.closest(".wrap"))return;
@@ -1063,7 +1065,7 @@ function startReconcile(mode,retrying){
 /* D-01 / D-02: open for editing without a finished reconcile. The edits are kept in the cache and uploaded by the background sync, which is also the first reconcile
    (needRefresh: an authRefresh owed from startup is made by the first background pass); until one pass has succeeded every failure is shown as offline */
 function goBootOffline(r){
-  endRun(r);if(run===r)run=null;clearRunUI();setGate(null);renderAll();
+  endRun(r);if(run===r)run=null;clearRunUI();setGate(null);renderAll();planRoute();
   bootOffline=true;net="offline";needRefresh=!!r.mode.refresh;
   stopRetry();retryTimer=setTimeout(()=>{retryTimer=null;requestSync("boot")},RETRY_STEPS[0]*1000);retryIdx=1;
   showSync();startPoll();
@@ -1144,7 +1146,7 @@ async function reconcileOnce(r){
   setGate(null);
   if(pr.held||sr.held){showTooLarge();setStatus("保存失败："+T_TOOLARGE,"toolarge")}else setStatus("已同步","synced");
   pendRemote={plan:null,state:null};remoteView=false;hideBar("remote");
-  renderAll();snapShow();undoShow();startPoll();ensureRealtime();
+  renderAll();planRoute();snapShow();undoShow();startPoll();ensureRealtime();
   if(changed&&!cfShown)toast("已更新为其他设备上的最新内容",null,4000);
 }
 /* a real conflict (the server version is newer than this device's base) keeps the overwritten server version here, one copy per account: usj:v2:<id>:snapshot = { kind, data } */
@@ -1759,12 +1761,13 @@ function remoteDiffers(){
   if(ps){const np=normalizePlan(ps.data)||normalizePlan(DEFAULT_PLAN);if(canon(np)!==canon(plan))return true}
   return !!ss&&canon(docAfter())!==canon(state);
 }
-const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE_DONE="已更新为其他设备上的最新内容";
+const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE_DONE="已更新为其他设备上的最新内容",T_REMOTE_PE="其他设备有新的修改，保存或放弃计划编辑后会自动更新。";
 /* D-06 (owner-confirmed wording): the record open in the editor was deleted on another device and the user saved it anyway */
 const T_LOG_READDED="这条记录在另一台设备上被删除，已按你的修改重新加回";
 /* busy = the user is in the middle of something an update must not disturb: an open dialog or confirm, a draft, an open new-tag input, the cursor in a text field (a checkbox or button does not count),
    a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
 function isBusy(...a){
+  if(pe)return true;
   if(dlg.open||cfDlg.open||rvPending)return true;
   for(const id of ["w-text","c-text"]){const e=$(id);if(e&&e.value.trim())return true}
   if(compAdding.w||compAdding.c)return true;
@@ -1780,7 +1783,9 @@ function isBusy(...a){
 function maybeApplyView(...a){
   if(!remoteView)return;
   if(isBusy(...a)){
-    if(!sbs.remote)showBar("remote",{tone:"info",msg:T_REMOTE,btns:[{text:"现在更新",cls:"primary",fn:()=>applyView()}]});
+    /* 编辑计划页开着时，应用远端更新会换掉计划，所以横幅换成没有「现在更新」按钮的变体（A15）；sbs.remote.pe 记着当前是哪一种，进出编辑页时横幅跟着换 */
+    const inPe=!!pe;
+    if(!sbs.remote||!!sbs.remote.pe!==inPe)showBar("remote",inPe?{tone:"info",msg:T_REMOTE_PE,pe:true}:{tone:"info",msg:T_REMOTE,btns:[{text:"现在更新",cls:"primary",fn:()=>applyView()}]});
     return;
   }
   applyView();
@@ -1828,7 +1833,7 @@ function resetSession(){
   clearTimeout(retryTimer);retryTimer=null;clearInterval(cdTimer);cdTimer=null;cdLeft=0;trying=false;syncing=false;syncAgain=false;saving=false;net="ok";retryIdx=0;slowRuns=0;bumpReq=false;bootOffline=false;needRefresh=false;ops=[];opsOk=true;
   if(pb)stopRealtime();
   /* 编辑计划页：草稿丢掉，页面收起，四个视图里总有一个可见 */
-  const peWas=!!pe;pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("tab-plan").classList.add("hidden");
+  const peWas=!!pe;pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("pe-unread").classList.add("hidden");$("tab-plan").classList.add("hidden");
   if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
   if(peWas)showTab("goal");
   if(cfDlg.open)cfDlg.close();
@@ -2175,6 +2180,7 @@ $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter
 /* ---------- plan editor (Phase 12) ----------
    编辑计划页只由下面的函数渲染，renderAll、applyView、takeRemote 之后的重绘都不碰 #tab-plan（远端更新不能冲掉草稿）。草稿 pe.draft 是 plan 的深拷贝；点「保存计划」才写进计划文档（savePlanDraft），之前的一切只在草稿里。
    属性：data-peact（按钮动作）、data-pekey（卡片键 g:<组 id>）、data-pecat、data-pefield（字段键 g:<组 id>:name） */
+const T_PE_UNREAD="账号的计划读不出来，这里显示的是示例计划。保存时会先把服务器上那一份存成本机留底。",T_PE_UNREAD_NOKEEP="本机空间不够，没能先留下服务器上原来那一份计划，所以没有保存",T_PE_SAVED_UNREAD="计划已保存，原来读不出来的那一份已在本机留底";
 const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2192,14 +2198,29 @@ function openPlanEditor(from){
   /* 草稿从最新的计划开始：挂起的远端版本先并入 */
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
   pe={draft:JSON.parse(JSON.stringify(plan)),orig:canon(plan),base:docs.plan.base,from:from||"goal",open:new Set(),seen:new Set(),tried:false,gone:[],busy:false};
+  /* 所有者决定：账号的计划读不出来、页面显示示例计划时，编辑页照常可用，顶部说明这一点 */
+  const un=$("pe-unread");un.querySelector(".sb-msg").textContent=T_PE_UNREAD;un.classList.toggle("hidden",!keepOrphans);
   showTab("plan");renderPlanEditor();peBar();window.scrollTo(0,0);$("pe-title").focus();
+  if(remoteView)maybeApplyView();
 }
 function closePlanEditor(tab){
-  pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");
+  pe=null;$("pe-main").textContent="";$("pe-notice").classList.add("hidden");$("pe-unread").classList.add("hidden");
   if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
   const k=tab||"goal";
   showTab(k);renderAll();
   if(k==="goal"){const b=$("planEditBtn");(b||$("goals")).focus()}
+  /* 不再忙了：挂起的远端更新按 Phase 10 的规则应用 */
+  if(remoteView)maybeApplyView();
+}
+/* #plan 的去向（A19、D-13）：云端、有会话、有计划文档、没有门控时按当前计划打开编辑页（新草稿）；云端还在门控里就等（对账结束时会再调）；本地版和没登录时去掉 hash 回到目标页，不弹提示 */
+function planRoute(){
+  if(location.hash!=="#plan"||pe)return;
+  if(CLOUD&&me&&docs.plan&&$("login").classList.contains("hidden")){
+    if(!document.body.hasAttribute("data-gate"))openPlanEditor("goal");
+    return;
+  }
+  history.replaceState(null,"",location.pathname+location.search);
+  showTab("goal");
 }
 function peBar(){
   if(!pe)return;
@@ -2261,7 +2282,7 @@ async function peLeave(){
 $("pe-discard").addEventListener("click",async()=>{const s=pe;if(!s)return;if(await peLeave()&&pe===s)closePlanEditor(s.from)});
 /* 返回键：hash 不再是 #plan 而编辑页开着 → 先确认；拒绝就把地址栏恢复为 #plan（pushState 不触发 hashchange） */
 window.addEventListener("hashchange",()=>{
-  if(location.hash==="#plan")return;
+  if(location.hash==="#plan"){planRoute();return}
   const s=pe;if(!s)return;
   peLeave().then(ok=>{if(pe!==s)return;if(ok)closePlanEditor(s.from);else history.pushState(null,"","#plan")});
 });
@@ -2275,12 +2296,20 @@ function savePlanDraft(){
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
   const np=normalizePlan(s.draft);
   if(!np){s.busy=false;peBar();return}
+  /* 所有者决定（2026-11-11）：账号的计划读不出来（keepOrphans 仍为真，并入的远端版本也读不出来）时，先把服务器上那份存成本机留底（与 D-07 的覆盖留底同一个机制，可下载），然后才替换；留底存不下就不保存，草稿留在页面上 */
+  let unread=false;
+  if(keepOrphans){
+    const pc=cacheGet("plan");
+    if(!(pc&&keepConflict("plan",{data:pc.data}))){toast(T_PE_UNREAD_NOKEEP,null,6000);s.busy=false;peBar();return}
+    unread=true;
+  }
   usePlan(np);keepOrphans=false;
   docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
   if(!cachePut("plan",{...docs.plan,data:np}))cacheNote(false);
   showSync();requestSync("save");
   closePlanEditor("goal");
-  toast(T_PE_SAVED,null,3000);
+  if(unread){snapShow();toast(T_PE_SAVED_UNREAD,{label:"下载留底",fn:snapDownload},8000);snapTold()}
+  else toast(T_PE_SAVED,null,3000);
 }
 
 /* ---------- export / import ---------- */

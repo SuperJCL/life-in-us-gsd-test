@@ -512,3 +512,10 @@ export const PE_RELOGIN_TITLE = '重新登录？';
 export const PE_RELOGIN_BODY = '未保存的计划修改会丢失。';
 export const BTN_PE_RELOGIN_STAY = '先不登录';
 export const BTN_PE_RELOGIN_GO = '仍然重新登录';
+
+// Phase 12-03 Task 3：编辑页打开期间全局远端更新横幅的无按钮变体，和账号的计划读不出来时的提示与保存后的 toast（应用里 T_REMOTE_PE、T_PE_UNREAD、T_PE_SAVED_UNREAD、T_PE_UNREAD_NOKEEP 的逐字复制）。
+// PE_UNREAD 显示在编辑页顶部的 #pe-unread；TOAST_PLAN_SAVED_UNREAD 带「下载留底」按钮（8000 ms）；TOAST_PLAN_UNREAD_NOKEEP（6000 ms）说明留底存不下所以没有保存
+export const BANNER_REMOTE_PE = '其他设备有新的修改，保存或放弃计划编辑后会自动更新。';
+export const PE_UNREAD = '账号的计划读不出来，这里显示的是示例计划。保存时会先把服务器上那一份存成本机留底。';
+export const TOAST_PLAN_SAVED_UNREAD = '计划已保存，原来读不出来的那一份已在本机留底';
+export const TOAST_PLAN_UNREAD_NOKEEP = '本机空间不够，没能先留下服务器上原来那一份计划，所以没有保存';
