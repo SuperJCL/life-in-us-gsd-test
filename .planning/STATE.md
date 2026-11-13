@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: executing
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-11-13T21:32:16.281Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-11-13T22:04:31.109Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: 68beb1e9b3ac905fd2de56e9059fd91a41acc0dc
+state_head: ce881bfa9c3fa5137dcb300d1d05b126232236b9
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 82
+  completed_plans: 83
   percent: 73
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 ## Current Position
 
 Phase: 15 (健身页（Fitness Tab）) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 15 execution started
 
@@ -173,6 +173,7 @@ Progress: [███████░░░] 73%
 | Phase 14 P02 | 14min | 3 tasks | 5 files |
 | Phase 14 P03 | 33 min | 3 tasks | 6 files |
 | Phase 15 P01 | 35 min | 2 tasks | 9 files |
+| Phase 15 P02 | 28 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -364,6 +365,11 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 15-01: normalize / normalizePlan 对 workouts 和 cardio 只在非空时输出键 — 旧用例的深度相等比较和 v1 的 154 条一行不改；读一律经 woMap / planCardio
 - [Phase 15]: 15-01: 有氧 id 用 r- 前缀，示例有氧项冻结为 r-run、r-bike、r-walk — 不和 P、g-、t-、l-、c- 和裸字母力量 id 同形
 - [Phase 15]: 15-01: 不做通用的未知键保留；旧页面丢键风险（T-15-04）接受，交给 Phase 16 先让所有设备换新版本再记训练和迁移真实数据 — 保留未知键救不了已部署的旧页面，反而削弱 SEC-01 白名单
+- [Phase 15]: 草稿不算 isBusy：远端更新照常应用，记录区自己跳过重画（flBusy）保住草稿；Phase 16 验收若发现跳动，改为草稿有内容时算 busy 只需改 isBusy 一处
+- [Phase 15]: 本机留底 wodraft 只在云端版（CLOUD&&me），登录后 state 读进来第一次画健身页时恢复一次（flTryRestore），恢复前做形状检查，不合格删掉
+- [Phase 15]: 同一天两台设备都改以最后保存的为准；草稿有内容且这一天在别的设备上更新过时提示行第 2 档提醒覆盖风险
+- [Phase 15]: 字段失焦时按住按钮期间不立刻显示错误（flPtr），抬起后补显示，免得错误行把按钮挤走丢掉点击
+- [Phase 15]: 草稿清空后在已保存的一天点保存修改，等同删除整次训练（带撤销 toast）
 
 ### Pending Todos
 
@@ -440,8 +446,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T21:32:11.056Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-11-13T22:04:25.889Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
