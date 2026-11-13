@@ -7,7 +7,7 @@ import { loadAppPure } from '../../support/app-source';
 import { CAT_LANGUAGE } from '../../support/strings';
 import { BUILTIN_GROUP_SIZES } from '../../support/task-ids';
 
-const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX', 'liftHistoryCount'] as const;
+const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX', 'liftHistoryCount', 'emptyPlan', 'planUsedIds', 'planCardio'] as const;
 const TOTAL_BUILTIN = Object.values(BUILTIN_GROUP_SIZES).reduce((a, b) => a + b, 0);
 const BUILTIN_IDS = Object.entries(BUILTIN_GROUP_SIZES).flatMap(([code, size]) =>
   Array.from({ length: size }, (_, i) => `${code}-${i + 1}`),
@@ -390,7 +390,79 @@ test('PLAN-07 pickSample copies only the chosen sample groups and lifts in sampl
   const none = plain(pickSample([], new Set()));
   expect([none.groups.length, none.lifts.length], '空集合').toEqual([0, 0]);
   expect(plain(DEFAULT_PLAN), '示例计划没有被改动').toEqual(sample);
-  // planUsedIds：全部组 id + 任务 id + 力量项 id
+  // planUsedIds：全部组 id + 任务 id + 力量项 id + 有氧项 id（Phase 15 起含有氧项）
   const totalTasks = sample.groups.reduce((n: number, g: any) => n + g.tasks.length, 0);
-  expect(planUsedIds(DEFAULT_PLAN).size, 'planUsedIds 的大小').toBe(7 + totalTasks + 4);
+  expect(planUsedIds(DEFAULT_PLAN).size, 'planUsedIds 的大小').toBe(7 + totalTasks + 4 + 3);
+});
+
+// D-02（Phase 15）：计划里可选的有氧项 cardio，id 用 r- 前缀；没有这个键的旧计划照样合格，空列表不输出键
+test('PLAN-05 normalizePlan accepts optional cardio items with r- ids and a per-session target and rejects malformed or duplicate ones (D-02)', async () => {
+  const { DEFAULT_PLAN, normalizePlan } = loadAppPure(NAMES);
+  const base = (): any => JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const norm = (p: unknown) => plain(normalizePlan(p));
+  const withCardio = (items: unknown): any => ({ ...base(), cardio: items });
+
+  // 没有 cardio 键的旧计划合格且结果没有 cardio；空列表的结果也没有这个键
+  const old = base();
+  delete old.cardio;
+  const oldOut = norm(old);
+  expect(oldOut, '没有 cardio 键的计划应当被接受').not.toBeNull();
+  expect('cardio' in oldOut, '没有 cardio 键的结果没有 cardio').toBe(false);
+  const emptyOut = norm(withCardio([]));
+  expect(emptyOut, 'cardio 为空列表的计划应当被接受').not.toBeNull();
+  expect('cardio' in emptyOut, 'cardio 为空列表的结果没有 cardio 键').toBe(false);
+
+  // 接受：带目标的、不带目标带归档的、小数目标；缺省的 note 补成空串，其余原样
+  const ok = norm(
+    withCardio([
+      { id: 'r-synth1', n: 'SYNTH-c', note: '', target: { kind: 'min', v: 20 } },
+      { id: 'r-synth2', n: 'SYNTH-d', archived: true },
+      { id: 'r-synth3', n: 'SYNTH-e', note: 'SYNTH note', target: { kind: 'km', v: 0.5 }, archived: false },
+    ]),
+  );
+  expect(ok?.cardio, '有氧项原样保留').toEqual([
+    { id: 'r-synth1', n: 'SYNTH-c', note: '', target: { kind: 'min', v: 20 } },
+    { id: 'r-synth2', n: 'SYNTH-d', note: '', archived: true },
+    { id: 'r-synth3', n: 'SYNTH-e', note: 'SYNTH note', target: { kind: 'km', v: 0.5 }, archived: false },
+  ]);
+  expect(norm(ok), '再规整一次结果不变').toEqual(ok);
+
+  // 拒绝：每一种坏法都让整份计划返回 null
+  const one = (c: unknown) => withCardio([{ id: 'r-ok', n: 'SYNTH-ok', note: '', ...(c as object) }]);
+  const rejected: Array<[string, unknown]> = [
+    ['cardio is not an array', withCardio('x')],
+    ['cardio is an object', withCardio({})],
+    ['item is a string', withCardio(['r-x'])],
+    ['id in bare letters', one({ id: 'run' })],
+    ['id with the lift prefix', one({ id: 'l-x' })],
+    ['id with the group prefix', one({ id: 'g-x' })],
+    ['id that is not a string', one({ id: 5 })],
+    ['duplicate id', withCardio([{ id: 'r-a', n: 'SYNTH-a' }, { id: 'r-a', n: 'SYNTH-b' }])],
+    ['name is not a string', one({ n: 5 })],
+    ['name is missing', withCardio([{ id: 'r-a' }])],
+    ['note is not a string', one({ note: 5 })],
+    ['target kind is mile', one({ target: { kind: 'mile', v: 3 } })],
+    ['target v is zero', one({ target: { kind: 'km', v: 0 } })],
+    ['target v is negative', one({ target: { kind: 'km', v: -1 } })],
+    ['target v is a string', one({ target: { kind: 'min', v: '5' } })],
+    ['target is not an object', one({ target: 5 })],
+    ['archived is a string', one({ archived: 'yes' })],
+  ];
+  for (const [name, p] of rejected) expect(norm(p), name).toBeNull();
+});
+
+test('PLAN-05 the sample plan carries the frozen cardio ids r-run, r-bike and r-walk and the empty plan has no cardio (D-02, 14 D-01)', async () => {
+  const { DEFAULT_PLAN, emptyPlan, planUsedIds, planCardio } = loadAppPure(NAMES);
+  const cardio = plain(planCardio(DEFAULT_PLAN));
+  expect(cardio.map((c: any) => c.id), '示例有氧项的 id').toEqual(['r-run', 'r-bike', 'r-walk']);
+  expect(cardio.map((c: any) => c.target), '示例有氧项的每次目标').toEqual([
+    { kind: 'km', v: 5 },
+    { kind: 'km', v: 10 },
+    { kind: 'min', v: 30 },
+  ]);
+  expect(Object.keys(plain(emptyPlan())), '空计划的键').not.toContain('cardio');
+  expect(plain(planCardio(emptyPlan())), '空计划没有有氧项').toEqual([]);
+  expect(plain(planCardio(null)), 'planCardio 对空值给空数组').toEqual([]);
+  const used = planUsedIds(DEFAULT_PLAN);
+  for (const id of ['r-run', 'r-bike', 'r-walk']) expect(used.has(id), `planUsedIds 含 ${id}`).toBe(true);
 });

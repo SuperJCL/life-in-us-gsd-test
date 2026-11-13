@@ -687,7 +687,7 @@ const CK=Object.fromEntries(CATS.map(c=>[c.n,c.k]));
 const hasCat=n=>Object.prototype.hasOwnProperty.call(CK,n);
 const kOf=n=>hasCat(n)?CK[n]:"oth";
 const LEGACY={"学习":"专业","活动社交":"求职","生活":"其他","里程碑":"其他"};
-/* PLAN-05：内置组和任务的 id 冻结为 DEFAULT_PLAN 里写明的值；以后新增的组、任务、力量项分别用 g-、t-、l- 加 uid()，不会撞上 P 开头的内置 id、c- 开头的自定义待办 id 和内置力量 id */
+/* PLAN-05：内置组和任务的 id 冻结为 DEFAULT_PLAN 里写明的值（示例有氧项冻结为 r-run、r-bike、r-walk）；以后新增的组、任务、力量项、有氧项分别用 g-、t-、l-、r- 加 uid()，不会撞上 P 开头的内置 id、c- 开头的自定义待办 id 和内置力量 id */
 const GROUP_ID_RE=/^(P\d{1,3}|g-[A-Za-z0-9_-]{1,40})$/,PLAN_TASK_ID_RE=/^(P\d{1,3}-\d{1,3}|t-[A-Za-z0-9_-]{1,40})$/,LIFT_ID_RE=/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/;
 /* D-02（Phase 15）：有氧项 id 用 r- 前缀，不撞 P、g-、t-、l-、c- 开头的 id，也不和裸字母的力量 id 同形；WO_MAX 是训练数据的硬上限（每个动作最多几组、重量、次数、时长、距离） */
 const CARDIO_ID_RE=/^r-[A-Za-z0-9_-]{1,40}$/;
@@ -755,6 +755,10 @@ const DEFAULT_PLAN={v:1,
     {id:"squat",n:"深蹲",unit:"kg",def:25,target:50,note:"蹲到大腿与地面平行，稳定后再逐步加重"},
     {id:"dead",n:"硬拉",unit:"kg",def:50,target:100,note:"背部保持平直，每次只小幅增加重量"},
     {id:"pull",n:"引体",unit:"kg",def:4,target:12,note:"记录每组附加的配重，徒手完成时记 0"}],
+  cardio:[
+    {id:"r-run",n:"跑步",note:"以能轻松说话的速度为准",target:{kind:"km",v:5}},
+    {id:"r-bike",n:"骑行",note:"记下骑行的总时长，路线随意",target:{kind:"km",v:10}},
+    {id:"r-walk",n:"快走",note:"饭后快走也算",target:{kind:"min",v:30}}],
   fitGoal:[2,4],
   fitNote:"每周固定几个训练日，循序渐进地加重，睡眠和休息同样重要。"};
 const pObj=v=>!!v&&typeof v==="object"&&!Array.isArray(v),pStr=v=>typeof v==="string",pNum=v=>typeof v==="number"&&isFinite(v);
@@ -783,12 +787,24 @@ function normalizePlan(p){
     if(l.archived!==undefined&&typeof l.archived!=="boolean")return null;
     lids.add(l.id);const o={id:l.id,n:l.n,unit:l.unit,def:l.def,target:l.target,note:l.note===undefined?"":l.note};if(l.archived!==undefined)o.archived=l.archived;lifts.push(o);
   }
+  /* Phase 15（D-02）：有氧项是可选的，旧计划没有 cardio 键照样合格；id 过 CARDIO_ID_RE 且不重复，target 是 {kind:"km"|"min",v>0}；只在非空时输出 cardio（空计划逐字比较和旧用例的深度相等不受影响） */
+  if(p.cardio!==undefined&&!Array.isArray(p.cardio))return null;
+  const cids=new Set(),cardio=[];
+  for(const c of (p.cardio||[])){
+    if(!pObj(c)||!pStr(c.id)||!CARDIO_ID_RE.test(c.id)||cids.has(c.id)||!pStr(c.n))return null;
+    if(c.note!==undefined&&!pStr(c.note))return null;
+    if(c.archived!==undefined&&typeof c.archived!=="boolean")return null;
+    if(c.target!==undefined&&(!pObj(c.target)||(c.target.kind!=="km"&&c.target.kind!=="min")||!pNum(c.target.v)||c.target.v<=0))return null;
+    cids.add(c.id);const o={id:c.id,n:c.n,note:c.note===undefined?"":c.note};if(c.target!==undefined)o.target={kind:c.target.kind,v:c.target.v};if(c.archived!==undefined)o.archived=c.archived;cardio.push(o);
+  }
   const keys=CATS.map(c=>c.k);
   for(const k of Object.keys(p.presets)){if(!keys.includes(k)||!Array.isArray(p.presets[k])||!p.presets[k].every(pStr))return null}
   keys.forEach(k=>{presets[k]=(p.presets[k]||[]).slice()});
   if(!Array.isArray(p.fitGoal)||p.fitGoal.length!==2||!p.fitGoal.every(pNum))return null;
   if(p.fitNote!==undefined&&!pStr(p.fitNote))return null;
-  return {v:1,presets,groups,lifts,fitGoal:p.fitGoal.slice(),fitNote:p.fitNote===undefined?"":p.fitNote};
+  const out={v:1,presets,groups,lifts,fitGoal:p.fitGoal.slice(),fitNote:p.fitNote===undefined?"":p.fitNote};
+  if(cardio.length)out.cardio=cardio;
+  return out;
 }
 let plan,planTasks,planIds,planCat,keepOrphans=false;
 /* 用 normalizePlan 校验；不合格就回落到 DEFAULT_PLAN；返回传入的计划是否被接受。
@@ -899,7 +915,8 @@ function woSummary(day,p){
 /* 导入检查（D-07）：返回 null 表示没发现问题，否则返回一个简短的原因。容器里能识别出条目就检查，不看容器类型对不对。
    只供 classifyBackup 和单元用例调用：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）和非字符串的 arrival（synth-wrong-types.json 的数字 arrival）这两种文件，现在都由外层的 classifyBackup 先拒绝，应用里没有调用路径把它们交给这个函数；
    函数体里的 if(!isObj(raw))return null 和只检查字符串 arrival 的那一行只服务单元用例，保留原样。
-   原始值形式的容器（字符串、数字）里识别不出条目，v1 normalize 会把它们换成空值。 */
+   原始值形式的容器（字符串、数字）里识别不出条目，v1 normalize 会把它们换成空值。
+   Phase 15：workouts 的键必须是真实日期、每天必须是普通对象、力量动作 id 必须合 LIFT_ID_RE、有氧项 id 必须合 CARDIO_ID_RE，否则返回 "workout"；数值范围不在这里查（交给 normalize，载入和导入共用，对合格数据恒等）。 */
 function importProblem(raw){
   if(!isObj(raw))return null;
   const items=c=>Array.isArray(c)?c:isObj(c)?Object.values(c):[];
@@ -913,6 +930,12 @@ function importProblem(raw){
     if(!LIFT_ID_RE.test(k)||!isObj(L[k]))return "lift";
     const h=L[k].hist;
     if(Array.isArray(h)||isObj(h))for(const x of items(h))if(!isObj(x)||!okDate(x.date))return "lift";
+  }
+  const W=raw.workouts;
+  if(W!==null&&typeof W==="object")for(const k of Object.keys(W)){
+    if(!realDate(k)||!isObj(W[k]))return "workout";
+    for(const x of items(W[k].lifts))if(!isObj(x)||typeof x.id!=="string"||!LIFT_ID_RE.test(x.id))return "workout";
+    for(const x of items(W[k].cardio))if(!isObj(x)||typeof x.id!=="string"||!CARDIO_ID_RE.test(x.id))return "workout";
   }
   const R=raw.reviews;
   if(R!==null&&typeof R==="object")for(const k of Object.keys(R))if(!realDate(k))return "review";
@@ -988,16 +1011,16 @@ function normalize(s){
   });
   return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets,...(Object.keys(wo).length?{workouts:wo}:{})};
 }
-/* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的七个已知字段和各自的类型判断；
+/* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的八个已知字段（Phase 15 加 workouts）和各自的类型判断；
    presets 的每个值都必须是对象（计划里的 presets 是“类别到字符串数组”，所以裸计划对象不会被当成旧备份）。
-   legacyShape：普通对象、自身没有 format 键、七个已知字段至少出现一个、出现的每一个类型都对（D-02）。
+   legacyShape：普通对象、自身没有 format 键、八个已知字段至少出现一个、出现的每一个类型都对（D-02）。
    classifyBackup 有三种结果，其余（非对象、{}、[]、类型不对）返回 null，整份拒绝，不做部分导入：
    - 自身有 format 键的普通对象只按包装判断（D-01、D-03，所有者在 11-02 确认的格式，one-way：发出去的文件以后每个版本都要能导入）：app 必须是 BK_APP，format 必须是 BK_FORMAT，kind 必须是 BK_FULL 或 BK_PLAN，
      plan 过 normalizePlan；完整备份的 state 过 legacyShape 加 importProblem；只含计划的文件不能带 state。任何一处不合格返回 null。结果是 {kind:"full",plan,state} 或 {kind:"plan",plan}，plan 是规范化后的计划。
      未知的多余字段和 exportedAt（只作参考）不检查。以后要改格式就把 format 换成 3，新版继续接受 2 和旧备份。
    - 其余普通对象按旧备份规则（D-02）：{kind:"legacy",state}。legacyShape 拒绝带 format 键的对象，所以包装分支必须先于它 */
 const BK_APP="us-journey-tracker",BK_FORMAT=2,BK_FULL="full",BK_PLAN="plan";
-const LEGACY_KEYS={arrival:v=>typeof v==="string",tasks:isObj,lifts:isObj,reviews:isObj,custom:Array.isArray,logs:Array.isArray,presets:v=>isObj(v)&&Object.values(v).every(isObj)};
+const LEGACY_KEYS={arrival:v=>typeof v==="string",tasks:isObj,lifts:isObj,reviews:isObj,custom:Array.isArray,logs:Array.isArray,presets:v=>isObj(v)&&Object.values(v).every(isObj),workouts:isObj};
 function legacyShape(raw){
   if(!isObj(raw)||Object.prototype.hasOwnProperty.call(raw,"format"))return false;
   const present=Object.keys(LEGACY_KEYS).filter(k=>Object.prototype.hasOwnProperty.call(raw,k));
@@ -1108,9 +1131,9 @@ function planProblems(p){
 }
 /* D-01、D-02、D-03（Phase 14）：云端新账号首次建档用的空计划 = 示例计划的深拷贝，groups 和 lifts 换成 []，快捷词 presets 换成 {}（normalizePlan 补成 5 个空数组），
    保留示例的 fitGoal 和 fitNote（只留数据，界面不动）。只用于云端首次建档；脚本求值时和退出登录时仍用示例计划（SEC-04） */
-function emptyPlan(){const s=JSON.parse(JSON.stringify(DEFAULT_PLAN));s.groups=[];s.lifts=[];s.presets={};return normalizePlan(s)}
+function emptyPlan(){const s=JSON.parse(JSON.stringify(DEFAULT_PLAN));s.groups=[];s.lifts=[];s.cardio=[];s.presets={};return normalizePlan(s)}
 /* 一份计划里全部组 id（含归档的）、任务 id、力量项 id；卡片模式没有编辑页草稿，peUsedIds 用不了 */
-function planUsedIds(p){const u=new Set();p.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});p.lifts.forEach(l=>u.add(l.id));return u}
+function planUsedIds(p){const u=new Set();p.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});p.lifts.forEach(l=>u.add(l.id));planCardio(p).forEach(c=>u.add(c.id));return u}
 /* D-05、D-08：keys 是 "g:<示例组 id>"、"l:<示例力量项 id>" 的数组或 Set；按示例原顺序只深拷贝勾选的项（与勾选先后无关），
    组、任务、力量项一律换成新的 g-、t-、l- id（避开 used 里已有的，并把新 id 加进 used）；不带 presets，不认识的键忽略 */
 function pickSample(keys,used){
