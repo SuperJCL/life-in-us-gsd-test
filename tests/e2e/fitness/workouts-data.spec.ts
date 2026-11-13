@@ -259,3 +259,73 @@ test('FIT-02 workoutProblems reports half-filled rows, out-of-range values and e
   ).toEqual(['fc:1:m=mint', 'fc:1:d=drange', 'fc:2:m=mint', 'fc:2:d=drange']);
   expect(probs({ lifts: [], cardio: [{ id: 'r-run', m: '1', d: '1000' }, { id: 'r-bike', m: '1440', d: '0.5' }] }), 'cardio bounds are inclusive').toEqual([]);
 });
+
+test('FIT-02 workoutProblems reports each rule at its limit and one step past it and ignores a fully empty set (A5, A19)', async () => {
+  const { workoutProblems } = loadAppPure(NAMES);
+  const probs = (d: unknown) => plain(workoutProblems(d)).map((x: any) => `${x.key}=${x.code}`);
+  // 每个用例只放一组；键是 动作下标:组下标:字段，期望值在这里手写
+  const one = (w: string, r: string) => probs({ lifts: [{ id: 'bench', sets: [{ w, r }] }], cardio: [] });
+  const card = (m: string, d: string) => probs({ lifts: [], cardio: [{ id: 'r-run', m, d }] });
+
+  // 重量：0 和 1000 合格，-0.5 和 1000.01 报 wrange，空串（次数有）报 wnone
+  expect(one('0', '8'), 'weight 0 (bodyweight)').toEqual([]);
+  expect(one('1000', '8'), 'weight at the upper limit').toEqual([]);
+  expect(one('-0.5', '8'), 'weight just below zero').toEqual(['fl:0:0:w=wrange']);
+  expect(one('1000.01', '8'), 'weight just above the limit').toEqual(['fl:0:0:w=wrange']);
+  expect(one('', '8'), 'weight left empty').toEqual(['fl:0:0:w=wnone']);
+  // 次数：1 和 999 合格，0、1000、2.5 报 rint，空串（重量有）报 rnone
+  expect(one('20', '1'), 'reps at the lower limit').toEqual([]);
+  expect(one('20', '999'), 'reps at the upper limit').toEqual([]);
+  expect(one('20', '0'), 'reps zero').toEqual(['fl:0:0:r=rint']);
+  expect(one('20', '1000'), 'reps just above the limit').toEqual(['fl:0:0:r=rint']);
+  expect(one('20', '2.5'), 'reps not an integer').toEqual(['fl:0:0:r=rint']);
+  expect(one('20', ''), 'reps left empty').toEqual(['fl:0:0:r=rnone']);
+  // 整行空的组不报；一个动作只有整行空的组报 exnone
+  expect(
+    probs({
+      lifts: [
+        {
+          id: 'bench',
+          sets: [
+            { w: '', r: '' },
+            { w: '20', r: '8' },
+          ],
+        },
+      ],
+      cardio: [],
+    }),
+    'a fully empty set beside a filled one',
+  ).toEqual([]);
+  expect(
+    probs({
+      lifts: [
+        {
+          id: 'bench',
+          sets: [
+            { w: '', r: '' },
+            { w: '', r: '' },
+          ],
+        },
+      ],
+      cardio: [],
+    }),
+    'a block with only empty sets',
+  ).toEqual(['fl:0:ex=exnone']);
+  // 20 组合格，第 21 组报 slimit
+  const sets = (n: number) => Array.from({ length: n }, () => ({ w: '20', r: '8' }));
+  expect(probs({ lifts: [{ id: 'bench', sets: sets(20) }], cardio: [] }), 'twenty sets').toEqual([]);
+  expect(probs({ lifts: [{ id: 'bench', sets: sets(21) }], cardio: [] }), 'a twenty-first set').toEqual(['fl:0:20:w=slimit']);
+  // 有氧时长：1 和 1440 合格，0、1441、30.5 报 mint，空串报 mnone
+  expect(card('1', ''), 'duration at the lower limit').toEqual([]);
+  expect(card('1440', ''), 'duration at the upper limit').toEqual([]);
+  expect(card('0', ''), 'duration zero').toEqual(['fc:0:m=mint']);
+  expect(card('1441', ''), 'duration just above the limit').toEqual(['fc:0:m=mint']);
+  expect(card('30.5', ''), 'duration not an integer').toEqual(['fc:0:m=mint']);
+  expect(card('', ''), 'duration left empty').toEqual(['fc:0:m=mnone']);
+  // 有氧距离：空串合格，0.01 和 1000 合格，0 和 1000.5 报 drange
+  expect(card('30', ''), 'distance left empty').toEqual([]);
+  expect(card('30', '0.01'), 'distance just above zero').toEqual([]);
+  expect(card('30', '1000'), 'distance at the upper limit').toEqual([]);
+  expect(card('30', '0'), 'distance zero').toEqual(['fc:0:d=drange']);
+  expect(card('30', '1000.5'), 'distance just above the limit').toEqual(['fc:0:d=drange']);
+});

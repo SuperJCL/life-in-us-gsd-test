@@ -50,3 +50,36 @@ export async function readWeekWo(page: Page, date: string): Promise<WeekWoRead |
 export function savedWorkouts(state: any): Record<string, unknown> {
   return JSON.parse(JSON.stringify(state?.workouts ?? {}));
 }
+
+// ---- Phase 15-02：记录区的共用操作 ----
+
+// 点某个动作块的「复制上一组」
+export async function flCopySet(page: Page, id: string) {
+  await page.locator(`.fl-ex[data-lift="${id}"] [data-flact="copyset"]`).click();
+}
+
+// 第 j 组（从 0 数）的错误行是否可见，并且文字等于 expected（只返回布尔，不把文字带回 Node）
+export async function flError(page: Page, id: string, j: number, expected: string): Promise<boolean> {
+  return page.evaluate(
+    ([i, n, t]) => {
+      const el = document.getElementById(`fl-e-${i}-${n}`);
+      return !!el && !el.hidden && el.textContent === t;
+    },
+    [id, String(j), expected] as const,
+  );
+}
+
+export type FlRead = { id: string; sets: Array<{ w: string; r: string }> };
+
+// 读回记录区里每个力量动作块：id 和每组两个输入框的值（只对合成或示例 id）
+export async function readFl(page: Page): Promise<FlRead[]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('#fl .fl-ex')).map((bx) => ({
+      id: bx.dataset.lift ?? '',
+      sets: Array.from(bx.querySelectorAll<HTMLElement>('.fl-set')).map((li) => {
+        const ins = li.querySelectorAll<HTMLInputElement>('input');
+        return { w: ins[0]?.value ?? '', r: ins[1]?.value ?? '' };
+      }),
+    })),
+  );
+}

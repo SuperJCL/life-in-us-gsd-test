@@ -754,3 +754,29 @@ export const fitRowAria = (s: string): string => `打开健身页查看这次训
 // T_FIT_GONE_L、T_FIT_GONE_C（UI-SPEC 之外新增：计划里已找不到的力量项、有氧项 id 在界面里的名字）
 export const FIT_GONE_LIFT = '已删除的力量项';
 export const FIT_GONE_CARDIO = '已删除的有氧项';
+
+// ---- Phase 15-02：健身页记录区（逐字镜像应用里的常量，来源 15-UI-SPEC 的 Copywriting Contract；每条注释写明应用里的常量名）----
+// T_FL_STATE_SAVED（#fl-state：这一天已经保存过训练）
+export const FL_STATE_SAVED = '这一天已经记过训练，改动保存后会更新。';
+// T_FL_DELETE
+export const BTN_FL_DELETE = '删除这次训练';
+// T_FL_DELETED（d 是 md() 的结果，如 3月18日）
+export const flDeleted = (d: string): string => `已删除 ${d} 的训练`;
+// T_FL_UNDO_DEL（删除整次训练、删除一组的撤销按钮）
+export const BTN_UNDO_DELETE = '撤销删除';
+// T_FL_LIVE_UNDONE（撤销之后只写读屏播报，开头固定这四个字）
+export const FL_LIVE_UNDONE = '已撤销：';
+// T_FL_HINT_DIRTY、T_FL_HINT_EMPTY、T_FL_HINT_SAVED（保存栏提示行）
+export const FL_HINT_DIRTY = '有没保存的内容';
+export const FL_HINT_EMPTY = '先添加动作或有氧项，再保存';
+export const FL_HINT_SAVED = '已保存';
+// T_FL_ERR 的九条（逐字段错误）
+export const FL_ERR_WNONE = '请填写重量，徒手动作填 0'; // T_FL_ERR.wnone
+export const FL_ERR_WRANGE = '重量要在 0 到 1000 之间'; // T_FL_ERR.wrange
+export const FL_ERR_RNONE = '请填写次数'; // T_FL_ERR.rnone
+export const FL_ERR_RINT = '次数要是 1 到 999 之间的整数'; // T_FL_ERR.rint
+export const FL_ERR_EXNONE = '这个动作还没有记录任何一组，填一组或移除这个动作'; // T_FL_ERR.exnone
+export const FL_ERR_SLIMIT = '最多 20 组'; // T_FL_ERR.slimit
+export const FL_ERR_MNONE = '请填写时长（分钟）'; // T_FL_ERR.mnone
+export const FL_ERR_MINT = '时长要是 1 到 1440 之间的整数'; // T_FL_ERR.mint
+export const FL_ERR_DRANGE = '距离要大于 0，不超过 1000'; // T_FL_ERR.drange
