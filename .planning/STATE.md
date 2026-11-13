@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: executing
-stopped_at: Phase 15 planned (7 plans)
-last_updated: "2026-11-13T19:55:33.713Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-11-13T21:32:16.281Z"
 last_activity: 2026-11-13
-last_activity_desc: Phase 14 complete, transitioned to Phase 13
-state_head: dcb9a0ff8cb4ee139b576161956bdcd2ed003a61
+last_activity_desc: Phase 15 execution started
+state_head: 68beb1e9b3ac905fd2de56e9059fd91a41acc0dc
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 81
+  completed_plans: 82
   percent: 73
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 15 — 健身页（7 个计划，已规划）；Phase 13 剩 13-13、13-14
+**Current focus:** Phase 15 — 健身页（Fitness Tab）
 
 ## Current Position
 
-Phase: 15 (健身页（Fitness Tab）) — READY TO EXECUTE
-Plan: 0 of 7（Phase 13 的 13-13 恢复演练、13-14 升级演练仍待做：13-13 要等北京时间 2026-11-14 03:20 之后）
+Phase: 15 (健身页（Fitness Tab）) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-11-13 — Phase 14 complete, transitioned to Phase 13
+Last activity: 2026-11-13 — Phase 15 execution started
 
 Progress: [███████░░░] 73%
 
@@ -172,6 +172,7 @@ Progress: [███████░░░] 73%
 | Phase 14 P01 | 100 min | 3 tasks | 10 files |
 | Phase 14 P02 | 14min | 3 tasks | 5 files |
 | Phase 14 P03 | 33 min | 3 tasks | 6 files |
+| Phase 15 P01 | 35 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -359,6 +360,10 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - 收尾：安全 15/15 关闭；界面审计 19/24（实际偏差 3 处已修，85fb682）；代码审查 1 严重 1 警告 1 提示全部修好（CR-01 挑选对话框保存后按钮卡住）；回归在 85fb682 上 cloud 266、默认 199 全过（编排者亲自跑）。
 - 应用文件的工作区副本曾有 CRLF，APP_SHA256 记的是工作区字节；修复时统一成 LF（与 .gitattributes 的 eol=lf 和干净克隆一致），之后记录的都是 LF 字节的哈希。
 - 人工检查 4 项推迟到 Phase 16 总体验收（14-UAT.md Deferred Follow-Ups），路线图 Phase 16 成功标准 2 已写入。
+- [Phase 15]: 15-01: state.workouts 按日期为键、一天一条，同步键 wo:<日期>，写入整天覆盖（woPut/woDel） — 两台设备在不同日子记的训练互不覆盖，重放幂等
+- [Phase 15]: 15-01: normalize / normalizePlan 对 workouts 和 cardio 只在非空时输出键 — 旧用例的深度相等比较和 v1 的 154 条一行不改；读一律经 woMap / planCardio
+- [Phase 15]: 15-01: 有氧 id 用 r- 前缀，示例有氧项冻结为 r-run、r-bike、r-walk — 不和 P、g-、t-、l-、c- 和裸字母力量 id 同形
+- [Phase 15]: 15-01: 不做通用的未知键保留；旧页面丢键风险（T-15-04）接受，交给 Phase 16 先让所有设备换新版本再记训练和迁移真实数据 — 保留未知键救不了已部署的旧页面，反而削弱 SEC-01 白名单
 
 ### Pending Todos
 
@@ -435,9 +440,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T19:55:08.722Z
-Stopped at: Phase 15 planned (7 plans)
-Resume file: .planning/phases/15-fitness-tab/15-01-PLAN.md
+Last session: 2026-11-13T21:32:11.056Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
