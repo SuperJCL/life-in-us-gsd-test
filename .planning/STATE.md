@@ -6,10 +6,10 @@ current_phase: 14
 current_phase_name: 新账号的计划起步（Plan Onboarding）
 status: verifying
 stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-11-13T06:49:51.169Z"
+last_updated: "2026-11-13T07:19:33.046Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 14 execution started
-state_head: 600e8ec2d7d188975dbc27353bf1ed47107d418a
+state_head: 85fb682618dd77f53a1a53d5ed677b1beac43a1a
 progress:
   total_phases: 11
   completed_phases: 7
@@ -409,6 +409,7 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 | 261109-inq | 应用改名为“计划手记”，页面里的美国字样改成通用说法；隐私规则保留旧导出文件名并加上新文件名 | 2026-11-09 | 4a5ab15 | [261109-inq-rename-app-title-and-neutral-wording](./quick/261109-inq-rename-app-title-and-neutral-wording/) |
 | 6 | 修 11-UI-REVIEW 的 4 处：恢复改为键盘可用的按钮、门控时导出可用、旧路径 5 MB 提示加宽延长、CSV 提示改为中性说法 | 2026-11-11 | abba25d | — |
 | 7 | 修 12-UI-REVIEW 的 3 处：编辑页选中的类别按钮改浅底加正文色文字、禁用按钮显示禁用外观、「已归档」区的 × 放大点击区域 | 2026-11-11 | 56a6dea | — |
+| 8 | 修 14-UI-REVIEW 的 3 处：桌面宽度下空计划卡片和编辑页「从示例添加」按钮至少 36px 高；pkSave 计划校验失败时提示行显示错误；被断网或过期挡住时刷新提示行 | 2026-11-12 | 85fb682 | — |
 
 ### Roadmap Evolution
 
