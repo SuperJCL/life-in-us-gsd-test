@@ -6,6 +6,7 @@ import { test, expect } from '../support/test';
 import { bulkyState, syntheticPlan, syntheticState } from '../support/cloud-data';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { openDevice } from '../support/devices';
+import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readArchived, readGroupIds, readGroups } from '../support/goals';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
@@ -38,11 +39,16 @@ import {
   importPlanLine,
 } from '../support/strings';
 
+// 这些账号代表 Phase 14 之前建的、带示例计划的账号：旧备份里的 P2-1、bench 等进度要对上示例计划。
+// Phase 14 起新账号首次登录是空计划（D-01），所以首台设备显式放示例计划文档（写法抄 login.spec.ts）。
+const { normalizePlan, DEFAULT_PLAN } = loadAppPure(['normalizePlan', 'DEFAULT_PLAN']);
+const SEED_PLAN = JSON.parse(JSON.stringify(normalizePlan(DEFAULT_PLAN)));
+
 test('IO-08 importing a legacy backup in the cloud version asks first, replaces the records, keeps the plan and uploads to the server', async ({
   app,
   page,
 }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('imp'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('imp'), plan: SEED_PLAN, login: 0 });
   const planBefore = app.fake.lastPlan(0);
   const stateBefore = app.fake.lastState(0);
   const writesBefore = app.fake.writes.length;
@@ -81,7 +87,7 @@ test('IO-08 progress that matches no task of the current plan is highlighted in 
   app,
   page,
 }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('imo'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('imo'), plan: SEED_PLAN, login: 0 });
   const file = legacyBackup('imp9', {
     tasks: {
       'P2-1': { done: true, doneDate: '2026-03-02' },
@@ -104,7 +110,7 @@ test('IO-08 progress that matches no task of the current plan is highlighted in 
 });
 
 test('IO-08 WR-01 a custom to-do whose group is not in the plan is highlighted in the summary and kept in the records', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('wr1'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('wr1'), plan: SEED_PLAN, login: 0 });
   // 旧备份：一条自定义待办在 P2（计划里有），一条在 P9（计划里没有）
   const file = legacyBackup('wr1', {
     custom: [
@@ -163,7 +169,7 @@ test('IO-08 importing a full backup replaces the plan and the records, uploads b
   browser,
   guard,
 }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('imf'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('imf'), plan: SEED_PLAN, login: 0 });
   const sample = app.fake.lastPlan(0);
   const stateBefore = app.fake.lastState(0);
   const second = await openDevice({ browser, guard, fake: app.fake });
@@ -234,6 +240,7 @@ test('IO-08 importing a plan-only file replaces the plan and keeps the records (
       logs,
       tasks: { 'P2-1': { done: true, doneDate: '2026-03-02' }, 'P3-1': { done: true, doneDate: '2026-03-03' } },
     }),
+    plan: SEED_PLAN,
     login: 0,
   });
   const plan = syntheticPlan('po', 2);
@@ -271,7 +278,7 @@ test('IO-08 importing a plan-only file replaces the plan and keeps the records (
 });
 
 test('IO-09 importing the plan first and then the legacy backup keeps every task progress (D-07)', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('imt'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('imt'), plan: SEED_PLAN, login: 0 });
   // 带 P8 组和 P8-1 任务的计划（示例计划没有 P8）；文字都以 SYNTH- 开头
   const plan = {
     _synthetic: true,
@@ -323,7 +330,7 @@ test.describe('manual clock', () => {
 
   test('IO-08 an imported plan that could not be uploaded is retried and reaches the server', async ({ app, page, guard }) => {
     await page.clock.install({ time: FROZEN_NOW });
-    await app.open({ mode: 'cloud', seed: syntheticState('imu'), login: 0 });
+    await app.open({ mode: 'cloud', seed: syntheticState('imu'), plan: SEED_PLAN, login: 0 });
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const planKey = `usj:v2:${app.fake.users[0].id}:plan`;
     const readPlanCache = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null'), planKey);
@@ -366,7 +373,7 @@ test.describe('manual clock', () => {
 
   test('IO-07 a file over 5 MB is refused before it is read', async ({ app, page }) => {
     await page.clock.install({ time: FROZEN_NOW });
-    await app.open({ mode: 'cloud', seed: syntheticState('imb'), login: 0 });
+    await app.open({ mode: 'cloud', seed: syntheticState('imb'), plan: SEED_PLAN, login: 0 });
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const stateBefore = app.fake.lastState(0);
     const writesBefore = app.fake.writes.length;
@@ -384,7 +391,7 @@ test.describe('manual clock', () => {
 
   test('IO-07 a backup whose data exceeds the cloud limit is refused and nothing is uploaded', async ({ app, page }) => {
     await page.clock.install({ time: FROZEN_NOW });
-    await app.open({ mode: 'cloud', seed: syntheticState('imz'), login: 0 });
+    await app.open({ mode: 'cloud', seed: syntheticState('imz'), plan: SEED_PLAN, login: 0 });
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const stateBefore = app.fake.lastState(0);
     const writesBefore = app.fake.writes.length;
@@ -406,7 +413,7 @@ test.describe('manual clock', () => {
 
   test('IO-10 cancelling the cloud import leaves the data unchanged and the same file can be chosen again', async ({ app, page }) => {
     await page.clock.install({ time: FROZEN_NOW });
-    await app.open({ mode: 'cloud', seed: syntheticState('imc'), login: 0 });
+    await app.open({ mode: 'cloud', seed: syntheticState('imc'), plan: SEED_PLAN, login: 0 });
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const stateBefore = app.fake.lastState(0);
     const writesBefore = app.fake.writes.length;
@@ -434,7 +441,7 @@ test.describe('manual clock', () => {
 
   test('IO-07 the cloud version rejects an empty JSON object with the format error and changes nothing', async ({ app, page }) => {
     await page.clock.install({ time: FROZEN_NOW });
-    await app.open({ mode: 'cloud', seed: syntheticState('imr'), login: 0 });
+    await app.open({ mode: 'cloud', seed: syntheticState('imr'), plan: SEED_PLAN, login: 0 });
     await page.clock.pauseAt(FROZEN_NOW + 60_000);
     const stateBefore = app.fake.lastState(0);
     const writesBefore = app.fake.writes.length;
@@ -467,7 +474,7 @@ test('IO-08 CR-01 a backup with a done task and no doneDate imports, the goals v
   app,
   page,
 }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('cr1'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('cr1'), plan: SEED_PLAN, login: 0 });
   // 合成旧备份：P2-1 已完成但没有 doneDate（手改的文件会这样），自定义待办也是
   const file = legacyBackup('cr1', {
     tasks: { 'P2-1': { done: true }, 'c-cr1-1': { done: true } },

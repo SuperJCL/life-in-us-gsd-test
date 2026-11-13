@@ -12,6 +12,7 @@ import { fullBackup, legacyBackup } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { expectedNormalize } from '../support/expect-from-fixture';
 import { openDevice } from '../support/devices';
+import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readGroupIds } from '../support/goals';
 import { FROZEN_NOW } from '../support/constants';
 import { chooseImportFile, jsonImportFile } from '../support/import-file';
@@ -72,6 +73,11 @@ async function otherAddsLog(app: App, id: string, text: string) {
   expect(res.status).toBe(200);
 }
 
+// 这个账号代表 Phase 14 之前建的、带示例计划的账号：旧备份和导入文件里的 P2-1、bench 等进度要对上示例计划。
+// Phase 14 起新账号首次登录是空计划（D-01），所以这里显式放示例计划文档（写法抄 login.spec.ts）。
+const { normalizePlan, DEFAULT_PLAN } = loadAppPure(['normalizePlan', 'DEFAULT_PLAN']);
+const SEED_PLAN = JSON.parse(JSON.stringify(normalizePlan(DEFAULT_PLAN)));
+
 test('IO-08 an import can be undone on this device, the server returns to the data before it and the other device follows (D-04)', async ({
   app,
   page,
@@ -130,7 +136,7 @@ test('IO-08 an import can be undone on this device, the server returns to the da
 });
 
 test('IO-08 undoing after later edits asks first and undoes them too (D-05)', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('udl'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('udl'), plan: SEED_PLAN, login: 0 });
   const planBefore = app.fake.lastPlan(0);
   const stateBefore = expectedNormalize(syntheticState('udl'));
   const file = legacyBackup('udl1');
@@ -168,7 +174,7 @@ test('IO-08 undoing after later edits asks first and undoes them too (D-05)', as
 });
 
 test('IO-08 a change synced in while the undo confirm is open asks again before it is undone (D-05)', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('udm'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('udm'), plan: SEED_PLAN, login: 0 });
   const planBefore = app.fake.lastPlan(0);
   const stateBefore = expectedNormalize(syntheticState('udm'));
   const file = legacyBackup('udm1');
@@ -295,7 +301,7 @@ test.describe('manual clock', () => {
 });
 
 test('IO-08 the undo entry survives a reload and is replaced by the next import', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('udr'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('udr'), plan: SEED_PLAN, login: 0 });
   const key = undoKeyOf(app);
 
   // 导入 A，等上传完，刷新：“撤销导入”仍在，本机的撤销副本还在
@@ -405,7 +411,7 @@ test('IO-08 the undo entry shows and hides in another tab of the same browser', 
 });
 
 test('IO-08 the undo restores a remote change that was waiting when the import was made', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('udw'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('udw'), plan: SEED_PLAN, login: 0 });
   // 本周 composer 里写着没提交的草稿：页面忙，别的设备的更新只会挂起、显示横幅
   const draft = 'SYNTH-udw draft in progress';
   const entry = composer(page, 'w');

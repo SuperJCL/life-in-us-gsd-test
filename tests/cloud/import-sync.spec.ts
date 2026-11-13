@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { composer } from '../support/composer';
+import { loadAppPure } from '../support/app-source';
 import { AppHarness } from '../support/app';
 import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
@@ -63,9 +64,14 @@ async function deaf(app: App, page: Page) {
   await app.fake.dropRealtime(page);
 }
 
+// 这个账号代表 Phase 14 之前建的、带示例计划的账号：旧备份和导入文件里的 P2-1、bench 等进度要对上示例计划。
+// Phase 14 起新账号首次登录是空计划（D-01），所以这里显式放示例计划文档（写法抄 login.spec.ts）。
+const { normalizePlan, DEFAULT_PLAN } = loadAppPure(['normalizePlan', 'DEFAULT_PLAN']);
+const SEED_PLAN = JSON.parse(JSON.stringify(normalizePlan(DEFAULT_PLAN)));
+
 async function openManual(app: App, page: Page, label: string, extra: { plan?: unknown } = {}) {
   await page.clock.install({ time: FROZEN_NOW });
-  await app.open({ mode: 'cloud', seed: syntheticState(label), plan: extra.plan, login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState(label), plan: extra.plan === undefined ? SEED_PLAN : extra.plan, login: 0 });
   await page.clock.pauseAt(FROZEN_NOW + 60_000);
 }
 
@@ -77,7 +83,7 @@ async function importAndConfirm(page: Page, name: string, value: unknown) {
 }
 
 test('IO-08 an import made while a remote update waits replaces it and uploads the imported data (IN-05)', async ({ app, page }) => {
-  await app.open({ mode: 'cloud', seed: syntheticState('ins'), login: 0 });
+  await app.open({ mode: 'cloud', seed: syntheticState('ins'), plan: SEED_PLAN, login: 0 });
   // 本周 composer 里写着没提交的草稿：页面忙，别的设备的更新只会挂起、显示横幅
   const draft = 'SYNTH-1105 draft in progress';
   const entry = composer(page, 'w');

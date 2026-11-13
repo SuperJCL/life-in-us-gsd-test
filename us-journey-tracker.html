@@ -500,7 +500,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
       <h2 id="wkTitle"></h2><span class="range" id="wkRange"></span>
       <div class="nav"><button class="icon" id="wkPrev" aria-label="上一周">‹</button><button class="ghost" id="wkNow">本周</button><button class="icon" id="wkNext" aria-label="下一周">›</button></div>
     </div>
-    <p class="empty hidden" id="wkEmpty">当前计划是空的，这里只统计你记下的内容。可以在「目标」页载入示例计划或编辑计划。</p>
+    <p class="empty hidden" id="wkEmpty">当前计划是空的，这里只统计你记下的内容。可以在「目标」页建一份计划，或从示例里挑。</p>
     <div class="areas" id="areas"></div>
     <div class="wk-layout">
       <div>
@@ -2409,7 +2409,7 @@ const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要
 const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_DEL_LIFT="删除这个力量项",T_PE_LIM_LIFTS="最多 8 个",T_PE_ARCH_LIFT_TITLE="归档这个力量项？",T_PE_ARCH_LIFT_YES="归档力量项",T_PE_ARCH_LIFT_BODY="归档后目标页只读显示它的历史，不能再记录新的重量。";
 const T_PE_PRESETS_TITLE="基础预设标签",T_PE_PRESETS_NOTE="这里改的是基础标签。在「记一笔」里自己加的标签、隐藏的标签不受影响。",T_PE_PRESETS_EMPTY="这个类别还没有基础标签。",T_PE_ADD_TAG="＋ 添加标签",T_PE_LIM_TAGS="最多 20 个",T_PE_TAG_COUNT=n=>n+" 个标签",T_PE_LABEL_TAG="标签 ",T_PE_LIVE_ADDED_TAG="已添加：新的标签";
-const T_PE_EMPTY_TITLE="计划是空的",T_PE_EMPTY_BODY="目标页还没有目标组和力量项。你可以自己建一份，也可以从示例里挑需要的，没挑的不会加进来。",T_PE_SAMPLE_BTN="从示例里挑",T_PE_SAMPLE_LOADED="已载入示例的目标组和力量项，点「保存计划」后生效",T_GOALS_NO_LIFTS="还没有力量项，可以在「编辑计划」里添加。",T_GOALS_NO_GROUPS="还没有目标组，可以在「编辑计划」里添加。",T_PE_GROUPS_EMPTY="还没有目标组。";
+const T_PE_EMPTY_TITLE="计划是空的",T_PE_EMPTY_BODY="目标页还没有目标组和力量项。你可以自己建一份，也可以从示例里挑需要的，没挑的不会加进来。",T_PE_SAMPLE_BTN="从示例里挑",T_GOALS_NO_LIFTS="还没有力量项，可以在「编辑计划」里添加。",T_GOALS_NO_GROUPS="还没有目标组，可以在「编辑计划」里添加。",T_PE_GROUPS_EMPTY="还没有目标组。";
 const T_PE_BTN="编辑计划",T_PE_BTN2="自己建一份",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
@@ -2549,7 +2549,7 @@ function renderPlanEditor(){
     <label class="f">${T_PE_LABEL_NOTE}<textarea id="pe-f-g-${esc(g.id)}-note" data-pefield="${esc(key)}:note" maxlength="${PLAN_MAX.note}" rows="3">
 ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,PLAN_MAX.note)}</label>
     <h4 class="pe-sub">${T_PE_TASKS_TITLE}<span class="pe-count">${n}/${PLAN_MAX.tasks}</span></h4>${peRows(g)}<button type="button" class="ghost pe-add" data-peact="addtask" data-pekey="${esc(key)}"${n>=PLAN_MAX.tasks?" disabled":""}>${T_PE_ADD_TASK}</button>${n>=PLAN_MAX.tasks?`<span class="pe-lim">${T_PE_LIM_TASKS}</span>`:""}
-    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}${!gs.length&&!pe.draft.lifts.some(l=>!l.archived)?`<button type="button" class="ghost pe-add" data-peact="sample">${T_PE_SAMPLE_BTN}</button>`:""}</section>`+peFitHTML()+pePresetsHTML()+peArchivedHTML();
+    <div><button type="button" class="danger pe-add" data-peact="delgroup" data-pekey="${esc(key)}">${T_PE_DEL_GROUP}</button></div></div></div>`}).join("")}<button type="button" class="ghost pe-add" data-peact="addgroup"${gs.length>=PLAN_MAX.groups?" disabled":""}>${T_PE_ADD_GROUP}</button>${gs.length>=PLAN_MAX.groups?`<span class="pe-lim">${T_PE_LIM_GROUPS}</span>`:""}</section>`+peFitHTML()+pePresetsHTML()+peArchivedHTML();
   peShowErrors();
   if(fk){
     let e=fk.id?$(fk.id):Array.from(main.querySelectorAll("[data-peact]")).find(x=>(x.dataset.peact||"")===fk.act&&(x.dataset.pekey||"")===fk.key&&(x.dataset.pecat||"")===fk.cat);
@@ -2573,7 +2573,6 @@ peRoot.addEventListener("click",e=>{
   else if(a==="delgroup")peDelete("group",k.slice(2));
   else if(a==="restore")peRestore(k);
   else if(a==="purge")pePurge(k);
-  else if(a==="sample")loadSampleDraft(true);
 });
 /* 新项的 id 在加进草稿时生成一次（g-、t- 加 uid()），不会撞上打开时的 id、草稿里的 id 和直接移除后可撤销的 id；保存和重试都不再生成 */
 function peUsedIds(){const u=new Set(pe.origIds);pe.draft.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});pe.draft.lifts.forEach(l=>u.add(l.id));pe.gone.forEach(r=>{u.add(r.id);if(r.item&&r.item.tasks)r.item.tasks.forEach(t=>u.add(t.id))});return u}
@@ -2828,18 +2827,6 @@ function peRestore(key){
   renderPlanEditor();peBar();peArchFocus(order,key);
   peSay(T_PE_LIVE_RESTORED+nm);
   toast(T_PE_LIVE_RESTORED+peShort(nm==="（未命名）"?"":nm),null,3000);
-}
-/* 载入示例计划（D-16、A16）：只在草稿里没有未归档的组和力量项时可用（按钮也只在这时出现）。示例的目标组和力量项深拷贝后每一项换成全新的 g-、t-、l- id（不复用 P1、bench 等示例 id：会撞上同 id 的归档项、接上旧进度），追加到草稿末尾；预设标签、健身目标、健身说明不动。草稿立刻有未保存的修改，保存才生效 */
-function loadSampleDraft(fromEditor){
-  if(!pe||pe.draft.groups.some(g=>!g.archived)||pe.draft.lifts.some(l=>!l.archived))return;
-  const u=peUsedIds(),nid=p=>{let id;do{id=p+uid()}while(u.has(id));u.add(id);return id};
-  const smp=JSON.parse(JSON.stringify(DEFAULT_PLAN));
-  smp.groups.forEach(g=>{g.id=nid("g-");g.tasks.forEach(t=>{t.id=nid("t-")});pe.draft.groups.push(g)});
-  smp.lifts.forEach(l=>{l.id=nid("l-");pe.draft.lifts.push(l)});
-  renderPlanEditor();peBar();
-  if(fromEditor){const h=$("pe-h-groups");if(h)h.focus()}
-  peSay(T_PE_SAMPLE_LOADED);
-  toast(T_PE_SAMPLE_LOADED,null,4000);
 }
 peRoot.addEventListener("input",e=>{
   const f=e.target.dataset&&e.target.dataset.pefield;if(!f||!pe)return;

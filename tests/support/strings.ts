@@ -626,14 +626,12 @@ export const PE_RESTORE_LIMIT_GROUPS = '目标组已满（20 个），先删掉�
 export const PE_RESTORE_LIMIT_TASKS = '任务已满（50 项），先删掉一个再恢复';
 export const PE_RESTORE_LIMIT_LIFTS = '力量项已满（8 个），先删掉一个再恢复';
 
-// Phase 12-06 Task 3：空计划（应用里 T_PE_EMPTY_TITLE、T_PE_EMPTY_BODY、T_PE_SAMPLE_BTN、T_PE_SAMPLE_LOADED、T_GOALS_NO_LIFTS、T_GOALS_NO_GROUPS、T_PE_GROUPS_EMPTY 和 #wkEmpty 的静态文字，逐字相同）
+// Phase 12-06 Task 3（Phase 14 起 PE_EMPTY_BODY 和 WEEK_EMPTY_PLAN 是新值）：空计划（应用里 T_PE_EMPTY_TITLE、T_PE_EMPTY_BODY、T_PE_SAMPLE_BTN、T_GOALS_NO_LIFTS、T_GOALS_NO_GROUPS、T_PE_GROUPS_EMPTY 和 #wkEmpty 的静态文字，逐字相同）
 export const PE_EMPTY_TITLE = '计划是空的';
 export const PE_EMPTY_BODY = '目标页还没有目标组和力量项。你可以自己建一份，也可以从示例里挑需要的，没挑的不会加进来。';
-export const BTN_LOAD_SAMPLE = '载入示例计划';
-export const TOAST_SAMPLE_LOADED = '已载入示例的目标组和力量项，点「保存计划」后生效';
 export const GOALS_NO_LIFTS = '还没有力量项，可以在「编辑计划」里添加。';
 export const GOALS_NO_GROUPS = '还没有目标组，可以在「编辑计划」里添加。';
-export const WEEK_EMPTY_PLAN = '当前计划是空的，这里只统计你记下的内容。可以在「目标」页载入示例计划或编辑计划。';
+export const WEEK_EMPTY_PLAN = '当前计划是空的，这里只统计你记下的内容。可以在「目标」页建一份计划，或从示例里挑。';
 export const PE_GROUPS_EMPTY = '还没有目标组。';
 
 // Phase 12-07 Task 1：编辑期间别的设备改了计划（D-07、A14）：提示行、#pe-notice、三选一对话框、两个 toast（应用里 T_PE_NOTICE、T_PE_HINT_REMOTE、T_PE_CF_*、T_PE_BACK、T_PE_TAKE、T_PE_OVERWRITE、T_PE_SAVED_KEPT、T_PE_TAKEN，逐字相同）

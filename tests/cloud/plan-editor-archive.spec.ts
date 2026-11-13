@@ -12,16 +12,16 @@ import { composer } from '../support/composer';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
   BTN_ADD_GROUP,
-  BTN_LOAD_SAMPLE,
-  BTN_PLAN_EDIT,
+  BTN_PICK_SAMPLE,
+  BTN_PLAN_BUILD,
   GOALS_NO_GROUPS,
   GOALS_NO_LIFTS,
   PE_EMPTY_BODY,
   PE_EMPTY_TITLE,
   PE_GROUPS_EMPTY,
-  PE_HINT_DIRTY,
   TAB_LABELS,
-  TOAST_SAMPLE_LOADED,
+  pkDone,
+  pkPicked,
   WEEK_EMPTY_PLAN,
   BTN_PURGE,
   BTN_PURGE_GROUP,
@@ -334,7 +334,7 @@ test('PLAN-03 an archived group carries its custom to-dos, a task archived on it
   expect([st.tasks['t-gazx2'], st.tasks['c-ga-1'], (st.custom ?? []).map((c: any) => c.id)]).toEqual([done, done, ['c-ga-1']]);
 });
 
-test('PLAN-02 an emptied plan shows the empty plan card and the week hint, and the sample plan loads into the draft with new ids (D-16, A16)', async ({
+test('PLAN-02 an emptied plan shows the empty plan card with its two entries and the week hint, and sample groups and lifts picked from the card are saved with new ids (D-16, D-04, D-08)', async ({
   app,
   page,
 }) => {
@@ -354,26 +354,26 @@ test('PLAN-02 an emptied plan shows the empty plan card and the week hint, and t
   expect(await readGroupIds(page)).toEqual(['g-em1']);
   await expect(page.locator('#planEditBtn')).toHaveCount(1);
 
-  // 再删掉那个组（没有进度，直接移除）：编辑页目标组分区显示「还没有目标组。」、「＋ 添加目标组」和「载入示例计划」
+  // 再删掉那个组（没有进度，直接移除）：编辑页目标组分区显示「还没有目标组。」和「＋ 添加目标组」；Phase 14 起没有「载入示例计划」按钮了（D-04）
   await page.locator('#planEditBtn').click();
   await expand(page, 'g:g-em1');
   await act(page, 'delgroup', 'g:g-em1').click();
   expect((await readEditor(page)).groups).toEqual([]);
   await expect(page.locator('#pe-main [aria-labelledby="pe-h-groups"] > p.empty')).toHaveText(PE_GROUPS_EMPTY);
   await expect(act(page, 'addgroup')).toHaveText(BTN_ADD_GROUP);
-  await expect(act(page, 'sample')).toHaveText(BTN_LOAD_SAMPLE);
+  await expect(act(page, 'sample')).toHaveCount(0);
   await savePlan(page);
   await expectToast(page, TOAST_PLAN_SAVED);
 
-  // 服务器计划 groups 和 lifts 都是 []；目标页是「计划是空的」卡片
+  // 服务器计划 groups 和 lifts 都是 []；目标页是「计划是空的」卡片，两个入口：自己建一份（主按钮）、从示例里挑
   await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(0);
   expect(app.fake.lastPlan(0).lifts).toEqual([]);
   await expect(page.locator('#goals .pe-empty h3')).toHaveText(PE_EMPTY_TITLE);
-  await expect(page.locator('#goals .pe-empty p')).toHaveText(PE_EMPTY_BODY);
+  await expect(page.locator('#goals .pe-empty > p')).toHaveText(PE_EMPTY_BODY);
   await expect(page.locator('#planEditBtn')).toHaveCount(0);
-  await expect(page.locator('#planEditBtn2')).toHaveText(BTN_PLAN_EDIT);
+  await expect(page.locator('#planEditBtn2')).toHaveText(BTN_PLAN_BUILD);
   await expect(page.locator('#planEditBtn2')).toHaveClass(/primary/);
-  await expect(page.locator('#planSampleBtn')).toHaveText(BTN_LOAD_SAMPLE);
+  await expect(page.locator('#planSampleBtn')).toHaveText(BTN_PICK_SAMPLE);
   expect(await readGroupIds(page)).toEqual([]);
 
   // 本周页：说明可见，记一笔照常
@@ -393,35 +393,30 @@ test('PLAN-02 an emptied plan shows the empty plan card and the week hint, and t
   expect(await readGroupIds(page)).toEqual([]);
   expect([app.fake.lastPlan(0).groups, app.fake.lastPlan(0).lifts]).toEqual([[], []]);
 
-  // 载入示例计划：编辑页打开，草稿马上有未保存的修改，toast 说明；组数、每组任务数、力量项个数对得上，id 全新；预设和健身目标不动
+  // 从示例里挑：对话框打开，勾上全部 11 项，提示行说已选 7 个目标组、4 个力量项；点添加并保存后直接保存，对话框关闭、编辑页没有打开
   await page.locator('#planSampleBtn').click();
-  await expect(page.locator('#tab-plan')).toBeVisible();
-  await expectToast(page, TOAST_SAMPLE_LOADED);
-  const ed = await readEditor(page);
-  expect(ed.hint).toBe(PE_HINT_DIRTY);
-  expect(ed.groups.length).toBe(Object.keys(BUILTIN_GROUP_SIZES).length);
-  expect(ed.groups.map((g) => g.taskKeys.length)).toEqual(Object.values(BUILTIN_GROUP_SIZES));
-  expect(ed.groups.every((g) => /^g:g-[A-Za-z0-9_-]+$/.test(g.key))).toBe(true);
-  expect(ed.groups.every((g) => g.taskKeys.every((k) => /^t:t-[A-Za-z0-9_-]+$/.test(k)))).toBe(true);
-  expect(ed.lifts.length).toBe(4);
-  expect(ed.lifts.every((l) => /^l:l-[A-Za-z0-9_-]+$/.test(l.key))).toBe(true);
-  expect(ed.fit, '健身目标不动').toEqual({ min: '1', max: '3' });
-  expect(ed.archived.present).toBe(false);
-  // 载入之后「载入示例计划」按钮不再出现
-  await expect(act(page, 'sample')).toHaveCount(0);
+  await expect(page.locator('dialog#sample')).toBeVisible();
+  const boxes = page.locator('dialog#sample input[data-pk]');
+  await expect(boxes).toHaveCount(11);
+  for (let i = 0; i < 11; i += 1) await boxes.nth(i).check();
+  await expect(page.locator('#pk-hint')).toHaveText(pkPicked(7, 4));
+  await page.locator('#pkOk').click();
+  await expectToast(page, pkDone(7, 4));
+  await expect(page.locator('dialog#sample')).toBeHidden();
+  await expect(page.locator('#tab-plan')).toBeHidden();
 
-  // 保存：服务器计划的 id 都是新的，预设和健身说明与原来相同；目标页编号 P1 到 P7，本周页说明隐藏
-  await savePlan(page);
-  await expectToast(page, TOAST_PLAN_SAVED);
+  // 服务器计划：id 都是新的，每组任务数依次对得上示例，预设和健身目标、说明与原来相同（卡片模式不动它们）
   await expect.poll(() => app.fake.lastPlan(0)?.groups?.length, { message: '等待新计划上传' }).toBe(7);
   const saved: any = app.fake.lastPlan(0);
   expect(saved.groups.every((g: any) => /^g-/.test(g.id) && g.tasks.every((t: any) => /^t-/.test(t.id)))).toBe(true);
-  expect(saved.lifts.map((l: any) => l.id).every((id: string) => /^l-/.test(id))).toBe(true);
+  expect(saved.groups.map((g: any) => g.tasks.length)).toEqual(Object.values(BUILTIN_GROUP_SIZES));
   expect(saved.lifts.length).toBe(4);
+  expect(saved.lifts.map((l: any) => l.id).every((id: string) => /^l-/.test(id))).toBe(true);
   expect(JSON.stringify(saved.presets) === JSON.stringify(plan.presets), '预设标签不动').toBe(true);
   expect(saved.fitGoal).toEqual(plan.fitGoal);
   expect(saved.fitNote === plan.fitNote, '健身说明不动').toBe(true);
-  await gotoGoals(page);
+
+  // 目标页编号 P1 到 P7，本周页说明隐藏
   expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
   await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
   await expect(page.locator('#wkEmpty')).toBeHidden();
