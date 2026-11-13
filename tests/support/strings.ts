@@ -628,7 +628,7 @@ export const PE_RESTORE_LIMIT_LIFTS = '力量项已满（8 个），先删掉一
 
 // Phase 12-06 Task 3：空计划（应用里 T_PE_EMPTY_TITLE、T_PE_EMPTY_BODY、T_PE_SAMPLE_BTN、T_PE_SAMPLE_LOADED、T_GOALS_NO_LIFTS、T_GOALS_NO_GROUPS、T_PE_GROUPS_EMPTY 和 #wkEmpty 的静态文字，逐字相同）
 export const PE_EMPTY_TITLE = '计划是空的';
-export const PE_EMPTY_BODY = '目标页还没有目标组和力量项。你可以自己建一份，也可以先载入示例计划，再慢慢改。';
+export const PE_EMPTY_BODY = '目标页还没有目标组和力量项。你可以自己建一份，也可以从示例里挑需要的，没挑的不会加进来。';
 export const BTN_LOAD_SAMPLE = '载入示例计划';
 export const TOAST_SAMPLE_LOADED = '已载入示例的目标组和力量项，点「保存计划」后生效';
 export const GOALS_NO_LIFTS = '还没有力量项，可以在「编辑计划」里添加。';
@@ -682,3 +682,24 @@ export const CF_SW_LINE1 = '有没保存的修改，更新会刷新页面，这�
 export const CF_SW_LINE2 = '已经记下、还没上传的修改不受影响，刷新后会照常上传。';
 export const CF_SW_CANCEL = '先不更新';
 export const CF_SW_OK = '仍然更新';
+
+// Phase 14-01：新账号的空计划起步和「从示例里挑」（应用里 T_PE_BTN2、T_PE_SAMPLE_BTN、T_PE_EMPTY_BODY（上面 PE_EMPTY_BODY 已同步新值）、T_PK_TITLE_CARD、T_PK_DESC_CARD、
+// T_PK_SEC_GROUPS、T_PK_SEC_LIFTS、T_PK_COUNT、T_PK_TASKS、T_PK_TARGET、T_PK_NONE、T_PK_OK_CARD、T_PK_CANCEL、T_PK_PICKED、T_PK_DONE，逐字相同；pkPicked、pkDone 在这里独立写出，不读应用的 pkParts）。
+// 空计划卡片的两个按钮：主按钮进编辑页（T_PE_BTN2），次按钮打开挑选对话框（T_PE_SAMPLE_BTN）
+export const BTN_PLAN_BUILD = '自己建一份';
+export const BTN_PICK_SAMPLE = '从示例里挑';
+// 挑选对话框（卡片模式）的标题、说明、分区图例、行说明、提示行和两个按钮
+export const PK_TITLE_CARD = '从示例里挑';
+export const PK_DESC_CARD = '示例是一份通用的样本计划。勾选要用的，点「添加并保存」就加进你的计划；没勾的不会加。';
+export const PK_SEC_GROUPS = '目标组';
+export const PK_SEC_LIFTS = '力量项';
+export const pkCount = (n: number): string => `共 ${n} 个`;
+export const pkTasks = (n: number): string => `${n} 项任务`;
+export const pkTarget = (target: number, unit: string): string => `目标 ${target} ${unit}`;
+export const PK_HINT_NONE = '先勾选要加入的项';
+export const BTN_PK_OK_CARD = '添加并保存';
+export const BTN_PK_CANCEL = '先不添加';
+// 勾选后的提示行和保存后的 toast：为 0 的部分省略，两部分用「、」连接
+const pkParts = (g: number, l: number): string => [g ? `${g} 个目标组` : '', l ? `${l} 个力量项` : ''].filter(Boolean).join('、');
+export const pkPicked = (g: number, l: number): string => `已选 ${pkParts(g, l)}`;
+export const pkDone = (g: number, l: number): string => `已加入 ${pkParts(g, l)}，计划已保存`;

@@ -297,6 +297,57 @@ dialog#confirm .ed-foot.three{flex-wrap:wrap;justify-content:flex-end}
   #pe-archived .pe-arch-row .pe-act{grid-column:1 / -1}
 }
 
+/* Phase 14. Scoped to .pe-empty / dialog#sample / #tab-plan .pe-tools; no global rule changes. No inline style attributes anywhere (CSP style-src-attr none). */
+/* S1: empty-plan card buttons (real disabled from the global gate and aria-disabled from offline/expired look the same) */
+.pe-empty-act :is(button:disabled,[aria-disabled="true"]){opacity:.4;cursor:not-allowed}
+.pe-empty-act .ghost:is(:disabled,[aria-disabled="true"]):hover{color:var(--muted);border-color:var(--line)}
+.pe-empty-act .pe-why{flex:1 1 100%;margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+.pe-empty-act .pe-why:empty{display:none}
+.pe-empty-act .pe-why::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-job);margin-right:8px}
+/* S4: editor entry row */
+#tab-plan .pe-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px}
+#tab-plan .pe-tools-note{font-size:12px;line-height:1.55;color:var(--muted)}
+/* S2: picker dialog (backdrop: dialog#sample::backdrop is in the dialog#editor/#confirm backdrop selector) */
+dialog#sample{border:1px solid var(--line);border-radius:14px;padding:0;width:min(520px,calc(100vw - 24px));max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);background:var(--surface);color:var(--ink);font-size:14px;line-height:1.55}
+dialog#sample[open]{display:flex;flex-direction:column}
+dialog#sample form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+dialog#sample :is(.ghost,.danger){padding:8px 12px;font-size:14px}
+dialog#sample .primary{padding:8px 16px;font-size:14px}
+.pk-head{padding:24px 24px 0}
+.pk-head h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0}
+.pk-head p{margin:8px 0 0;font-size:14px;color:var(--muted)}
+.pk-body{flex:1 1 auto;min-height:0;overflow:auto;margin-top:16px;padding:16px 24px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pk-sec{border:0;margin:0;padding:0;min-width:0}
+.pk-sec+.pk-sec{margin-top:24px}
+.pk-sec legend{padding:0;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--muted)}
+.pk-sec legend .pe-count{margin-left:8px;font-weight:400}
+.pk-lim{margin:0 0 8px}
+.pk-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pk-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:12px;align-items:start;min-height:36px;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;cursor:pointer}
+.pk-item:has(input:checked){background:var(--s);border-color:var(--c)}
+.pk-item:has(input:focus-visible){outline:2px solid var(--c-lang);outline-offset:2px}
+.pk-item:has(input:disabled){opacity:.4;cursor:not-allowed}
+.pk-item input{width:20px;height:20px;margin:0;accent-color:var(--ink)}
+.pk-name{display:block;font-size:14px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.pk-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:4px;font-size:12px;font-weight:400;color:var(--muted)}
+.pk-chip{padding:0 8px;border:1px solid var(--c);border-radius:999px;color:var(--ink)}
+.pk-dup{padding:0 8px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.pk-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:16px 24px 24px}
+#pk-hint{flex:1 1 160px;min-width:0;margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+#pk-hint[data-tone]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
+#pk-hint[data-tone="warn"]{--tone:var(--c-job)} #pk-hint[data-tone="error"]{--tone:var(--red)}
+.pk-foot button{min-height:36px}
+.pk-foot :is(button:disabled,[aria-disabled="true"]){opacity:.4;cursor:not-allowed}
+.pk-foot .ghost:is(:disabled,[aria-disabled="true"]):hover{color:var(--muted);border-color:var(--line)}
+@media (max-width:560px){
+  dialog#sample{margin:auto 0 0;width:100vw;max-width:100vw;max-height:90vh;max-height:90dvh;border-radius:14px 14px 0 0}
+  .pk-item{min-height:44px}
+  .pk-foot{padding:16px 24px calc(24px + env(safe-area-inset-bottom,0px))}
+  #pk-hint{flex:1 1 100%}
+  .pk-foot button{flex:1;min-height:44px}
+  #tab-plan .pe-tools .ghost{flex:1 1 100%;min-height:44px}
+}
+
 /* timeline */
 .tl{position:relative;padding-left:22px}
 .tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line)}
@@ -322,7 +373,7 @@ body[data-gate] .ghost[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
 body[data-gate] [aria-disabled="true"]{cursor:default}
 body[data-gate] .ent[aria-disabled="true"]:hover,body[data-gate] .editable[aria-disabled="true"]:hover{filter:none;box-shadow:none}
 dialog#editor,dialog#confirm{border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,calc(100vw - 24px));background:var(--surface);color:var(--ink)}
-dialog#editor::backdrop,dialog#confirm::backdrop{background:rgba(10,16,30,.45)}
+dialog#editor::backdrop,dialog#confirm::backdrop,dialog#sample::backdrop{background:rgba(10,16,30,.45)}
 @media (max-width:560px){dialog#editor,dialog#confirm{margin:auto 0 0;width:100vw;max-width:100vw;border-radius:14px 14px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}}
 dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2}
 #cf-body{font-size:14px;word-break:break-word}
@@ -498,6 +549,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <dialog id="editor" aria-labelledby="ed-title"><form method="dialog" id="ed-form"></form></dialog>
 <dialog id="confirm" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-body"><form method="dialog"><div class="ed-h"><h3 id="cf-title"></h3></div><div id="cf-body"></div><div class="ed-foot"><span class="sp"></span><button type="button" class="ghost" id="cfCancel" autofocus></button><button type="button" id="cfMid" class="hidden"></button><button type="button" class="danger" id="cfOk"></button></div></form></dialog>
+<dialog id="sample" aria-labelledby="pk-title" aria-describedby="pk-desc"><form method="dialog"><div class="pk-head"><h3 id="pk-title"></h3><p id="pk-desc"></p></div><div class="pk-body" id="pk-body"></div><div class="pk-foot"><p id="pk-hint" role="status"></p><button type="button" class="ghost" id="pkCancel"></button><button type="button" class="primary" id="pkOk" aria-describedby="pk-hint"></button></div></form></dialog>
 
 <script>
 (function(){
@@ -846,6 +898,20 @@ function planProblems(p){
     });
   });
   return out;
+}
+/* D-01、D-02、D-03（Phase 14）：云端新账号首次建档用的空计划 = 示例计划的深拷贝，groups 和 lifts 换成 []，快捷词 presets 换成 {}（normalizePlan 补成 5 个空数组），
+   保留示例的 fitGoal 和 fitNote（只留数据，界面不动）。只用于云端首次建档；脚本求值时和退出登录时仍用示例计划（SEC-04） */
+function emptyPlan(){const s=JSON.parse(JSON.stringify(DEFAULT_PLAN));s.groups=[];s.lifts=[];s.presets={};return normalizePlan(s)}
+/* 一份计划里全部组 id（含归档的）、任务 id、力量项 id；卡片模式没有编辑页草稿，peUsedIds 用不了 */
+function planUsedIds(p){const u=new Set();p.groups.forEach(g=>{u.add(g.id);g.tasks.forEach(t=>u.add(t.id))});p.lifts.forEach(l=>u.add(l.id));return u}
+/* D-05、D-08：keys 是 "g:<示例组 id>"、"l:<示例力量项 id>" 的数组或 Set；按示例原顺序只深拷贝勾选的项（与勾选先后无关），
+   组、任务、力量项一律换成新的 g-、t-、l- id（避开 used 里已有的，并把新 id 加进 used）；不带 presets，不认识的键忽略 */
+function pickSample(keys,used){
+  const ks=new Set(keys),nid=p=>{let id;do{id=p+uid()}while(used.has(id));used.add(id);return id};
+  const smp=JSON.parse(JSON.stringify(DEFAULT_PLAN)),groups=[],lifts=[];
+  smp.groups.forEach(g=>{if(!ks.has("g:"+g.id))return;g.id=nid("g-");g.tasks.forEach(t=>{t.id=nid("t-")});groups.push(g)});
+  smp.lifts.forEach(l=>{if(!ks.has("l:"+l.id))return;l.id=nid("l-");lifts.push(l)});
+  return {groups,lifts};
 }
 
 /* ---------- saving ---------- */
@@ -1198,7 +1264,7 @@ async function reconcileOnce(r){
   /* reconcile table, one kind at a time (plan first, then state):
      server only -> server; clean cache with the same updated -> cache (= server); clean cache and newer server -> server, nothing uploaded;
      dirty cache and the server unchanged -> upload the local version; dirty cache and a newer server -> keepConflict() (silent), upload the local version; one conflictNotice() after both kinds are done (below);
-     no server document -> create it from the cache, or from DEFAULT_PLAN / an empty state when there is no cache; a create that hits the (owner, kind)
+     no server document -> create it from the cache, or from emptyPlan() (D-01, Phase 14) / an empty state when there is no cache; a create that hits the (owner, kind)
      unique index (400 validation_not_unique: another device created it first) re-reads the list and continues from the same table with the server document.
      Everything above is network; everything below is one synchronous commit, so a stale run can never half-apply. */
   const same=(c,sv)=>!!c&&!c.dirty&&c.base===sv.updated;
@@ -1212,7 +1278,7 @@ async function reconcileOnce(r){
     const held=sv=>({held:true,sv,data:c.data,c});
     if(!sv){
       if(c&&sizeOf(c.data)>CLOUD_MAX)return held({id:c.id,updated:c.base});
-      try{const d=await mk(kind,c?c.data:kind==="plan"?normalizePlan(DEFAULT_PLAN):normalize({}));return {sv:d,data:d.data,c}}
+      try{const d=await mk(kind,c?c.data:kind==="plan"?emptyPlan():normalize({}));return {sv:d,data:d.data,c}}
       catch(e){if(!uniq(e))throw e;list=await coll.getFullList(sg);live();sv=list.find(d=>d.kind===kind);if(!sv)throw e}
     }
     if(c&&c.dirty&&canon(c.data)!==canon(sv.data)){
@@ -1541,7 +1607,7 @@ window.addEventListener("online",()=>{if(CLOUD&&me){stopRetry();requestSync("onl
    sessionEpoch is bumped on every sign-in and sign-out; a save or reconcile that was started earlier checks it after each await and then touches neither the cache nor the page. */
 /* confirmBox: one shared dialog (logout confirm, switch-account confirm); text is written with textContent, the cancel button is the default focus,
    Esc, a click on the backdrop and the cancel button all resolve false; only the ok button resolves true; focus goes back to the element that opened it */
-const cfDlg=$("confirm");
+const cfDlg=$("confirm"),pkDlg=$("sample");let pk=null;
 function confirmBox(o){
   return new Promise(res=>{
     if(cfDlg.open){res(false);return}
@@ -1877,7 +1943,7 @@ const T_LOG_READDED="这条记录在另一台设备上被删除，已按你的�
    a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
 function isBusy(...a){
   if(pe)return true;
-  if(dlg.open||cfDlg.open||rvPending)return true;
+  if(dlg.open||cfDlg.open||pkDlg.open||rvPending)return true;
   for(const id of ["w-text","c-text"]){const e=$(id);if(e&&e.value.trim())return true}
   if(compAdding.w||compAdding.c)return true;
   const f=a.length?a[0]:document.activeElement;
@@ -1946,6 +2012,7 @@ function resetSession(){
   if(location.hash==="#plan")history.replaceState(null,"",location.pathname+location.search);
   if(peWas)showTab("goal");
   if(cfDlg.open)cfDlg.close();
+  if(pkDlg.open)pkDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
   usePlan(DEFAULT_PLAN);keepOrphans=false;cacheFull=false;state=normalize({});
@@ -2168,7 +2235,7 @@ function renderGoals(){
       <div class="lbar"><i data-w="${pct}"></i></div>
       <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
       <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
-  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN}</button><button type="button" class="ghost" id="planSampleBtn">${T_PE_SAMPLE_BTN}</button></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();return}
+  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN2}</button><button type="button" class="ghost" id="planSampleBtn" aria-describedby="planSampleWhy">${T_PE_SAMPLE_BTN}</button><p class="pe-why" id="planSampleWhy" role="status"></p></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();return}
   $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+fit+activeGroups().map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
@@ -2323,7 +2390,7 @@ function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(in
 $("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
   if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
 function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;const id="c-"+uid();commit(["custom:"+id],s=>{if(!s.custom.some(x=>x.id===id))s.custom.push({id,group:g,text:v})});renderAll()}
-$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){const had=!!pe;goPlan();if(!had&&pe)loadSampleDraft(false);return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
+$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){openSamplePicker("card");return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
   if(a)addTask(a);if(d){commit(["custom:"+d],s=>{s.custom=s.custom.filter(t=>t.id!==d);delete s.tasks[d]});renderAll()}});
 $("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
@@ -2342,8 +2409,8 @@ const T_PE_BAD=n=>"有 "+n+" 处要改",T_PE_HINT_ERRORS=n=>"有 "+n+" 处需要
 const T_PE_FIT_TITLE="健身",T_PE_FIT_GOAL_TITLE="每周健身目标",T_PE_FIT_MIN="最少",T_PE_FIT_MAX="最多",T_PE_FIT_NOTE="健身说明",T_PE_DAY_UNIT="天",T_PE_LIFTS_TITLE="力量项",T_PE_ADD_LIFT="＋ 添加力量项",T_PE_UNIT_EXAMPLE="例如 kg、次",T_PE_LIFT_UNIT="单位",T_PE_LIFT_TARGET="目标值",T_PE_LIFT_DEF="默认起始值",T_PE_LIVE_ADDED_LIFT="已添加：新的力量项";
 const T_PE_DEL_LIFT="删除这个力量项",T_PE_LIM_LIFTS="最多 8 个",T_PE_ARCH_LIFT_TITLE="归档这个力量项？",T_PE_ARCH_LIFT_YES="归档力量项",T_PE_ARCH_LIFT_BODY="归档后目标页只读显示它的历史，不能再记录新的重量。";
 const T_PE_PRESETS_TITLE="基础预设标签",T_PE_PRESETS_NOTE="这里改的是基础标签。在「记一笔」里自己加的标签、隐藏的标签不受影响。",T_PE_PRESETS_EMPTY="这个类别还没有基础标签。",T_PE_ADD_TAG="＋ 添加标签",T_PE_LIM_TAGS="最多 20 个",T_PE_TAG_COUNT=n=>n+" 个标签",T_PE_LABEL_TAG="标签 ",T_PE_LIVE_ADDED_TAG="已添加：新的标签";
-const T_PE_EMPTY_TITLE="计划是空的",T_PE_EMPTY_BODY="目标页还没有目标组和力量项。你可以自己建一份，也可以先载入示例计划，再慢慢改。",T_PE_SAMPLE_BTN="载入示例计划",T_PE_SAMPLE_LOADED="已载入示例的目标组和力量项，点「保存计划」后生效",T_GOALS_NO_LIFTS="还没有力量项，可以在「编辑计划」里添加。",T_GOALS_NO_GROUPS="还没有目标组，可以在「编辑计划」里添加。",T_PE_GROUPS_EMPTY="还没有目标组。";
-const T_PE_BTN="编辑计划",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
+const T_PE_EMPTY_TITLE="计划是空的",T_PE_EMPTY_BODY="目标页还没有目标组和力量项。你可以自己建一份，也可以从示例里挑需要的，没挑的不会加进来。",T_PE_SAMPLE_BTN="从示例里挑",T_PE_SAMPLE_LOADED="已载入示例的目标组和力量项，点「保存计划」后生效",T_GOALS_NO_LIFTS="还没有力量项，可以在「编辑计划」里添加。",T_GOALS_NO_GROUPS="还没有目标组，可以在「编辑计划」里添加。",T_PE_GROUPS_EMPTY="还没有目标组。";
+const T_PE_BTN="编辑计划",T_PE_BTN2="自己建一份",T_PE_HINT_NONE="还没有修改",T_PE_HINT_DIRTY="有没保存的修改",T_PE_SAVE="保存计划",T_PE_SAVING="保存中…",T_PE_SAVED="计划已保存",T_PE_UNNAMED="（未命名）";
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===k));
@@ -2863,6 +2930,46 @@ function peArchiveGone(hs){
   });
   hs.filter(r=>r.kind==="lift").forEach(r=>put(pe.draft.lifts,r));
 }
+/* Phase 14：计划写入核心。编辑页的「保存计划」（savePlanDraft）和空计划卡片的「添加并保存」（pkSave）共用，只有这一条写入路径：
+   容量检查 → 读不出来时先留底 → 覆盖时留底 → 按 id 差集清理 state → usePlan → 脏标记和缓存 → requestSync。
+   np 是 normalizePlan 过的新计划，overwrite 表示用户选了「用我的覆盖」；返回 {ok:false,why:"toolarge"|"nokeep"}（什么都没写）或 {ok:true,unread,kept}；窗口、忙碌状态、toast 由调用方处理 */
+function planCommit(np,overwrite){
+  /* S9 第 5 步（planCommit）：4 MB 容量检查。超限就不保存、不留底、不上传，提示行和现有的容量超限横幅说明，留在编辑页；通过了就收起自己显示过的横幅。两种留底（读不出来的计划、用我的覆盖）都在这一步之后、写入之前 */
+  if(sizeOf(np)>CLOUD_MAX){showTooLarge();return {ok:false,why:"toolarge"}}
+  /* 所有者决定（2026-11-11）：账号的计划读不出来（keepOrphans 仍为真，并入的远端版本也读不出来）时，先把服务器上那份存成本机留底（与 D-07 的覆盖留底同一个机制，可下载），然后才替换；留底存不下就不保存，草稿留在页面上 */
+  let unread=false;
+  if(keepOrphans){
+    const pc=cacheGet("plan");
+    if(!(pc&&keepConflict("plan",{data:pc.data}))){toast(T_PE_UNREAD_NOKEEP,null,6000);return {ok:false,why:"nokeep"}}
+    unread=true;
+  }
+  /* 用我的覆盖：此刻的工作计划就是被盖掉的那一版（已并入最新的挂起版本），写入之前存成本机留底（可下载）；留底存不下时照常保存，离开后用「留底没存上」横幅说明，不说假话 */
+  let kept=null;
+  if(overwrite&&!unread)kept=keepConflict("plan",{data:JSON.parse(JSON.stringify(plan))});
+  /* 离开计划的任务、组和力量项（直接移除、以后的彻底删除）：它们的进度键、组里的自定义待办和待办的进度、力量项的 state.lifts[id]（当前值和历史）经 commit 从 state 删除；归档的项仍在新计划里，进度原样。计划读不出来时（keepOrphans）页面显示的是示例计划，下一次加载本来就会丢掉对不上的进度键，这里不动 state。差集在 usePlan 换掉旧计划之前算 */
+  const outT=[],outC=[],outL=[];
+  if(!keepOrphans){
+    const nt=new Set(np.groups.flatMap(g=>g.tasks.map(t=>t.id))),ng=new Set(np.groups.map(g=>g.id)),nl=new Set(np.lifts.map(l=>l.id));
+    plan.lifts.forEach(l=>{if(!nl.has(l.id)&&state.lifts[l.id]!==undefined)outL.push(l.id)});
+    planTasks.forEach(t=>{if(!nt.has(t.id)&&state.tasks[t.id]!==undefined)outT.push(t.id)});
+    (state.custom||[]).forEach(c=>{if(isObj(c)&&!ng.has(c.group)&&plan.groups.some(g=>g.id===c.group)){outC.push(c.id)}});
+  }
+  usePlan(np);keepOrphans=false;
+  docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
+  if(!cachePut("plan",{...docs.plan,data:np}))cacheNote(false);
+  if(outT.length||outC.length||outL.length){
+    const dt=outT.slice(),dc=new Set(outC),dl=outL.slice();
+    commit(dt.map(i=>"task:"+i).concat(outC.map(i=>"custom:"+i),dl.map(i=>"lift:"+i)),st=>{dt.forEach(i=>{delete st.tasks[i]});dc.forEach(i=>{delete st.tasks[i]});st.custom=(st.custom||[]).filter(c=>!dc.has(c.id));dl.forEach(i=>{delete st.lifts[i]})});
+  }
+  showSync();requestSync("save");
+  return {ok:true,unread,kept};
+}
+/* planCommit 成功之后的 toast：读不出来的计划被替换 → 留底提示；覆盖了别的设备的版本 → 留底提示；否则普通成功 toast（覆盖时先收起留底通知）。msg、ms 是普通成功 toast 的文案和时长 */
+function planSavedToast(r,overwrite,msg,ms){
+  if(r.unread){snapShow();toast(T_PE_SAVED_UNREAD,{label:"下载留底",fn:snapDownload},8000);snapTold()}
+  else if(overwrite&&r.kept){snapShow();toast(T_PE_SAVED_KEPT,{label:"下载留底",fn:snapDownload},8000);snapTold()}
+  else{if(overwrite)conflictNotice(false);toast(msg,null,ms)}
+}
 async function savePlanDraft(){
   const s=pe;
   if(!s||s.busy)return;
@@ -2910,40 +3017,88 @@ async function savePlanDraft(){
   if(!np){back();return}
   /* WR-02：名称、任务文字、单位和标签保存时去掉首尾空格（planProblems 判空和判重复本来就按 trim 之后的值） */
   np.groups.forEach(g=>{g.name=g.name.trim();g.tasks.forEach(t=>{t.text=t.text.trim()})});np.lifts.forEach(L=>{L.n=L.n.trim();L.unit=L.unit.trim()});Object.keys(np.presets).forEach(k=>{np.presets[k]=np.presets[k].map(x=>x.trim())});
-  /* S9 第 5 步：4 MB 容量检查。超限就不保存、不留底、不上传，提示行和现有的容量超限横幅说明，留在编辑页；通过了就收起自己显示过的横幅。两种留底（读不出来的计划、用我的覆盖）都在这一步之后、写入之前 */
-  if(sizeOf(np)>CLOUD_MAX){s.tooLarge=true;showTooLarge();back();return}
-  if(s.tooLarge){s.tooLarge=false;peClearTooLarge()}
-  /* 所有者决定（2026-11-11）：账号的计划读不出来（keepOrphans 仍为真，并入的远端版本也读不出来）时，先把服务器上那份存成本机留底（与 D-07 的覆盖留底同一个机制，可下载），然后才替换；留底存不下就不保存，草稿留在页面上 */
-  let unread=false;
-  if(keepOrphans){
-    const pc=cacheGet("plan");
-    if(!(pc&&keepConflict("plan",{data:pc.data}))){toast(T_PE_UNREAD_NOKEEP,null,6000);s.busy=false;peBar();return}
-    unread=true;
-  }
-  /* 用我的覆盖：此刻的工作计划就是被盖掉的那一版（已并入最新的挂起版本），写入之前存成本机留底（可下载）；留底存不下时照常保存，离开后用「留底没存上」横幅说明，不说假话 */
-  let kept=null;
-  if(overwrite&&!unread)kept=keepConflict("plan",{data:JSON.parse(JSON.stringify(plan))});
-  /* 离开计划的任务、组和力量项（直接移除、以后的彻底删除）：它们的进度键、组里的自定义待办和待办的进度、力量项的 state.lifts[id]（当前值和历史）经 commit 从 state 删除；归档的项仍在新计划里，进度原样。计划读不出来时（keepOrphans）页面显示的是示例计划，下一次加载本来就会丢掉对不上的进度键，这里不动 state。差集在 usePlan 换掉旧计划之前算 */
-  const outT=[],outC=[],outL=[];
-  if(!keepOrphans){
-    const nt=new Set(np.groups.flatMap(g=>g.tasks.map(t=>t.id))),ng=new Set(np.groups.map(g=>g.id)),nl=new Set(np.lifts.map(l=>l.id));
-    plan.lifts.forEach(l=>{if(!nl.has(l.id)&&state.lifts[l.id]!==undefined)outL.push(l.id)});
-    planTasks.forEach(t=>{if(!nt.has(t.id)&&state.tasks[t.id]!==undefined)outT.push(t.id)});
-    (state.custom||[]).forEach(c=>{if(isObj(c)&&!ng.has(c.group)&&plan.groups.some(g=>g.id===c.group)){outC.push(c.id)}});
-  }
-  usePlan(np);keepOrphans=false;
-  docs.plan.dirty=true;docs.plan.seq=(docs.plan.seq||0)+1;
-  if(!cachePut("plan",{...docs.plan,data:np}))cacheNote(false);
-  if(outT.length||outC.length||outL.length){
-    const dt=outT.slice(),dc=new Set(outC),dl=outL.slice();
-    commit(dt.map(i=>"task:"+i).concat(outC.map(i=>"custom:"+i),dl.map(i=>"lift:"+i)),st=>{dt.forEach(i=>{delete st.tasks[i]});dc.forEach(i=>{delete st.tasks[i]});st.custom=(st.custom||[]).filter(c=>!dc.has(c.id));dl.forEach(i=>{delete st.lifts[i]})});
-  }
-  showSync();requestSync("save");
+  const r=planCommit(np,overwrite);
+  if(r.why!=="toolarge"&&s.tooLarge){s.tooLarge=false;peClearTooLarge()}
+  if(!r.ok){if(r.why==="toolarge")s.tooLarge=true;back();return}
   closePlanEditor("goal");
-  if(unread){snapShow();toast(T_PE_SAVED_UNREAD,{label:"下载留底",fn:snapDownload},8000);snapTold()}
-  else if(overwrite&&kept){snapShow();toast(T_PE_SAVED_KEPT,{label:"下载留底",fn:snapDownload},8000);snapTold()}
-  else{if(overwrite)conflictNotice(false);toast(T_PE_SAVED,null,3000)}
+  planSavedToast(r,overwrite,T_PE_SAVED,3000);
 }
+
+/* ---------- sample picker (Phase 14) ----------
+   dialog#sample：从示例计划里挑目标组（整组）和力量项（逐个），D-04..D-08。卡片模式（空计划卡片进，14-01）勾选后直接经 planCommit 保存，不经过编辑页草稿：
+   pe 一存在整个应用就当编辑页开着（isBusy 恒真、beforeunload 拦截、closePlanEditor 切标签），所以卡片模式不造 pe，只用 pk（本对话框自己的状态）。
+   示例的 id（P1、bench 等）只当复选框的 data-pk 键，从不写进计划；写进计划的项由 pickSample 换成新 id */
+const T_PK_TITLE_CARD="从示例里挑",T_PK_DESC_CARD="示例是一份通用的样本计划。勾选要用的，点「添加并保存」就加进你的计划；没勾的不会加。",T_PK_SEC_GROUPS="目标组",T_PK_SEC_LIFTS="力量项",T_PK_COUNT=n=>"共 "+n+" 个",T_PK_TASKS=n=>n+" 项任务",T_PK_TARGET=(t,u)=>"目标 "+t+" "+u,T_PK_NONE="先勾选要加入的项",T_PK_OK_CARD="添加并保存",T_PK_CANCEL="先不添加";
+const pkParts=(g,l)=>[g?g+" 个目标组":"",l?l+" 个力量项":""].filter(Boolean).join("、"),T_PK_PICKED=(g,l)=>"已选 "+pkParts(g,l),T_PK_DONE=(g,l)=>"已加入 "+pkParts(g,l)+"，计划已保存";
+function openSamplePicker(mode){
+  if(pk||pkDlg.open)return;
+  /* 草稿从最新的计划开始：挂起的远端版本先并入（同 openPlanEditor） */
+  if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
+  pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null};
+  $("pk-title").textContent=T_PK_TITLE_CARD;$("pk-desc").textContent=T_PK_DESC_CARD;$("pkOk").textContent=T_PK_OK_CARD;$("pkCancel").textContent=T_PK_CANCEL;
+  pkRender();pkHint();
+  pkDlg.showModal();
+  const f=$("pk-body").querySelector("input[data-pk]:not(:disabled)");if(f)f.focus();
+}
+/* 每次打开都重新生成列表，一项都不勾（D-06）；数据来自示例常量，顺序与示例一致。对比计划（同名标记、名额限制）在 14-03 按 mode 取：卡片模式取 pk.base 的未归档项 */
+function pkRender(){
+  const gs=DEFAULT_PLAN.groups.map(g=>`<li><label class="pk-item k-${esc(kOf(g.cat))}"><input type="checkbox" data-pk="g:${esc(g.id)}" aria-describedby="pk-d-g-${esc(g.id)}"><span><span class="pk-name">${esc(g.name)}</span><span class="pk-meta" id="pk-d-g-${esc(g.id)}"><span class="pk-chip">${esc(g.cat)}</span><span>${esc(T_PK_TASKS(g.tasks.length))}</span></span></span></label></li>`).join("");
+  const ls=DEFAULT_PLAN.lifts.map(L=>`<li><label class="pk-item k-fit"><input type="checkbox" data-pk="l:${esc(L.id)}" aria-describedby="pk-d-l-${esc(L.id)}"><span><span class="pk-name">${esc(L.n)}</span><span class="pk-meta" id="pk-d-l-${esc(L.id)}"><span>${esc(T_PK_TARGET(L.target,L.unit))}</span></span></span></label></li>`).join("");
+  $("pk-body").innerHTML=`<fieldset class="pk-sec"><legend>${esc(T_PK_SEC_GROUPS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.groups.length))}</span></legend><ul class="pk-list">${gs}</ul></fieldset><fieldset class="pk-sec"><legend>${esc(T_PK_SEC_LIFTS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.lifts.length))}</span></legend><ul class="pk-list">${ls}</ul></fieldset>`;
+}
+function pkPicked(){
+  const keys=Array.from($("pk-body").querySelectorAll("input[data-pk]:checked")).map(i=>i.getAttribute("data-pk"));
+  return {keys,g:keys.filter(k=>k.startsWith("g:")).length,l:keys.filter(k=>k.startsWith("l:")).length};
+}
+/* 提示行：一项都没勾 → 先勾选要加入的项，确认不可用；勾了 → 已选…，确认可用。断网、过期、容量三档在 14-02 加 */
+function pkHint(){
+  const p=pkPicked(),h=$("pk-hint"),ok=$("pkOk");
+  h.removeAttribute("data-tone");
+  if(!p.keys.length){h.textContent=T_PK_NONE;ok.setAttribute("aria-disabled","true")}
+  else{h.textContent=T_PK_PICKED(p.g,p.l);ok.removeAttribute("aria-disabled")}
+}
+function pkBusy(on){
+  const ok=$("pkOk"),c=$("pkCancel");
+  ok.disabled=on;c.disabled=on;ok.textContent=on?T_PE_SAVING:T_PK_OK_CARD;
+  if(on)ok.setAttribute("aria-busy","true");else ok.removeAttribute("aria-busy");
+  if(pk)pk.busy=on;
+}
+async function pkSave(){
+  const s=pk;
+  if(!s||s.busy)return;
+  /* 12 D-11、D-12：过期或断网时不保存（和保存计划同一句） */
+  const blk=peBlock();
+  if(blk){toast(blk,null,3000);return}
+  pkBusy(true);
+  /* 并入挂起的远端版本；基准取并入之后最新的计划，只往末尾追加，别的设备的修改不会丢（冲突三选一由 14-02 插在这里） */
+  if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
+  s.base=JSON.parse(JSON.stringify(plan));
+  const {keys,g,l}=pkPicked();
+  const add=pickSample(keys,planUsedIds(s.base));
+  const draft=JSON.parse(JSON.stringify(s.base));
+  add.groups.forEach(x=>draft.groups.push(x));add.lifts.forEach(x=>draft.lifts.push(x));
+  const np=normalizePlan(draft);
+  if(!np){pkBusy(false);return}
+  const r=planCommit(np,false);
+  if(!r.ok){if(r.why==="toolarge")s.tooLarge=true;pkBusy(false);pkHint();return}
+  if(s.tooLarge)peClearTooLarge();
+  renderAll();
+  s.focus=$("planEditBtn")||$("goals");
+  pkDlg.close();
+  planSavedToast(r,false,T_PK_DONE(g,l),4000);
+}
+$("pk-body").addEventListener("change",pkHint);
+$("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
+$("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true")return;if(pk&&pk.mode==="card")pkSave()});
+$("pkCancel").addEventListener("click",()=>pkDlg.close());
+pkDlg.addEventListener("cancel",e=>{if(pk&&pk.busy)e.preventDefault()});
+pkDlg.addEventListener("click",e=>{if(e.target===pkDlg&&!(pk&&pk.busy))pkDlg.close()});
+pkDlg.addEventListener("close",()=>{
+  const s=pk;
+  if(s){const f=s.focus||s.back;try{if(f&&f.isConnected&&typeof f.focus==="function")f.focus()}catch(e){}if(s.tooLarge)peClearTooLarge()}
+  pk=null;
+  if(remoteView)maybeApplyView();
+});
 
 /* ---------- export / import ---------- */
 /* B7: 日历工具可能把以 = + - @、制表符、回车开头的单元格当公式执行，这样的单元格前面多一个英文单引号，然后才按逗号、引号、换行、回车加引号。不加 BOM。 */

@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { FROZEN_NOW } from '../support/constants';
 import {
+  BTN_PICK_SAMPLE,
+  BTN_PLAN_BUILD,
   LOGIN_BUSY,
   LOGIN_ERR_CREDENTIALS,
   LOGIN_ERR_EMPTY,
@@ -75,19 +77,32 @@ test('SYNC-01 a log recorded on the cloud path is uploaded to the state document
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
-test('PLAN-01 a first sign-in creates the state document and a plan document holding the synthetic default plan', async ({
+// D-01（Phase 14）：新账号第一次登录建出的计划文档是空计划，不再是示例计划；每周健身目标和说明保留示例的值（D-03）
+const EMPTY_PLAN = {
+  v: 1,
+  presets: { lang: [], pro: [], fit: [], job: [], oth: [] },
+  groups: [],
+  lifts: [],
+  fitGoal: [2, 4],
+  fitNote: SEED_PLAN.fitNote,
+};
+
+test('PLAN-01 a first sign-in creates the state document and an empty plan document that keeps the weekly fitness goal and note (D-01)', async ({
   app,
   page,
 }) => {
   await app.open({ mode: 'cloud', users: 1, login: 0 });
 
-  expect(app.fake.lastPlan(0)).toEqual(SEED_PLAN);
+  expect(app.fake.lastPlan(0)).toEqual(EMPTY_PLAN);
   expect(app.fake.lastState(0)).toEqual({ arrival: '', tasks: {}, custom: [], logs: [], lifts: {}, reviews: {}, presets: {} });
   const created = app.fake.requests.filter((r) => r.method === 'POST' && r.path === '/api/collections/journey_docs/records');
   expect(created).toHaveLength(2);
   expect(created.every((r) => r.status === 200)).toBe(true);
   await gotoGoals(page);
-  expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  await expect(page.locator('#goals .pe-empty')).toHaveCount(1);
+  expect(await readGroups(page)).toEqual([]);
+  await expect(page.locator('#planEditBtn2')).toHaveText(BTN_PLAN_BUILD);
+  await expect(page.locator('#planSampleBtn')).toHaveText(BTN_PICK_SAMPLE);
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
