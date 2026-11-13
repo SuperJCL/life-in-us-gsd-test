@@ -75,6 +75,17 @@ const EMPTY_PLAN = {
   fitNote: SEED_PLAN.fitNote,
 };
 
+// 保存成功或选「用新版」之后再从编辑页打开挑选对话框：确认、取消都不是 disabled，也没有 aria-busy，文字是编辑页模式的（CR-01、WR-01）。
+// 取消能点：点完对话框关闭。
+async function expectReopenedPickerClean(page: Page) {
+  await openEditor(page);
+  await openPickerFromEditor(page);
+  const pk = await readPicker(page);
+  expect([pk.okDisabled, pk.cancelDisabled, pk.okBusy, pk.okText]).toEqual([false, false, false, BTN_PK_OK_EDIT]);
+  await page.locator('#pkCancel').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+}
+
 test('PLAN-07 a new account picks one sample group and one lift from the empty plan card and they are saved with new ids and shown on the goals page (D-01, D-07, D-08)', async ({
   app,
   page,
@@ -141,6 +152,16 @@ test('PLAN-07 a new account picks one sample group and one lift from the empty p
   expect((await readGroups(page)).map((x) => x.code)).toEqual(['P1']);
   await expect(page.locator('#goals .lift')).toHaveCount(1);
   await expect(page.locator('#planEditBtn')).toBeFocused();
+
+  // 保存成功后再从编辑页打开「从示例添加」：按钮状态是干净的（CR-01），勾一项后能添加到草稿
+  await openEditor(page);
+  await openPickerFromEditor(page);
+  const again = await readPicker(page);
+  expect([again.okDisabled, again.cancelDisabled, again.okBusy, again.okText]).toEqual([false, false, false, BTN_PK_OK_EDIT]);
+  await pick(page, 'g:P3');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, pkDrafted(1, 0));
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
@@ -429,6 +450,9 @@ test("PLAN-07 taking the other device's new plan while picking adds nothing and 
   expect(planWritesOf(app)).toBe(writesBefore);
   expect(app.fake.lastPlan(0).groups.map((g: { id: string }) => g.id)).toEqual(['g-cfo1']);
   expect(await snapshotOf(page, userId)).toBeNull();
+
+  // 选「用新版」关掉对话框之后再打开：按钮状态是干净的（CR-01）
+  await expectReopenedPickerClean(page);
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
