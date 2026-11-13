@@ -816,3 +816,34 @@ export const FL_STATE_RESTORED = '已恢复上次没保存的内容。';
 export const FL_CF_DATE_T = '换一天记录？';
 export const BTN_FL_DATE_KEEP = '先不换';
 export const BTN_FL_DATE_GO = '丢掉并换日期';
+
+// ---- Phase 15-03：趋势图（逐字镜像应用里的 T_FC_* 常量，来源 15-UI-SPEC 的 Copywriting Contract；每条注释写明应用里的常量名）----
+// T_FC_TITLE、T_FC_DATA（面板标题、「查看数据」）
+export const FC_TITLE = '趋势图';
+export const FC_DATA = '查看数据';
+// T_FC_METRIC、T_FC_RANGE（指标芯片和时间范围芯片的文字，键是 data-fc-metric / data-fc-range 的值）
+export const FC_METRIC = { max: '最大重量', e1rm: '估算单次最大', vol: '总训练量' } as const;
+export const FC_RANGE = { '1m': '最近 1 个月', '3m': '3 个月', '6m': '半年', '1y': '1 年', all: '全部' } as const;
+// T_FC_SUB、T_FC_REPS（图标题右侧小标；徒手动作改看次数）
+export const fcSub = (metric: keyof typeof FC_METRIC, unit: string): string =>
+  metric === 'vol' ? `${FC_METRIC.vol} · ${unit}×次` : `${FC_METRIC[metric]} · ${unit}`;
+export const FC_SUB_RMAX = '单组最多次数 · 次';
+export const FC_SUB_RSUM = '总次数 · 次';
+// T_FC_TARGET、T_FC_READ、T_FC_HAND、T_FC_TODAY（目标标注、默认读数行、手填后缀、横轴右端）
+export const fcTarget = (t: string, u: string): string => `目标 ${t} ${u}`;
+export const fcRead = (d: string, v: string, u: string): string => `最新：${d}　${v} ${u}`;
+export const FC_HAND = '（手填）';
+export const FC_TODAY = '今天';
+// T_FC_SRC_WO、T_FC_SRC_HAND、T_FC_COL_DATE、T_FC_COL_SRC（查看数据表格）
+export const FC_SRC_WO = '训练';
+export const FC_SRC_HAND = '手填';
+export const FC_COL_DATE = '日期';
+export const FC_COL_SRC = '来源';
+// T_FC_ARIA（svg 的 aria-label）
+export const fcAria = (n: string, m: string, r: string, c: number, l: string, h: string, u: string): string =>
+  `${n}${m}折线图，${r}，共 ${c} 次训练，最新 ${l} ${u}，最高 ${h} ${u}`;
+// T_FC_EMPTY_NONE、T_FC_EMPTY_RANGE、T_FC_ONCE、T_FC_LEGEND（图的三种空状态和手填点图例）
+export const fcEmptyNone = (n: string): string => `还没有${n}的训练记录。记一次训练后，这里会出现曲线。`;
+export const FC_EMPTY_RANGE = '这段时间没有记录，可以选更长的时间范围。';
+export const FC_ONCE = '只有一次记录，再练几次就能看出变化。';
+export const FC_LEGEND = '空心点是以前手填的记录，没有次数。';

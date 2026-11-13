@@ -660,6 +660,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
   <section id="tab-fit" class="hidden" aria-labelledby="fit-h2">
     <h2 id="fit-h2" class="sr-only">健身</h2>
     <section class="panel" id="fl" aria-labelledby="fl-title"></section>
+    <section class="panel" id="fc" aria-labelledby="fc-title"></section>
     <div id="fl-live" class="sr-only" aria-live="polite"></div>
     <div id="fc-live" class="sr-only" aria-live="polite"></div>
   </section>
@@ -906,6 +907,42 @@ function liftLast(s,id,before){
     if(x&&Array.isArray(x.sets)&&x.sets.length)best={date:d,sets:x.sets};
   });
   return best;
+}
+/* 趋势图（15-03）的取点和刻度，都是纯函数：只读参数、不碰 DOM。range 是 "1m"|"3m"|"6m"|"1y"|"all"，t 是今天（YYYY-MM-DD） */
+/* 时间范围起点：今天往前 1 / 3 / 6 / 12 个日历月的同一天（那个月没有这一天就取它的最后一天）；"all" 返回 null；不认识的值当 "1m" */
+function rangeStart(range,t){
+  if(range==="all")return null;
+  const K={"1m":1,"3m":3,"6m":6,"1y":12},k=Object.prototype.hasOwnProperty.call(K,range)?K[range]:1;
+  const d=parse(t),y=d.getFullYear(),m=d.getMonth()-k,last=new Date(y,m+1,0).getDate();
+  return ymd(new Date(y,m,Math.min(d.getDate(),last)));
+}
+/* 一个力量项在范围内的点 {mode,pts,any}：训练点 = 当天各组算出的一个值（max 最重一组的 w，e1rm 每组 w×(1+r/30) 取 1 位小数后的最大，vol 所有组 w×r 之和取 2 位小数），按日期升序，起点当天包含；
+   mode 是 "reps" 当且仅当有训练组、全部训练组 w 都是 0、手填历史里没有大于 0 的值（看全部历史，不看范围），此时 max 和 e1rm 取每天最多的次数、vol 取次数之和；手填历史点（只在 weight 且 max 下，当天没有训练时）带 old:true；
+   any 是这个动作有没有任何训练或手填记录（不看范围，空状态据此区分「从来没有」和「范围里没有」）；晚于 t 的日期不算；p 是计划，保留位置供以后按计划过滤 */
+function seriesOf(s,p,id,metric,range,t){
+  const wm=woMap(s),L=s&&isObj(s.lifts)&&isObj(s.lifts[id])?s.lifts[id]:{},fin=v=>typeof v==="number"&&isFinite(v),days=[];
+  Object.keys(wm).forEach(d=>{
+    if(!realDate(d)||d>t||!isObj(wm[d])||!Array.isArray(wm[d].lifts))return;
+    const x=wm[d].lifts.find(z=>isObj(z)&&z.id===id);if(!x||!Array.isArray(x.sets))return;
+    const sets=x.sets.filter(z=>isObj(z)&&fin(z.w)&&fin(z.r));
+    if(sets.length)days.push({date:d,sets});
+  });
+  const hist=(Array.isArray(L.hist)?L.hist:[]).filter(h=>isObj(h)&&realDate(h.date)&&fin(h.v)&&h.date<=t);
+  const reps=days.length>0&&days.every(x=>x.sets.every(z=>z.w===0))&&!hist.some(h=>h.v>0),mode=reps?"reps":"weight";
+  const one=sets=>mode==="reps"?(metric==="vol"?sets.reduce((a,z)=>a+z.r,0):Math.max(...sets.map(z=>z.r))):
+    metric==="vol"?Math.round(sets.reduce((a,z)=>a+z.w*z.r,0)*100)/100:
+    metric==="e1rm"?Math.max(...sets.map(z=>Math.round(z.w*(1+z.r/30)*10)/10)):Math.max(...sets.map(z=>z.w));
+  const pts=days.map(x=>({date:x.date,v:one(x.sets)})),from=rangeStart(range,t);
+  if(mode==="weight"&&metric==="max"){const have=new Set(days.map(x=>x.date));hist.forEach(h=>{if(!have.has(h.date)){have.add(h.date);pts.push({date:h.date,v:h.v,old:true})}})}
+  pts.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  return {mode,pts:from===null?pts:pts.filter(x=>x.date>=from),any:days.length>0||hist.length>0};
+}
+/* 纵轴上限：取 {1,2,4,5,10}×10ⁿ 里不小于 v×1.05 的最小者（比较容忍 1e-9 的浮点误差）；v 不是正的有限数时是 1 */
+function niceMax(v){
+  if(typeof v!=="number"||!isFinite(v)||v<=0)return 1;
+  const t=v*1.05,n=Math.pow(10,Math.floor(Math.log10(t)));
+  for(const f of [1,2,4,5,10]){if(f*n>=t-1e-9)return f*n}
+  return 10*n;
 }
 /* S9：本周、日历、时间线共用的一行文字。力量动作名最多 3 个，超过写「等 n 项」，后接「（共 s 组）」；有氧最多 2 个；两段用「 · 」连；名字取计划里的力量项和有氧项（含归档的），找不到的 id 写下面两句（UI-SPEC 之外新增） */
 const T_FIT_GONE_L="已删除的力量项",T_FIT_GONE_C="已删除的有氧项";
@@ -2707,6 +2744,7 @@ function renderFit(force){
   const rs=flTryRestore();
   if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
   else{flRemoteCheck();flHint()}
+  renderFc();
   applyGate();
 }
 /* 换一天：草稿有未保存内容先确认，拒绝时日期框恢复原值；切标签不确认，草稿留着 */
@@ -2852,6 +2890,61 @@ $("fl").addEventListener("change",e=>{
   const v=e.target.value;if(!realDate(v)||v>today()){e.target.value=fl.date;return}
   flSwitch(v).then(ok=>{if(ok){const d=$("fl-date");if(d)d.focus({preventScroll:true})}});
 });
+
+/* ---------- fitness charts (Phase 15-03) ---------- */
+/* 趋势图全是手画的内联 SVG：坐标只来自 Math 算出的数字（先 r1 取整再插入），日期、值、名称经 esc；几何写成属性，颜色和线宽走 class，不写 style 属性（CSP style-src-attr 'none'） */
+const T_FC_TITLE="趋势图",T_FC_DATA="查看数据",T_FC_METRIC={max:"最大重量",e1rm:"估算单次最大",vol:"总训练量"},T_FC_RANGE={"1m":"最近 1 个月","3m":"3 个月","6m":"半年","1y":"1 年","all":"全部"};
+const T_FC_SUB={max:u=>"最大重量 · "+u,e1rm:u=>"估算单次最大 · "+u,vol:u=>"总训练量 · "+u+"×次",rmax:()=>"单组最多次数 · 次",rsum:()=>"总次数 · 次"},T_FC_REPS={max:"单组最多次数",e1rm:"单组最多次数",vol:"总次数"};
+const T_FC_TARGET=(t,u)=>"目标 "+t+" "+u,T_FC_READ=(d,v,u)=>"最新："+d+"　"+v+" "+u,T_FC_HAND="（手填）",T_FC_TODAY="今天",T_FC_SRC_WO="训练",T_FC_SRC_HAND="手填",T_FC_COL_DATE="日期",T_FC_COL_SRC="来源";
+const T_FC_ARIA=(n,m,r,c,l,h,u)=>n+m+"折线图，"+r+"，共 "+c+" 次训练，最新 "+l+" "+u+"，最高 "+h+" "+u;
+const T_FC_EMPTY_NONE=n=>"还没有"+n+"的训练记录。记一次训练后，这里会出现曲线。",T_FC_EMPTY_RANGE="这段时间没有记录，可以选更长的时间范围。",T_FC_ONCE="只有一次记录，再练几次就能看出变化。",T_FC_LEGEND="空心点是以前手填的记录，没有次数。";
+/* fc：指标（不记住，每次打开页面是 max）、时间范围、页号；stale 为真表示上次画图时容器宽度是 0（标签隐藏），要等显示后再画 */
+let fc={metric:"max",range:"1m",page:0,stale:false};
+const fcInfo=new WeakMap(),r1=x=>Math.round(x*10)/10,fcFmt=v=>String(Math.round(v*100)/100);
+const fcUnit=(L,mode,m)=>mode==="reps"?"次":m==="vol"?L.unit+"×次":L.unit;
+const fcSub=(L,mode,m)=>mode==="reps"?(m==="vol"?T_FC_SUB.rsum():T_FC_SUB.rmax()):T_FC_SUB[m](L.unit);
+const fcSer=id=>seriesOf(state,plan,id,fc.metric,fc.range,today());
+/* 健身页没有显示时不画（也不留旧内容）：显示时 showTab 会再调 renderFit，这样隐藏的标签里没有图，也不白算 */
+function renderFc(){
+  const el=$("fc"),aL=activeLifts();
+  if($("tab-fit").classList.contains("hidden")){el.textContent="";return}
+  const head=`<div class="fc-head"><h3 id="fc-title">${T_FC_TITLE}</h3></div>`;
+  if(!aL.length){el.innerHTML=head+`<p class="empty">${T_GOALS_NO_LIFTS}</p>`;return}
+  const figs=aL.map(L=>{
+    const ser=fcSer(L.id),sub=fcSub(L,ser.mode,fc.metric);
+    const rows=ser.pts.slice().reverse().map(p=>`<tr><td>${esc(md(p.date))}</td><td>${esc(fcFmt(p.v))}</td><td>${p.old?T_FC_SRC_HAND:T_FC_SRC_WO}</td></tr>`).join("");
+    return `<figure class="fc k-fit" data-lift="${esc(L.id)}" data-mode="${ser.mode}"><figcaption class="fc-h"><span class="fc-name" title="${esc(L.n)}">${esc(L.n)}</span><span class="fc-metric">${esc(sub)}</span></figcaption><p class="fc-read"></p><div class="fc-pl"></div><div class="fc-notes"></div>${rows?`<details class="fc-data"><summary data-fit-ro>${T_FC_DATA}</summary><div class="fc-tbl" tabindex="0"><table><thead><tr><th>${T_FC_COL_DATE}</th><th>${esc(sub)}</th><th>${T_FC_COL_SRC}</th></tr></thead><tbody>${rows}</tbody></table></div></details>`:""}</figure>`;
+  });
+  el.innerHTML=head+`<div class="fc-grid">${figs.join("")}</div>`;
+  el.querySelectorAll("figure.fc").forEach(f=>fcDraw(f));
+}
+/* 画一张折线图：宽度取 .fc-pl 的 clientWidth（容器隐藏时是 0，记 stale 后返回，显示后再画），高 160；绘图区 L=40 R=W-12 T=12 B=136；横轴按日期比例，纵轴从 0 起；点超过 40 个只画折线和最后一个点 */
+function fcDraw(fig){
+  const pl=fig.querySelector(".fc-pl"),nt=fig.querySelector(".fc-notes"),rd=fig.querySelector(".fc-read"),L=plan.lifts.find(x=>x.id===fig.dataset.lift);
+  if(!pl||!L)return;
+  const W=Math.round(pl.clientWidth);if(!W){fc.stale=true;return}
+  const t=today(),ser=fcSer(L.id),pts=ser.pts,mode=ser.mode,m=fc.metric,u=fcUnit(L,mode,m),n=pts.length;
+  fcInfo.delete(fig);nt.innerHTML="";rd.textContent="";
+  if(!ser.any){pl.innerHTML=`<p class="fc-empty">${esc(T_FC_EMPTY_NONE(L.n))}</p>`;return}
+  if(!n){pl.innerHTML=`<p class="fc-empty">${T_FC_EMPTY_RANGE}</p>`;return}
+  const Lx=40,R=W-12,T=12,B=136,start=fc.range==="all"?pts[0].date:rangeStart(fc.range,t);
+  const span=Math.round((parse(t)-parse(start))/864e5),mid=span<=0||(fc.range==="all"&&n===1);
+  const X=d=>mid?(Lx+R)/2:Lx+(R-Lx)*Math.round((parse(d)-parse(start))/864e5)/span;
+  const showT=mode==="weight"&&(m==="max"||m==="e1rm")&&typeof L.target==="number"&&L.target>0;
+  const top=niceMax(Math.max(...pts.map(p=>p.v),showT?L.target:0)),Y=v=>B-(B-T)*v/top,ticks=[top,top/2,0];
+  let h=`<g class="fc-grid-l">${ticks.map(v=>`<line x1="${Lx}" x2="${R}" y1="${r1(Y(v))}" y2="${r1(Y(v))}"/>`).join("")}</g>`;
+  h+=ticks.map(v=>`<text class="fc-tx" x="36" y="${r1(Y(v)+4)}" text-anchor="end">${fcFmt(v)}</text>`).join("");
+  if(showT){const ty=r1(Y(L.target));h+=`<line class="fc-tgt" x1="${Lx}" x2="${R}" y1="${ty}" y2="${ty}" stroke-dasharray="6 4"/><text class="fc-tx fc-tl" x="${R}" y="${r1(ty<20?ty+14:ty-4)}" text-anchor="end">${esc(T_FC_TARGET(fcFmt(L.target),L.unit))}</text>`}
+  const xy=pts.map(p=>({date:p.date,v:p.v,old:!!p.old,x:r1(X(p.date)),y:r1(Y(p.v))}));
+  if(n>1)h+=`<polyline class="fc-ln" points="${xy.map(p=>p.x+","+p.y).join(" ")}"/>`;
+  (n>40?xy.slice(-1):xy).forEach(p=>{h+=`<circle class="fc-pt${p.old?" old":""}" cx="${p.x}" cy="${p.y}" r="4" data-date="${esc(p.date)}" data-v="${esc(fcFmt(p.v))}"/>`});
+  h+=`<line class="fc-sel-l" x1="-10" x2="-10" y1="${T}" y2="${B}"/><text class="fc-tx" x="${Lx}" y="156">${esc(md(start))}</text><text class="fc-tx" x="${R}" y="156" text-anchor="end">${T_FC_TODAY}</text>`;
+  const last=xy[n-1],tr=pts.filter(p=>!p.old).length,hi=Math.max(...pts.map(p=>p.v));
+  pl.innerHTML=`<svg class="fc-svg" role="img" aria-label="${esc(T_FC_ARIA(L.n,mode==="reps"?T_FC_REPS[m]:T_FC_METRIC[m],T_FC_RANGE[fc.range],tr,fcFmt(last.v),fcFmt(hi),u))}" width="${W}" height="160" viewBox="0 0 ${W} 160" preserveAspectRatio="none">${h}</svg>`;
+  nt.innerHTML=(pts.some(p=>p.old)?`<p class="fc-leg">${T_FC_LEGEND}</p>`:"")+(n===1?`<p class="fc-leg fc-once">${T_FC_ONCE}</p>`:"");
+  rd.textContent=T_FC_READ(md(last.date),fcFmt(last.v),u)+(last.old?T_FC_HAND:"");
+  fcInfo.set(fig,{xy,u,read:rd.textContent});
+}
 
 /* ---------- events ---------- */
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;

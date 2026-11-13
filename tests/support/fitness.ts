@@ -111,6 +111,82 @@ export async function flChipIds(page: Page): Promise<string[]> {
   return page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#fl [data-fl-add]')).map((b) => b.dataset.flAdd ?? ''));
 }
 
+export type ChartPt = { date: string; v: string; old: boolean; cx: number };
+export type ChartRead = {
+  lift: string;
+  mode: string;
+  sub: string;
+  pts: ChartPt[];
+  linePairs: number; // .fc-ln 的 points 有几对坐标，没有折线是 0
+  target: boolean;
+  dash: string | null; // .fc-tgt 的 stroke-dasharray 属性
+  targetText: string; // .fc-tl 的文字，没有是空串
+  read: string;
+  aria: string;
+  role: string | null;
+  vbW: number; // viewBox 宽度，没有 svg 是 0
+  cw: number; // svg 的 clientWidth，没有 svg 是 0
+  empty: string | null; // .fc-empty 的文字，没有是 null
+  emptyH: number; // .fc-empty 的高度，没有是 0
+  notes: string[]; // .fc-leg 的文字（含 .fc-once）
+  hasLegend: boolean; // 有没有不带 .fc-once 的 .fc-leg
+  hasOnce: boolean;
+  rows: number; // 查看数据表格的行数，没有表格是 0
+  firstRow: string; // 表格第一行的文字（单元格用「|」连），没有是空串
+  tableHeads: string[];
+  sources: string[]; // 表格每行的来源列
+  styled: number; // 这张图里带 style 属性的元素个数
+};
+
+// 一次 evaluate 读回每张折线图（figure.fc[data-lift]，不含有氧柱形图）；只对示例和合成 id，不返回元素句柄（15-03）
+export async function readCharts(page: Page): Promise<ChartRead[]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('#fc figure.fc[data-lift]')).map((fig) => {
+      const svg = fig.querySelector<SVGSVGElement>('svg.fc-svg');
+      const emp = fig.querySelector<HTMLElement>('.fc-empty');
+      const ln = fig.querySelector('.fc-ln');
+      const tgt = fig.querySelector('.fc-tgt');
+      const rows = Array.from(fig.querySelectorAll('.fc-data tbody tr'));
+      const legs = Array.from(fig.querySelectorAll('.fc-leg'));
+      return {
+        lift: fig.dataset.lift ?? '',
+        mode: fig.dataset.mode ?? '',
+        sub: fig.querySelector('.fc-metric')?.textContent ?? '',
+        pts: Array.from(fig.querySelectorAll('.fc-pt')).map((c) => ({
+          date: c.getAttribute('data-date') ?? '',
+          v: c.getAttribute('data-v') ?? '',
+          old: c.classList.contains('old'),
+          cx: parseFloat(c.getAttribute('cx') ?? 'NaN'),
+        })),
+        linePairs: ln ? (ln.getAttribute('points') ?? '').trim().split(/\s+/).filter(Boolean).length : 0,
+        target: !!tgt,
+        dash: tgt ? tgt.getAttribute('stroke-dasharray') : null,
+        targetText: fig.querySelector('.fc-tl')?.textContent ?? '',
+        read: fig.querySelector('.fc-read')?.textContent ?? '',
+        aria: svg?.getAttribute('aria-label') ?? '',
+        role: svg ? svg.getAttribute('role') : null,
+        vbW: svg ? Math.round(svg.viewBox.baseVal.width) : 0,
+        cw: svg ? Math.round(svg.clientWidth) : 0,
+        empty: emp ? (emp.textContent ?? '') : null,
+        emptyH: emp ? Math.round(emp.getBoundingClientRect().height) : 0,
+        notes: legs.map((x) => x.textContent ?? ''),
+        hasLegend: legs.some((x) => !x.classList.contains('fc-once')),
+        hasOnce: legs.some((x) => x.classList.contains('fc-once')),
+        rows: rows.length,
+        firstRow: rows[0] ? Array.from(rows[0].querySelectorAll('td')).map((x) => x.textContent ?? '').join('|') : '',
+        tableHeads: Array.from(fig.querySelectorAll('.fc-data thead th')).map((x) => x.textContent ?? ''),
+        sources: rows.map((r) => r.querySelectorAll('td')[2]?.textContent ?? ''),
+        styled: fig.querySelectorAll('[style]').length + (fig.hasAttribute('style') ? 1 : 0),
+      };
+    }),
+  );
+}
+
+// #fc 里带 style 属性的元素个数（含面板自己和 svg 子元素）
+export async function fcStyled(page: Page): Promise<number> {
+  return page.evaluate(() => document.querySelectorAll('#fc [style]').length + (document.getElementById('fc')?.hasAttribute('style') ? 1 : 0));
+}
+
 // 本机留底（usj:v2:<用户 id>:wodraft）：在页面里按后缀找键，只返回有没有和留底里的日期，不把草稿内容带回 Node
 export async function hasWoDraft(page: Page): Promise<{ has: boolean; date: string | null }> {
   return page.evaluate(() => {
