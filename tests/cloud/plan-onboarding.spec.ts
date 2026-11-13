@@ -2,9 +2,12 @@
 // 只在 npm run test:cloud 里运行，只用合成账号（FakePbServer 的合成用户）和假服务器，不连任何真实服务。
 // 示例计划的文字是仓库里公开的合成样本：用 loadAppPure 取 SEED_PLAN（写法抄 login.spec.ts），断言里只做布尔比较，不拼进失败消息。
 import { test, expect } from '../support/test';
-import { syntheticState } from '../support/cloud-data';
+import { syntheticPlan, syntheticState } from '../support/cloud-data';
+import { composer } from '../support/composer';
+import { gotoCalendar } from '../support/calendar';
+import { gotoTimeline, readTimeline } from '../support/timeline';
 import { loadAppPure } from '../support/app-source';
-import { gotoGoals, readGroups } from '../support/goals';
+import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
 import { expectToast } from '../support/toast';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
@@ -13,6 +16,7 @@ import {
   BTN_PLAN_BUILD,
   PK_HINT_NONE,
   PK_TITLE_CARD,
+  WEEK_EMPTY_PLAN,
   pkDone,
   pkPicked,
 } from '../support/strings';
@@ -97,5 +101,80 @@ test('PLAN-07 a new account picks one sample group and one lift from the empty p
   expect((await readGroups(page)).map((x) => x.code)).toEqual(['P1']);
   await expect(page.locator('#goals .lift')).toHaveCount(1);
   await expect(page.locator('#planEditBtn')).toBeFocused();
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+// D-01 的四种情况：无文档无缓存 → 空计划（上面的用例和 login.spec 的 PLAN-01）；已有文档 → 不变且不写（下一条）；
+// 文档缺失但本机有缓存 → 按缓存重建（再下一条）；撞唯一索引 → 重读服务器（reconcile-gate.spec.ts 里原有的用例）
+test('PLAN-06 an account that already has a plan document keeps it unchanged at sign-in and no plan is written (D-01)', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('pk'), plan: SEED_PLAN, login: 0 });
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+
+  expect(app.fake.writes.filter((w) => w.path === 'journey_docs:plan')).toHaveLength(0);
+  expect(app.fake.lastPlan(0)).toEqual(SEED_PLAN);
+  await gotoGoals(page);
+  expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  await expect(page.locator('#goals .pe-empty')).toHaveCount(0);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test("PLAN-06 a missing plan document is recreated from this device's cached plan, not from the empty plan (D-01)", async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('pc'), plan: syntheticPlan('pc', 2), login: 0 });
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+
+  // 服务器上的计划文档没了，本机缓存还在：刷新后按缓存重建
+  app.fake.dropDocs(0, 'plan');
+  await app.reload();
+
+  await expect
+    .poll(() => (app.fake.lastPlan(0)?.groups ?? []).map((g: { id: string }) => g.id), { message: '等待计划文档重建' })
+    .toEqual(['g-pc1', 'g-pc2']);
+  await gotoGoals(page);
+  expect(await readGroupIds(page)).toEqual(['g-pc1', 'g-pc2']);
+  await expect(page.locator('#goals .pe-empty')).toHaveCount(0);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-06 with the empty plan the composer has no base tags and entries recorded in the week and calendar views reach the timeline and the server (D-01, D-02)', async ({
+  app,
+  page,
+}) => {
+  const seed = syntheticState('po');
+  await app.open({ mode: 'cloud', seed, login: 0 });
+  expect(app.fake.lastPlan(0)).toEqual(EMPTY_PLAN);
+
+  // 本周页：空计划说明可见；记一笔选「语言」后没有任何基础快捷词（D-02）
+  await expect(page.locator('#wkEmpty')).toBeVisible();
+  await expect(page.locator('#wkEmpty')).toHaveText(WEEK_EMPTY_PLAN);
+  const wk = composer(page, 'w');
+  await wk.pickCategory('语言');
+  await expect(wk.presets).toHaveCount(0);
+  await wk.type('SYNTH-po week');
+  await wk.submit();
+
+  // 日历页：同一天的「记一笔」照常记录
+  await gotoCalendar(page);
+  const cal = composer(page, 'c');
+  await cal.pickCategory('语言');
+  await expect(cal.presets).toHaveCount(0);
+  await cal.type('SYNTH-po cal');
+  await cal.submit();
+
+  // 时间线：种子 1 条加新记的 2 条；服务器 state 的 logs 同样是 3 条，两条新记录的文字都在
+  await gotoTimeline(page);
+  await expect.poll(async () => (await readTimeline(page)).rows.filter((r) => r.attr === 'edit').length, { message: '时间线里的记录条数' }).toBe(3);
+  await expect
+    .poll(() => (app.fake.lastState(0)?.logs ?? []).length, { message: '等待记录上传' })
+    .toBe(seed.logs.length + 2);
+  const texts = (app.fake.lastState(0)?.logs ?? []).map((l: { text: string }) => l.text);
+  expect(texts.includes('SYNTH-po week') && texts.includes('SYNTH-po cal')).toBe(true);
+  // 计划文档没有被记一笔改动
+  expect(app.fake.lastPlan(0)).toEqual(EMPTY_PLAN);
   expect(app.fake.fulfillErrors).toEqual([]);
 });

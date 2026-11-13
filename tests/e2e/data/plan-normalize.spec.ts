@@ -328,3 +328,69 @@ test('PLAN-02 planProblems checks lift values and weekly fitness days and ignore
   expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5, hist: [{}, {}, {}] } } }, 'l-x')).toBe(3);
   expect(liftHistoryCount({}, 'l-x')).toBe(0);
 });
+
+// D-01、D-02、D-03（Phase 14）：云端新账号首次建档用的空计划。期望值在这里独立写出，不读应用的实现
+test('PLAN-06 emptyPlan has no groups, lifts or base tags and keeps the weekly fitness goal and note (D-01, D-02, D-03)', () => {
+  const { emptyPlan, DEFAULT_PLAN, normalizePlan } = loadAppPure(['emptyPlan', 'DEFAULT_PLAN', 'normalizePlan']);
+  const sample: any = JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const expected = {
+    v: 1,
+    presets: { lang: [], pro: [], fit: [], job: [], oth: [] },
+    groups: [],
+    lifts: [],
+    fitGoal: [2, 4],
+    fitNote: sample.fitNote,
+  };
+  const first = plain(emptyPlan());
+  expect(first, '空计划的形状').toEqual(expected);
+  expect(plain(normalizePlan(first)), '空计划应当通过 normalizePlan').toEqual(expected);
+  // 每次调用都是新对象：改掉一次的结果不影响下一次，也不影响示例计划
+  const a = emptyPlan();
+  const b = emptyPlan();
+  expect(a !== b && a.groups !== b.groups && a.presets !== b.presets, '两次调用不是同一个对象').toBe(true);
+  a.groups.push({ id: 'g-x' });
+  a.presets.lang.push('x');
+  expect(plain(emptyPlan()), '改一次不影响下一次').toEqual(expected);
+  expect(plain(DEFAULT_PLAN), '示例计划没有被改动').toEqual(sample);
+});
+
+// D-05、D-08（Phase 14）：按勾选从示例里拷贝，示例原顺序、换新 id、不带快捷词
+test('PLAN-07 pickSample copies only the chosen sample groups and lifts in sample order with new ids and no tags (D-05, D-08)', () => {
+  const { pickSample, planUsedIds, DEFAULT_PLAN } = loadAppPure(['pickSample', 'planUsedIds', 'DEFAULT_PLAN']);
+  const sample: any = JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const used = new Set<string>(['g-taken']);
+  // 键倒序传入、带一个不认识的键：结果仍按示例的顺序，不认识的键被忽略
+  const r = plain(pickSample(['l:pull', 'g:P3', 'g:P1', 'g:P9'], used));
+
+  expect(Object.keys(r).sort(), '结果只有 groups 和 lifts，没有 presets').toEqual(['groups', 'lifts']);
+  expect(r.groups).toHaveLength(2);
+  expect(r.lifts).toHaveLength(1);
+  const strip = (g: any) => ({ cat: g.cat, name: g.name, note: g.note, texts: g.tasks.map((t: any) => t.text) });
+  expect(r.groups.map(strip), '目标组按示例顺序，内容与示例的第 1、第 3 组相同').toEqual([strip(sample.groups[0]), strip(sample.groups[2])]);
+  const lifts = (l: any) => ({ n: l.n, unit: l.unit, def: l.def, target: l.target, note: l.note });
+  expect(r.lifts.map(lifts), '力量项与示例的 pull 相同').toEqual([lifts(sample.lifts.find((l: any) => l.id === 'pull'))]);
+
+  // id：g-、t-、l- 前缀，没有一个等于示例 id，互不重复，都已加进 used
+  const gids: string[] = r.groups.map((g: any) => g.id);
+  const tids: string[] = r.groups.flatMap((g: any) => g.tasks.map((t: any) => t.id));
+  const lids: string[] = r.lifts.map((l: any) => l.id);
+  expect(gids.every((id) => /^g-/.test(id)), '组 id 前缀').toBe(true);
+  expect(tids.every((id) => /^t-/.test(id)), '任务 id 前缀').toBe(true);
+  expect(lids.every((id) => /^l-/.test(id)), '力量项 id 前缀').toBe(true);
+  const sampleIds = new Set<string>([
+    ...sample.groups.flatMap((g: any) => [g.id, ...g.tasks.map((t: any) => t.id)]),
+    ...sample.lifts.map((l: any) => l.id),
+  ]);
+  const all = [...gids, ...tids, ...lids];
+  expect(all.some((id) => sampleIds.has(id)), '没有复用示例 id').toBe(false);
+  expect(new Set(all).size, 'id 互不重复').toBe(all.length);
+  expect(all.every((id) => used.has(id)) && used.has('g-taken'), '新 id 都已加进 used').toBe(true);
+
+  // 空集合：0 个组 0 个力量项；示例计划本身不被改动
+  const none = plain(pickSample([], new Set()));
+  expect([none.groups.length, none.lifts.length], '空集合').toEqual([0, 0]);
+  expect(plain(DEFAULT_PLAN), '示例计划没有被改动').toEqual(sample);
+  // planUsedIds：全部组 id + 任务 id + 力量项 id
+  const totalTasks = sample.groups.reduce((n: number, g: any) => n + g.tasks.length, 0);
+  expect(planUsedIds(DEFAULT_PLAN).size, 'planUsedIds 的大小').toBe(7 + totalTasks + 4);
+});
