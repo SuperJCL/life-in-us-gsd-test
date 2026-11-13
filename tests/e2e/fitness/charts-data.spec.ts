@@ -58,3 +58,72 @@ test('FIT-03 seriesOf gives the heaviest set, the Epley estimate and the volume 
   ]);
   expect(vol.pts.some((p: any) => p.old), 'vol has no hand-entered point').toBe(false);
 });
+
+test('FIT-03 seriesOf charts reps for a lift whose every set is 0, keeps the range start inclusive and the day before out, and orders points by date (D-09, D-11)', async () => {
+  const { seriesOf, rangeStart, DEFAULT_PLAN } = loadAppPure(NAMES);
+  const T = '2026-03-18';
+  const pts = (s: any, id: string, metric: string, range = '1m', t = T) =>
+    plain(seriesOf(s, DEFAULT_PLAN, id, metric, range, t)).pts.map((p: any) => [p.date, p.v]);
+
+  // 徒手：全部组 w 为 0 → reps；max 和 e1rm 都是每天最多的次数，vol 是每天次数之和（乱序写入的天输出升序）
+  const bw = {
+    workouts: {
+      '2026-03-16': day([{ id: 'pull', sets: [[0, 5], [0, 8]] }]),
+      '2026-03-02': day([{ id: 'pull', sets: [[0, 6]] }]),
+      '2026-03-09': day([{ id: 'pull', sets: [[0, 7], [0, 7], [0, 3]] }]),
+    },
+  };
+  const r = plain(seriesOf(bw, DEFAULT_PLAN, 'pull', 'max', '1m', T));
+  expect(r.mode, 'bodyweight mode').toBe('reps');
+  expect(pts(bw, 'pull', 'max'), 'reps max, ascending by date').toEqual([['2026-03-02', 6], ['2026-03-09', 7], ['2026-03-16', 8]]);
+  expect(pts(bw, 'pull', 'e1rm'), 'reps e1rm').toEqual([['2026-03-02', 6], ['2026-03-09', 7], ['2026-03-16', 8]]);
+  expect(pts(bw, 'pull', 'vol'), 'reps vol').toEqual([['2026-03-02', 6], ['2026-03-09', 17], ['2026-03-16', 13]]);
+
+  // 有一组 w 大于 0 → weight；手填历史里有大于 0 的值也是 weight
+  const withW = { workouts: { '2026-03-16': day([{ id: 'pull', sets: [[0, 5], [2.5, 8]] }]) } };
+  expect(plain(seriesOf(withW, DEFAULT_PLAN, 'pull', 'max', '1m', T)).mode, 'one weighted set').toBe('weight');
+  const withHist = { workouts: bw.workouts, lifts: { pull: { cur: 4, hist: [{ date: '2025-12-01', v: 4 }] } } };
+  expect(plain(seriesOf(withHist, DEFAULT_PLAN, 'pull', 'max', '1m', T)).mode, 'positive hand-entered value').toBe('weight');
+  // 判断看全部历史：范围里只剩全 0 的点，范围外有加重的组，仍是 weight
+  const wide = {
+    workouts: {
+      '2025-06-01': day([{ id: 'pull', sets: [[5, 5]] }]),
+      '2026-03-16': day([{ id: 'pull', sets: [[0, 8]] }]),
+    },
+  };
+  expect(plain(seriesOf(wide, DEFAULT_PLAN, 'pull', 'max', '1m', T)).mode, 'mode ignores the range').toBe('weight');
+
+  // 范围起点
+  expect(rangeStart('1m', T)).toBe('2026-02-18');
+  expect(rangeStart('3m', T)).toBe('2025-12-18');
+  expect(rangeStart('6m', T)).toBe('2025-09-18');
+  expect(rangeStart('1y', T)).toBe('2025-03-18');
+  expect(rangeStart('all', T), 'all has no start').toBeNull();
+  expect(rangeStart('x', T), 'unknown value counts as 1m').toBe('2026-02-18');
+  expect(rangeStart('constructor', T), 'inherited property names count as 1m').toBe('2026-02-18');
+  expect(rangeStart('1m', '2026-03-31'), 'the month has no such day').toBe('2026-02-28');
+  expect(rangeStart('1y', '2024-02-29'), 'leap day a year back').toBe('2023-02-28');
+
+  // 起点当天在范围里，前一天不在
+  const edge = {
+    workouts: {
+      '2026-02-17': day([{ id: 'bench', sets: [[20, 5]] }]),
+      '2026-02-18': day([{ id: 'bench', sets: [[21, 5]] }]),
+    },
+  };
+  expect(pts(edge, 'bench', 'max'), 'start day in, day before out').toEqual([['2026-02-18', 21]]);
+  expect(pts(edge, 'bench', 'max', 'all').length, 'all keeps both').toBe(2);
+
+  // 没有任何记录：any 为 false；只有范围外的记录：any 为 true、pts 为空；晚于今天的训练不算
+  const none = plain(seriesOf({}, DEFAULT_PLAN, 'bench', 'max', '1m', T));
+  expect(none).toEqual({ mode: 'weight', pts: [], any: false });
+  const old = plain(seriesOf({ workouts: { '2025-06-01': day([{ id: 'bench', sets: [[20, 5]] }]) } }, DEFAULT_PLAN, 'bench', 'max', '1m', T));
+  expect(old.any, 'record outside the range counts').toBe(true);
+  expect(old.pts, 'but nothing inside the range').toEqual([]);
+  const future = plain(seriesOf({ workouts: { '2026-03-19': day([{ id: 'bench', sets: [[20, 5]] }]) } }, DEFAULT_PLAN, 'bench', 'max', '1m', T));
+  expect(future, 'a day after today is ignored').toEqual({ mode: 'weight', pts: [], any: false });
+
+  // 手填值不是有限数不画
+  const bad = { lifts: { bench: { cur: 20, hist: [{ date: '2026-03-01', v: 'x' }, { date: '2026-03-02', v: 20 }] } } };
+  expect(pts(bad, 'bench', 'max'), 'non-numeric hand-entered value is skipped').toEqual([['2026-03-02', 20]]);
+});

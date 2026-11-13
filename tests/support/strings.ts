@@ -847,3 +847,17 @@ export const fcEmptyNone = (n: string): string => `还没有${n}的训练记录�
 export const FC_EMPTY_RANGE = '这段时间没有记录，可以选更长的时间范围。';
 export const FC_ONCE = '只有一次记录，再练几次就能看出变化。';
 export const FC_LEGEND = '空心点是以前手填的记录，没有次数。';
+
+// ---- Phase 15-03：趋势图控件、翻页、指标说明（应用里 T_FC_GRP_*、T_FC_PREV、T_FC_NEXT、T_FC_PAGE、T_FC_LIVE_*、T_FC_READ_AT、T_FC_MNOTE*，逐字相同）----
+export const FC_GRP_METRIC = '指标';
+export const FC_GRP_RANGE = '时间范围';
+export const BTN_FC_PREV = '上一组';
+export const BTN_FC_NEXT = '下一组';
+export const fcPage = (p: number, n: number): string => `第 ${p} / ${n} 组`;
+export const fcLivePage = (p: number, n: number, s: string): string => `第 ${p} / ${n} 组：${s}`;
+export const fcLiveSwitch = (m: string, r: string): string => `已切换：${m}，${r}`;
+export const fcReadAt = (d: string, v: string, u: string): string => `${d}　${v} ${u}`;
+export const FC_MNOTE_MAX = '每个训练日取最重的一组。虚线是计划里的目标重量。';
+export const FC_MNOTE_E1RM = '按「重量 ×（1 + 次数 ÷ 30）」估算只做一次能举多重，只是估算。虚线是计划里的目标重量。';
+export const FC_MNOTE_VOL = '每个训练日所有组的「重量 × 次数」加起来。';
+export const FC_MNOTE_BW = '徒手动作（重量都是 0）改看次数。';

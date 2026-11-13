@@ -187,6 +187,62 @@ export async function fcStyled(page: Page): Promise<number> {
   return page.evaluate(() => document.querySelectorAll('#fc [style]').length + (document.getElementById('fc')?.hasAttribute('style') ? 1 : 0));
 }
 
+// 点指标芯片（max | e1rm | vol）
+export async function setMetric(page: Page, metric: string) {
+  await page.locator(`#fc [data-fc-metric="${metric}"]`).click();
+  await expect(page.locator(`#fc [data-fc-metric="${metric}"]`)).toHaveAttribute('aria-pressed', 'true');
+}
+
+// 点时间范围芯片（1m | 3m | 6m | 1y | all）
+export async function setRange(page: Page, range: string) {
+  await page.locator(`#fc [data-fc-range="${range}"]`).click();
+  await expect(page.locator(`#fc [data-fc-range="${range}"]`)).toHaveAttribute('aria-pressed', 'true');
+}
+
+export type PagerRead = {
+  present: boolean; // 有没有翻页器
+  page: string; // #fc-page 的文字
+  prevDisabled: boolean;
+  nextDisabled: boolean;
+  focused: string; // 当前焦点的 id（不在 #fc 里是空串）
+  live: string; // #fc-live 的文字
+  lifts: string[]; // 当前页每张图的 data-lift
+  cols: number; // .fc-grid 的列数
+};
+
+// 读翻页器和当前页的图（一次 evaluate，只返回文字、布尔和数）
+export async function readPager(page: Page): Promise<PagerRead> {
+  return page.evaluate(() => {
+    const prev = document.getElementById('fcPrev') as HTMLButtonElement | null;
+    const next = document.getElementById('fcNext') as HTMLButtonElement | null;
+    const grid = document.querySelector('#fc .fc-grid');
+    const ae = document.activeElement as HTMLElement | null;
+    return {
+      present: !!document.querySelector('#fc .fc-pager'),
+      page: document.getElementById('fc-page')?.textContent ?? '',
+      prevDisabled: !!prev?.disabled,
+      nextDisabled: !!next?.disabled,
+      focused: ae && document.getElementById('fc')?.contains(ae) ? ae.id : '',
+      live: document.getElementById('fc-live')?.textContent ?? '',
+      lifts: Array.from(document.querySelectorAll<HTMLElement>('#fc figure.fc[data-lift]')).map((x) => x.dataset.lift ?? ''),
+      cols: grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length : 0,
+    };
+  });
+}
+
+// 读某张图的指针状态：读数行、竖线 x1、各点的 r（data-date → r）
+export async function readPointer(page: Page, lift: string) {
+  return page.evaluate((id) => {
+    const fig = document.querySelector(`#fc figure.fc[data-lift="${id}"]`);
+    const sl = fig?.querySelector('.fc-sel-l');
+    return {
+      read: fig?.querySelector('.fc-read')?.textContent ?? '',
+      selX: sl ? parseFloat(sl.getAttribute('x1') ?? 'NaN') : NaN,
+      radii: Object.fromEntries(Array.from(fig?.querySelectorAll('.fc-pt') ?? []).map((c) => [c.getAttribute('data-date') ?? '', c.getAttribute('r') ?? ''])),
+    };
+  }, lift);
+}
+
 // 本机留底（usj:v2:<用户 id>:wodraft）：在页面里按后缀找键，只返回有没有和留底里的日期，不把草稿内容带回 Node
 export async function hasWoDraft(page: Page): Promise<{ has: boolean; date: string | null }> {
   return page.evaluate(() => {
