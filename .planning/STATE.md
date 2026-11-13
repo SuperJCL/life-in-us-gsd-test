@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 14
 current_phase_name: 新账号的计划起步（Plan Onboarding）
 status: executing
-stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-11-13T05:26:13.472Z"
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-11-13T05:53:49.978Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 14 execution started
-state_head: 75cff47ea7130d494d6a323bef38296a47b83e74
+state_head: 4a73d2f1f7aae7747461df1055364d17735b53b1
 progress:
   total_phases: 11
   completed_phases: 7
   total_plans: 83
-  completed_plans: 78
+  completed_plans: 79
   percent: 64
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 ## Current Position
 
 Phase: 14 (新账号的计划起步（Plan Onboarding）) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 14
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-11-12 — Phase 14 execution started
 
 Progress: [██████░░░░] 64%
@@ -168,6 +168,7 @@ Progress: [██████░░░░] 64%
 | Phase 13 P10 | 20min | 3 tasks | 1 files |
 | Phase 13 P11 | 15min | 3 tasks | 1 files |
 | Phase 13 P12 | ~1h (incl. owner wait) | 3 tasks | 1 files |
+| Phase 14 P01 | 100 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -344,6 +345,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 13]: A12 keep：保留探针时期的数据库和 Phase 6 的超级用户，探针集合和账号由清理迁移在第一次启动时删除；本机已演练新钥匙加明文设置行
 - [Phase 13]: 整批部署 approve-all：上传包清单 sha256 ac686d29…98b7、BUILD_VERSION a1159ad93165；每个改动服务器的步骤执行前仍需所有者即时确认
 - [Phase 13]: 13-11: key saved by owner only, A12=keep so no superuser created; WWW_REDIRECT=on; verify-site full 19/19; PB_HEALTH prints ok (not 200)
+- [Phase 14]: 14-01: 选提炼 planCommit 作为编辑页和卡片模式共用的唯一写入核心，不给卡片模式造 pe 草稿
+- [Phase 14]: 14-01: 首次建档只在没有服务器文档且没有缓存时用 emptyPlan；pkSave 并入远端版本后以最新计划为基准只往末尾追加
 
 ### Pending Todos
 
@@ -419,9 +422,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T04:17:54.614Z
-Stopped at: Phase 14 UI-SPEC approved
-Resume file: .planning/phases/14-plan-onboarding/14-UI-SPEC.md
+Last session: 2026-11-13T05:53:45.555Z
+Stopped at: Completed 14-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
