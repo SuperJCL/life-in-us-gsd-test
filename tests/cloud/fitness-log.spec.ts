@@ -9,6 +9,8 @@ import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { expectToast } from '../support/toast';
 import {
   BTN_FL_GO_PLAN,
+  FC_METRIC,
+  FC_RANGE,
   FL_CARDIO_NONE,
   FL_EMPTY_ALL,
   FL_HINT_DIRTY,
@@ -17,8 +19,11 @@ import {
   FL_SAVED,
   FL_STATE_RESTORED,
   TAB_LABELS,
+  fcLiveSwitch,
+  fcPage,
+  fcSub,
 } from '../support/strings';
-import { flAddLift, flFillSet, flSave, gotoFitness, hasWoDraft, readFl } from '../support/fitness';
+import { flAddLift, flFillSet, flSave, gotoFitness, hasWoDraft, readCharts, readFl, readPager, setMetric } from '../support/fitness';
 
 const LIST_PATH = '/api/collections/journey_docs/records';
 const ITEM_PATH = new RegExp('/api/collections/journey_docs/records/[^/]+' + String.fromCharCode(36));
@@ -179,4 +184,70 @@ test.describe('manual clock', () => {
     await hold.release();
     await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
   });
+});
+
+test('FIT-03 while the edit gate is on the chart controls, paging and data tables still work and the logging controls stay disabled', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  // 5 个力量项（电脑上两页）和 1 个有氧项；今天有一次训练和一次有氧
+  const plan: any = syntheticPlan('fg', 1);
+  for (let i = 2; i <= 5; i += 1) plan.lifts.push({ id: `l-fg${i}`, n: `SYNTH-fg lift ${i}`, unit: 'kg', def: 10, target: 20, note: '' });
+  plan.cardio = [{ id: 'r-fg1', n: 'SYNTH-fg cardio', note: '', target: { kind: 'min', v: 30 } }];
+  const state = syntheticState('fg', {
+    workouts: { [FROZEN_TODAY]: { lifts: [{ id: 'l-fg1', sets: [{ w: 30, r: 5 }] }], cardio: [{ id: 'r-fg1', m: 25 }] } },
+  });
+  await app.open({ mode: 'cloud', seed: state, plan, login: 0 });
+  await gotoFitness(page);
+  await expect(page.locator('#fc figure.fc-cd')).toHaveCount(1);
+
+  // 启动对账被拖住：先显示本机缓存里的内容，body 带门控
+  const hold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await page.reload();
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+  await gotoFitness(page);
+
+  // 图表控件、翻页按钮、查看数据都可用
+  await expect(page.locator('#fc [data-fc-metric="vol"]')).toBeEnabled();
+  await expect(page.locator('#fc [data-fc-range="3m"]')).toBeEnabled();
+  await expect(page.locator('#fcNext')).toBeEnabled();
+  await setMetric(page, 'vol');
+  expect((await readCharts(page))[0].sub, 'the chart switched to total volume under the gate').toBe(fcSub('vol', 'kg'));
+  await expect(page.locator('#fc-live')).toHaveText(fcLiveSwitch(FC_METRIC.vol, FC_RANGE['1m']));
+  await page.locator('#fcNext').click();
+  let pg = await readPager(page);
+  expect(pg.lifts, 'paging works under the gate').toEqual(['l-fg5']);
+  expect(pg.page).toBe(fcPage(2, 2));
+  await page.locator('#fcPrev').click();
+  pg = await readPager(page);
+  expect(pg.lifts, 'back on the first page').toEqual(['l-fg1', 'l-fg2', 'l-fg3', 'l-fg4']);
+  await page.locator('#fc figure.fc[data-lift="l-fg1"] .fc-data summary').click();
+  await expect(page.locator('#fc figure.fc[data-lift="l-fg1"] .fc-tbl')).toBeVisible();
+  await page.locator('#fc figure.fc-cd .fc-data summary').click();
+  await expect(page.locator('#fc figure.fc-cd .fc-tbl')).toBeVisible();
+
+  // 记录区的写入控件仍是真 disabled
+  await expect(page.locator('#fl-save')).toBeDisabled();
+  expect(await page.locator('#fl [data-fl-add]').count()).toBeGreaterThan(0);
+  await expect(page.locator('#fl [data-fl-add]:not(:disabled)')).toHaveCount(0);
+
+  // 松开对账：门控消失，记录区恢复可用
+  await hold.release();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('body')).not.toHaveAttribute('data-gate', /.+/);
+  await expect(page.locator('#fl-save')).toHaveJSProperty('disabled', false);
+  await expect(page.locator('#fl [data-fl-add]:not(:disabled)').first()).toBeVisible();
+
+  // 另一个账号：计划里没有有氧项、也没有有氧记录，每周有氧卡片整张不渲染
+  const dev = await openDevice({ browser, guard, fake: new FakePbServer() });
+  try {
+    await dev.app.open({ mode: 'cloud', users: 1, seed: syntheticState('fo'), plan: syntheticPlan('fo', 1), login: 0 });
+    await gotoFitness(dev.page);
+    await expect(dev.page.locator('#fc figure.fc[data-lift]')).toHaveCount(1);
+    await expect(dev.page.locator('#fc figure.fc-cd')).toHaveCount(0);
+  } finally {
+    await dev.context.close();
+  }
 });

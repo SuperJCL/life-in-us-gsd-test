@@ -6,6 +6,11 @@ import { serveAppVariant } from '../../support/app-variant';
 import {
   BTN_FC_NEXT,
   BTN_FC_PREV,
+  FC_CD_COLS,
+  FC_CD_EMPTY,
+  FC_CD_EMPTY_RANGE,
+  FC_CD_NOTE,
+  FC_CD_TITLE,
   FC_EMPTY_RANGE,
   FC_GRP_METRIC,
   FC_GRP_RANGE,
@@ -23,6 +28,9 @@ import {
   FC_SUB_RMAX,
   FC_TODAY,
   fcAria,
+  fcCardioAria,
+  fcCardioRead,
+  fcCardioReadWk,
   fcEmptyNone,
   fcLivePage,
   fcLiveSwitch,
@@ -32,7 +40,7 @@ import {
   fcSub,
   fcTarget,
 } from '../../support/strings';
-import { fcStyled, gotoFitness, readCharts, readPager, readPointer, setMetric, setRange } from '../../support/fitness';
+import { fcStyled, gotoFitness, readCardioChart, readCharts, readPager, readPointer, setMetric, setRange } from '../../support/fitness';
 
 type Sets = Array<[number, number]>;
 // 一天的训练：每个动作一组组 [重量, 次数]
@@ -364,4 +372,80 @@ test('FIT-03 the charts carry no style attribute, show the value under the point
   const after = (await readCharts(page))[0];
   expect(after.vbW, 'viewBox width equals the pixel width after the resize').toBe(after.cw);
   await expect(page.locator('#fc figure.fc[data-lift="bench"] .fc-data')).toHaveAttribute('open', '');
+});
+
+// 一天的有氧：[项目 id, 分钟]
+const cd = (items: Array<[string, number]>) => ({ lifts: [], cardio: items.map(([id, m]) => ({ id, m })) });
+
+test('FIT-03 the weekly cardio chart totals minutes per week across items, keeps empty weeks and shares the time range (D-12)', async ({
+  page,
+  app,
+}) => {
+  await app.open({
+    seed: seed({
+      '2026-03-02': cd([['r-run', 30], ['r-walk', 20]]),
+      '2026-03-04': cd([['r-bike', 45]]),
+    }),
+  });
+  await gotoFitness(page);
+
+  // 1 个月：五周各一个槽位，没有有氧的周柱高 0；本周（03-16 起）没有有氧，读数行是 0 分钟、0 天
+  let c = await readCardioChart(page);
+  expect(c.present, 'the card is rendered').toBe(true);
+  expect(c.title).toBe(FC_CD_TITLE);
+  expect(c.note).toBe(FC_CD_NOTE);
+  expect(c.bars.map((b) => [b.week, b.v]), 'one slot per week').toEqual([
+    ['2026-02-16', '0'],
+    ['2026-02-23', '0'],
+    ['2026-03-02', '95'],
+    ['2026-03-09', '0'],
+    ['2026-03-16', '0'],
+  ]);
+  expect(c.bars.map((b) => b.h > 0), 'only the week with cardio has a bar height').toEqual([false, false, true, false, false]);
+  expect(c.read).toBe(fcCardioRead(0, 0));
+  expect(c.aria).toBe(fcCardioAria(FC_RANGE['1m'], 5, 0));
+  expect(c.vbW, 'viewBox width is the pixel width').toBe(c.cw);
+  expect(c.styled, 'no style attribute in the card').toBe(0);
+
+  // 查看数据：三列，行数等于槽位数；指针移到那一周的柱上，读数换成那一周
+  await page.locator('#fc figure.fc-cd .fc-data summary').click();
+  c = await readCardioChart(page);
+  expect(c.heads).toEqual([...FC_CD_COLS]);
+  expect(c.rows, 'one row per week').toBe(5);
+  await page.locator('#fc figure.fc-cd rect.fc-bar[data-week="2026-03-02"]').hover();
+  await expect(page.locator('#fc figure.fc-cd .fc-read')).toHaveText(fcCardioReadWk('3月2日', 95, 2));
+  await page.mouse.move(2, 2);
+  await expect(page.locator('#fc figure.fc-cd .fc-read')).toHaveText(fcCardioRead(0, 0));
+
+  // 范围和折线图共用：3 个月变成 14 周，仍含 95 分钟那一周，数据表保持展开
+  await setRange(page, '3m');
+  c = await readCardioChart(page);
+  expect(c.bars.length, 'three months of weeks').toBe(14);
+  expect(c.bars.find((b) => b.week === '2026-03-02')?.v).toBe('95');
+  expect(c.rows).toBe(14);
+  expect(c.aria).toBe(fcCardioAria(FC_RANGE['3m'], 14, 0));
+
+  // 计划里有有氧项但从没有记录：整张卡片还在，里面一句说明，图区高 160
+  const swap = async (workouts: Record<string, unknown>) => {
+    await page.evaluate(([k, v]) => localStorage.setItem(k, v), [STATE_KEY, JSON.stringify({ _synthetic: true, workouts })] as const);
+    await app.reload();
+    await gotoFitness(page);
+  };
+  await swap({ '2026-03-16': wo({ bench: [[25, 5]] }) });
+  c = await readCardioChart(page);
+  expect(c.present, 'the sample plan always has cardio items').toBe(true);
+  expect(c.empty).toBe(FC_CD_EMPTY);
+  expect(c.emptyH).toBe(160);
+  expect(c.bars.length).toBe(0);
+
+  // 只有一年多以前的有氧：1 个月里是「这段时间没有有氧记录」，全部里有一根柱
+  await swap({ '2025-03-03': cd([['r-run', 30]]) });
+  await setRange(page, '1m');
+  c = await readCardioChart(page);
+  expect(c.empty, 'nothing in the range').toBe(FC_CD_EMPTY_RANGE);
+  await setRange(page, 'all');
+  c = await readCardioChart(page);
+  expect(c.empty).toBeNull();
+  expect(c.bars[0], 'all starts at the earliest cardio week').toMatchObject({ week: '2025-03-03', v: '30' });
+  expect(c.bars.filter((b) => b.v !== '0').length, 'one week with cardio').toBe(1);
 });

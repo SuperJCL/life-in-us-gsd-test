@@ -861,3 +861,15 @@ export const FC_MNOTE_MAX = '每个训练日取最重的一组。虚线是计划
 export const FC_MNOTE_E1RM = '按「重量 ×（1 + 次数 ÷ 30）」估算只做一次能举多重，只是估算。虚线是计划里的目标重量。';
 export const FC_MNOTE_VOL = '每个训练日所有组的「重量 × 次数」加起来。';
 export const FC_MNOTE_BW = '徒手动作（重量都是 0）改看次数。';
+
+// ---- Phase 15-03：每周有氧总时长柱形图（应用里 T_FC_CD_*，逐字相同）----
+export const FC_CD_TITLE = '每周有氧总时长';
+export const FC_CD_UNIT = '分钟';
+export const FC_CD_NOTE = '按周合计，周一到周日算一周。';
+export const fcCardioRead = (m: number, k: number): string => `本周：共 ${m} 分钟，${k} 天有氧`;
+export const fcCardioReadWk = (d: string, m: number, k: number): string => `${d}起的一周：共 ${m} 分钟，${k} 天有氧`;
+export const FC_CD_EMPTY = '还没有有氧记录。在上面记一次有氧，这里会出现每周的柱形图。';
+export const FC_CD_EMPTY_RANGE = '这段时间没有有氧记录，可以选更长的时间范围。';
+export const FC_CD_COLS = ['周（起始日）', '总时长（分钟）', '有氧天数'] as const;
+export const FC_CD_THIS = '本周';
+export const fcCardioAria = (r: string, n: number, m: number): string => `每周有氧总时长柱形图，${r}，共 ${n} 周，本周 ${m} 分钟`;

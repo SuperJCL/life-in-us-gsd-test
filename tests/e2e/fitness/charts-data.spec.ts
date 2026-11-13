@@ -4,7 +4,7 @@
 import { test, expect } from '../../support/test';
 import { loadAppPure } from '../../support/app-source';
 
-const NAMES = ['seriesOf', 'rangeStart', 'niceMax', 'DEFAULT_PLAN'] as const;
+const NAMES = ['seriesOf', 'rangeStart', 'niceMax', 'cardioWeeks', 'DEFAULT_PLAN'] as const;
 
 // JSON 往返：把 vm 里的对象换成本 realm 的普通对象再比较
 const plain = (v: any): any => (v === null || v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -126,4 +126,56 @@ test('FIT-03 seriesOf charts reps for a lift whose every set is 0, keeps the ran
   // 手填值不是有限数不画
   const bad = { lifts: { bench: { cur: 20, hist: [{ date: '2026-03-01', v: 'x' }, { date: '2026-03-02', v: 20 }] } } };
   expect(pts(bad, 'bench', 'max'), 'non-numeric hand-entered value is skipped').toEqual([['2026-03-02', 20]]);
+});
+
+test('FIT-03 niceMax and cardioWeeks give clean axis tops and one slot per week with empty weeks at 0 (A6, D-12)', async () => {
+  const { niceMax, cardioWeeks } = loadAppPure(NAMES);
+  // 纵轴上限：{1,2,4,5,10}×10ⁿ 里不小于 v×1.05 的最小者；0 或空为 1
+  const cases: Array<[any, number]> = [
+    [0, 1],
+    [0.9, 1],
+    [1, 2],
+    [42.5, 50],
+    [47.6, 50],
+    [47.7, 100],
+    [95, 100],
+    [190, 200],
+    [380, 400],
+    [1000, 2000],
+    [-3, 1],
+    [NaN, 1],
+    [undefined, 1],
+  ];
+  for (const [v, want] of cases) expect(niceMax(v), `niceMax(${String(v)})`).toBe(want);
+
+  const T = '2026-03-18';
+  const cd = (items: Array<[string, number]>) => ({ lifts: [], cardio: items.map(([id, m]) => ({ id, m })) });
+  const state = {
+    workouts: {
+      '2026-03-02': cd([['r-run', 30], ['r-walk', 20]]),
+      '2026-03-04': cd([['r-bike', 45]]),
+      '2026-03-20': cd([['r-run', 99]]), // 晚于今天，不计
+      '2026-03-10': day([{ id: 'bench', sets: [[20, 5]] }]), // 只有力量，不算有氧天
+    },
+  };
+  const weeks = plain(cardioWeeks(state, '1m', T));
+  expect(
+    weeks.map((w: any) => [w.wk, w.m, w.k]),
+    'one slot per week from the Monday of the range start to this Monday',
+  ).toEqual([
+    ['2026-02-16', 0, 0],
+    ['2026-02-23', 0, 0],
+    ['2026-03-02', 95, 2],
+    ['2026-03-09', 0, 0],
+    ['2026-03-16', 0, 0],
+  ]);
+
+  // all 从最早有氧那一周开始；没有任何有氧时是空数组
+  const early = { workouts: { '2026-01-07': cd([['r-run', 10]]), '2026-03-17': cd([['r-run', 15]]) } };
+  const all = plain(cardioWeeks(early, 'all', T));
+  expect(all[0], 'all starts at the earliest cardio week').toEqual({ wk: '2026-01-05', m: 10, k: 1 });
+  expect(all.length, 'one slot per week up to this week').toBe(11);
+  expect(all[all.length - 1], 'this week').toEqual({ wk: '2026-03-16', m: 15, k: 1 });
+  expect(plain(cardioWeeks({ workouts: { '2026-03-10': day([{ id: 'bench', sets: [[20, 5]] }]) } }, 'all', T)), 'no cardio at all').toEqual([]);
+  expect(plain(cardioWeeks({}, 'all', T)), 'empty state').toEqual([]);
 });

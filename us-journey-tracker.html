@@ -944,6 +944,23 @@ function niceMax(v){
   for(const f of [1,2,4,5,10]){if(f*n>=t-1e-9)return f*n}
   return 10*n;
 }
+/* 每周有氧总时长（D-12）：[{wk,m,k}]，起点是范围起点所在的周一（"all" 是最早有氧那一天所在的周一，没有有氧返回 []），终点是 t 所在的周一，每 7 天一个槽位；
+   m 是这一周（周一到周日、不晚于 t）所有有氧条目的分钟数之和（不分项目），k 是这一周有有氧条目的天数；没有有氧的周 m、k 都是 0，槽位保留 */
+function cardioWeeks(s,range,t){
+  const wm=woMap(s),days=[];
+  Object.keys(wm).forEach(d=>{
+    if(!realDate(d)||d>t||!isObj(wm[d])||!Array.isArray(wm[d].cardio))return;
+    const C=wm[d].cardio.filter(x=>isObj(x)&&typeof x.m==="number"&&isFinite(x.m));
+    if(C.length)days.push({date:d,m:C.reduce((a,x)=>a+x.m,0)});
+  });
+  const first=days.reduce((a,x)=>a===null||x.date<a?x.date:a,null),from=range==="all"?first:rangeStart(range,t);
+  if(from===null)return [];
+  const out=[],end=monday(t);
+  for(let w=monday(from);w<=end;w=addDays(w,7))out.push({wk:w,m:0,k:0});
+  const at=new Map(out.map((o,i)=>[o.wk,i]));
+  days.forEach(x=>{const i=at.get(monday(x.date));if(i!==undefined){out[i].m+=x.m;out[i].k+=1}});
+  return out;
+}
 /* S9：本周、日历、时间线共用的一行文字。力量动作名最多 3 个，超过写「等 n 项」，后接「（共 s 组）」；有氧最多 2 个；两段用「 · 」连；名字取计划里的力量项和有氧项（含归档的），找不到的 id 写下面两句（UI-SPEC 之外新增） */
 const T_FIT_GONE_L="已删除的力量项",T_FIT_GONE_C="已删除的有氧项";
 function woSummary(day,p){
@@ -1444,7 +1461,7 @@ function setGate(mode){
   pkWhy();
 }
 /* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
-const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn],[data-peact],[data-fl]";
+const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],#goals [data-lift],#goals [data-liftsave],[data-addto],[data-addbtn],[data-peact],[data-fl]";
 function gateGuard(e){
   if(!document.body.dataset.gate)return;
   const t=e.target;if(!t||!t.closest||!t.closest(".wrap"))return;
@@ -2902,6 +2919,8 @@ const T_FC_EMPTY_NONE=n=>"还没有"+n+"的训练记录。记一次训练后，�
 const T_FC_GRP_METRIC="指标",T_FC_GRP_RANGE="时间范围",T_FC_PREV="上一组",T_FC_NEXT="下一组",T_FC_PAGE=(p,n)=>"第 "+p+" / "+n+" 组",T_FC_LIVE_PAGE=(p,n,s)=>"第 "+p+" / "+n+" 组："+s,T_FC_LIVE_SWITCH=(m,r)=>"已切换："+m+"，"+r,T_FC_READ_AT=(d,v,u)=>d+"　"+v+" "+u;
 const T_FC_MNOTE={max:"每个训练日取最重的一组。虚线是计划里的目标重量。",e1rm:"按「重量 ×（1 + 次数 ÷ 30）」估算只做一次能举多重，只是估算。虚线是计划里的目标重量。",vol:"每个训练日所有组的「重量 × 次数」加起来。"},T_FC_MNOTE_BW="徒手动作（重量都是 0）改看次数。";
 /* 时间范围按设备记在 localStorage（只是个人偏好，不进账号数据，也不在退出登录的清理列表里）；读不到或不认识就用 1m；指标不记住 */
+const T_FC_CD_TITLE="每周有氧总时长",T_FC_CD_UNIT="分钟",T_FC_CD_NOTE="按周合计，周一到周日算一周。",T_FC_CD_READ=(m,k)=>"本周：共 "+m+" 分钟，"+k+" 天有氧",T_FC_CD_READ_WK=(d,m,k)=>d+"起的一周：共 "+m+" 分钟，"+k+" 天有氧";
+const T_FC_CD_EMPTY="还没有有氧记录。在上面记一次有氧，这里会出现每周的柱形图。",T_FC_CD_EMPTY_RANGE="这段时间没有有氧记录，可以选更长的时间范围。",T_FC_CD_COL_WK="周（起始日）",T_FC_CD_COL_M="总时长（分钟）",T_FC_CD_COL_K="有氧天数",T_FC_CD_THIS="本周",T_FC_CD_ARIA=(r,n,m)=>"每周有氧总时长柱形图，"+r+"，共 "+n+" 周，本周 "+m+" 分钟";
 const FC_METRICS=["max","e1rm","vol"],FC_RANGES=["1m","3m","6m","1y","all"],FC_KEY="usj:fit:range";
 function fcRangeLoad(){try{const v=localStorage.getItem(FC_KEY);if(FC_RANGES.includes(v))return v}catch(e){}return "1m"}
 const fcMq=matchMedia("(max-width:560px)"),fcPer=()=>fcMq.matches?3:4;
@@ -2916,7 +2935,7 @@ function renderFc(){
   const el=$("fc"),aL=activeLifts();
   if($("tab-fit").classList.contains("hidden")){el.textContent="";return}
   fc.stale=false;
-  const key=fcFocusKey(),open=new Set(Array.from(el.querySelectorAll("details.fc-data[open]")).map(d=>d.closest("figure").dataset.lift||""));
+  const key=fcFocusKey(),open=new Set(Array.from(el.querySelectorAll("details.fc-data[open]")).map(d=>d.closest("figure").dataset.lift||"cd"));
   if(!aL.length){el.innerHTML=`<div class="fc-head"><h3 id="fc-title">${T_FC_TITLE}</h3></div><p class="empty">${T_GOALS_NO_LIFTS}</p>`;return}
   const per=fcPer(),pages=Math.max(1,Math.ceil(aL.length/per));
   fc.page=Math.min(pages-1,Math.max(0,fc.page));
@@ -2929,8 +2948,8 @@ function renderFc(){
     const rows=ser.pts.slice().reverse().map(p=>`<tr><td>${esc(md(p.date))}</td><td>${esc(fcFmt(p.v))}</td><td>${p.old?T_FC_SRC_HAND:T_FC_SRC_WO}</td></tr>`).join("");
     return `<figure class="fc k-fit" data-lift="${esc(L.id)}" data-mode="${ser.mode}"><figcaption class="fc-h"><span class="fc-name" title="${esc(L.n)}">${esc(L.n)}</span><span class="fc-metric">${esc(sub)}</span></figcaption><p class="fc-read"></p><div class="fc-pl"></div><div class="fc-notes"></div>${rows?`<details class="fc-data"${open.has(L.id)?" open":""}><summary data-fit-ro>${T_FC_DATA}</summary><div class="fc-tbl" tabindex="0"><table><thead><tr><th>${T_FC_COL_DATE}</th><th>${esc(sub)}</th><th>${T_FC_COL_SRC}</th></tr></thead><tbody>${rows}</tbody></table></div></details>`:""}</figure>`;
   });
-  el.innerHTML=`<div class="fc-head"><h3 id="fc-title">${T_FC_TITLE}</h3>${pager}</div>${ctl}<div class="fc-grid">${figs.join("")}</div>`;
-  el.querySelectorAll("figure.fc").forEach(f=>fcDraw(f));
+  el.innerHTML=`<div class="fc-head"><h3 id="fc-title">${T_FC_TITLE}</h3>${pager}</div>${ctl}<div class="fc-grid">${figs.join("")}</div>${fcCdHTML(open.has("cd"))}`;
+  el.querySelectorAll("figure.fc").forEach(fcDrawAny);
   const t=key&&el.querySelector(key);if(t&&!t.disabled)t.focus({preventScroll:true});
 }
 /* 重画前记下焦点在哪个控件上（翻页按钮、指标 / 范围芯片、某张图的「查看数据」），重画后放回去 */
@@ -2939,7 +2958,7 @@ function fcFocusKey(){
   if(a.id==="fcPrev"||a.id==="fcNext")return "#"+a.id;
   if(FC_METRICS.includes(a.dataset.fcMetric))return `[data-fc-metric="${a.dataset.fcMetric}"]`;
   if(FC_RANGES.includes(a.dataset.fcRange))return `[data-fc-range="${a.dataset.fcRange}"]`;
-  if(a.matches("summary")){const f=a.closest("figure");return f&&f.dataset.lift?`figure.fc[data-lift="${CSS.escape(f.dataset.lift)}"] summary`:null}
+  if(a.matches("summary")){const f=a.closest("figure");return f&&f.dataset.lift?`figure.fc[data-lift="${CSS.escape(f.dataset.lift)}"] summary`:f&&f.classList.contains("fc-cd")?"figure.fc-cd summary":null}
   return null;
 }
 /* 翻页：到边缘按钮变真 disabled 时焦点移到另一个按钮；图组原地替换、不滚动；翻页位置不记住 */
@@ -2979,10 +2998,43 @@ function fcDraw(fig){
   fcInfo.set(fig,{xy,u,read:rd.textContent});
 }
 
+/* 每周有氧总时长卡片（D-12）：在图组和翻页器之后，不参与翻页、不受指标影响，范围和折线图共用。计划里没有未归档有氧项、而且从没有有氧记录时整张不渲染；
+   有有氧项但没有任何记录、有记录但范围里没有，各有一句说明（图区高度同样是 160） */
+function fcCd(){
+  const t=today(),weeks=cardioWeeks(state,fc.range,t),any=cardioWeeks(state,"all",t).length>0;
+  return {weeks,any,show:activeCardio().length>0||any,data:any&&weeks.some(w=>w.k>0)};
+}
+function fcCdHTML(open){
+  const c=fcCd();if(!c.show)return "";
+  const rows=c.data?c.weeks.slice().reverse().map(w=>`<tr><td>${esc(md(w.wk))}</td><td>${w.m}</td><td>${w.k}</td></tr>`).join(""):"";
+  return `<figure class="fc fc-cd k-fit"><figcaption class="fc-h"><span class="fc-name">${T_FC_CD_TITLE}</span><span class="fc-metric">${T_FC_CD_UNIT}</span></figcaption><p class="fc-mnote">${T_FC_CD_NOTE}</p><p class="fc-read"></p><div class="fc-pl"></div>${rows?`<details class="fc-data"${open?" open":""}><summary data-fit-ro>${T_FC_DATA}</summary><div class="fc-tbl" tabindex="0"><table><thead><tr><th>${T_FC_CD_COL_WK}</th><th>${T_FC_CD_COL_M}</th><th>${T_FC_CD_COL_K}</th></tr></thead><tbody>${rows}</tbody></table></div></details>`:""}</figure>`;
+}
+const fcDrawAny=f=>f.classList.contains("fc-cd")?fcDrawCd(f):fcDraw(f);
+/* 画每周有氧总时长柱形图：槽宽 = 绘图区宽 ÷ 周数，柱宽 = 槽宽 − 4（槽宽小于 8 时不留缝）；每周一根 rect.fc-bar（data-week 是周一，data-v 是分钟数，没有有氧的周高 0）；纵轴从 0 起，上限算法同折线图 */
+function fcDrawCd(fig){
+  const pl=fig.querySelector(".fc-pl"),rd=fig.querySelector(".fc-read");
+  if(!pl)return;
+  const W=Math.round(pl.clientWidth);if(!W){fc.stale=true;return}
+  const c=fcCd(),weeks=c.weeks,n=weeks.length;
+  fcInfo.delete(fig);rd.textContent="";
+  if(!c.any){pl.innerHTML=`<p class="fc-empty">${T_FC_CD_EMPTY}</p>`;return}
+  if(!c.data){pl.innerHTML=`<p class="fc-empty">${T_FC_CD_EMPTY_RANGE}</p>`;return}
+  const Lx=40,R=W-12,T=12,B=136,top=niceMax(Math.max(...weeks.map(w=>w.m))),Y=v=>B-(B-T)*v/top,ticks=[top,top/2,0],slot=(R-Lx)/n,bw=slot<8?slot:slot-4;
+  let h=`<g class="fc-grid-l">${ticks.map(v=>`<line x1="${Lx}" x2="${R}" y1="${r1(Y(v))}" y2="${r1(Y(v))}"/>`).join("")}</g>`;
+  h+=ticks.map(v=>`<text class="fc-tx" x="36" y="${r1(Y(v)+4)}" text-anchor="end">${fcFmt(v)}</text>`).join("");
+  h+=weeks.map((w,i)=>{const ht=(B-T)*w.m/top;return `<rect class="fc-bar" x="${r1(Lx+i*slot+(slot-bw)/2)}" y="${r1(B-ht)}" width="${r1(bw)}" height="${r1(ht)}" data-week="${esc(w.wk)}" data-v="${w.m}"/>`}).join("");
+  h+=`<text class="fc-tx" x="${Lx}" y="156">${esc(md(weeks[0].wk))}</text><text class="fc-tx" x="${R}" y="156" text-anchor="end">${T_FC_CD_THIS}</text>`;
+  const last=weeks[n-1];
+  pl.innerHTML=`<svg class="fc-svg" role="img" aria-label="${esc(T_FC_CD_ARIA(T_FC_RANGE[fc.range],n,last.m))}" width="${W}" height="160" viewBox="0 0 ${W} 160" preserveAspectRatio="none">${h}</svg>`;
+  rd.textContent=T_FC_CD_READ(last.m,last.k);
+  fcInfo.set(fig,{weeks,Lx,slot,read:rd.textContent});
+}
 /* 指针读数：鼠标移动 / 手指按住图时，读数行换成离指针最近的点，竖线 .fc-sel-l 移到它的 cx，它的 r 放大到 6；离开、抬起（触摸）或取消后回到默认。只改属性和 textContent，不写 style；读数行不是 live 区域 */
 function fcPoint(e){
   const svg=e.target.closest&&e.target.closest(".fc-svg");if(!svg)return;
-  const fig=svg.closest("figure"),info=fcInfo.get(fig);if(!info||!info.xy)return;
+  const fig=svg.closest("figure"),info=fcInfo.get(fig);if(!info)return;
+  if(info.weeks){const w=info.weeks[Math.min(info.weeks.length-1,Math.max(0,Math.floor((e.clientX-svg.getBoundingClientRect().left-info.Lx)/info.slot)))];fig.querySelector(".fc-read").textContent=T_FC_CD_READ_WK(md(w.wk),w.m,w.k);return}
+  if(!info.xy)return;
   const x=e.clientX-svg.getBoundingClientRect().left,p=info.xy.reduce((a,b)=>Math.abs(b.x-x)<Math.abs(a.x-x)?b:a);
   fig.querySelector(".fc-read").textContent=T_FC_READ_AT(md(p.date),fcFmt(p.v),info.u)+(p.old?T_FC_HAND:"");
   const sl=fig.querySelector(".fc-sel-l");if(sl){sl.setAttribute("x1",p.x);sl.setAttribute("x2",p.x)}
@@ -3021,7 +3073,7 @@ function fcResize(){
   if(w===fcW&&!fc.stale)return;
   fcW=w;
   if(fc.stale){renderFc();return}
-  el.querySelectorAll("figure.fc").forEach(f=>fcDraw(f));
+  el.querySelectorAll("figure.fc").forEach(fcDrawAny);
 }
 if(typeof ResizeObserver==="function")new ResizeObserver(fcResize).observe($("fc"));
 else window.addEventListener("resize",()=>{clearTimeout(fcRT);fcRT=setTimeout(fcResize,150)});

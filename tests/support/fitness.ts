@@ -230,6 +230,50 @@ export async function readPager(page: Page): Promise<PagerRead> {
   });
 }
 
+export type CardioRead = {
+  present: boolean; // 有没有每周有氧卡片
+  title: string;
+  note: string;
+  bars: Array<{ week: string; v: string; h: number }>;
+  read: string;
+  aria: string;
+  empty: string | null;
+  emptyH: number;
+  rows: number;
+  heads: string[];
+  vbW: number;
+  cw: number;
+  styled: number;
+};
+
+// 读每周有氧总时长卡片（figure.fc-cd）：没有这张卡返回 present=false
+export async function readCardioChart(page: Page): Promise<CardioRead> {
+  return page.evaluate(() => {
+    const fig = document.querySelector<HTMLElement>('#fc figure.fc-cd');
+    const svg = fig?.querySelector<SVGSVGElement>('svg.fc-svg') ?? null;
+    const emp = fig?.querySelector<HTMLElement>('.fc-empty') ?? null;
+    return {
+      present: !!fig,
+      title: fig?.querySelector('.fc-name')?.textContent ?? '',
+      note: fig?.querySelector('.fc-mnote')?.textContent ?? '',
+      bars: Array.from(fig?.querySelectorAll('rect.fc-bar') ?? []).map((r) => ({
+        week: r.getAttribute('data-week') ?? '',
+        v: r.getAttribute('data-v') ?? '',
+        h: parseFloat(r.getAttribute('height') ?? 'NaN'),
+      })),
+      read: fig?.querySelector('.fc-read')?.textContent ?? '',
+      aria: svg?.getAttribute('aria-label') ?? '',
+      empty: emp ? (emp.textContent ?? '') : null,
+      emptyH: emp ? Math.round(emp.getBoundingClientRect().height) : 0,
+      rows: fig?.querySelectorAll('.fc-data tbody tr').length ?? 0,
+      heads: Array.from(fig?.querySelectorAll('.fc-data thead th') ?? []).map((x) => x.textContent ?? ''),
+      vbW: svg ? Math.round(svg.viewBox.baseVal.width) : 0,
+      cw: svg ? Math.round(svg.clientWidth) : 0,
+      styled: fig ? fig.querySelectorAll('[style]').length : 0,
+    };
+  });
+}
+
 // 读某张图的指针状态：读数行、竖线 x1、各点的 r（data-date → r）
 export async function readPointer(page: Page, lift: string) {
   return page.evaluate((id) => {
