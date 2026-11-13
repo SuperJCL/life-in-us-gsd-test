@@ -1185,7 +1185,7 @@ function setStatus(t,st,btn){const e=$("status"),k=btn&&e.querySelector("button"
   if(k&&k.textContent===btn.text&&f&&f.nodeType===3&&e.childNodes.length===2){f.nodeValue=t;k.onclick=btn.fn}
   else{e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.onclick=btn.fn;e.appendChild(b)}}
   if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state");
-  if(pe)peBar();pkWhy();if(pk)pkHint()}
+  if(pe)peBar();pkWhy();if(pk)pkHint();flHint()}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
@@ -1360,7 +1360,7 @@ async function onLogin(e){
         return;
       }
     }
-    ["state","plan","snapshot","importundo"].forEach(k=>{try{localStorage.removeItem("usj:v2:"+prevId+":"+k)}catch(err){}});
+    ["state","plan","snapshot","importundo","wodraft"].forEach(k=>{try{localStorage.removeItem("usj:v2:"+prevId+":"+k)}catch(err){}});
   }
   setLoginBusy(false);
   $("loginPw").value="";setPwShown(false);loginNotice(null);
@@ -2183,6 +2183,7 @@ const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE
 const T_LOG_READDED="这条记录在另一台设备上被删除，已按你的修改重新加回";
 /* busy = the user is in the middle of something an update must not disturb: an open dialog or confirm, a draft, an open new-tag input, the cursor in a text field (a checkbox or button does not count),
    a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
+/* 健身页的草稿由 renderFit 自己保护（草稿有内容或记录区有焦点时不重画），不算 busy：远端更新照常应用，不让一直开着的草稿把更新挡在横幅后面（Phase 15） */
 function isBusy(...a){
   if(pe)return true;
   if(dlg.open||cfDlg.open||pkDlg.open||rvPending)return true;
@@ -2257,7 +2258,7 @@ function resetSession(){
   if(pkDlg.open)pkDlg.close();
   endRun(run);run=null;
   store=null;me=null;docs={state:null,plan:null};
-  usePlan(DEFAULT_PLAN);keepOrphans=false;cacheFull=false;state=normalize({});
+  usePlan(DEFAULT_PLAN);keepOrphans=false;cacheFull=false;state=normalize({});clearTimeout(flKeepT);flKeepT=null;fl=null;flRestoreDone=false;
   view=new Date();view.setDate(1);sel=today();wk=monday(today());wsel=today();filter="全部";
   [compEdit,compAdding].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));compCat.c="语言";compCat.w="语言";
   setGate(null);
@@ -2278,7 +2279,7 @@ async function logout(){
   /* unsubscribing asks the server; with no answer logout still goes on after UNSUB_MS (offline logout must work) */
   try{await Promise.race([pb.realtime.unsubscribe(),new Promise(r=>setTimeout(r,UNSUB_MS))])}catch(e){}
   if(ep===sessionEpoch){
-    ["state","plan","snapshot","importundo"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
+    ["state","plan","snapshot","importundo","wodraft"].forEach(k=>{try{localStorage.removeItem(cacheKey(k))}catch(e){}});
     try{localStorage.removeItem(LAST_USER_KEY)}catch(e){}
     pb.authStore.clear();
     resetSession();showLogin("");
@@ -2545,6 +2546,7 @@ const T_FL_ERR={wnone:"请填写重量，徒手动作填 0",wrange:"重量要在
 const T_FL_DEL_SET_ARIA=(n,i)=>"删除"+n+"第 "+i+" 组",T_FL_DEL_SET="删除",T_FL_SET_DELETED=i=>"已删除第 "+i+" 组",T_FL_LIVE_SET_DELETED=(n,i)=>"已删除"+n+"第 "+i+" 组",T_FL_SET_LIMIT="最多 20 组",T_FL_LAST=(d,s)=>"上次（"+d+"）："+s,T_FL_LAST_MORE=n=>"…共 "+n+" 组",T_FL_LAST_NONE="还没有这个动作的训练记录。",T_FL_BW="徒手",T_FL_FILL_LAST="照上次填";
 const T_FL_RM_LIFT="移除这个动作",T_FL_RM_CARDIO="移除这个有氧项",T_FL_REMOVED=n=>"已移除："+n,T_FL_UNDO_RM="撤销移除",T_FL_DISCARD="放弃未保存的内容",T_FL_CF_DISCARD_T="放弃没保存的内容？",T_FL_CF_DISCARD_B="这次训练填的内容还没有保存，放弃后会恢复成上次保存的样子。",T_FL_KEEP="继续填写",T_FL_DISCARD_OK="放弃内容";
 const T_FL_SEC_CARDIO="有氧",T_FL_CAP_CARDIO="点一下有氧项，加进这次训练",T_FL_CTARGET=s=>"目标 "+s,T_FL_EVERY_KM=v=>"每次 "+v+" 公里",T_FL_EVERY_MIN=v=>"每次 "+v+" 分钟",T_FL_LBL_MIN="时长（分钟）",T_FL_LBL_KM="距离（公里，选填）";
+const T_FL_HINT_REMOTE="这一天的训练刚在别的设备上更新了。保存会覆盖它；想先看新版，就放弃未保存的内容。",T_FL_HINT_OFFLINE="现在没有网络，训练会先存在这台设备上，联网后自动同步。",T_FL_STATE_RESTORED="已恢复上次没保存的内容。",T_FL_CF_DATE_T="换一天记录？",T_FL_CF_DATE_B="这次训练填的内容还没有保存，换日期会丢掉。",T_FL_DATE_KEEP="先不换",T_FL_DATE_GO="丢掉并换日期";
 const T_FL_LIFT_NONE="计划里还没有力量项。",T_FL_CARDIO_NONE="计划里还没有有氧项。",T_FL_LIFT_ALL_ADDED="计划里的力量项都已加进这次训练。",T_FL_CARDIO_ALL_ADDED="计划里的有氧项都已加进这次训练。",T_FL_EMPTY_ALL="计划里还没有力量项和有氧项，先去编辑计划添加动作，才能记录训练。",T_FL_GO_PLAN="去编辑计划添加动作";
 let fl=null;
 function flDraftOf(day){
@@ -2552,10 +2554,48 @@ function flDraftOf(day){
   return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:x.sets.map(z=>({w:String(z.w),r:String(z.r)}))})),
     cardio:(Array.isArray(d.cardio)?d.cardio:[]).filter(x=>CARDIO_ID_RE.test(x.id)).map(x=>({id:x.id,m:String(x.m),d:x.d==null?"":String(x.d)}))};
 }
-function flOpen(date){const dr=flDraftOf(woMap(state)[date]);fl={date,draft:dr,orig:JSON.stringify(dr),seen:new Set(),tried:false}}
+const flSavedJson=date=>JSON.stringify(woMap(state)[date]||null);
+/* base 是载入时这一天已保存内容的 JSON：草稿有内容时它和现在已保存的不同，说明这一天在别的设备上更新过（fl.remote） */
+function flOpen(date){const dr=flDraftOf(woMap(state)[date]);fl={date,draft:dr,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(date),remote:false,restored:false}}
 const flDirty=()=>!!fl&&JSON.stringify(fl.draft)!==fl.orig;
 const flEmpty=()=>!!fl&&!fl.draft.lifts.length&&!fl.draft.cardio.length;
-function flKeepClear(){}
+/* 本机留底（只在云端版）：草稿每次变化 500 ms 后写进 usj:v2:<用户 id>:wodraft = {date, draft}；保存、删除、放弃、确认换日期、退出登录、换账号时删掉。写不进（容量、隐私模式）就算了 */
+let flKeepT=null,flRestoreDone=false;
+function flKeep(){
+  clearTimeout(flKeepT);flKeepT=null;
+  if(!(CLOUD&&me)||!fl)return;
+  flKeepT=setTimeout(()=>{
+    flKeepT=null;if(!(CLOUD&&me)||!fl)return;
+    try{if(flDirty())localStorage.setItem(cacheKey("wodraft"),JSON.stringify({date:fl.date,draft:fl.draft}));else localStorage.removeItem(cacheKey("wodraft"))}catch(e){}
+  },500);
+}
+function flKeepClear(){clearTimeout(flKeepT);flKeepT=null;if(!(CLOUD&&me))return;try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}}
+/* 恢复前先检查留底：日期是真实日期且不晚于今天、两个数组、id 过正则且不重复、每个值是不太长的字符串、组数不超过上限；不合格的直接删掉，合格的也要过 workoutProblems 才能保存，渲染一律 esc() */
+function flRestore(){
+  let raw=null;try{raw=localStorage.getItem(cacheKey("wodraft"))}catch(e){return null}
+  if(raw==null)return null;
+  let o=null;try{o=JSON.parse(raw)}catch(e){}
+  const str=v=>typeof v==="string"&&v.length<=20,uniq=a=>new Set(a.map(x=>x.id)).size===a.length;
+  const ok=isObj(o)&&realDate(o.date)&&o.date<=today()&&isObj(o.draft)&&Array.isArray(o.draft.lifts)&&Array.isArray(o.draft.cardio)&&o.draft.lifts.length<=64&&o.draft.cardio.length<=64
+    &&o.draft.lifts.every(x=>isObj(x)&&typeof x.id==="string"&&LIFT_ID_RE.test(x.id)&&Array.isArray(x.sets)&&x.sets.length<=WO_MAX.sets&&x.sets.every(z=>isObj(z)&&str(z.w)&&str(z.r)))
+    &&o.draft.cardio.every(x=>isObj(x)&&typeof x.id==="string"&&CARDIO_ID_RE.test(x.id)&&str(x.m)&&str(x.d))&&uniq(o.draft.lifts)&&uniq(o.draft.cardio);
+  if(!ok){try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}return null}
+  const draft={lifts:o.draft.lifts.map(x=>({id:x.id,sets:x.sets.map(z=>({w:z.w,r:z.r}))})),cardio:o.draft.cardio.map(x=>({id:x.id,m:x.m,d:x.d}))};
+  const dr=flDraftOf(woMap(state)[o.date]);
+  if(JSON.stringify(draft)===JSON.stringify(dr)){try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}return null}
+  return {date:o.date,draft,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(o.date),remote:false,restored:true};
+}
+/* 登录后（state 已读进来）第一次画健身页时，草稿没有内容就看一眼本机留底；每个会话只看一次，退出登录和换账号时复位 */
+function flTryRestore(){
+  if(flRestoreDone||!CLOUD||!me||!docs.state)return false;
+  flRestoreDone=true;
+  if(fl&&flDirty())return false;
+  const r=flRestore();if(!r)return false;
+  fl=r;return true;
+}
+function flBusy(){return !!fl&&(flDirty()||$("fl").contains(document.activeElement))}
+/* 草稿有内容、这一天已保存的版本和载入时不同：别的设备改过 */
+function flRemoteCheck(){if(fl&&flDirty()&&fl.base!==flSavedJson(fl.date))fl.remote=true}
 const flLiftName=id=>{const L=plan.lifts.find(l=>l.id===id);return L?L.n:T_FIT_GONE_L};
 const flCardioName=id=>{const C=planCardio(plan).find(c=>c.id===id);return C?C.n:T_FIT_GONE_C};
 const flShort=n=>{const a=Array.from(n);return a.length>10?a.slice(0,10).join("")+"…":n};
@@ -2601,13 +2641,15 @@ function flFirstBad(pr){
   if(j==="ex")return $("fl-w-"+ex.id+"-0")||$("fl").querySelector('.fl-ex[data-lift="'+ex.id+'"] [data-flact="addset"]');
   return $("fl-"+(f==="r"?"r":"w")+"-"+ex.id+"-"+Math.min(+j,WO_MAX.sets-1));
 }
-/* 保存栏提示行按优先级只写一条：1 点过保存但校验没通过 > 3 草稿有未保存内容 > 5 草稿是空的且这一天没保存过 > 6 已保存没有改动；保存按钮的 aria-disabled 只看「草稿空且没保存过」或「已保存且没改动」，不弹 toast；「放弃未保存的内容」只在有未保存内容时在提示行后面出现 */
+/* 保存栏提示行按优先级只写一条：1 点过保存但校验没通过 > 2 草稿有内容且这一天在别的设备上更新过 > 3 草稿有未保存内容 > 4 断网（不挡保存） > 5 草稿是空的且这一天没保存过 > 6 已保存没有改动；保存按钮的 aria-disabled 只看「草稿空且没保存过」或「已保存且没改动」，不弹 toast；「放弃未保存的内容」只在有未保存内容时在提示行后面出现 */
 function flHint(){
   const h=$("fl-hint"),sb=$("fl-save");if(!fl||!h||!sb)return;
   const saved=!!woMap(state)[fl.date],dirty=flDirty(),pr=fl.tried?workoutProblems(fl.draft):[];
   let t="",tone="";
   if(pr.length){t=T_PE_HINT_ERRORS(pr.length);tone="error"}
+  else if(dirty&&fl.remote){t=T_FL_HINT_REMOTE;tone="warn"}
   else if(dirty){t=T_FL_HINT_DIRTY;tone="muted"}
+  else if(["offline","retrying","unreachable","slow"].includes($("status").getAttribute("data-state"))){t=T_FL_HINT_OFFLINE;tone="warn"}
   else if(flEmpty()&&!saved)t=T_FL_HINT_EMPTY;
   else if(saved)t=T_FL_HINT_SAVED;
   if(h.textContent!==t)h.textContent=t;
@@ -2657,17 +2699,31 @@ function renderFl(){
     <fieldset class="fl-sec"><legend>${T_FL_SEC_LIFT}</legend>${dr.lifts.map(flExHTML).join("")}${pickL}</fieldset>
     <fieldset class="fl-sec"><legend>${T_FL_SEC_CARDIO}</legend>${dr.cardio.map(flCdHTML).join("")}${pickC}</fieldset>
     <div class="fl-bar"><p id="fl-hint" role="status"></p>${saved?`<button type="button" class="danger" id="flDelete" data-fl>${T_FL_DELETE}</button>`:""}<button type="button" class="primary" id="fl-save" data-fl aria-describedby="fl-hint">${saved?T_FL_SAVE_EDIT:T_FL_SAVE}</button></div>`;
-  $("fl-state").textContent=saved?T_FL_STATE_SAVED:"";
-  flErrs();flHint();
+  $("fl-state").textContent=fl.restored?T_FL_STATE_RESTORED:saved?T_FL_STATE_SAVED:"";
+  flErrs();flHint();if(flDirty())flKeep();
 }
-/* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里就不重画记录区，免得别的设备的同步冲掉正在填的内容；重画时草稿没有未保存内容就按 state 重新载入这一天 */
+/* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
 function renderFit(force){
-  if(force||!(flDirty()||$("fl").contains(document.activeElement))){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
+  const rs=flTryRestore();
+  if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
+  else{flRemoteCheck();flHint()}
   applyGate();
 }
-function goWo(date){
+/* 换一天：草稿有未保存内容先确认，拒绝时日期框恢复原值；切标签不确认，草稿留着 */
+async function flSwitch(date){
+  if(!fl||date===fl.date)return true;
+  if(flDirty()){
+    const ok=await confirmBox({title:T_FL_CF_DATE_T,lines:[T_FL_CF_DATE_B],cancel:T_FL_DATE_KEEP,ok:T_FL_DATE_GO});
+    if(!ok){const d=$("fl-date");if(d)d.value=fl.date;return false}
+    flKeepClear();
+  }
+  flOpen(date);renderFl();return true;
+}
+async function goWo(date){
   if(!realDate(date))return;
-  showTab("fit");flOpen(date);renderFit(true);window.scrollTo(0,0);$("fl-title").focus();
+  showTab("fit");
+  if(!(await flSwitch(date)))return;
+  window.scrollTo(0,0);const t=$("fl-title");if(t)t.focus();
 }
 function flSave(){
   if(!fl)return;
@@ -2695,7 +2751,7 @@ function flDelete(){
   const dd=$("fl-date");if(dd)dd.focus({preventScroll:true});
   toast(msg,{label:T_FL_UNDO_DEL,fn:()=>{
     commit(["wo:"+date],s=>woPut(s,date,gone));
-    if(fl&&fl.date===date&&!flDirty())flOpen(date);
+    if(fl&&fl.date===date){if(flDirty())fl.base=flSavedJson(date);else flOpen(date)}
     renderAll();renderFit(true);
     const d2=$("fl-date");if(d2)d2.focus({preventScroll:true});
     $("fl-live").textContent=T_FL_LIVE_UNDONE+msg;
@@ -2779,20 +2835,22 @@ $("fl").addEventListener("input",e=>{
     const c=fl.draft.cardio[+(d.flm!==undefined?d.flm:d.fld)];if(!c)return;
     c[d.flm!==undefined?"m":"d"]=t.value;
   }else return;
-  flSyncCopy();flErrs();flHint();
+  flSyncCopy();flErrs();flHint();flKeep();
 });
 /* 鼠标或手指按住记录区里的按钮时，字段失焦不立刻显示错误：错误行一出现，按钮会被挤到下面，抬起时已经不在按钮上，这一下点击就丢了；抬起之后（点击处理完）再补显示 */
 let flPtr=false;
 $("fl").addEventListener("pointerdown",e=>{flPtr=!!e.target.closest("button")},true);
 document.addEventListener("pointerup",()=>{if(flPtr)setTimeout(()=>{flPtr=false;if(fl)flErrs()},0)},true);
 $("fl").addEventListener("focusout",e=>{
+  /* 焦点离开记录区时，草稿没有内容而这一天已保存的版本变了（焦点在里面时 renderAll 跳过了重画）：按新版重画 */
+  if(fl&&!flDirty()&&!$("fl").contains(e.relatedTarget)&&fl.base!==flSavedJson(fl.date)){flOpen(fl.date);renderFl();return}
   const k=fl&&e.target&&e.target.isConnected?flKeyOf(e.target):null;if(!k)return;
   fl.seen.add(k);if(!flPtr)flErrs();
 });
 $("fl").addEventListener("change",e=>{
   if(!e.target||e.target.id!=="fl-date"||!fl)return;
   const v=e.target.value;if(!realDate(v)||v>today()){e.target.value=fl.date;return}
-  flOpen(v);renderFl();
+  flSwitch(v).then(ok=>{if(ok){const d=$("fl-date");if(d)d.focus({preventScroll:true})}});
 });
 
 /* ---------- events ---------- */
@@ -3399,6 +3457,8 @@ window.addEventListener("hashchange",()=>{
 });
 /* D-09：有未保存修改时让浏览器弹自带的离开提示（手机浏览器不保证弹出，所有者已接受），没有修改时不设 */
 window.addEventListener("beforeunload",e=>{if(planDirty()&&!swGo){e.preventDefault();e.returnValue=""}});
+/* 健身页有未保存内容时也让浏览器弹自带的离开提示（文字不可定制，swGo 的含义同上） */
+window.addEventListener("beforeunload",e=>{if(flDirty()&&!swGo){e.preventDefault();e.returnValue=""}});
 /* D-10：点「保存计划」直接生效，不显示改动摘要。写法照 applyImport 的计划部分；persist 只管 state，计划要自己请求同步。上传失败走现有的脏标记加退避重试 */
 /* D-08 的复查（S9 第 4 步）：pe.gone 的一项在最新的工作 state 里有了进度：任务已完成或设了截止日期，目标组的三项统计之和大于 0（含自定义待办），力量项有历史 */
 const T_PE_D8_TITLE="这些项刚在别的设备上有了进度",T_PE_D8_INTRO="你在草稿里删除了下面这些项，但它们刚在别的设备上有了进度：",T_PE_D8_Q="要把它们归档，还是连进度一起删除？",T_PE_D8_ARCHIVE="全部归档",T_PE_D8_DELETE="连进度一起删";

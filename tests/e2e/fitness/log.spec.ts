@@ -34,6 +34,10 @@ import {
   flRemoved,
   flSetDeleted,
   flTitleDay,
+  BTN_FL_DATE_GO,
+  BTN_FL_DATE_KEEP,
+  FL_CF_DATE_T,
+  FL_HINT_DIRTY,
 } from '../../support/strings';
 import {
   flAddCardio,
@@ -420,4 +424,42 @@ test('FIT-02 the save button is not available for an empty draft or an unchanged
   expect((await flChipIds(page)).filter((x) => x.startsWith('lift:'))).toEqual([]);
   await expect(page.locator('#fl')).toContainText(FL_LIFT_ALL_ADDED);
   await expect(page.locator('#flGoPlan')).toHaveCount(0);
+});
+
+test('FIT-02 picking another date with unsaved content asks first and keeps the date when declined, while switching tabs keeps the draft without asking (S3, A2)', async ({
+  page,
+  app,
+}) => {
+  const seed = { _synthetic: true, workouts: { '2026-03-16': { lifts: [{ id: 'bench', sets: [{ w: 25, r: 5 }] }], cardio: [] } } };
+  await app.open({ seed });
+  await gotoFitness(page);
+  await flAddLift(page, 'bench');
+  await flFillSet(page, 'bench', 0, '20', '8');
+  const draft = [{ id: 'bench', sets: [{ w: '20', r: '8' }] }];
+
+  // 改日期：确认框，取消键（先不换）默认有焦点；取消后日期框回到原值、草稿还在
+  await page.locator('#fl-date').fill('2026-03-17');
+  const c = await readConfirm(page);
+  expect(c.title).toBe(FL_CF_DATE_T);
+  expect(c.focused).toBe('cfCancel');
+  expect(c.buttons.map((b) => b.text)).toEqual([BTN_FL_DATE_KEEP, BTN_FL_DATE_GO]);
+  await confirmCancel(page);
+  await expect(page.locator('#fl-date')).toHaveValue(FROZEN_TODAY);
+  expect(await readFl(page)).toEqual(draft);
+
+  // 切标签不确认，草稿留着，提示行还是「有没保存的内容」
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  await gotoFitness(page);
+  await expect(page.locator('dialog#confirm')).toHaveJSProperty('open', false);
+  expect(await readFl(page)).toEqual(draft);
+  await expect(page.locator('#fl-hint')).toHaveText(FL_HINT_DIRTY);
+
+  // 从本周页点另一天的训练行：同一个确认框；确认后记录区是那一天，焦点在标题
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  await page.locator('#days .ent.wo[data-wo="2026-03-16"]').click();
+  expect((await readConfirm(page)).title).toBe(FL_CF_DATE_T);
+  await confirmOk(page);
+  await expect(page.locator('#fl-title')).toHaveText(flTitleDay('3月16日'));
+  await expect(page.locator('#fl-title')).toBeFocused();
+  expect(await readFl(page)).toEqual([{ id: 'bench', sets: [{ w: '25', r: '5' }] }]);
 });

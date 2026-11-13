@@ -110,3 +110,17 @@ export async function flRemoveEx(page: Page, id: string) {
 export async function flChipIds(page: Page): Promise<string[]> {
   return page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#fl [data-fl-add]')).map((b) => b.dataset.flAdd ?? ''));
 }
+
+// 本机留底（usj:v2:<用户 id>:wodraft）：在页面里按后缀找键，只返回有没有和留底里的日期，不把草稿内容带回 Node
+export async function hasWoDraft(page: Page): Promise<{ has: boolean; date: string | null }> {
+  return page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith('usj:v2:') && x.endsWith(':wodraft'));
+    if (!k) return { has: false, date: null };
+    try {
+      const o = JSON.parse(localStorage.getItem(k) ?? 'null');
+      return { has: true, date: typeof o?.date === 'string' ? o.date : null };
+    } catch {
+      return { has: true, date: null };
+    }
+  });
+}

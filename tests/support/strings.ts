@@ -808,3 +808,11 @@ export const FL_LIFT_ALL_ADDED = '计划里的力量项都已加进这次训练�
 export const FL_CARDIO_ALL_ADDED = '计划里的有氧项都已加进这次训练。';
 export const FL_EMPTY_ALL = '计划里还没有力量项和有氧项，先去编辑计划添加动作，才能记录训练。';
 export const BTN_FL_GO_PLAN = '去编辑计划添加动作';
+
+// ---- Phase 15-02：草稿保护、换日期确认、离线提示（应用里 T_FL_HINT_REMOTE、T_FL_HINT_OFFLINE、T_FL_STATE_RESTORED、T_FL_CF_DATE_T、T_FL_DATE_KEEP、T_FL_DATE_GO，逐字相同）----
+export const FL_HINT_REMOTE = '这一天的训练刚在别的设备上更新了。保存会覆盖它；想先看新版，就放弃未保存的内容。';
+export const FL_HINT_OFFLINE = '现在没有网络，训练会先存在这台设备上，联网后自动同步。';
+export const FL_STATE_RESTORED = '已恢复上次没保存的内容。';
+export const FL_CF_DATE_T = '换一天记录？';
+export const BTN_FL_DATE_KEEP = '先不换';
+export const BTN_FL_DATE_GO = '丢掉并换日期';
