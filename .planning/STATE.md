@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 14
 current_phase_name: 新账号的计划起步（Plan Onboarding）
-status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-11-13T06:11:38.490Z"
+status: verifying
+stopped_at: Completed 14-03-PLAN.md
+last_updated: "2026-11-13T06:49:51.169Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 14 execution started
-state_head: 762c2266208f1689122b82e1384510197903b43e
+state_head: 600e8ec2d7d188975dbc27353bf1ed47107d418a
 progress:
   total_phases: 11
   completed_phases: 7
   total_plans: 83
-  completed_plans: 80
+  completed_plans: 81
   percent: 64
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 
 Phase: 14 (新账号的计划起步（Plan Onboarding）) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-12 — Phase 14 execution started
 
 Progress: [██████░░░░] 64%
@@ -170,6 +170,7 @@ Progress: [██████░░░░] 64%
 | Phase 13 P12 | ~1h (incl. owner wait) | 3 tasks | 1 files |
 | Phase 14 P01 | 100 min | 3 tasks | 10 files |
 | Phase 14 P02 | 14min | 3 tasks | 5 files |
+| Phase 14 P03 | 33 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -349,6 +350,8 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 14]: 14-01: 选提炼 planCommit 作为编辑页和卡片模式共用的唯一写入核心，不给卡片模式造 pe 草稿
 - [Phase 14]: 14-01: 首次建档只在没有服务器文档且没有缓存时用 emptyPlan；pkSave 并入远端版本后以最新计划为基准只往末尾追加
 - [Phase 14]: 14-02: pk.base stays the plan seen when the picker opened; overwrite builds on it and planCommit keeps the other device's version locally
+- [Phase 14]: 14-03：卡片模式不加 UI-SPEC S3 第 3 步的名额兜底；挑选界面的名额和 np 都以打开时的 pk.base 为底，planCommit 的字节容量检查照旧
+- [Phase 14]: 14-03：挑选对话框窄屏底部按钮在窄屏块里统一左右内边距 12px，保证 flex:1 等宽
 
 ### Pending Todos
 
@@ -424,8 +427,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T06:11:34.519Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-11-13T06:49:43.907Z
+Stopped at: Completed 14-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
