@@ -11,8 +11,8 @@ export const TOAST_RECORDED = '已记录';
 // 类别名：应用持久化的是中文显示名，不是键
 export const CAT_LANGUAGE = '语言';
 
-// 四个标签的文案，键是 data-tab 的值（应用源码逐字复制）
-export const TAB_LABELS = { wk: '本周', cal: '日历', goal: '目标', tl: '时间线' } as const;
+// 五个标签的文案，键是 data-tab 的值（应用源码逐字复制；Phase 15 加了 fit）
+export const TAB_LABELS = { wk: '本周', cal: '日历', goal: '目标', tl: '时间线', fit: '健身' } as const;
 
 // 本周视图的标题（应用源码逐字复制）
 export const WEEK_TITLE_CURRENT = '本周';
@@ -735,3 +735,22 @@ export const pkLimG = (k: number): string => `目标组最多 20 个，还能再
 export const PK_FULL_G = '目标组已满（20 个），先删掉一个再添加';
 export const pkLimL = (k: number): string => `力量项最多 8 个，还能再加 ${k} 个`;
 export const PK_FULL_L = '力量项已满（8 个），先删掉一个再添加';
+
+// ---- Phase 15-01：健身页（逐字镜像应用里的常量，来源 15-UI-SPEC 的 Copywriting Contract；每条注释写明应用里的常量名）----
+// T_FL_TITLE_TODAY
+export const FL_TITLE_TODAY = '今天的训练';
+// T_FL_TITLE_DAY（d 是 md() 的结果，如 3月17日）
+export const flTitleDay = (d: string): string => `${d}的训练`;
+// T_FL_SAVE
+export const FL_SAVE = '保存训练';
+// T_FL_SAVE_EDIT（这一天已保存过训练时按钮的文字）
+export const FL_SAVE_EDIT = '保存修改';
+// T_FL_SAVED（保存后的 toast 和读屏提示）
+export const FL_SAVED = '训练已保存';
+// T_FIT_ROW（本周、日历、时间线里的「健身」行；s 是 woSummary 的结果）
+export const fitRow = (s: string): string => `健身 · ${s}`;
+// T_FIT_ROW_ARIA
+export const fitRowAria = (s: string): string => `打开健身页查看这次训练：${s}`;
+// T_FIT_GONE_L、T_FIT_GONE_C（UI-SPEC 之外新增：计划里已找不到的力量项、有氧项 id 在界面里的名字）
+export const FIT_GONE_LIFT = '已删除的力量项';
+export const FIT_GONE_CARDIO = '已删除的有氧项';

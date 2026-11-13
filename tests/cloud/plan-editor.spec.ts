@@ -65,7 +65,7 @@ test('PLAN-04 a group renamed in the plan editor is saved to the server and anot
     expect(ed.open).toBe(true);
     expect(ed.hash).toBe('#plan');
     await expect(page.locator('nav.tabs [data-tab][aria-selected="true"]')).toHaveCount(0);
-    for (const k of ['wk', 'cal', 'goal', 'tl']) await expect(page.locator(`#tab-${k}`)).toBeHidden();
+    for (const k of ['wk', 'cal', 'goal', 'tl', 'fit']) await expect(page.locator(`#tab-${k}`)).toBeHidden();
     await expect(page.locator('nav.tabs')).toBeVisible();
     await expect(page.locator('header')).toBeVisible();
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('pe-title');

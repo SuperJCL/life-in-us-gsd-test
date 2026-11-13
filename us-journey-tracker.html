@@ -443,6 +443,124 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 @media (max-width:560px){#boot .primary{min-height:44px}}
 @media (prefers-reduced-motion:reduce){#boot .bar i{animation:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+/* Phase 15: scoped to #tab-fit and the new editor and picker rows; no inline style attributes anywhere, SVG included (CSP style-src-attr none) */
+
+/* tab bar: fifth tab fits at 375px */
+@media (max-width:560px){nav.tabs button{padding:8px 12px;min-height:44px}}
+
+#tab-fit{max-width:960px;margin:0 auto;padding-bottom:32px}
+#tab-fit .panel{padding:16px}
+#tab-fit .panel+.panel{margin-top:24px}
+#tab-fit .panel h3{font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2;margin:0}
+#tab-fit :is(.ghost,.danger){padding:8px 12px;font-size:14px;min-height:36px}
+#tab-fit .primary{padding:8px 16px;font-size:14px;min-height:36px}
+#tab-fit .seg{gap:8px} #tab-fit .seg button{padding:8px 12px;font-size:14px;min-height:36px}
+#tab-fit .seg button[aria-pressed="true"]{background:var(--s);color:var(--ink);border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+#tab-fit :is(button:disabled,[aria-disabled="true"]){opacity:.4;cursor:not-allowed}
+#tab-fit .ghost:is(:disabled,[aria-disabled="true"]):hover{color:var(--muted);border-color:var(--line)}
+#tab-fit :is(input[type=number],input[type=date]){font-size:16px;line-height:1.55;min-width:0;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+#tab-fit [aria-invalid="true"]{border-color:var(--red)}
+#tab-fit .empty{padding:8px 0}
+#tab-fit .fl-cap,#tab-fit .fl-state,#tab-fit .fl-last,#tab-fit .fc-read,#tab-fit .fc-mnote,#tab-fit .fc-leg,#tab-fit .fw-cap,#tab-fit .fw-tg{font-size:12px;line-height:1.55;color:var(--muted);margin:0}
+#tab-fit .fl-state:empty{display:none}
+
+/* S3-S5: logging area */
+.fl-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:8px}
+.fl-sec{border:0;margin:16px 0 0;padding:0;min-width:0}
+.fl-sec>legend{padding:0;margin-bottom:8px;font-size:12px;font-weight:600;color:var(--muted)}
+.fl-ex,.fl-cd{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;padding:12px;margin:0 0 16px;min-width:0}
+.fl-ex>legend,.fl-cd>legend{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:0 4px;font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2}
+.fl-name{overflow-wrap:anywhere}
+.fl-tg{font-family:var(--sans);font-weight:400;font-size:12px;color:var(--muted)}
+.fl-cols,.fl-set{display:grid;grid-template-columns:24px minmax(0,120px) 16px minmax(0,96px) auto;gap:8px;align-items:center}
+.fl-cols{margin:8px 0 4px;font-size:12px;color:var(--muted)}
+.fl-sets{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.fl-n{font-size:12px;color:var(--muted);text-align:right}
+.fl-x{text-align:center;color:var(--muted)}
+.fl-set .pe-err{grid-column:2 / -1}
+.fl-ex-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.fl-rm{color:var(--red)}
+.fl-pick{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.fl-chip{border-radius:999px}
+.fl-cd-f{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.fl-cd-f label.f{display:grid;gap:4px;font-size:12px;color:var(--muted);flex:0 1 160px;min-width:0}
+.fl-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px 12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+#fl-hint{flex:1 1 200px;min-width:0;margin:0;font-size:12px;line-height:1.55;color:var(--muted)}
+#fl-hint[data-tone]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tone,var(--muted));margin-right:8px}
+#fl-hint[data-tone="warn"]{--tone:var(--c-job)} #fl-hint[data-tone="error"]{--tone:var(--red)}
+#flDelete{color:var(--red)}
+
+/* S6: this week + lift cards */
+.fw-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fw-chev::before{content:"▸";margin-right:4px} #fwNoteBtn[aria-expanded="true"] .fw-chev::before{content:"▾"}
+.fw-note{font-size:14px;color:var(--muted);margin:8px 0 0}
+.fw-note[hidden]{display:none}
+.fw-sub{font-size:14px;font-weight:600;margin:16px 0 8px}
+.fw-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;margin:0}
+.fw-n{font-family:var(--serif);font-weight:600;font-size:24px;line-height:1.2}
+.fw-goal,.fw-ok{font-size:12px;color:var(--muted)} .fw-ok{color:var(--ink)}
+.fw-dots{list-style:none;display:flex;gap:8px;margin:8px 0 0;padding:0}
+.fw-d{flex:1 1 0;max-width:48px;display:grid;justify-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.fw-d i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);background:transparent}
+.fw-d.on i{background:var(--c-fit);border-color:var(--c-fit)}
+.fw-d.today span{border-bottom:2px solid var(--ink)}
+.fw-lifts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.fw-lift{background:var(--paper);border-radius:10px;padding:12px;min-width:0}
+.fw-ln{font-size:14px;font-weight:600;overflow-wrap:anywhere;margin:0}
+.fw-lv{font-family:var(--serif);font-weight:600;font-size:24px;line-height:1.2;margin:4px 0 0}
+.fw-lv small{font-family:var(--sans);font-size:14px;font-weight:400;color:var(--muted)}
+.fw-bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.fw-bar i{display:block;height:100%;background:var(--c)}   /* width set by fitBars() through CSSOM from data-w; no transition */
+
+/* S7: charts */
+.fc-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px}
+.fc-pager{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.fc-ctl{display:grid;gap:8px;margin:12px 0 8px}
+.fc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.fc{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.fc-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.fc-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--serif);font-weight:600;font-size:16px;line-height:1.2}
+.fc-metric{flex:none;font-size:12px;color:var(--muted)}
+.fc-read{min-height:20px;margin:4px 0}
+.fc-svg{display:block;width:100%;height:160px;touch-action:pan-y}
+.fc-empty{height:160px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;color:var(--muted);padding:0 16px}
+.fc-tx{font-size:12px;fill:var(--muted);font-family:var(--sans)}
+.fc-grid-l line{stroke:var(--line);stroke-width:1}
+.fc-ln{fill:none;stroke:var(--c);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.fc-pt{fill:var(--c);stroke:var(--surface);stroke-width:2}
+.fc-pt.old{fill:var(--surface);stroke:var(--c)}
+.fc-tgt{stroke:var(--muted);stroke-width:2}                /* stroke-dasharray="6 4" is an attribute in the markup */
+.fc-bar{fill:var(--c)}
+.fc-sel-l{stroke:var(--ink);stroke-width:1}
+.fc-data summary{min-height:36px;padding:8px 0;font-size:12px;color:var(--muted);cursor:pointer}
+.fc-data table{width:100%;border-collapse:collapse;font-size:12px}
+.fc-data :is(th,td){padding:4px 8px;text-align:left;border-top:1px solid var(--line)}
+.fc-data .fc-tbl{max-height:192px;overflow:auto}
+.fc-cd{margin-top:16px}
+
+/* S8: history */
+.fh-item{border-top:1px solid var(--line)}
+.fh-item>summary{display:flex;flex-wrap:wrap;gap:4px 12px;min-height:36px;padding:8px 0;font-size:14px;cursor:pointer}
+.fh-item>summary b{font-weight:600}
+.fh-body{padding:0 0 12px;font-size:12px;color:var(--muted)}
+.fh-body p{margin:0 0 4px}
+.fh-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+
+/* S9: rows in the other views */
+.ent.wo,.tl-item.wo{cursor:pointer}
+.ent .wo-go,.wo-go{font-size:12px;color:var(--muted);margin-left:auto;flex:none}
+
+@media (max-width:560px){
+  #tab-fit :is(.ghost,.danger,.primary,.seg button,.fl-chip,.fc-data summary,.fh-item>summary,input[type=number],input[type=date]){min-height:44px}
+  .fl-cols,.fl-set{grid-template-columns:24px minmax(0,1fr) 16px minmax(0,1fr) 44px}
+  .fl-set .ghost{padding:8px 4px}
+  .fl-cd-f label.f{flex:1 1 100%}
+  .fl-bar{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  #fl-hint{flex:1 1 100%}
+  .fl-bar button{flex:1 1 100%}
+  .fc-grid{grid-template-columns:1fr}
+  .fh-act button{flex:1}
+}
 </style>
 </head>
 <body>
@@ -487,6 +605,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <button role="tab" data-tab="cal" aria-selected="false">日历</button>
     <button role="tab" data-tab="goal" aria-selected="false">目标</button>
     <button role="tab" data-tab="tl" aria-selected="false">时间线</button>
+    <button role="tab" data-tab="fit" aria-selected="false">健身</button>
     <div class="toolbar">
       <button class="ghost hidden" id="snapshotBtn" aria-label="下载留底：另一台设备上的旧版本，下载后会从本机删除" title="下载留底：另一台设备上的旧版本，下载后会从本机删除">下载留底</button>
       <button class="ghost hidden" id="undoImportBtn" aria-label="撤销导入：恢复成导入前的样子" title="撤销导入：恢复成导入前的样子">撤销导入</button>
@@ -538,6 +657,13 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <div class="tl" id="timeline"></div>
   </section>
 
+  <section id="tab-fit" class="hidden" aria-labelledby="fit-h2">
+    <h2 id="fit-h2" class="sr-only">健身</h2>
+    <section class="panel" id="fl" aria-labelledby="fl-title"></section>
+    <div id="fl-live" class="sr-only" aria-live="polite"></div>
+    <div id="fc-live" class="sr-only" aria-live="polite"></div>
+  </section>
+
   <section id="tab-plan" class="hidden" aria-labelledby="pe-title">
     <div class="pe-head"><h2 id="pe-title" tabindex="-1">编辑计划</h2><p>改动先存在这一页，点「保存计划」才生效；点「放弃这次修改」，计划完全不变。</p></div>
     <div id="pe-bar"><p id="pe-hint" role="status"></p><button type="button" class="ghost" id="pe-discard">放弃这次修改</button><button type="button" class="primary" id="pe-save" aria-describedby="pe-hint">保存计划</button></div>
@@ -563,6 +689,9 @@ const kOf=n=>hasCat(n)?CK[n]:"oth";
 const LEGACY={"学习":"专业","活动社交":"求职","生活":"其他","里程碑":"其他"};
 /* PLAN-05：内置组和任务的 id 冻结为 DEFAULT_PLAN 里写明的值；以后新增的组、任务、力量项分别用 g-、t-、l- 加 uid()，不会撞上 P 开头的内置 id、c- 开头的自定义待办 id 和内置力量 id */
 const GROUP_ID_RE=/^(P\d{1,3}|g-[A-Za-z0-9_-]{1,40})$/,PLAN_TASK_ID_RE=/^(P\d{1,3}-\d{1,3}|t-[A-Za-z0-9_-]{1,40})$/,LIFT_ID_RE=/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/;
+/* D-02（Phase 15）：有氧项 id 用 r- 前缀，不撞 P、g-、t-、l-、c- 开头的 id，也不和裸字母的力量 id 同形；WO_MAX 是训练数据的硬上限（每个动作最多几组、重量、次数、时长、距离） */
+const CARDIO_ID_RE=/^r-[A-Za-z0-9_-]{1,40}$/;
+const WO_MAX={sets:20,w:1000,r:999,m:1440,d:1000};
 /* SEC-01：导入白名单。记录 id、自定义待办 id、进度键（内置 P<n>-<i>，以及以后新增的 t-、自定义的 c-）和日期的格式；力量键和组 id 沿用上面两条 */
 const LOG_ID_RE=/^[A-Za-z0-9_-]{1,64}$/,CUSTOM_ID_RE=/^c-[A-Za-z0-9_-]{1,60}$/,TASK_KEY_RE=/^(P\d{1,3}-\d{1,3}|[ct]-[A-Za-z0-9_-]{1,60})$/,DATE_RE=/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /* D-16：空计划下（或没有未归档的组时）找不到所属组的自定义待办写这个标记。它不合 GROUP_ID_RE，所以 normalizePlan 永远不会接受叫这个 id 的真实组，待办不会悄悄挂到真实的组上；normalize 对已标记的待办不再改组，importProblem 对它放行 */
@@ -710,6 +839,63 @@ const compCat={c:"语言",w:"语言"};
 function allTasks(){return planTasks.concat(state.custom||[])}
 function tstate(id){return state.tasks[id]||{}}
 function lift(id){const L=plan.lifts.find(x=>x.id===id)||{def:0};return Object.assign({cur:L.def,hist:[]},state.lifts[id]||{})}
+/* ---------- workouts (Phase 15) ---------- */
+/* D-06：state.workouts 按日期（YYYY-MM-DD）为键，一天一条 {lifts:[{id,sets:[{w,r}]}],cardio:[{id,m,d?}]}。normalize 只在非空时输出这个键（旧用例的深度相等比较不受影响），所以读它一律经 woMap，读有氧项一律经 planCardio；
+   写它经 woPut / woDel：两者都是 commit 的 fn，只读写参数、不碰 DOM、不调 persist，整天覆盖，重复执行结果相同，只碰这一天；删到最后一天时连 workouts 键一起去掉 */
+function woMap(s){return s&&isObj(s.workouts)?s.workouts:{}}
+function planCardio(p){return p&&Array.isArray(p.cardio)?p.cardio:[]}
+function woDel(s,date){if(isObj(s.workouts)){delete s.workouts[date];if(!Object.keys(s.workouts).length)delete s.workouts}}
+function woPut(s,date,day){
+  if(!day||(!(day.lifts||[]).length&&!(day.cardio||[]).length)){woDel(s,date);return}
+  if(!isObj(s.workouts))s.workouts={};
+  s.workouts[date]=JSON.parse(JSON.stringify(day));
+}
+const woBlank=v=>v==null||String(v).trim()==="";
+const woR2=v=>{const n=Number(v),t=Number(n+"e2");return isFinite(t)?Math.round(t)/100:Math.round(n*100)/100};
+/* 记录区草稿（输入框里的字符串）转成要保存的一天：整行空的组丢掉，没有组的动作丢掉，保持草稿里的顺序；只在 workoutProblems 返回空数组之后调用 */
+function woFromDraft(d){
+  const lifts=[],cardio=[];
+  (d.lifts||[]).forEach(x=>{const sets=(x.sets||[]).filter(z=>!(woBlank(z.w)&&woBlank(z.r))).map(z=>({w:woR2(z.w),r:Number(z.r)}));if(sets.length)lifts.push({id:x.id,sets})});
+  (d.cardio||[]).forEach(x=>{const o={id:x.id,m:Number(x.m)};if(!woBlank(x.d))o.d=woR2(x.d);cardio.push(o)});
+  return {lifts,cardio};
+}
+/* 记录区校验：返回 [{key,code}]，按页面顺序；整行空不报；key 是 fl:<动作下标>:<组下标>:w|r、fl:<动作下标>:ex、fc:<有氧下标>:m|d；错误文字由渲染层按 code 映射 */
+function workoutProblems(d){
+  const out=[],P=(key,code)=>out.push({key,code});
+  (d.lifts||[]).forEach((x,i)=>{
+    let used=0;
+    (x.sets||[]).forEach((z,j)=>{
+      const k="fl:"+i+":"+j+":";
+      if(j>=WO_MAX.sets){if(j===WO_MAX.sets)P(k+"w","slimit");return}
+      if(woBlank(z.w)&&woBlank(z.r))return;
+      used++;
+      if(woBlank(z.w))P(k+"w","wnone");else{const w=Number(z.w);if(!isFinite(w)||w<0||w>WO_MAX.w)P(k+"w","wrange")}
+      if(woBlank(z.r))P(k+"r","rnone");else{const r=Number(z.r);if(!Number.isInteger(r)||r<1||r>WO_MAX.r)P(k+"r","rint")}
+    });
+    if(!used)P("fl:"+i+":ex","exnone");
+  });
+  (d.cardio||[]).forEach((x,k)=>{
+    if(woBlank(x.m))P("fc:"+k+":m","mnone");else{const m=Number(x.m);if(!Number.isInteger(m)||m<1||m>WO_MAX.m)P("fc:"+k+":m","mint")}
+    if(!woBlank(x.d)){const v=Number(x.d);if(!isFinite(v)||v<=0||v>WO_MAX.d)P("fc:"+k+":d","drange")}
+  });
+  return out;
+}
+/* S9：本周、日历、时间线共用的一行文字。力量动作名最多 3 个，超过写「等 n 项」，后接「（共 s 组）」；有氧最多 2 个；两段用「 · 」连；名字取计划里的力量项和有氧项（含归档的），找不到的 id 写下面两句（UI-SPEC 之外新增） */
+const T_FIT_GONE_L="已删除的力量项",T_FIT_GONE_C="已删除的有氧项";
+function woSummary(day,p){
+  if(!day)return "";
+  const L=Array.isArray(day.lifts)?day.lifts:[],C=Array.isArray(day.cardio)?day.cardio:[],parts=[];
+  if(L.length){
+    const nm=x=>{const f=((p&&p.lifts)||[]).find(l=>l.id===x.id);return f?f.n:T_FIT_GONE_L};
+    const sets=L.reduce((a,x)=>a+(Array.isArray(x.sets)?x.sets.length:0),0);
+    parts.push(L.slice(0,3).map(nm).join("、")+(L.length>3?"等 "+L.length+" 项":"")+"（共 "+sets+" 组）");
+  }
+  if(C.length){
+    const nm=x=>{const f=planCardio(p).find(c=>c.id===x.id);return f?f.n:T_FIT_GONE_C};
+    parts.push(C.slice(0,2).map(x=>nm(x)+" "+x.m+" 分钟"+(x.d!=null?"（"+x.d+" 公里）":"")).join("、")+(C.length>2?"等 "+C.length+" 项":""));
+  }
+  return parts.join(" · ");
+}
 /* 导入检查（D-07）：返回 null 表示没发现问题，否则返回一个简短的原因。容器里能识别出条目就检查，不看容器类型对不对。
    只供 classifyBackup 和单元用例调用：顶层不是普通对象（null、[]，即 synth-null.json、synth-array.json，N3 同类）和非字符串的 arrival（synth-wrong-types.json 的数字 arrival）这两种文件，现在都由外层的 classifyBackup 先拒绝，应用里没有调用路径把它们交给这个函数；
    函数体里的 if(!isObj(raw))return null 和只检查字符串 arrival 的那一行只服务单元用例，保留原样。
@@ -782,7 +968,25 @@ function normalize(s){
     for(const f of ["add","hide"])if(r[f]!==undefined){if(Array.isArray(r[f]))r[f]=r[f].filter(x=>typeof x==="string");else delete r[f]}
     return [k,r];
   }));
-  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets};
+  /* Phase 15：训练按天修正，不合格的组、条目、天各自丢掉（不合格的 d 只删 d），不因一组坏数据丢掉整天；同一天里重复的动作 id 或有氧 id 只留第一条；两个数组都空的天丢掉 */
+  const wo={},woIn=isObj(s.workouts)?s.workouts:{};
+  Object.keys(woIn).filter(k=>okDate(k)&&isObj(woIn[k])).forEach(k=>{
+    const v=woIn[k],ls=[],cs=[],ls0=new Set(),cs0=new Set();
+    (Array.isArray(v.lifts)?v.lifts:[]).forEach(x=>{
+      if(!isObj(x)||typeof x.id!=="string"||!LIFT_ID_RE.test(x.id)||ls0.has(x.id))return;
+      ls0.add(x.id);
+      const sets=(Array.isArray(x.sets)?x.sets:[]).filter(z=>isObj(z)&&fin(z.w)&&z.w>=0&&z.w<=WO_MAX.w&&Number.isInteger(z.r)&&z.r>=1&&z.r<=WO_MAX.r).slice(0,WO_MAX.sets).map(z=>({w:z.w,r:z.r}));
+      if(sets.length)ls.push({id:x.id,sets});
+    });
+    (Array.isArray(v.cardio)?v.cardio:[]).forEach(x=>{
+      if(!isObj(x)||typeof x.id!=="string"||!CARDIO_ID_RE.test(x.id)||cs0.has(x.id))return;
+      cs0.add(x.id);
+      if(!Number.isInteger(x.m)||x.m<1||x.m>WO_MAX.m)return;
+      const o={id:x.id,m:x.m};if(fin(x.d)&&x.d>0&&x.d<=WO_MAX.d)o.d=x.d;cs.push(o);
+    });
+    if(ls.length||cs.length)wo[k]={lifts:ls,cardio:cs};
+  });
+  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets,...(Object.keys(wo).length?{workouts:wo}:{})};
 }
 /* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的七个已知字段和各自的类型判断；
    presets 的每个值都必须是对象（计划里的 presets 是“类别到字符串数组”，所以裸计划对象不会被当成旧备份）。
@@ -1150,7 +1354,7 @@ function canon(v){return JSON.stringify(v,(k,x)=>x&&typeof x==="object"&&!Array.
 function dataPrint(p,s){const t=canon({p,s});let h=0x811c9dc5;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).padStart(8,"0")}
 const cloudStore=()=>({label:"已同步",state:"synced",load:async()=>null});
 /* edit gate: body[data-gate] is the only switch; the legacy path never has it */
-const GATE_ALLOW="nav.tabs [data-tab],#wkPrev,#wkNow,#wkNext,#prev,#todayBtn,#next,.filters button,.cell,#syncbar button,#logoutBtn,#snapshotBtn,#exportCsv,#exportJson";
+const GATE_ALLOW="nav.tabs [data-tab],#wkPrev,#wkNow,#wkNext,#prev,#todayBtn,#next,.filters button,.cell,#syncbar button,#logoutBtn,#snapshotBtn,#exportCsv,#exportJson,[data-wo],[data-fit-ro]";
 function markGate(el,t){const g=(el.getAttribute("data-gated")||"").split(" ").filter(Boolean);if(!g.includes(t))g.push(t);el.setAttribute("data-gated",g.join(" "))}
 function applyGate(){
   if(!document.body.dataset.gate)return;
@@ -1169,7 +1373,7 @@ function setGate(mode){
   pkWhy();
 }
 /* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
-const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn],[data-peact]";
+const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn],[data-peact],[data-fl]";
 function gateGuard(e){
   if(!document.body.dataset.gate)return;
   const t=e.target;if(!t||!t.closest||!t.closest(".wrap"))return;
@@ -2106,7 +2310,7 @@ function swInit(){
 function eventsOn(date){
   const logs=state.logs.filter(l=>l.date===date);const due=[],done=[];
   allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate===date)done.push(t);else if(!s.done&&s.due===date&&!isArchived(t))due.push(t)});
-  return {logs,due,done};
+  return {logs,due,done,wo:woMap(state)[date]||null};
 }
 function addLog(date,cat,text){const id=uid(),rec={id,date,text,cat};commit(["log:"+id],s=>{if(!s.logs.some(l=>l.id===id))s.logs.push({...rec})});renderAll()}
 
@@ -2161,7 +2365,7 @@ function bindComposer(root,p,getDate){
 function rerenderComp(p){if(p==="w")renderWkComp();else renderDay()}
 
 /* ---------- render ---------- */
-function renderAll(){renderHeader();renderWeek();renderCal();renderDay();renderGoals();renderTimeline();applyGate()}
+function renderAll(){renderHeader();renderWeek();renderCal();renderDay();renderGoals();renderTimeline();renderFit(false);applyGate()}
 function renderHeader(){
   $("arrival").value=state.arrival||"";
   const c=$("counter");
@@ -2191,7 +2395,8 @@ function renderWeek(){
   $("days").innerHTML=dates.map(d=>{
     const e=eventsOn(d);
     const ents=[...e.logs.map(l=>`<div class="ent k-${kOf(l.cat)}" data-edit="${esc(l.id)}" draggable="true" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span>${esc(l.text)}</span></div>`),
-      ...e.done.map(x=>`<div class="ent done k-${kOf(planCat[x.group])}" data-edittask="${esc(x.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(x.text)}"><span>✓ ${esc(x.text)}</span></div>`)];
+      ...e.done.map(x=>`<div class="ent done k-${kOf(planCat[x.group])}" data-edittask="${esc(x.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(x.text)}"><span>✓ ${esc(x.text)}</span></div>`),
+      ...(e.wo?[`<div class="ent wo k-fit" data-wo="${esc(d)}" tabindex="0" role="button" aria-label="${esc(T_FIT_ROW_ARIA(woSummary(e.wo,plan)))}"><span>${esc(T_FIT_ROW(woSummary(e.wo,plan)))}</span><span class="wo-go" aria-hidden="true">›</span></div>`]:[])];
     return `<div class="day ${d===t?"today":""} ${d===wsel?"sel":""}" data-wday="${d}" tabindex="0" role="button" aria-label="${md(d)}，${ents.length} 项，点击选为记录日期">
       <div class="dh">周${WD[parse(d).getDay()]} <b>${+d.slice(8)}</b></div>${ents.join("")}</div>`}).join("");
   const rv=$("review");if(document.activeElement!==rv)rv.value=state.reviews[wk]||"";
@@ -2295,6 +2500,81 @@ function renderTimeline(){
   $("timeline").innerHTML=html;applyGate();
 }
 
+/* ---------- fitness tab (Phase 15) ---------- */
+const T_FL_TITLE_TODAY="今天的训练",T_FL_TITLE_DAY=d=>d+"的训练",T_FL_DATE="日期",T_FL_SEC_LIFT="力量",T_FL_CAP_LIFT="点一下动作名，加进这次训练",T_FL_ADD_SET="＋ 添加一组",T_FL_SAVE="保存训练",T_FL_SAVE_EDIT="保存修改",T_FL_SAVED="训练已保存";
+const T_FL_TARGET=(t,u)=>"目标 "+t+" "+u,T_FL_COL_W=u=>"重量（"+u+"）",T_FL_COL_R="次数",T_FL_LBL_W=(n,i,u)=>n+"第 "+i+" 组重量（"+u+"）",T_FL_LBL_R=(n,i)=>n+"第 "+i+" 组次数",T_FL_ADD_ARIA=n=>"添加动作："+n,T_FL_LIVE_ADDED=n=>"已添加动作："+n;
+const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次训练："+s;
+/* fl 是记录区的一次会话 {date,draft,orig}：draft 是输入框里的字符串（形状同 woFromDraft 的参数），orig 是载入时 draft 的 JSON，用来判断有没有未保存的改动；点「保存训练」才写进 state.workouts */
+let fl=null;
+function flDraftOf(day){
+  const d=isObj(day)?day:{};
+  return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:x.sets.map(z=>({w:String(z.w),r:String(z.r)}))})),
+    cardio:(Array.isArray(d.cardio)?d.cardio:[]).filter(x=>CARDIO_ID_RE.test(x.id)).map(x=>({id:x.id,m:String(x.m),d:x.d==null?"":String(x.d)}))};
+}
+function flOpen(date){const dr=flDraftOf(woMap(state)[date]);fl={date,draft:dr,orig:JSON.stringify(dr)}}
+const flDirty=()=>!!fl&&JSON.stringify(fl.draft)!==fl.orig;
+function flSyncBtn(){const b=$("fl-save");if(!b)return;if(flDirty())b.removeAttribute("aria-disabled");else b.setAttribute("aria-disabled","true")}
+function flExHTML(x,i){
+  const L=plan.lifts.find(l=>l.id===x.id),n=L?L.n:T_FIT_GONE_L,u=L?L.unit:"kg",id=esc(x.id);
+  const rows=x.sets.map((z,j)=>`<li class="fl-set"><span class="fl-n" aria-hidden="true">${j+1}</span><label class="sr-only" for="fl-w-${id}-${j}">${esc(T_FL_LBL_W(n,j+1,u))}</label><input id="fl-w-${id}-${j}" type="number" inputmode="decimal" min="0" max="1000" step="any" data-fl data-flw="${i}:${j}" value="${esc(z.w)}"><span class="fl-x" aria-hidden="true">×</span><label class="sr-only" for="fl-r-${id}-${j}">${esc(T_FL_LBL_R(n,j+1))}</label><input id="fl-r-${id}-${j}" type="number" inputmode="numeric" min="1" max="999" step="1" data-fl data-flr="${i}:${j}" value="${esc(z.r)}"></li>`).join("");
+  return `<fieldset class="fl-ex k-fit" data-lift="${id}"><legend><span class="fl-name">${esc(n)}</span>${L?`<span class="fl-tg">${esc(T_FL_TARGET(L.target,u))}</span>`:""}</legend><div class="fl-cols" aria-hidden="true"><span></span><span>${esc(T_FL_COL_W(u))}</span><span></span><span>${esc(T_FL_COL_R)}</span><span></span></div><ol class="fl-sets">${rows}</ol><div class="fl-ex-act"><button type="button" class="ghost" data-fl data-flact="addset">${T_FL_ADD_SET}</button></div></fieldset>`;
+}
+function renderFl(){
+  if(!fl)flOpen(today());else if(!flDirty())flOpen(fl.date);
+  const date=fl.date,dr=fl.draft,saved=!!woMap(state)[date],have=new Set(dr.lifts.map(x=>x.id));
+  const chips=plan.lifts.filter(L=>!L.archived&&!have.has(L.id)).map(L=>`<button type="button" class="ghost fl-chip" data-fl data-fl-add="lift:${esc(L.id)}" aria-label="${esc(T_FL_ADD_ARIA(L.n))}">＋ ${esc(L.n)}</button>`).join("");
+  $("fl").innerHTML=`<div class="fl-head"><h3 id="fl-title" tabindex="-1">${esc(date===today()?T_FL_TITLE_TODAY:T_FL_TITLE_DAY(md(date)))}</h3><label class="fl-date">${T_FL_DATE} <input type="date" id="fl-date" data-fl max="${esc(today())}" value="${esc(date)}"></label></div>
+    <p id="fl-state" role="status" class="fl-state"></p>
+    <fieldset class="fl-sec"><legend>${T_FL_SEC_LIFT}</legend>${dr.lifts.map(flExHTML).join("")}<p class="fl-cap">${T_FL_CAP_LIFT}</p><div class="fl-pick">${chips}</div></fieldset>
+    <div class="fl-bar"><p id="fl-hint" role="status"></p><button type="button" class="primary" id="fl-save" data-fl aria-describedby="fl-hint"${flDirty()?"":' aria-disabled="true"'}>${saved?T_FL_SAVE_EDIT:T_FL_SAVE}</button></div>`;
+}
+/* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里就不重画记录区，免得别的设备的同步冲掉正在填的内容 */
+function renderFit(force){
+  if(force||!(flDirty()||$("fl").contains(document.activeElement)))renderFl();
+  applyGate();
+}
+function goWo(date){
+  if(!realDate(date))return;
+  showTab("fit");flOpen(date);renderFit(true);window.scrollTo(0,0);$("fl-title").focus();
+}
+function flSave(){
+  if(!fl)return;
+  const pr=workoutProblems(fl.draft);
+  if(pr.length){
+    const h=$("fl-hint");h.textContent=T_PE_HINT_ERRORS(pr.length);h.setAttribute("data-tone","error");
+    const [kind,i,j,f]=pr[0].key.split(":"),ex=kind==="fl"?fl.draft.lifts[+i]:null,el=ex?$(f==="w"||f==="r"?"fl-"+f+"-"+ex.id+"-"+j:"fl-w-"+ex.id+"-0"):null;
+    if(el)el.focus();
+    return;
+  }
+  const day=woFromDraft(fl.draft),date=fl.date;
+  commit(["wo:"+date],s=>woPut(s,date,day));
+  flOpen(date);renderAll();renderFit(true);
+  toast(T_FL_SAVED,null,3000);$("fl-live").textContent=T_FL_SAVED;
+  const sb=$("fl-save");if(sb)sb.focus();
+}
+$("fl").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b||!fl||b.getAttribute("aria-disabled")==="true")return;
+  if(b.dataset.flAdd){
+    const [kind,id]=b.dataset.flAdd.split(":"),L=plan.lifts.find(l=>l.id===id&&!l.archived);
+    if(kind!=="lift"||!L||!LIFT_ID_RE.test(id)||fl.draft.lifts.some(x=>x.id===id))return;
+    fl.draft.lifts.push({id,sets:[{w:"",r:""}]});renderFl();
+    const w=$("fl-w-"+id+"-0");if(w)w.focus();$("fl-live").textContent=T_FL_LIVE_ADDED(L.n);
+  }else if(b.dataset.flact==="addset"){
+    const bx=b.closest(".fl-ex"),ex=bx&&fl.draft.lifts.find(x=>x.id===bx.dataset.lift);if(!ex||ex.sets.length>=WO_MAX.sets)return;
+    ex.sets.push({w:"",r:""});renderFl();const w=$("fl-w-"+ex.id+"-"+(ex.sets.length-1));if(w)w.focus();
+  }else if(b.id==="fl-save")flSave();
+});
+$("fl").addEventListener("input",e=>{
+  const t=e.target,w=t.dataset&&t.dataset.flw,r=t.dataset&&t.dataset.flr;if(!fl||(w===undefined&&r===undefined))return;
+  const [i,j]=(w!==undefined?w:r).split(":").map(Number),ex=fl.draft.lifts[i];if(!ex||!ex.sets[j])return;
+  ex.sets[j][w!==undefined?"w":"r"]=t.value;flSyncBtn();
+});
+$("fl").addEventListener("change",e=>{
+  if(!e.target||e.target.id!=="fl-date")return;
+  const v=e.target.value;if(!realDate(v)||v>today()){renderFl();return}
+  flOpen(v);renderFl();
+});
+
 /* ---------- events ---------- */
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;
   if(pe){const s=pe,k=b.dataset.tab;peLeave().then(ok=>{if(ok&&pe===s)closePlanEditor(k)});return}
@@ -2307,6 +2587,9 @@ document.addEventListener("click",e=>{if(e.target.closest("dialog"))return;const
   if(a){e.stopPropagation();openEditor(a.dataset.edit)}else if(t){e.stopPropagation();openTaskEditor(t.dataset.edittask)}},true);
 document.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;const el=e.target;if(!el.matches||!el.matches("[data-edit],[data-edittask]"))return;
   e.preventDefault();e.stopPropagation();if(el.dataset.edit)openEditor(el.dataset.edit);else openTaskEditor(el.dataset.edittask)},true);
+/* S9：训练行是只读导航（不是文字记录，没有 data-edit、不可拖动）；点击和 Enter / Space 都进健身页那一天，不触发本周列的 pickDay */
+document.addEventListener("click",e=>{if(e.target.closest("dialog"))return;const w=e.target.closest("[data-wo]");if(!w)return;e.stopPropagation();goWo(w.dataset.wo)},true);
+document.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;const el=e.target;if(!el.matches||!el.matches("[data-wo]"))return;e.preventDefault();e.stopPropagation();goWo(el.dataset.wo)},true);
 
 /* ---------- editor ---------- */
 const dlg=$("editor"),form=$("ed-form");
@@ -2418,7 +2701,8 @@ const T_PE_BTN="编辑计划",T_PE_BTN2="自己建一份",T_PE_HINT_NONE="还没
 function curTab(){const b=document.querySelector('[data-tab][aria-selected="true"]');return b?b.dataset.tab:"goal"}
 function showTab(k){
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===k));
-  ["wk","cal","goal","tl","plan"].forEach(x=>$("tab-"+x).classList.toggle("hidden",x!==k));
+  ["wk","cal","goal","tl","fit","plan"].forEach(x=>$("tab-"+x).classList.toggle("hidden",x!==k));
+  if(k==="fit")renderFit(true);
 }
 /* IN-01：组备注为空串和没有备注键是同一件事（输入框清空会删掉 note 键），比较「有没有修改」时两边都当作没有备注 */
 function peCanon(d){return canon({...d,groups:d.groups.map(g=>{if(g.note!=="")return g;const o={...g};delete o.note;return o})})}
