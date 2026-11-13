@@ -13,13 +13,18 @@ import { expectToast } from '../support/toast';
 import { confirmMid, confirmOk, readConfirm } from '../support/confirm';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openPicker, pick, readCardEntry, readPicker } from '../support/plan-picker';
-import { FROZEN_NOW } from '../support/constants';
+import { AppHarness } from '../support/app';
+import { FROZEN_NOW, PB_DOC_MAX_BYTES } from '../support/constants';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
   BTN_PICK_SAMPLE,
   BTN_PK_OK_CARD,
   BTN_PLAN_BUILD,
+  BANNER_TOO_LARGE,
   BTN_DOWNLOAD_SNAPSHOT,
+  PE_HINT_EXPIRED,
+  PE_HINT_TOOLARGE,
+  PK_WHY_EXPIRED,
   BTN_PE_OVERWRITE,
   BTN_PK_BACK,
   BTN_PK_TAKE,
@@ -405,4 +410,156 @@ test("PLAN-07 taking the other device's new plan while picking adds nothing and 
   expect(app.fake.lastPlan(0).groups.map((g: { id: string }) => g.id)).toEqual(['g-cfo1']);
   expect(await snapshotOf(page, userId)).toBeNull();
   expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-07 picks that would push the plan over the cloud limit are not saved and the picker says so (D-07, 12 D-17)', async ({ app, page }) => {
+  // 服务器计划：空计划加一个归档的合成组（没有未归档的组和力量项，目标页仍是空计划卡片），备注凑到容量上限以下约 400 字节
+  const plan: any = syntheticPlan('cap1', 1);
+  plan.groups[0].id = 'g-cap1';
+  plan.groups[0].archived = true;
+  plan.groups[0].note = '';
+  plan.lifts = [];
+  const room = PB_DOC_MAX_BYTES - 400 - Buffer.byteLength(JSON.stringify(plan));
+  plan.groups[0].note = '合'.repeat(Math.floor(room / 3));
+  expect(Buffer.byteLength(JSON.stringify(plan))).toBeLessThanOrEqual(PB_DOC_MAX_BYTES - 398);
+  await app.open({ mode: 'cloud', seed: syntheticState('cap'), plan, login: 0 });
+  await gotoGoals(page);
+  await expect(page.locator('#goals .pe-empty')).toBeVisible();
+  const writesBefore = planWritesOf(app);
+
+  // 挑第 2 组（约 1 KB，超过剩下的 400 字节）并点确认：不保存，提示行是容量那一句（error），对话框仍开着，横幅出现，没有计划写入
+  await openPicker(page);
+  await pick(page, 'g:P2');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('#pk-hint')).toHaveText(PE_HINT_TOOLARGE);
+  const pk = await readPicker(page);
+  expect([pk.open, pk.hint, pk.tone, pk.okBusy, pk.okDisabled, pk.okAriaDisabled, pk.checked]).toEqual([
+    true,
+    PE_HINT_TOOLARGE,
+    'error',
+    false,
+    false,
+    false,
+    ['g:P2'],
+  ]);
+  const bar = page.locator('#syncbar');
+  await expect(bar).toBeVisible();
+  await expect(bar.locator('.sb-msg')).toHaveText(BANNER_TOO_LARGE);
+  expect(planWritesOf(app)).toBe(writesBefore);
+  expect((app.fake.lastPlan(0).groups ?? []).length).toBe(1);
+
+  // 点「先不添加」关闭：容量超限横幅收起，计划还是原来的
+  await page.locator('#pkCancel').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expect(bar).toBeHidden();
+  expect(planWritesOf(app)).toBe(writesBefore);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-07 signing out in another tab while the picker is open closes it (S1, D-07)', async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('xt'), login: 0 });
+  await gotoGoals(page);
+  const other = await page.context().newPage();
+  try {
+    await new AppHarness(other, { fake: app.fake }).open({ mode: 'cloud', login: 'session' });
+    await openPicker(page);
+    await pick(page, 'g:P1');
+
+    // 第二个标签页退出登录（没有未上传的修改时可能不问，问了就确认）
+    await other.locator('#logoutBtn').click();
+    const asked = await other
+      .locator('dialog#confirm')
+      .waitFor({ state: 'visible', timeout: 1_500 })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (asked) await other.locator('#cfOk').click();
+    await expect(other.locator('#login')).toBeVisible();
+
+    // 第一个标签页：挑选对话框被关掉，回到登录页，什么都没写
+    await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+    await expect(page.locator('#login')).toBeVisible();
+    await expect(page.locator('.wrap')).toBeHidden();
+  } finally {
+    await other.close();
+  }
+});
+
+test.describe('empty plan card entry with an expired login or a startup reconcile', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('PLAN-07 with an expired login the empty plan card and the open picker refuse to save and say why (D-07, 12 D-12)', async ({
+    app,
+    page,
+    guard,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('ex'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    await gotoGoals(page);
+    await openPicker(page);
+    await pick(page, 'l:squat');
+    const writesBefore = planWritesOf(app);
+
+    // 令牌失效，下一次 60 秒轮询发现登录过期（只此一条 401）
+    app.fake.revokeTokens(0);
+    await page.clock.runFor(60_000);
+    await expect(page.locator('#status')).toHaveAttribute('data-state', 'expired');
+    await acknowledgeConsoleErrors(guard, { 'status of 401 ': 1 });
+
+    // 对话框开着：提示行「登录已过期，重新登录后再保存」，确认 aria-disabled，点它只弹同一句 toast，对话框不关，勾选保留，没有计划写入
+    let pk = await readPicker(page);
+    expect([pk.open, pk.hint, pk.tone, pk.okAriaDisabled, pk.checked]).toEqual([true, PE_HINT_EXPIRED, 'warn', true, ['l:squat']]);
+    await page.locator('#pkOk').click({ force: true });
+    await expectToast(page, PE_HINT_EXPIRED);
+    pk = await readPicker(page);
+    expect([pk.open, pk.checked]).toEqual([true, ['l:squat']]);
+    expect(planWritesOf(app)).toBe(writesBefore);
+
+    // 关掉对话框：卡片上的「从示例里挑」变灰，说明是过期那一句，「自己建一份」照常可用；点它只弹同一句 toast，对话框不打开
+    await page.locator('#pkCancel').click();
+    await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+    const card = await readCardEntry(page);
+    expect(card).toEqual({
+      sampleAriaDisabled: true,
+      sampleDisabled: false,
+      why: PK_WHY_EXPIRED,
+      buildAriaDisabled: false,
+      buildDisabled: false,
+    });
+    await page.evaluate(() => document.querySelector('#toast')?.classList.remove('on'));
+    await page.locator('#planSampleBtn').click({ force: true });
+    await expectToast(page, PK_WHY_EXPIRED);
+    expect((await readPicker(page)).open).toBe(false);
+    expect(planWritesOf(app)).toBe(writesBefore);
+  });
+
+  test('PLAN-07 while the startup reconcile runs the pick button is disabled by the edit gate without a reason line (S1)', async ({
+    app,
+    page,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('gt'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+
+    // 刷新：文档列表挂起，应用先用本机缓存（空计划）渲染，编辑门控生效
+    const hold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+    await page.reload();
+    await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+    await gotoGoals(page);
+    await expect(page.locator('#goals .pe-empty')).toBeVisible();
+    await expect(page.locator('#planSampleBtn')).toBeDisabled();
+    const gated = await readCardEntry(page);
+    expect([gated.sampleAriaDisabled, gated.sampleDisabled, gated.why]).toEqual([false, true, '']);
+
+    // 对账结束：门控解除，按钮不再 disabled
+    await hold.release();
+    await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+    await expect(page.locator('body')).not.toHaveAttribute('data-gate');
+    const open = await readCardEntry(page);
+    expect([open.sampleAriaDisabled, open.sampleDisabled, open.why]).toEqual([false, false, '']);
+    expect(app.fake.fulfillErrors).toEqual([]);
+  });
 });
