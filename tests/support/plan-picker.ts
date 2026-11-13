@@ -95,3 +95,9 @@ export async function readCardEntry(page: Page): Promise<CardEntryState> {
     };
   });
 }
+
+// 点编辑计划页的「从示例添加」（#peSampleBtn），等对话框打开
+export async function openPickerFromEditor(page: Page) {
+  await page.locator('#peSampleBtn').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', true);
+}

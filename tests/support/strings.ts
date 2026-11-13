@@ -715,3 +715,13 @@ export const PK_CF_LINES = [
 export const BTN_PK_BACK = '回去继续挑';
 export const BTN_PK_TAKE = '放弃我的选择，用新版';
 export const PK_TAKEN = '已改用别的设备上的新计划，你挑的项没有加';
+
+// Phase 14-03：编辑计划页的「从示例添加」（应用里 T_PK_ADD_BTN、T_PK_TOOLS_NOTE、T_PK_TITLE_EDIT、T_PK_DESC_EDIT、T_PK_OK_EDIT、T_PK_DRAFTED、T_PK_LIVE，逐字相同；
+// pkDrafted、pkLive 在这里独立写出，不读应用的 pkParts）。编辑页模式的对话框用同一个 #pkCancel（BTN_PK_CANCEL）
+export const BTN_PK_ADD = '从示例添加';
+export const PK_TOOLS_NOTE = '需要的目标组和力量项，可以随时从示例里挑。';
+export const PK_TITLE_EDIT = '从示例添加';
+export const PK_DESC_EDIT = '勾选要用的，点「添加所选项」会加到这一页的草稿末尾，点「保存计划」后才生效；没勾的不会加。';
+export const BTN_PK_OK_EDIT = '添加所选项';
+export const pkDrafted = (g: number, l: number): string => `已加到草稿：${pkParts(g, l)}，点「保存计划」后生效`;
+export const pkLive = (g: number, l: number): string => `已添加到草稿：${pkParts(g, l)}`;

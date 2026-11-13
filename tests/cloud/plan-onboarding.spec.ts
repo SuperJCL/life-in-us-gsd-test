@@ -12,7 +12,8 @@ import type { Page } from '@playwright/test';
 import { expectToast } from '../support/toast';
 import { confirmMid, confirmOk, readConfirm } from '../support/confirm';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
-import { openPicker, pick, readCardEntry, readPicker } from '../support/plan-picker';
+import { openPicker, openPickerFromEditor, pick, readCardEntry, readPicker } from '../support/plan-picker';
+import { openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { AppHarness } from '../support/app';
 import { FROZEN_NOW, PB_DOC_MAX_BYTES } from '../support/constants';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
@@ -39,6 +40,15 @@ import {
   WEEK_EMPTY_PLAN,
   pkDone,
   pkPicked,
+  BTN_PK_ADD,
+  PK_TOOLS_NOTE,
+  PK_TITLE_EDIT,
+  PK_DESC_EDIT,
+  BTN_PK_OK_EDIT,
+  PE_HINT_DIRTY,
+  TOAST_PLAN_SAVED,
+  pkDrafted,
+  pkLive,
 } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -562,4 +572,73 @@ test.describe('empty plan card entry with an expired login or a startup reconcil
     expect([open.sampleAriaDisabled, open.sampleDisabled, open.why]).toEqual([false, false, '']);
     expect(app.fake.fulfillErrors).toEqual([]);
   });
+});
+
+// ---------- 14-03：编辑计划页的「从示例添加」（D-04、D-07、D-08） ----------
+test('PLAN-07 sample items added in the plan editor go to the end of the draft collapsed and are saved only with the plan (D-04, D-07, D-08)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('pe', 2);
+  await app.open({ mode: 'cloud', seed: syntheticState('pe'), plan, login: 0 });
+  await openEditor(page);
+
+  // 入口行：保存栏下面、第一个分区之前，按钮和说明都是固定短文字；计划不空也能用
+  await expect(page.locator('#tab-plan .pe-tools')).toBeVisible();
+  await expect(page.locator('#peSampleBtn')).toHaveText(BTN_PK_ADD);
+  await expect(page.locator('#tab-plan .pe-tools-note')).toHaveText(PK_TOOLS_NOTE);
+
+  const writesBefore = planWritesOf(app);
+  await openPickerFromEditor(page);
+  let pk = await readPicker(page);
+  expect(pk.open).toBe(true);
+  expect(pk.title).toBe(PK_TITLE_EDIT);
+  expect(pk.okText).toBe(BTN_PK_OK_EDIT);
+  expect(pk.checked).toEqual([]);
+  expect(pk.okAriaDisabled).toBe(true);
+  await expect(page.locator('#pk-desc')).toHaveText(PK_DESC_EDIT);
+
+  // 勾一个目标组（第 3 个示例组）和一个力量项（深蹲），添加
+  await pick(page, 'g:P3');
+  await pick(page, 'l:squat');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, pkDrafted(1, 1));
+  await expect(page.locator('#pe-live')).toHaveText(pkLive(1, 1));
+
+  // 草稿：原有两组在前，新组在末尾，任务和力量项都是新 id，新卡片折叠，提示行说有没保存的修改
+  const ed = await readEditor(page);
+  expect(ed.groups).toHaveLength(3);
+  expect(ed.groups.map((g) => g.key).slice(0, 2)).toEqual(['g:g-pe1', 'g:g-pe2']);
+  const added = ed.groups[2];
+  expect(/^g:g-[A-Za-z0-9_-]+$/.test(added.key) && added.key !== 'g:P3').toBe(true);
+  expect(added.taskKeys).toHaveLength(BUILTIN_GROUP_SIZES.P3);
+  expect(added.taskKeys.every((k) => /^t:t-/.test(k))).toBe(true);
+  expect(ed.lifts).toHaveLength(2);
+  expect(ed.lifts[0].key).toBe('l:l-pe1');
+  expect(/^l:l-/.test(ed.lifts[1].key) && ed.lifts[1].key !== 'l:squat').toBe(true);
+  expect(added.expanded).toBe(false);
+  expect(ed.lifts[1].expanded).toBe(false);
+  expect(ed.hint).toBe(PE_HINT_DIRTY);
+
+  // 焦点在新组的折叠开关上
+  const focus = await page.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    return { act: a?.getAttribute('data-peact') ?? '', key: a?.getAttribute('data-pekey') ?? '' };
+  });
+  expect(focus).toEqual({ act: 'toggle', key: added.key });
+
+  // 保存之前什么都没写
+  expect(planWritesOf(app)).toBe(writesBefore);
+
+  // 点「保存计划」才写入：服务器上多了一组一项，新 id，快捷词不变
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(3);
+  const saved = app.fake.lastPlan(0);
+  expect(/^g-/.test(saved.groups[2].id) && saved.groups[2].id !== 'P3').toBe(true);
+  expect(saved.lifts).toHaveLength(2);
+  expect(/^l-/.test(saved.lifts[1].id) && saved.lifts[1].id !== 'squat').toBe(true);
+  expect(saved.presets).toEqual(plan.presets);
+  expect(app.fake.fulfillErrors).toEqual([]);
 });

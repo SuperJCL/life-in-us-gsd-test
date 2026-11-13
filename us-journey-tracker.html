@@ -2542,7 +2542,7 @@ function renderPlanEditor(){
     if(typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
   }
   const lbl=groupLabels(pe.draft),gs=pe.draft.groups.filter(g=>!g.archived);
-  main.innerHTML=`<section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups" tabindex="-1">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.length?"":`<p class="empty">${T_PE_GROUPS_EMPTY}</p>`}${gs.map((g,gi)=>{
+  main.innerHTML=`<div class="pe-tools"><button type="button" class="ghost" id="peSampleBtn">${T_PK_ADD_BTN}</button><span class="pe-tools-note">${T_PK_TOOLS_NOTE}</span></div><section class="pe-sec" aria-labelledby="pe-h-groups"><h3 id="pe-h-groups" tabindex="-1">目标组<span class="pe-count">${gs.length}/${PLAN_MAX.groups}</span></h3>${gs.length?"":`<p class="empty">${T_PE_GROUPS_EMPTY}</p>`}${gs.map((g,gi)=>{
     const key="g:"+g.id,open=pe.open.has(key),n=g.tasks.filter(t=>!t.archived).length;
     return `<div class="pe-card k-${kOf(g.cat)}" data-key="${esc(key)}"><div class="pe-card-h"><button type="button" class="pe-toggle" aria-expanded="${open}" aria-controls="pe-b-g-${esc(g.id)}" data-peact="toggle" data-pekey="${esc(key)}"><span class="pe-chev" aria-hidden="true"></span><span class="pe-no">${esc(lbl.get(g.id))}</span><span class="pe-name" id="pe-n-g-${esc(g.id)}" title="${esc(g.name)}">${esc(g.name||T_PE_UNNAMED)}</span></button><span class="pe-sum">${esc(g.cat)} · ${n} 项</span><span class="pe-bad" hidden></span><div class="pe-act"><button type="button" class="ghost" data-peact="up" data-pekey="${esc(key)}" aria-label="上移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===0?" disabled":""}>${T_PE_UP}</button><button type="button" class="ghost" data-peact="down" data-pekey="${esc(key)}" aria-label="下移目标组：${esc(g.name||T_PE_UNNAMED)}"${gi===gs.length-1?" disabled":""}>${T_PE_DOWN}</button></div></div>
     <div class="pe-body" id="pe-b-g-${esc(g.id)}" role="group" aria-labelledby="pe-n-g-${esc(g.id)}"${open?"":" hidden"}><label class="f">${T_PE_LABEL_NAME}<input type="text" id="pe-f-g-${esc(g.id)}-name" data-pefield="${esc(key)}:name" maxlength="${PLAN_MAX.name}" value="${esc(g.name)}" aria-describedby="pe-e-g-${esc(g.id)}-name">${peCnt("g-"+g.id+"-name",g.name.length,32,PLAN_MAX.name)}</label><p class="pe-err" id="pe-e-g-${esc(g.id)}-name" hidden></p>
@@ -2560,6 +2560,8 @@ ${esc(g.note||"")}</textarea>${peCnt("g-"+g.id+"-note",(g.note||"").length,160,P
 /* 事件委托在 #tab-plan 上：展开、折叠只改界面状态（不算修改）；输入框的值就地写进草稿并刷新同一张卡的名称，不整页重画 */
 const peRoot=$("tab-plan");
 peRoot.addEventListener("click",e=>{
+  /* #peSampleBtn 不是草稿动作（不走 data-peact）：随时可用，不受 peBlock 影响（A13） */
+  if(pe&&e.target.closest("#peSampleBtn")){openSamplePicker("edit");return}
   const t=e.target.closest("[data-peact]");if(!t||!pe)return;
   const a=t.dataset.peact,k=t.dataset.pekey||"";
   if(a==="toggle"){if(pe.open.has(k))pe.open.delete(k);else pe.open.add(k);renderPlanEditor()}
@@ -3031,14 +3033,23 @@ function pkWhy(){
   else b.removeAttribute("aria-disabled");
   if(w.textContent!==t)w.textContent=t;
 }
-const pkParts=(g,l)=>[g?g+" 个目标组":"",l?l+" 个力量项":""].filter(Boolean).join("、"),T_PK_PICKED=(g,l)=>"已选 "+pkParts(g,l),T_PK_DONE=(g,l)=>"已加入 "+pkParts(g,l)+"，计划已保存";
+/* 14-03 D-04、D-07：编辑页的入口行、编辑页模式的对话框文案和添加到草稿后的提示（UI-SPEC S4） */
+const T_PK_ADD_BTN="从示例添加",T_PK_TOOLS_NOTE="需要的目标组和力量项，可以随时从示例里挑。",T_PK_TITLE_EDIT="从示例添加",T_PK_DESC_EDIT="勾选要用的，点「添加所选项」会加到这一页的草稿末尾，点「保存计划」后才生效；没勾的不会加。",T_PK_OK_EDIT="添加所选项";
+const pkParts=(g,l)=>[g?g+" 个目标组":"",l?l+" 个力量项":""].filter(Boolean).join("、"),T_PK_PICKED=(g,l)=>"已选 "+pkParts(g,l),T_PK_DONE=(g,l)=>"已加入 "+pkParts(g,l)+"，计划已保存",T_PK_DRAFTED=(g,l)=>"已加到草稿："+pkParts(g,l)+"，点「保存计划」后生效",T_PK_LIVE=(g,l)=>"已添加到草稿："+pkParts(g,l);
+const pkOkText=()=>pk&&pk.mode==="edit"?T_PK_OK_EDIT:T_PK_OK_CARD;
 function openSamplePicker(mode){
   if(pk||pkDlg.open)return;
   if(mode==="card"&&peBlock())return;
-  /* 草稿从最新的计划开始：挂起的远端版本先并入（同 openPlanEditor） */
-  if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
-  pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null};
-  $("pk-title").textContent=T_PK_TITLE_CARD;$("pk-desc").textContent=T_PK_DESC_CARD;$("pkOk").textContent=T_PK_OK_CARD;$("pkCancel").textContent=T_PK_CANCEL;
+  /* 编辑页模式：不检查 peBlock（断网、过期照样能挑，只改草稿）、不并入远端版本（编辑页本来就挂起远端更新，草稿不被改） */
+  if(mode==="edit"){
+    if(!pe)return;
+    pk={mode,base:null,orig:null,busy:false,tooLarge:false,back:$("peSampleBtn"),focus:null,scroll:false};
+  }else{
+    /* 草稿从最新的计划开始：挂起的远端版本先并入（同 openPlanEditor） */
+    if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
+    pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null,scroll:false};
+  }
+  $("pk-title").textContent=mode==="edit"?T_PK_TITLE_EDIT:T_PK_TITLE_CARD;$("pk-desc").textContent=mode==="edit"?T_PK_DESC_EDIT:T_PK_DESC_CARD;$("pkOk").textContent=pkOkText();$("pkCancel").textContent=T_PK_CANCEL;
   pkRender();pkHint();
   pkDlg.showModal();
   const f=$("pk-body").querySelector("input[data-pk]:not(:disabled)");if(f)f.focus();
@@ -3067,9 +3078,25 @@ function pkHint(){
 }
 function pkBusy(on){
   const ok=$("pkOk"),c=$("pkCancel");
-  ok.disabled=on;c.disabled=on;ok.textContent=on?T_PE_SAVING:T_PK_OK_CARD;
+  ok.disabled=on;c.disabled=on;ok.textContent=on?T_PE_SAVING:pkOkText();
   if(on)ok.setAttribute("aria-busy","true");else ok.removeAttribute("aria-busy");
   if(pk)pk.busy=on;
+}
+/* 编辑页模式的确认（D-07）：勾选的项换新 id、按示例顺序追加到草稿末尾，只改草稿，不单独写计划文档，随「保存计划」一起生效，「放弃这次修改」整体撤回。新卡片保持折叠（A12），焦点移到第一个新卡片的折叠开关 */
+function pkAddToDraft(){
+  const s=pk;
+  if(!s||!pe||s.mode!=="edit")return;
+  const {keys,g,l}=pkPicked();
+  if(!keys.length)return;
+  const add=pickSample(keys,peUsedIds());
+  add.groups.forEach(x=>pe.draft.groups.push(x));
+  add.lifts.forEach(x=>pe.draft.lifts.push(x));
+  renderPlanEditor();peBar();peSay(T_PK_LIVE(g,l));
+  const first=add.groups.length?"g:"+add.groups[0].id:"l:"+add.lifts[0].id;
+  s.focus=$("pe-main").querySelector('[data-peact="toggle"][data-pekey="'+first+'"]');
+  s.scroll=true;
+  pkDlg.close();
+  toast(T_PK_DRAFTED(g,l),null,4000);
 }
 async function pkSave(){
   const s=pk;
@@ -3115,13 +3142,13 @@ async function pkSave(){
 }
 $("pk-body").addEventListener("change",pkHint);
 $("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
-$("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true"){const blk=pk&&pk.mode==="card"?peBlock():"";if(blk)toast(blk,null,3000);return}if(pk&&pk.mode==="card")pkSave()});
+$("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true"){const blk=pk&&pk.mode==="card"?peBlock():"";if(blk)toast(blk,null,3000);return}if(pk&&pk.mode==="card")pkSave();else if(pk&&pk.mode==="edit")pkAddToDraft()});
 $("pkCancel").addEventListener("click",()=>pkDlg.close());
 pkDlg.addEventListener("cancel",e=>{if(pk&&pk.busy)e.preventDefault()});
 pkDlg.addEventListener("click",e=>{if(e.target===pkDlg&&!(pk&&pk.busy))pkDlg.close()});
 pkDlg.addEventListener("close",()=>{
   const s=pk;
-  if(s){const f=s.focus||s.back;try{if(f&&f.isConnected&&typeof f.focus==="function")f.focus()}catch(e){}if(s.tooLarge)peClearTooLarge()}
+  if(s){const f=s.focus||(s.back&&s.back.isConnected?s.back:(s.mode==="edit"?$("peSampleBtn"):null));try{if(f&&f.isConnected&&typeof f.focus==="function"){f.focus();if(s.scroll)f.scrollIntoView({block:"center",behavior:"auto"})}}catch(e){}if(s.tooLarge)peClearTooLarge()}
   pk=null;
   if(remoteView)maybeApplyView();
 });
