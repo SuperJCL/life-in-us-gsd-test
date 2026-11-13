@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 14
-current_phase_name: 新账号的计划起步（Plan Onboarding）
-status: verifying
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-11-13T07:19:33.046Z"
-last_activity: 2026-11-12
-last_activity_desc: Phase 14 execution started
-state_head: 85fb682618dd77f53a1a53d5ed677b1beac43a1a
+current_phase: 13
+current_phase_name: 部署与加固（Deploy & Hardening）
+status: executing
+stopped_at: "Phase 14 complete; next: 13-13 restore drill (after 2026-11-13 19:20 UTC) and Phase 15 discussion"
+last_updated: "2026-11-13T17:47:56.049Z"
+last_activity: 2026-11-13
+last_activity_desc: Phase 14 complete, transitioned to Phase 13
+state_head: c1fe2333076fa5e49c5e922848e16f48ce5220c5
 progress:
   total_phases: 11
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 83
   completed_plans: 81
-  percent: 64
+  percent: 73
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
+See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 14 — 新账号的计划起步（Plan Onboarding）
+**Current focus:** Phase 13 — 部署与加固（剩 13-13 恢复演练、13-14 升级演练）；Phase 15 健身页待讨论
 
 ## Current Position
 
-Phase: 14 (新账号的计划起步（Plan Onboarding）) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-11-12 — Phase 14 execution started
+Phase: 13 — 部署与加固（Deploy & Hardening）
+Plan: 13
+Status: Ready to execute
+Last activity: 2026-11-13 — Phase 14 complete, transitioned to Phase 13
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 73%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 86
+- Total plans completed: 89
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -60,6 +60,7 @@ Progress: [██████░░░░] 64%
 | 10 | 9 | - | - |
 | 11 | 11 | - | - |
 | 12 | 8 | - | - |
+| 14 | 3 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -353,6 +354,12 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 14]: 14-03：卡片模式不加 UI-SPEC S3 第 3 步的名额兜底；挑选界面的名额和 np 都以打开时的 pk.base 为底，planCommit 的字节容量检查照旧
 - [Phase 14]: 14-03：挑选对话框窄屏底部按钮在窄屏块里统一左右内边距 12px，保证 flex:1 等宽
 
+Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
+- 新账号的计划起步完成（PLAN-06、PLAN-07）：首登 `emptyPlan()`、空计划卡片两个入口、`dialog#sample` 挑选（整组 / 逐个、默认全不勾）、卡片直接保存走共用写入核心 `planCommit`、编辑页「从示例添加」只进草稿。
+- 收尾：安全 15/15 关闭；界面审计 19/24（实际偏差 3 处已修，85fb682）；代码审查 1 严重 1 警告 1 提示全部修好（CR-01 挑选对话框保存后按钮卡住）；回归在 85fb682 上 cloud 266、默认 199 全过（编排者亲自跑）。
+- 应用文件的工作区副本曾有 CRLF，APP_SHA256 记的是工作区字节；修复时统一成 LF（与 .gitattributes 的 eol=lf 和干净克隆一致），之后记录的都是 LF 字节的哈希。
+- 人工检查 4 项推迟到 Phase 16 总体验收（14-UAT.md Deferred Follow-Ups），路线图 Phase 16 成功标准 2 已写入。
+
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
@@ -428,8 +435,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T06:49:43.907Z
-Stopped at: Completed 14-03-PLAN.md
+Last session: 2026-11-13T17:47:51.601Z
+Stopped at: Phase 14 complete; next: 13-13 restore drill (after 2026-11-13 19:20 UTC) and Phase 15 discussion
 Resume file: None
 
 ## Operator Next Steps
