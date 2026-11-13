@@ -725,3 +725,11 @@ export const PK_DESC_EDIT = '勾选要用的，点「添加所选项」会加到
 export const BTN_PK_OK_EDIT = '添加所选项';
 export const pkDrafted = (g: number, l: number): string => `已加到草稿：${pkParts(g, l)}，点「保存计划」后生效`;
 export const pkLive = (g: number, l: number): string => `已添加到草稿：${pkParts(g, l)}`;
+
+// Phase 14-03：挑选列表里的同名标记和名额说明（应用里 T_PK_DUP_G、T_PK_DUP_L、T_PK_LIM_G、T_PK_FULL_G、T_PK_LIM_L、T_PK_FULL_L，逐字相同；pkLimG、pkLimL 在这里独立写出）
+export const PK_DUP_G = '计划里已有同名组';
+export const PK_DUP_L = '计划里已有同名力量项';
+export const pkLimG = (k: number): string => `目标组最多 20 个，还能再加 ${k} 个`;
+export const PK_FULL_G = '目标组已满（20 个），先删掉一个再添加';
+export const pkLimL = (k: number): string => `力量项最多 8 个，还能再加 ${k} 个`;
+export const PK_FULL_L = '力量项已满（8 个），先删掉一个再添加';

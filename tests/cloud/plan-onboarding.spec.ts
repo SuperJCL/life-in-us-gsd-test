@@ -13,7 +13,7 @@ import { expectToast } from '../support/toast';
 import { confirmMid, confirmOk, readConfirm } from '../support/confirm';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openPicker, openPickerFromEditor, pick, readCardEntry, readPicker } from '../support/plan-picker';
-import { openEditor, readEditor, savePlan } from '../support/plan-editor';
+import { discardPlan, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { AppHarness } from '../support/app';
 import { FROZEN_NOW, PB_DOC_MAX_BYTES } from '../support/constants';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
@@ -49,6 +49,12 @@ import {
   TOAST_PLAN_SAVED,
   pkDrafted,
   pkLive,
+  PK_DUP_G,
+  PK_FULL_G,
+  PK_FULL_L,
+  pkLimG,
+  pkLimL,
+  PE_LEAVE_TITLE,
 } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -641,4 +647,173 @@ test('PLAN-07 sample items added in the plan editor go to the end of the draft c
   expect(/^l-/.test(saved.lifts[1].id) && saved.lifts[1].id !== 'squat').toBe(true);
   expect(saved.presets).toEqual(plan.presets);
   expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-07 the picker marks sample groups and lifts whose names are already in the draft and still adds them with new ids (A5, D-08)', async ({
+  app,
+  page,
+}) => {
+  // 合成计划：一个未归档组，名称和示例第 1 组相同；一个归档组，名称和示例第 3 组相同；一个未归档力量项，名称是示例卧推的名称后面带一个空格
+  const plan: any = syntheticPlan('dp', 1);
+  const sampleG = SEED_PLAN.groups;
+  plan.groups.push({ id: 'g-dp2', cat: sampleG[0].cat, name: sampleG[0].name, tasks: [{ id: 't-dp2x1', text: 'SYNTH-dp task 2.1' }] });
+  plan.groups.push({ id: 'g-dp3', cat: sampleG[2].cat, name: sampleG[2].name, archived: true, tasks: [{ id: 't-dp3x1', text: 'SYNTH-dp task 3.1' }] });
+  plan.lifts.push({ id: 'l-dp2', n: `${SEED_PLAN.lifts[0].n} `, unit: 'kg', def: 10, target: 20, note: '' });
+  await app.open({ mode: 'cloud', seed: syntheticState('dp'), plan, login: 0 });
+  await openEditor(page);
+  await openPickerFromEditor(page);
+
+  // 归档的同名组不算；未归档的同名组和同名力量项带标记（比较前去掉首尾空格），仍可勾选
+  let pk = await readPicker(page);
+  expect(pk.dup).toEqual(['g:P1', 'l:bench']);
+  await expect(page.locator('dialog#sample input[data-pk="g:P1"]')).toBeEnabled();
+  expect(
+    await page.evaluate(() => {
+      const box = document.querySelector('dialog#sample input[data-pk="g:P1"]');
+      const meta = document.getElementById((box?.getAttribute('aria-describedby') ?? '').split(' ')[0]);
+      return meta?.querySelector('.pk-dup')?.textContent ?? '';
+    }),
+  ).toBe(PK_DUP_G);
+
+  // 勾同名的第 1 组和不同名的第 4 组，添加；再打开：本次加进草稿的也算同名
+  await pick(page, 'g:P1');
+  await pick(page, 'g:P4');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await openPickerFromEditor(page);
+  pk = await readPicker(page);
+  expect(pk.dup).toEqual(['g:P1', 'g:P4', 'l:bench']);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+
+  // 保存：示例第 1 组的组名在计划里有两个，id 不同（副本有自己的新 id）
+  await savePlan(page);
+  await expectToast(page, TOAST_PLAN_SAVED);
+  await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(5);
+  const same = app.fake.lastPlan(0).groups.filter((g: { name: string }) => g.name === sampleG[0].name);
+  expect(same).toHaveLength(2);
+  expect(new Set(same.map((g: { id: string }) => g.id)).size).toBe(2);
+  expect(same.every((g: { id: string }) => g.id !== 'P1')).toBe(true);
+});
+
+test('PLAN-07 the picker stops at the group and lift limits and says how many more fit, archived items not counting (A7, 12 D-17)', async ({
+  app,
+  page,
+}) => {
+  // 18 个未归档组加 1 个归档组、7 个未归档力量项加 1 个归档力量项：还能加 2 个组、1 个力量项
+  const plan: any = syntheticPlan('lm', 18);
+  plan.groups.push({ id: 'g-lm19', cat: '其他', name: 'SYNTH-lm archived group', archived: true, tasks: [{ id: 't-lm19x1', text: 'SYNTH-lm task 19.1' }] });
+  for (let i = 2; i <= 8; i++) {
+    plan.lifts.push({ id: `l-lm${i}`, n: `SYNTH-lm lift ${i}`, unit: 'kg', def: 10, target: 20, note: '', ...(i === 8 ? { archived: true } : {}) });
+  }
+  await app.open({ mode: 'cloud', seed: syntheticState('lm'), plan, login: 0 });
+  await openEditor(page);
+  await openPickerFromEditor(page);
+
+  let pk = await readPicker(page);
+  expect([pk.limG, pk.limL]).toEqual([pkLimG(2), pkLimL(1)]);
+  const gKeys = ['g:P1', 'g:P2', 'g:P3', 'g:P4', 'g:P5', 'g:P6', 'g:P7'];
+
+  // 勾满两个名额：其余 5 个目标组真 disabled；取消一个后恢复
+  await pick(page, 'g:P1');
+  await pick(page, 'g:P2');
+  pk = await readPicker(page);
+  expect(pk.disabled).toEqual(gKeys.slice(2));
+  await page.locator('dialog#sample input[data-pk="g:P2"]').uncheck();
+  pk = await readPicker(page);
+  expect(pk.disabled.filter((k) => k.startsWith('g:'))).toEqual([]);
+
+  // 力量项只剩 1 个名额：勾一个，其余 3 个 disabled，说明行经 aria-describedby 读出
+  await pick(page, 'l:bench');
+  pk = await readPicker(page);
+  expect([...pk.disabled].sort()).toEqual(['l:dead', 'l:pull', 'l:squat']);
+  const describedL = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLInputElement>('dialog#sample input[data-pk^="l:"]:disabled')).map((i) => i.getAttribute('aria-describedby') ?? ''),
+  );
+  expect(describedL).toHaveLength(3);
+  expect(describedL.every((d) => d.split(' ').includes('pk-lim-l'))).toBe(true);
+  await pick(page, 'g:P2');
+  const describedG = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLInputElement>('dialog#sample input[data-pk^="g:"]:disabled')).map((i) => i.getAttribute('aria-describedby') ?? ''),
+  );
+  expect(describedG).toHaveLength(5);
+  expect(describedG.every((d) => d.split(' ').includes('pk-lim-g'))).toBe(true);
+
+  // 取消力量项、添加两个组：目标组满了，力量项还剩 1 个名额，打开时焦点落在第一个能勾的力量项
+  await page.locator('dialog#sample input[data-pk="l:bench"]').uncheck();
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await openPickerFromEditor(page);
+  pk = await readPicker(page);
+  expect(pk.limG).toBe(PK_FULL_G);
+  expect(pk.disabled.filter((k) => k.startsWith('g:'))).toEqual(gKeys);
+  expect(pk.limL).toBe(pkLimL(1));
+  const firstLift = await page.evaluate(() => document.querySelector('dialog#sample input[data-pk^="l:"]')?.getAttribute('data-pk') ?? '');
+  expect(pk.focusKey).toBe(firstLift);
+
+  // 力量项也加满：两个分区都是「已满」，11 个复选框全部 disabled
+  await pick(page, 'l:bench');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await openPickerFromEditor(page);
+  pk = await readPicker(page);
+  expect([pk.limG, pk.limL]).toEqual([PK_FULL_G, PK_FULL_L]);
+  expect(pk.disabled).toHaveLength(11);
+});
+
+test.describe('plan editor sample picker with the clock under test control', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('PLAN-07 sample items added in the plan editor work offline, follow the sample order and are dropped with the discarded draft (D-07)', async ({
+    app,
+    page,
+    context,
+    guard,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('od'), plan: syntheticPlan('od', 1), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const status = page.locator('#status');
+    const writesBefore = planWritesOf(app);
+
+    // 断网：列表读取和单条更新被拒，记一笔让状态行进入 offline
+    const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+    const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
+    await context.setOffline(true);
+    const entry = composer(page, 'w');
+    await entry.type('SYNTH-od offline entry');
+    await entry.submit();
+    await page.clock.runFor(1_000);
+    await expect(status).toHaveAttribute('data-state', 'offline');
+
+    // 编辑页的入口断网照样可用（只改草稿）；挑选对话框的提示行没有断网档
+    await openEditor(page);
+    await expect(page.locator('#peSampleBtn')).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('#peSampleBtn')).toBeEnabled();
+    await openPickerFromEditor(page);
+    let pk = await readPicker(page);
+    expect([pk.hint, pk.tone]).toEqual([PK_HINT_NONE, null]);
+
+    // 先勾力量项，再勾第 5 组、第 1 组：添加后按示例顺序追加（第 1 组在第 5 组前面），不是勾选顺序
+    await pick(page, 'l:pull');
+    await pick(page, 'g:P5');
+    await pick(page, 'g:P1');
+    pk = await readPicker(page);
+    expect(pk.okAriaDisabled).toBe(false);
+    await page.locator('#pkOk').click();
+    await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+    await expectToast(page, pkDrafted(2, 1));
+    const ed = await readEditor(page);
+    expect(ed.groups.map((g) => g.taskKeys.length)).toEqual([2, BUILTIN_GROUP_SIZES.P1, BUILTIN_GROUP_SIZES.P5]);
+    expect(planWritesOf(app)).toBe(writesBefore);
+
+    // 放弃这次修改：确认后编辑页关闭，草稿里加的项一起撤回，整条用例没有任何计划写入
+    await discardPlan(page);
+    expect((await readConfirm(page)).title).toBe(PE_LEAVE_TITLE);
+    await confirmOk(page);
+    expect((await readEditor(page)).open).toBe(false);
+    expect(planWritesOf(app)).toBe(writesBefore);
+    expect(app.fake.lastPlan(0).groups.map((g: { id: string }) => g.id)).toEqual(['g-od1']);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+  });
 });

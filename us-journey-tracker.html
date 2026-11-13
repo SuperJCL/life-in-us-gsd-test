@@ -3035,6 +3035,8 @@ function pkWhy(){
 }
 /* 14-03 D-04、D-07：编辑页的入口行、编辑页模式的对话框文案和添加到草稿后的提示（UI-SPEC S4） */
 const T_PK_ADD_BTN="从示例添加",T_PK_TOOLS_NOTE="需要的目标组和力量项，可以随时从示例里挑。",T_PK_TITLE_EDIT="从示例添加",T_PK_DESC_EDIT="勾选要用的，点「添加所选项」会加到这一页的草稿末尾，点「保存计划」后才生效；没勾的不会加。",T_PK_OK_EDIT="添加所选项";
+/* 14-03 A5、A7：计划里已有同名项的标记，和每个分区剩余名额的说明（目标组 20、力量项 8，归档项不占名额，12 D-17） */
+const T_PK_DUP_G="计划里已有同名组",T_PK_DUP_L="计划里已有同名力量项",T_PK_LIM_G=k=>"目标组最多 20 个，还能再加 "+k+" 个",T_PK_FULL_G="目标组已满（20 个），先删掉一个再添加",T_PK_LIM_L=k=>"力量项最多 8 个，还能再加 "+k+" 个",T_PK_FULL_L="力量项已满（8 个），先删掉一个再添加";
 const pkParts=(g,l)=>[g?g+" 个目标组":"",l?l+" 个力量项":""].filter(Boolean).join("、"),T_PK_PICKED=(g,l)=>"已选 "+pkParts(g,l),T_PK_DONE=(g,l)=>"已加入 "+pkParts(g,l)+"，计划已保存",T_PK_DRAFTED=(g,l)=>"已加到草稿："+pkParts(g,l)+"，点「保存计划」后生效",T_PK_LIVE=(g,l)=>"已添加到草稿："+pkParts(g,l);
 const pkOkText=()=>pk&&pk.mode==="edit"?T_PK_OK_EDIT:T_PK_OK_CARD;
 function openSamplePicker(mode){
@@ -3050,15 +3052,34 @@ function openSamplePicker(mode){
     pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null,scroll:false};
   }
   $("pk-title").textContent=mode==="edit"?T_PK_TITLE_EDIT:T_PK_TITLE_CARD;$("pk-desc").textContent=mode==="edit"?T_PK_DESC_EDIT:T_PK_DESC_CARD;$("pkOk").textContent=pkOkText();$("pkCancel").textContent=T_PK_CANCEL;
-  pkRender();pkHint();
+  pkRender();pkRoom();pkHint();
   pkDlg.showModal();
   const f=$("pk-body").querySelector("input[data-pk]:not(:disabled)");if(f)f.focus();
 }
-/* 每次打开都重新生成列表，一项都不勾（D-06）；数据来自示例常量，顺序与示例一致。对比计划（同名标记、名额限制）在 14-03 按 mode 取：卡片模式取 pk.base 的未归档项 */
+/* 每次打开都重新生成列表，一项都不勾（D-06）；数据来自示例常量，顺序与示例一致。对比计划：卡片模式取打开时的计划（pk.base），编辑页模式取草稿（pe.draft，含本次已经从示例加进来的），只看未归档的项。
+   同名：名称去首尾空格、区分大小写、完全相等才标「计划里已有同名…」，仍可勾选（加进去的是换了新 id 的副本）；名额：目标组 20、力量项 8 减去未归档的个数，用户的名称只进 Set 做比较，不显示 */
 function pkRender(){
-  const gs=DEFAULT_PLAN.groups.map(g=>`<li><label class="pk-item k-${esc(kOf(g.cat))}"><input type="checkbox" data-pk="g:${esc(g.id)}" aria-describedby="pk-d-g-${esc(g.id)}"><span><span class="pk-name">${esc(g.name)}</span><span class="pk-meta" id="pk-d-g-${esc(g.id)}"><span class="pk-chip">${esc(g.cat)}</span><span>${esc(T_PK_TASKS(g.tasks.length))}</span></span></span></label></li>`).join("");
-  const ls=DEFAULT_PLAN.lifts.map(L=>`<li><label class="pk-item k-fit"><input type="checkbox" data-pk="l:${esc(L.id)}" aria-describedby="pk-d-l-${esc(L.id)}"><span><span class="pk-name">${esc(L.n)}</span><span class="pk-meta" id="pk-d-l-${esc(L.id)}"><span>${esc(T_PK_TARGET(L.target,L.unit))}</span></span></span></label></li>`).join("");
-  $("pk-body").innerHTML=`<fieldset class="pk-sec"><legend>${esc(T_PK_SEC_GROUPS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.groups.length))}</span></legend><ul class="pk-list">${gs}</ul></fieldset><fieldset class="pk-sec"><legend>${esc(T_PK_SEC_LIFTS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.lifts.length))}</span></legend><ul class="pk-list">${ls}</ul></fieldset>`;
+  const cmp=pk&&pk.mode==="edit"&&pe?pe.draft:(pk&&pk.base)||plan;
+  const ag=cmp.groups.filter(g=>!g.archived),al=cmp.lifts.filter(l=>!l.archived);
+  const gn=new Set(ag.map(g=>String(g.name).trim())),ln=new Set(al.map(l=>String(l.n).trim()));
+  const room={g:Math.max(0,PLAN_MAX.groups-ag.length),l:Math.max(0,PLAN_MAX.lifts-al.length)};
+  if(pk)pk.room=room;
+  const gs=DEFAULT_PLAN.groups.map(g=>{const dup=gn.has(String(g.name).trim());return `<li><label class="pk-item k-${esc(kOf(g.cat))}"><input type="checkbox" data-pk="g:${esc(g.id)}"${dup?" data-dup":""} aria-describedby="pk-d-g-${esc(g.id)}"><span><span class="pk-name">${esc(g.name)}</span><span class="pk-meta" id="pk-d-g-${esc(g.id)}"><span class="pk-chip">${esc(g.cat)}</span><span>${esc(T_PK_TASKS(g.tasks.length))}</span>${dup?`<span class="pk-dup">${esc(T_PK_DUP_G)}</span>`:""}</span></span></label></li>`}).join("");
+  const ls=DEFAULT_PLAN.lifts.map(L=>{const dup=ln.has(String(L.n).trim());return `<li><label class="pk-item k-fit"><input type="checkbox" data-pk="l:${esc(L.id)}"${dup?" data-dup":""} aria-describedby="pk-d-l-${esc(L.id)}"><span><span class="pk-name">${esc(L.n)}</span><span class="pk-meta" id="pk-d-l-${esc(L.id)}"><span>${esc(T_PK_TARGET(L.target,L.unit))}</span>${dup?`<span class="pk-dup">${esc(T_PK_DUP_L)}</span>`:""}</span></span></label></li>`}).join("");
+  const lim=(r,n,full,part)=>r<n?{h:"",t:esc(r?part(r):full)}:{h:" hidden",t:""},lg=lim(room.g,DEFAULT_PLAN.groups.length,T_PK_FULL_G,T_PK_LIM_G),ll=lim(room.l,DEFAULT_PLAN.lifts.length,T_PK_FULL_L,T_PK_LIM_L);
+  $("pk-body").innerHTML=`<fieldset class="pk-sec"><legend>${esc(T_PK_SEC_GROUPS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.groups.length))}</span></legend><p class="pe-lim pk-lim" id="pk-lim-g"${lg.h}>${lg.t}</p><ul class="pk-list">${gs}</ul></fieldset><fieldset class="pk-sec"><legend>${esc(T_PK_SEC_LIFTS)}<span class="pe-count">${esc(T_PK_COUNT(DEFAULT_PLAN.lifts.length))}</span></legend><p class="pe-lim pk-lim" id="pk-lim-l"${ll.h}>${ll.t}</p><ul class="pk-list">${ls}</ul></fieldset>`;
+}
+/* 每个分区已勾的数量等于剩余名额时，该分区其余未勾的行变成真 disabled，aria-describedby 末尾加上说明行；取消一个勾选后恢复 */
+function pkRoom(){
+  if(!pk||!pk.room)return;
+  [["g",pk.room.g],["l",pk.room.l]].forEach(([k,r])=>{
+    const boxes=Array.from($("pk-body").querySelectorAll('input[data-pk^="'+k+':"]')),n=boxes.filter(i=>i.checked).length,full=n>=r,lid="pk-lim-"+k;
+    boxes.forEach(i=>{
+      const own=i.getAttribute("aria-describedby").split(" ").filter(x=>x&&x!==lid);
+      if(!i.checked&&full){i.disabled=true;own.push(lid)}else i.disabled=false;
+      i.setAttribute("aria-describedby",own.join(" "));
+    });
+  });
 }
 function pkPicked(){
   const keys=Array.from($("pk-body").querySelectorAll("input[data-pk]:checked")).map(i=>i.getAttribute("data-pk"));
@@ -3140,7 +3161,7 @@ async function pkSave(){
   pkDlg.close();
   planSavedToast(r,overwrite,T_PK_DONE(g,l),4000);
 }
-$("pk-body").addEventListener("change",pkHint);
+$("pk-body").addEventListener("change",()=>{pkRoom();pkHint()});
 $("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
 $("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true"){const blk=pk&&pk.mode==="card"?peBlock():"";if(blk)toast(blk,null,3000);return}if(pk&&pk.mode==="card")pkSave();else if(pk&&pk.mode==="edit")pkAddToDraft()});
 $("pkCancel").addEventListener("click",()=>pkDlg.close());

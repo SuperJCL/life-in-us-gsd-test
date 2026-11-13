@@ -26,7 +26,7 @@ export type PickerState = {
   okDisabled: boolean;
   okBusy: boolean;
   cancelDisabled: boolean;
-  // 已勾选、真 disabled、带「已在计划里」标记的复选框的 data-pk 键，按 DOM 顺序
+  // 已勾选、真 disabled、带「计划里已有同名…」标记（data-dup）的复选框的 data-pk 键，按 DOM 顺序
   checked: string[];
   disabled: string[];
   dup: string[];
@@ -46,7 +46,11 @@ export async function readPicker(page: Page): Promise<PickerState> {
     const ok = document.querySelector<HTMLButtonElement>('#pkOk');
     const cancel = document.querySelector<HTMLButtonElement>('#pkCancel');
     const hint = document.querySelector('#pk-hint');
-    const lims = Array.from(document.querySelectorAll('dialog#sample .pk-lim'));
+    // 名额说明行：没有显示（hidden）时为 null
+    const lim = (id: string) => {
+      const e = document.getElementById(id);
+      return e && !e.hidden ? (e.textContent ?? '') : null;
+    };
     const act = document.activeElement;
     let focusKey = '';
     if (act && dlg && dlg.contains(act)) {
@@ -65,8 +69,8 @@ export async function readPicker(page: Page): Promise<PickerState> {
       checked: boxes.filter((i) => i.checked).map(keyOf),
       disabled: boxes.filter((i) => i.disabled).map(keyOf),
       dup: boxes.filter((i) => i.hasAttribute('data-dup')).map(keyOf),
-      limG: lims[0]?.textContent ?? null,
-      limL: lims[1]?.textContent ?? null,
+      limG: lim('pk-lim-g'),
+      limL: lim('pk-lim-l'),
       focusKey,
     };
   });
