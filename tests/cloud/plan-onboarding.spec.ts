@@ -9,12 +9,17 @@ import { gotoTimeline, readTimeline } from '../support/timeline';
 import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
 import { expectToast } from '../support/toast';
+import { acknowledgeConsoleErrors } from '../support/guard-ack';
+import { openPicker, pick, readCardEntry, readPicker } from '../support/plan-picker';
+import { FROZEN_NOW } from '../support/constants';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
   BTN_PICK_SAMPLE,
   BTN_PK_OK_CARD,
   BTN_PLAN_BUILD,
+  PE_HINT_OFFLINE,
   PK_HINT_NONE,
+  PK_WHY_OFFLINE,
   PK_TITLE_CARD,
   WEEK_EMPTY_PLAN,
   pkDone,
@@ -177,4 +182,102 @@ test('PLAN-06 with the empty plan the composer has no base tags and entries reco
   // 计划文档没有被记一笔改动
   expect(app.fake.lastPlan(0)).toEqual(EMPTY_PLAN);
   expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+const LIST_PATH = '/api/collections/journey_docs/records';
+const ITEM_PATH = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
+const planWritesOf = (app: { fake: any }) => (app.fake.writes as Array<{ path: string }>).filter((w) => w.path === 'journey_docs:plan').length;
+
+// 卡片模式套用编辑页保存的规则（D-07）：断网、过期、冲突、容量。时钟由用例控制，轮询用 runFor 推进
+test.describe('empty plan card entry with the clock under test control', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('PLAN-07 while offline the pick button on the empty plan card is greyed with the reason and the picker refuses to save until the connection is back (D-07, 12 D-11)', async ({
+    app,
+    page,
+    context,
+    guard,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'cloud', seed: syntheticState('of'), login: 0 });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const status = page.locator('#status');
+    const toastOn = () => page.evaluate(() => !!document.querySelector('#toast')?.classList.contains('on'));
+    const hideToast = () => page.evaluate(() => document.querySelector('#toast')?.classList.remove('on'));
+
+    // 断网：列表读取和单条更新被拒，记一笔让状态行进入 offline
+    const listFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+    const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'refuse' });
+    await context.setOffline(true);
+    const entry = composer(page, 'w');
+    await entry.type('SYNTH-of offline entry');
+    await entry.submit();
+    await page.clock.runFor(1_000);
+    await expect(status).toHaveAttribute('data-state', 'offline');
+
+    // 空计划卡片：「从示例里挑」用 aria-disabled（不是 disabled），下面写原因；「自己建一份」照常可用
+    await gotoGoals(page);
+    let card = await readCardEntry(page);
+    expect(card).toEqual({
+      sampleAriaDisabled: true,
+      sampleDisabled: false,
+      why: PK_WHY_OFFLINE,
+      buildAriaDisabled: false,
+      buildDisabled: false,
+    });
+    await expect(page.locator('#planSampleBtn')).toHaveAttribute('aria-describedby', 'planSampleWhy');
+
+    // 点它：只弹同一句 toast，对话框没打开
+    await hideToast();
+    await page.locator('#planSampleBtn').click({ force: true });
+    await expectToast(page, PK_WHY_OFFLINE);
+    expect((await readPicker(page)).open).toBe(false);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
+
+    // 联网：撤掉故障，状态行回到已同步，说明消失，按钮恢复
+    await app.fake.clearFaults();
+    await context.setOffline(false);
+    await expect(status).toHaveAttribute('data-state', 'synced');
+    card = await readCardEntry(page);
+    expect([card.sampleAriaDisabled, card.sampleDisabled, card.why]).toEqual([false, false, '']);
+
+    // 挑选对话框开着时断网：下一次 60 秒轮询被拒，提示行改成「联网后再保存」，确认按钮 aria-disabled，勾选保留
+    await openPicker(page);
+    await pick(page, 'g:P7');
+    expect((await readPicker(page)).hint).toBe(pkPicked(1, 0));
+    const pollFault = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'refuse' });
+    await context.setOffline(true);
+    await page.clock.runFor(60_000);
+    await expect(status).toHaveAttribute('data-state', 'offline');
+    let pk = await readPicker(page);
+    expect([pk.open, pk.hint, pk.tone, pk.okAriaDisabled, pk.okDisabled, pk.checked]).toEqual([
+      true,
+      PE_HINT_OFFLINE,
+      'warn',
+      true,
+      false,
+      ['g:P7'],
+    ]);
+
+    // 点确认：只弹同一句 toast，对话框不关，没有计划写入
+    const writesBefore = planWritesOf(app);
+    await hideToast();
+    expect(await toastOn()).toBe(false);
+    await page.locator('#pkOk').click({ force: true });
+    await expectToast(page, PE_HINT_OFFLINE);
+    pk = await readPicker(page);
+    expect([pk.open, pk.checked]).toEqual([true, ['g:P7']]);
+    expect(planWritesOf(app)).toBe(writesBefore);
+    await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: pollFault.hits });
+
+    // 联网：提示行回到「已选 …」，确认可用，保存成功
+    await app.fake.clearFaults();
+    await context.setOffline(false);
+    await expect(status).toHaveAttribute('data-state', 'synced');
+    pk = await readPicker(page);
+    expect([pk.hint, pk.tone, pk.okAriaDisabled]).toEqual([pkPicked(1, 0), null, false]);
+    await page.locator('#pkOk').click();
+    await expectToast(page, pkDone(1, 0));
+    await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(1);
+  });
 });

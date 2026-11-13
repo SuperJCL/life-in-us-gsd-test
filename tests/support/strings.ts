@@ -701,3 +701,6 @@ export const BTN_PK_CANCEL = '先不添加';
 const pkParts = (g: number, l: number): string => [g ? `${g} 个目标组` : '', l ? `${l} 个力量项` : ''].filter(Boolean).join('、');
 export const pkPicked = (g: number, l: number): string => `已选 ${pkParts(g, l)}`;
 export const pkDone = (g: number, l: number): string => `已加入 ${pkParts(g, l)}，计划已保存`;
+// Phase 14-02：卡片模式的断网、过期说明（应用里 T_PK_WHY_OFFLINE、T_PK_WHY_EXPIRED，逐字相同）。挑选对话框里的提示行复用上面的 PE_HINT_EXPIRED、PE_HINT_OFFLINE
+export const PK_WHY_OFFLINE = '联网后才能从示例里挑';
+export const PK_WHY_EXPIRED = '登录已过期，重新登录后才能从示例里挑';

@@ -944,7 +944,7 @@ function setStatus(t,st,btn){const e=$("status"),k=btn&&e.querySelector("button"
   if(k&&k.textContent===btn.text&&f&&f.nodeType===3&&e.childNodes.length===2){f.nodeValue=t;k.onclick=btn.fn}
   else{e.textContent=t;if(btn){const b=document.createElement("button");b.type="button";b.textContent=btn.text;b.onclick=btn.fn;e.appendChild(b)}}
   if(st)e.setAttribute("data-state",st);else e.removeAttribute("data-state");
-  if(pe)peBar()}
+  if(pe)peBar();pkWhy();if(pk)pkHint()}
 function localStore(){const K="us-journey-tracker-v1";return {label:"已保存在此浏览器中（换设备不会同步）",
   load:async()=>{try{const v=localStorage.getItem(K);return v?JSON.parse(v):null}catch(e){return null}},
   save:async s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){throw new Error("浏览器存储不可用")}}}}
@@ -1163,6 +1163,7 @@ function setGate(mode){
     if(g.includes("a")){el.removeAttribute("aria-disabled");el.setAttribute("tabindex","0")}
     if(g.includes("g"))el.setAttribute("draggable","true");
     el.removeAttribute("data-gated")});
+  pkWhy();
 }
 /* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
 const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-lift],[data-liftsave],[data-addto],[data-addbtn],[data-peact]";
@@ -2235,7 +2236,7 @@ function renderGoals(){
       <div class="lbar"><i data-w="${pct}"></i></div>
       <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
       <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
-  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN2}</button><button type="button" class="ghost" id="planSampleBtn" aria-describedby="planSampleWhy">${T_PE_SAMPLE_BTN}</button><p class="pe-why" id="planSampleWhy" role="status"></p></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();return}
+  if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN2}</button><button type="button" class="ghost" id="planSampleBtn" aria-describedby="planSampleWhy">${T_PE_SAMPLE_BTN}</button><p class="pe-why" id="planSampleWhy" role="status"></p></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();pkWhy();return}
   $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+fit+activeGroups().map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
@@ -2390,7 +2391,7 @@ function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(in
 $("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
   if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
 function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;const id="c-"+uid();commit(["custom:"+id],s=>{if(!s.custom.some(x=>x.id===id))s.custom.push({id,group:g,text:v})});renderAll()}
-$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){openSamplePicker("card");return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
+$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){const blk=peBlock();if(blk){toast(net==="expired"?T_PK_WHY_EXPIRED:T_PK_WHY_OFFLINE,null,3000);return}openSamplePicker("card");return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
   if(a)addTask(a);if(d){commit(["custom:"+d],s=>{s.custom=s.custom.filter(t=>t.id!==d);delete s.tasks[d]});renderAll()}});
 $("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
@@ -3016,9 +3017,22 @@ async function savePlanDraft(){
    pe 一存在整个应用就当编辑页开着（isBusy 恒真、beforeunload 拦截、closePlanEditor 切标签），所以卡片模式不造 pe，只用 pk（本对话框自己的状态）。
    示例的 id（P1、bench 等）只当复选框的 data-pk 键，从不写进计划；写进计划的项由 pickSample 换成新 id */
 const T_PK_TITLE_CARD="从示例里挑",T_PK_DESC_CARD="示例是一份通用的样本计划。勾选要用的，点「添加并保存」就加进你的计划；没勾的不会加。",T_PK_SEC_GROUPS="目标组",T_PK_SEC_LIFTS="力量项",T_PK_COUNT=n=>"共 "+n+" 个",T_PK_TASKS=n=>n+" 项任务",T_PK_TARGET=(t,u)=>"目标 "+t+" "+u,T_PK_NONE="先勾选要加入的项",T_PK_OK_CARD="添加并保存",T_PK_CANCEL="先不添加";
+/* 14-02 D-07、12 D-11、D-12：断网或登录过期时空计划卡片上的「从示例里挑」变灰加说明（aria-disabled，不用 disabled，留在 Tab 顺序里），点它只弹同一句 toast */
+const T_PK_WHY_OFFLINE="联网后才能从示例里挑",T_PK_WHY_EXPIRED="登录已过期，重新登录后才能从示例里挑";
+function pkWhy(){
+  const b=$("planSampleBtn"),w=$("planSampleWhy");
+  if(!b||!w)return;
+  let t="";
+  /* 启动对账等全局门控期间按钮是真 disabled，原因在顶部横幅，这里不写说明（S1） */
+  if(document.body.hasAttribute("data-gate"))b.removeAttribute("aria-disabled");
+  else if(peBlock()){b.setAttribute("aria-disabled","true");t=net==="expired"?T_PK_WHY_EXPIRED:T_PK_WHY_OFFLINE}
+  else b.removeAttribute("aria-disabled");
+  if(w.textContent!==t)w.textContent=t;
+}
 const pkParts=(g,l)=>[g?g+" 个目标组":"",l?l+" 个力量项":""].filter(Boolean).join("、"),T_PK_PICKED=(g,l)=>"已选 "+pkParts(g,l),T_PK_DONE=(g,l)=>"已加入 "+pkParts(g,l)+"，计划已保存";
 function openSamplePicker(mode){
   if(pk||pkDlg.open)return;
+  if(mode==="card"&&peBlock())return;
   /* 草稿从最新的计划开始：挂起的远端版本先并入（同 openPlanEditor） */
   if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
   pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null};
@@ -3037,12 +3051,17 @@ function pkPicked(){
   const keys=Array.from($("pk-body").querySelectorAll("input[data-pk]:checked")).map(i=>i.getAttribute("data-pk"));
   return {keys,g:keys.filter(k=>k.startsWith("g:")).length,l:keys.filter(k=>k.startsWith("l:")).length};
 }
-/* 提示行：一项都没勾 → 先勾选要加入的项，确认不可用；勾了 → 已选…，确认可用。断网、过期、容量三档在 14-02 加 */
+/* 提示行按优先级只显示一条（S2）：登录已过期 > 断网（逐字复用 12 的提示，data-tone warn）> 容量超限（error）> 一项都没勾 > 已选…。确认按钮 aria-disabled = 被挡住或一项都没勾；容量那一档在有勾选时仍可点 */
 function pkHint(){
-  const p=pkPicked(),h=$("pk-hint"),ok=$("pkOk");
-  h.removeAttribute("data-tone");
-  if(!p.keys.length){h.textContent=T_PK_NONE;ok.setAttribute("aria-disabled","true")}
-  else{h.textContent=T_PK_PICKED(p.g,p.l);ok.removeAttribute("aria-disabled")}
+  const p=pkPicked(),h=$("pk-hint"),ok=$("pkOk"),blk=pk&&pk.mode==="card"?peBlock():"";
+  let t,tone=null;
+  if(blk){t=blk;tone="warn"}
+  else if(pk&&pk.tooLarge){t=T_PE_HINT_TOOLARGE;tone="error"}
+  else if(!p.keys.length)t=T_PK_NONE;
+  else t=T_PK_PICKED(p.g,p.l);
+  if(h.textContent!==t)h.textContent=t;
+  if(tone)h.setAttribute("data-tone",tone);else h.removeAttribute("data-tone");
+  if(blk||!p.keys.length)ok.setAttribute("aria-disabled","true");else ok.removeAttribute("aria-disabled");
 }
 function pkBusy(on){
   const ok=$("pkOk"),c=$("pkCancel");
@@ -3076,7 +3095,7 @@ async function pkSave(){
 }
 $("pk-body").addEventListener("change",pkHint);
 $("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
-$("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true")return;if(pk&&pk.mode==="card")pkSave()});
+$("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true"){const blk=pk&&pk.mode==="card"?peBlock():"";if(blk)toast(blk,null,3000);return}if(pk&&pk.mode==="card")pkSave()});
 $("pkCancel").addEventListener("click",()=>pkDlg.close());
 pkDlg.addEventListener("cancel",e=>{if(pk&&pk.busy)e.preventDefault()});
 pkDlg.addEventListener("click",e=>{if(e.target===pkDlg&&!(pk&&pk.busy))pkDlg.close()});
