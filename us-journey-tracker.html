@@ -3163,7 +3163,7 @@ async function pkSave(){
   pkDlg.close();
   planSavedToast(r,overwrite,T_PK_DONE(g,l),4000);
 }
-$("pk-body").addEventListener("change",()=>{pkRoom();pkHint()});
+$("pk-body").addEventListener("change",()=>{if(pk&&pk.tooLarge){pk.tooLarge=false;peClearTooLarge()}pkRoom();pkHint()});
 $("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
 $("pkOk").addEventListener("click",()=>{if($("pkOk").getAttribute("aria-disabled")==="true"){const blk=pk&&pk.mode==="card"?peBlock():"";if(blk)toast(blk,null,3000);return}if(pk&&pk.mode==="card")pkSave();else if(pk&&pk.mode==="edit")pkAddToDraft()});
 $("pkCancel").addEventListener("click",()=>pkDlg.close());
