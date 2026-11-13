@@ -15,6 +15,7 @@ import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openPicker, openPickerFromEditor, pick, readCardEntry, readPicker } from '../support/plan-picker';
 import { discardPlan, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { AppHarness } from '../support/app';
+import { openDevice } from '../support/devices';
 import { FROZEN_NOW, PB_DOC_MAX_BYTES } from '../support/constants';
 import { BUILTIN_GROUP_SIZES } from '../support/task-ids';
 import {
@@ -55,6 +56,9 @@ import {
   pkLimG,
   pkLimL,
   PE_LEAVE_TITLE,
+  PK_SEC_GROUPS,
+  PK_SEC_LIFTS,
+  pkCount,
 } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -816,4 +820,173 @@ test.describe('plan editor sample picker with the clock under test control', () 
     expect(app.fake.lastPlan(0).groups.map((g: { id: string }) => g.id)).toEqual(['g-od1']);
     await acknowledgeConsoleErrors(guard, { ERR_CONNECTION_REFUSED: listFault.hits + patchFault.hits });
   });
+});
+
+// ---------- 14-03 Task 3：键盘焦点和关闭、375 px 底部面板、第二台设备 ----------
+test('PLAN-07 the picker opens with focus on the first checkbox, closes with Esc, the backdrop or the cancel button without changes and returns focus, and opens unchecked again (D-06, S2)', async ({
+  app,
+  page,
+}) => {
+  // 只给种子 state、不给 plan：首次登录建空计划，目标页显示空计划卡片
+  await app.open({ mode: 'cloud', seed: syntheticState('kb'), login: 0 });
+  await gotoGoals(page);
+  const writesBefore = planWritesOf(app);
+  await openPicker(page);
+
+  // 焦点在第一个目标组的复选框；两个分区是 fieldset 加 legend；每个复选框的 aria-describedby 都指向存在的元素
+  let pk = await readPicker(page);
+  expect(pk.focusKey).toBe('g:P1');
+  const legends = await page.evaluate(() => Array.from(document.querySelectorAll('dialog#sample fieldset.pk-sec > legend')).map((l) => l.textContent ?? ''));
+  expect(legends).toEqual([PK_SEC_GROUPS + pkCount(7), PK_SEC_LIFTS + pkCount(4)]);
+  const described = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('dialog#sample input[data-pk]')).map((i) =>
+      (i.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).every((id) => !!document.getElementById(id)),
+    ),
+  );
+  expect(described).toHaveLength(11);
+  expect(described.every(Boolean)).toBe(true);
+
+  // 空格勾选、取消；提示行跟着变
+  await page.keyboard.press('Space');
+  pk = await readPicker(page);
+  expect(pk.checked).toEqual(['g:P1']);
+  expect(pk.hint).toBe(pkPicked(1, 0));
+  await pick(page, 'l:dead');
+  expect((await readPicker(page)).hint).toBe(pkPicked(1, 1));
+  await page.locator('dialog#sample input[data-pk="g:P1"]').uncheck();
+  expect((await readPicker(page)).hint).toBe(pkPicked(0, 1));
+
+  // 复选框上按 Enter：不提交、不关闭、没有计划写入
+  await page.locator('dialog#sample input[data-pk="l:dead"]').focus();
+  await page.keyboard.press('Enter');
+  pk = await readPicker(page);
+  expect([pk.open, pk.checked]).toEqual([true, ['l:dead']]);
+  expect(planWritesOf(app)).toBe(writesBefore);
+
+  // Esc：关闭、焦点回到打开它的按钮、没有写入、没有 toast
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expect(page.locator('#planSampleBtn')).toBeFocused();
+  expect(planWritesOf(app)).toBe(writesBefore);
+  expect(await page.evaluate(() => !!document.querySelector('#toast')?.classList.contains('on'))).toBe(false);
+
+  // 再打开：全不勾，提示行回到「先勾选」
+  await openPicker(page);
+  pk = await readPicker(page);
+  expect([pk.checked, pk.hint]).toEqual([[], PK_HINT_NONE]);
+
+  // 点对话框框外的遮罩：关闭
+  await page.mouse.click(5, 5);
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expect(page.locator('#planSampleBtn')).toBeFocused();
+
+  // 再打开，点「先不添加」：关闭，焦点回到按钮
+  await openPicker(page);
+  await page.locator('#pkCancel').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expect(page.locator('#planSampleBtn')).toBeFocused();
+  expect(planWritesOf(app)).toBe(writesBefore);
+  expect(app.fake.lastPlan(0)).toEqual(EMPTY_PLAN);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test('PLAN-07 at 375 px the picker is a bottom sheet whose list scrolls under a fixed header and footer, and the empty plan card and editor entry buttons span the width (S1, S2, S4)', async ({
+  app,
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await app.open({ mode: 'cloud', seed: syntheticState('nw'), login: 0 });
+  await gotoGoals(page);
+
+  // 空计划卡片：两个按钮各占一行全宽、不低于 44 px，「自己建一份」在上
+  const box = async (sel: string) => {
+    const b = await page.locator(sel).boundingBox();
+    if (!b) throw new Error(`没有找到 ${sel} 的框`);
+    return b;
+  };
+  const act = await box('.pe-empty-act');
+  const build = await box('#planEditBtn2');
+  const sample = await box('#planSampleBtn');
+  expect(build.height).toBeGreaterThanOrEqual(44);
+  expect(sample.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(build.width - act.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(sample.width - act.width)).toBeLessThanOrEqual(1);
+  expect(build.y).toBeLessThan(sample.y);
+
+  // 底部面板：贴着视口左、右、下边；中间的列表比可见高度高，会滚动
+  await openPicker(page);
+  const dlg = await box('dialog#sample');
+  expect(Math.abs(dlg.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(dlg.width - 375)).toBeLessThanOrEqual(1);
+  expect(Math.abs(dlg.y + dlg.height - 667)).toBeLessThanOrEqual(1);
+  const body = await page.evaluate(() => {
+    const b = document.querySelector<HTMLElement>('.pk-body');
+    return { scroll: b?.scrollHeight ?? 0, client: b?.clientHeight ?? 0 };
+  });
+  expect(body.scroll).toBeGreaterThan(body.client);
+
+  // 底部：提示行占一整行，两个按钮在它下面、都在视口内、不低于 44 px、宽度相差不超过 2 px
+  const hint = await box('#pk-hint');
+  const cancel = await box('#pkCancel');
+  const ok = await box('#pkOk');
+  for (const b of [cancel, ok]) {
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width).toBeLessThanOrEqual(375 + 1);
+    expect(b.y + b.height).toBeLessThanOrEqual(667 + 1);
+    expect(b.y).toBeGreaterThanOrEqual(hint.y + hint.height - 1);
+  }
+  expect(Math.abs(cancel.width - ok.width)).toBeLessThanOrEqual(2);
+
+  // 列表滚到底：最后一个力量项的行不被底部按钮盖住
+  const clear = await page.evaluate(() => {
+    const b = document.querySelector<HTMLElement>('.pk-body');
+    if (b) b.scrollTop = b.scrollHeight;
+    const row = document.querySelector('dialog#sample input[data-pk="l:pull"]')?.closest('.pk-item');
+    const foot = document.querySelector('.pk-foot');
+    return { row: row ? row.getBoundingClientRect().bottom : Infinity, foot: foot ? foot.getBoundingClientRect().top : 0 };
+  });
+  expect(clear.row).toBeLessThanOrEqual(clear.foot + 1);
+
+  // 关闭后「自己建一份」进编辑页：「从示例添加」按钮占一整行全宽、不低于 44 px
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await page.locator('#planEditBtn2').click();
+  await expect(page.locator('#tab-plan')).toBeVisible();
+  const tools = await box('#tab-plan .pe-tools');
+  const add = await box('#peSampleBtn');
+  expect(add.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(add.width - tools.width)).toBeLessThanOrEqual(1);
+});
+
+test('PLAN-07 a plan picked from the empty plan card on one device shows on another device of the same account (SC4)', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('sc'), login: 0 });
+  await gotoGoals(page);
+  await openPicker(page);
+  await pick(page, 'g:P6');
+  await pick(page, 'l:squat');
+  await page.locator('#pkOk').click();
+  await expectToast(page, pkDone(1, 1));
+  await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(1);
+  const first = await readGroupIds(page);
+  expect(first).toHaveLength(1);
+
+  // 设备二：同一个账号登录，看到同一份计划，没有空计划卡片
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await gotoGoals(second.page);
+    await expect.poll(() => readGroupIds(second.page), { message: '等待设备二显示计划' }).toEqual(first);
+    await expect(second.page.locator('#goals .lift')).toHaveCount(1);
+    await expect(second.page.locator('#planEditBtn')).toHaveCount(1);
+    await expect(second.page.locator('#goals .pe-empty')).toHaveCount(0);
+  } finally {
+    await second.context.close();
+  }
+  expect(app.fake.fulfillErrors).toEqual([]);
 });

@@ -35,7 +35,7 @@
 
 | 路径 | 放什么 |
 |------|--------|
-| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作，含读「已归档」区的 `readArchived`）、`plan-editor.ts`（编辑计划页的 helper，见“Phase 12 的云端用例”一节）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
+| `tests/support/` | 常量、界面文案、`test.ts`（唯一的测试入口和 fixture）、`app.ts`（AppHarness）、`composer.ts`（记一笔）、`editor.ts`（编辑弹窗）、`toast.ts`（toast）、`calendar.ts`（日历视图读回）、`goals.ts`（目标视图读回和内置任务的页面内操作，含读「已归档」区的 `readArchived`）、`plan-editor.ts`（编辑计划页的 helper，见“Phase 12 的云端用例”一节）、`plan-picker.ts`（「从示例里挑」挑选对话框的 helper，见“Phase 14 的云端用例”一节）、`timeline.ts`（时间线读回）、`import-file.ts`（内存导入文件和确认框处理）、零依赖静态服务器 |
 | `tests/e2e/` | 面向功能的用例，例如 `smoke.spec.ts` |
 | `tests/e2e/platform/` | 测试平台自身的用例：护栏自检、固定时钟、应用完整性、仓库卫生、干净克隆（SEC-04）、运行时探针、已知 bug 登记护栏；Phase 13 的 `site-assets.spec.ts`（清单和图标的文件级检查）和 `deploy-tools.spec.ts`（部署工具自检和上传包离线核对，见“Phase 13 的用例”一节） |
 | `tests/e2e/storage/` | 存储模式用例，例如账户模式 `account-mode.spec.ts`，以及 USJ_CONFIG 配置缝 |
@@ -49,7 +49,7 @@
 | `tests/e2e/timeline/` | 时间线：按月倒序、类别和“完成的计划”筛选、空状态、跨年、新增内容的联动 |
 | `tests/e2e/narrow/` | 窄屏（520 × 900）：编辑弹窗底部面板、日历圆点、本周纵向排列、选日后滚动 |
 | `tests/mocks/` | 账户模式用的 `window.claude` mock：页面侧 `claude-runtime.ts`、Node 侧 `claude-backend.ts`（`MockBackend`），以及契约对齐说明 `CONTRACT.md`；cloud 用的假 PocketBase：Node 侧 `pb-server.ts`（`FakePbServer`，门面同 `MockBackend`）和页面侧 `pb-runtime.ts`（假 EventSource）；`PB-CONTRACT.md`（服务器 0.41.1 配 SDK 0.28.1 的协议契约：版本、归一化、已实现端点、有意偏差、规则语义）；`pb-samples/`（从本机真实实例录下、归一化后的协议样本，`rest.json` 和 `realtime.json` 共 28 个场景，只能由 `record-samples.mjs` 重新录制，不手改） |
-| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节）、Phase 12 的六个 spec（`plan-archive-view.spec.ts`、`plan-editor.spec.ts`、`plan-editor-groups.spec.ts`、`plan-editor-fit.spec.ts`、`plan-editor-archive.spec.ts`、`plan-editor-sync.spec.ts`，见“Phase 12 的云端用例”一节）、Phase 13 的三个 spec（`sw-offline.spec.ts`、`sw-update.spec.ts`、`csp.spec.ts`，见“Phase 13 的用例”一节） |
+| `tests/cloud/` | cloud 专属用例，只在 `npm run test:cloud` 里运行：harness（`cloud-harness.spec.ts`）、登录与云端存取（`login.spec.ts`）、会话与登录过期（`session.spec.ts`）、对账与编辑门控（`reconcile-gate.spec.ts`）、冲突留底（`conflict-snapshot.spec.ts`）、容量上限（`capacity.spec.ts`）、账号数据隔离（`account-data.spec.ts`）、退出登录（`logout.spec.ts`：清除顺序、重复点击、离线退出、工具栏账号提示、跨标签页退出）、错误注入开关自检（`pb-faults.spec.ts`）、多设备（`multi-device.spec.ts`：第二台设备读到第一台保存的数据，第二台设备的外部请求经共享护栏报告）、同源与 SDK 完整性（`same-origin.spec.ts`：INFRA-03 的同源请求、SRI、篡改对照）、cloud 护栏自检（`guard-cloud.spec.ts`）、PROBE-9（`probes-cloud.spec.ts`）、契约自测（`pb-contract.spec.ts`：对场景表的每个场景在全新的假服务器上执行同一组请求，与真实样本比较状态码、键集合、归一化后的正文和令牌声明，再加一条版本一致性用例）、Phase 11 的五个 spec（`import.spec.ts`、`import-sync.spec.ts`、`import-undo.spec.ts`、`export.spec.ts`、`migration.spec.ts`，见“Phase 11 的云端用例”一节）、Phase 12 的六个 spec（`plan-archive-view.spec.ts`、`plan-editor.spec.ts`、`plan-editor-groups.spec.ts`、`plan-editor-fit.spec.ts`、`plan-editor-archive.spec.ts`、`plan-editor-sync.spec.ts`，见“Phase 12 的云端用例”一节）、Phase 13 的三个 spec（`sw-offline.spec.ts`、`sw-update.spec.ts`、`csp.spec.ts`，见“Phase 13 的用例”一节）、Phase 14 的一个 spec（`plan-onboarding.spec.ts`，见“Phase 14 的云端用例”一节） |
 | `tests/fixtures/` | 合成数据，每个 fixture 都带 `_synthetic` 标记：`full-state.json`（完整状态，后续阶段共用）、`legacy-categories.json`（旧类别名映射）、`minimal-state.json`（最小空状态）、`local-seed.json`（本地与账户模式的小种子）、`malformed-imports.ts`（畸形导入内容，只是内存常量） |
 | `tools/plan/` | 本地计划工具：`extract-plan.mjs` 只读 `private/` 下的原件副本，检查示例计划与种子没有共享内容；`migrate-backup.mjs` 把种子计划和原 Artifact 的旧备份合成一个新格式文件（用法见“Phase 11 的云端用例”一节，默认模式和 `--plan-only` 只由所有者运行） |
 | `tests/PROBES.md` | 运行时探针的结论 |
@@ -229,6 +229,23 @@ Phase 12 的云端用例（编辑计划页）同样只在 `npm run test:cloud` �
   - 另一个写入方改服务器文档：`app.fake.request(0, 'PATCH', 路径, { data, writer: 'synth-other-writer' })`，写入方 id 与本页不同，应用把它当作别的设备的保存。
   - 编辑页用例里的计划文字都以 `SYNTH-` 开头；不打印、不拼进断言消息。
 - **已修复的已知 bug：** Phase 7 代码审查登记的 WR-02（找不到组的自定义待办看不到也删不掉）和 IN-05（任务的 `archived` 没有任何行为）已在 Phase 12 修复，见 `tests/KNOWN-BUGS.md` 的“已修复”。
+
+### Phase 14 的云端用例
+
+Phase 14（新账号的计划起步）的云端用例同样只在 `npm run test:cloud` 里运行，只用合成账号和合成计划，全部在假服务器上做，不连任何真实服务器；另有两条默认套件的单元用例（`tests/e2e/data/plan-normalize.spec.ts` 里的 `emptyPlan`、`pickSample`），本地版仍显示示例计划由原有的 GOAL-01、SEC-04 用例证明。
+
+- **一个新的 cloud spec：** `tests/cloud/plan-onboarding.spec.ts`，18 条用例，按下面的分组：
+  - 首次登录的空计划与 D-01 的四种情况：没有文档没有缓存时建空计划（`login.spec.ts` 的 PLAN-01）；已有计划文档的账号登录时计划逐字不变且不写；文档缺失但本机有缓存时按缓存重建；撞唯一索引时重读服务器（`reconcile-gate.spec.ts` 里原有的用例）；空计划下「记一笔」没有基础快捷词、记录照常上传。
+  - 卡片模式挑选与直接保存：从空计划卡片挑一个目标组和一个力量项，保存后是新 id、不带快捷词、目标页马上显示、焦点回「编辑计划」。
+  - 卡片模式的断网、过期、冲突、容量、门控、会话结束：断网和登录过期时卡片按钮变灰加说明、对话框里的确认被挡住；挑选期间别的设备保存了计划时三选一；超过容量上限不写；启动对账门控时按钮是真 disabled；别的标签页退出登录时对话框被关掉。
+  - 编辑页模式：编辑计划页的「从示例添加」把勾选的项按示例顺序追加到草稿末尾、新卡片折叠、焦点移到第一个新卡片的折叠开关，点「保存计划」才写入；断网时也能用，放弃草稿时一起撤回。
+  - 同名与名额：计划里已有同名的组和力量项（比较未归档的项，去首尾空格）带标记、仍可勾选、副本有新 id；剩余名额（目标组 20、力量项 8，归档项不占）用完后其余行 disabled 并说明原因。
+  - 键盘与窄屏：打开时焦点在第一个复选框、空格勾选、Enter 不提交、Esc 和点遮罩和「先不添加」都关闭并把焦点还给打开它的按钮、每次打开全不勾；375 px 下是贴底面板、列表可滚动、按钮不低于 44 px。
+  - 第二台设备：设备一从空计划卡片挑完保存，同一账号的设备二登录后看到同一份计划。
+- **`tests/support/plan-picker.ts`（挑选对话框 helper）：** `openPicker`（点空计划卡片的「从示例里挑」）、`openPickerFromEditor`（点编辑页的「从示例添加」）、`pick`、`readPicker`、`readCardEntry`。它和 `plan-editor.ts` 一样只从 `@playwright/test` 和 `./strings` 导入，不从 `./test` 导入（避免循环引用）；`readPicker` 只返回键、计数、布尔和界面文案。
+- **复选框的定位：** 按 `data-pk="g:<示例组 id>"`、`l:<示例力量项 id>` 取（例如 `g:P3`、`l:bench`）。这些键只用来对应示例里的哪一项，不会写进用户的计划；写进计划的项一律换成新的 `g-`、`t-`、`l-` id。
+- **D-01 之后的写用例规则：** 云端新账号首次登录建的是空计划，不再是示例计划。要示例计划的用例，必须在 `app.open` 里显式给 `plan: SEED_PLAN`（`SEED_PLAN` 用 `loadAppPure(['normalizePlan', 'DEFAULT_PLAN'])` 生成，写法见 `login.spec.ts`）；只给 seed 时，首登建出来的是空计划。
+- **用例里的计划文字：** 一律以 `SYNTH-` 开头；示例里的名称只做布尔比较，不拼进失败消息。
 
 ### Phase 13 的用例
 
