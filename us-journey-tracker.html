@@ -3052,6 +3052,7 @@ function openSamplePicker(mode){
     if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
     pk={mode,base:JSON.parse(JSON.stringify(plan)),orig:peCanon(plan),busy:false,tooLarge:false,back:$("planSampleBtn"),focus:null,scroll:false};
   }
+  pkBusy(false);
   $("pk-title").textContent=mode==="edit"?T_PK_TITLE_EDIT:T_PK_TITLE_CARD;$("pk-desc").textContent=mode==="edit"?T_PK_DESC_EDIT:T_PK_DESC_CARD;$("pkOk").textContent=pkOkText();$("pkCancel").textContent=T_PK_CANCEL;
   pkRender();pkRoom();pkHint();
   pkDlg.showModal();
@@ -3169,6 +3170,7 @@ $("pkCancel").addEventListener("click",()=>pkDlg.close());
 pkDlg.addEventListener("cancel",e=>{if(pk&&pk.busy)e.preventDefault()});
 pkDlg.addEventListener("click",e=>{if(e.target===pkDlg&&!(pk&&pk.busy))pkDlg.close()});
 pkDlg.addEventListener("close",()=>{
+  pkBusy(false);
   const s=pk;
   if(s){const f=s.focus||(s.back&&s.back.isConnected?s.back:(s.mode==="edit"?$("peSampleBtn"):null));try{if(f&&f.isConnected&&typeof f.focus==="function"){f.focus();if(s.scroll)f.scrollIntoView({block:"center",behavior:"auto"})}}catch(e){}if(s.tooLarge)peClearTooLarge()}
   pk=null;
