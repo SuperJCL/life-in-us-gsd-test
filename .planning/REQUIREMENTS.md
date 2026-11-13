@@ -37,6 +37,16 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 - [x] **PLAN-03**：删除已经有进度的目标组、任务或力量项时，改为归档，日历和时间线里已完成的记录不会消失。
 - [x] **PLAN-04**：编辑计划用草稿方式，点保存才生效，可以取消；离开时如有未保存的修改会提示；保存后其他设备同步。
 - [x] **PLAN-05**：现有任务 id 保持不变，旧备份导入后，任务进度仍然对应到正确的任务。
+- [ ] **PLAN-06**：新账号第一次登录时从空计划开始，不再自动放入整份示例计划；目标页的空计划卡片给出「自己建一份」和「从示例里挑」两个入口。已有计划的账号和不配服务器的本地路径不受影响。（所有者 2026-11-12 加入）
+- [ ] **PLAN-07**：用户可以从示例计划里勾选需要的目标组和力量项，只把勾选的项放进编辑计划页的草稿，点「保存计划」才生效。（所有者 2026-11-12 加入）
+
+### 健身（FIT，所有者 2026-11-12 加入）
+
+- [ ] **FIT-01**：应用新增第五个标签「健身」，集中显示每个力量项的当前值、目标和进度，以及本周训练次数对目标；目标页不再显示力量目标卡片。
+- [ ] **FIT-02**：用户可以按天记录一次训练：选力量项，一组一组记录重量和次数，可以复制上一组；记录时能看到这个动作上次训练的各组；整次训练可以修改和删除。
+- [ ] **FIT-03**：每个力量项有趋势图，按训练日显示最大重量、估算单次最大重量或总训练量，可以切换最近 4 周、3 个月和全部。
+- [ ] **FIT-04**：训练和现有视图衔接：记过训练的那天在本周、日历和时间线里显示为一条「健身」记录，并计入本周健身次数；以前手填的力量历史保留为趋势图上的点；力量项的当前值随训练记录更新。
+- [ ] **FIT-05**：训练记录按账号存在服务器上，离线可记、跨设备同步；JSON 导出导入包含训练记录，导入按白名单校验并转义；没有训练记录的旧备份照常导入。
 
 ### 导出、导入与迁移（IO，延续 v1.0 编号）
 
@@ -85,7 +95,7 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | 开放注册、邀请码注册 | 用户选择由自己在后台开 3 个账号 |
 | 查看别人的记录 | 用户选择各看各的，账号之间完全隔离 |
 | 忘记密码邮件、第三方登录、多账号切换 | 3 个人自用，密码由所有者在后台重置 |
-| 重做界面 | 保留现有四个视图，只新增登录页和编辑计划页 |
+| 重做界面 | 保留现有四个视图，只新增登录页、编辑计划页和健身页（健身页由所有者 2026-11-12 决定加入） |
 | 中国大陆的服务器 | 需要 ICP 备案；改用香港 |
 | 访问、修改、重新发布托管的 Claude Artifact | 保护原应用；迁移只靠用户自己导出 JSON |
 | 引入 React、Next.js 等前端框架 | 前端保持原生单文件，后端用 PocketBase |
@@ -118,6 +128,13 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | PLAN-03 | Phase 12 | Complete |
 | PLAN-04 | Phase 12 | Complete |
 | PLAN-05 | Phase 7 | Complete |
+| PLAN-06 | Phase 14 | Pending |
+| PLAN-07 | Phase 14 | Pending |
+| FIT-01 | Phase 15 | Pending |
+| FIT-02 | Phase 15 | Pending |
+| FIT-03 | Phase 15 | Pending |
+| FIT-04 | Phase 15 | Pending |
+| FIT-05 | Phase 15 | Pending |
 | IO-06 | Phase 11 | Complete |
 | IO-07 | Phase 11 | Complete |
 | IO-08 | Phase 11 | Complete |
@@ -130,17 +147,17 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | OPS-01 | Phase 13 | Pending |
 | OPS-02 | Phase 13 | Pending |
 | OPS-03 | Phase 13 | Pending |
-| OPS-04 | Phase 13 | Pending |
+| OPS-04 | Phase 16 | Pending |
 | TEST-01 | Phase 7 | Complete |
 | TEST-02 | Phase 8 | Pending |
 | TEST-03 | Phase 11 | Complete |
 | TEST-04 | Phase 8 | Complete |
 
 **Coverage:**
-- v2.0 requirements: 36 total
-- Mapped to phases: 36
+- v2.0 requirements: 43 total
+- Mapped to phases: 43
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-06*
-*Last updated: 2026-11-08 after Phase 6 D-01 (provider, domain suffix and web server wording)*
+*Last updated: 2026-11-12 — added PLAN-06, PLAN-07 (Phase 14) and FIT-01..05 (Phase 15); OPS-04 moved to Phase 16 with the overall acceptance*

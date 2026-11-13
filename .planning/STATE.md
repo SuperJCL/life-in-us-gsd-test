@@ -3,19 +3,19 @@ gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 13
-current_phase_name: 部署、加固与验收（Deploy, Hardening & Acceptance）
+current_phase_name: 部署与加固（Deploy & Hardening）
 status: executing
 stopped_at: Completed 13-12-PLAN.md
-last_updated: "2026-11-12T23:40:29.682Z"
+last_updated: "2026-11-13T03:42:09.247Z"
 last_activity: 2026-11-12
 last_activity_desc: Phase 13 execution started
-state_head: afca46f06fbd6fbebf44b17714a254bc6708dbdf
+state_head: 2b11643149e401390f5e5732b721f1356d646da9
 progress:
-  total_phases: 8
+  total_phases: 11
   completed_phases: 7
-  total_plans: 81
+  total_plans: 80
   completed_plans: 78
-  percent: 88
+  percent: 64
 ---
 
 # Project State
@@ -25,16 +25,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-12 after Phase 12)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 13 — 部署、加固与验收（Deploy, Hardening & Acceptance）
+**Current focus:** Phase 13 — 部署与加固（Deploy & Hardening）
 
 ## Current Position
 
-Phase: 13 (部署、加固与验收（Deploy, Hardening & Acceptance）) — EXECUTING
-Plan: 13 of 15
+Phase: 13 (部署与加固（Deploy & Hardening）) — EXECUTING
+Plan: 13 of 14
 Status: Ready to execute
 Last activity: 2026-11-12 — Phase 13 execution started
 
-Progress: [█████████░] 88%
+Progress: [██████░░░░] 64%
 
 
 ## Performance Metrics
@@ -401,6 +401,13 @@ Phase 12 要点（完整记录在 PROJECT.md Key Decisions）：
 | 261109-inq | 应用改名为“计划手记”，页面里的美国字样改成通用说法；隐私规则保留旧导出文件名并加上新文件名 | 2026-11-09 | 4a5ab15 | [261109-inq-rename-app-title-and-neutral-wording](./quick/261109-inq-rename-app-title-and-neutral-wording/) |
 | 6 | 修 11-UI-REVIEW 的 4 处：恢复改为键盘可用的按钮、门控时导出可用、旧路径 5 MB 提示加宽延长、CSV 提示改为中性说法 | 2026-11-11 | abba25d | — |
 | 7 | 修 12-UI-REVIEW 的 3 处：编辑页选中的类别按钮改浅底加正文色文字、禁用按钮显示禁用外观、「已归档」区的 × 放大点击区域 | 2026-11-11 | 56a6dea | — |
+
+### Roadmap Evolution
+
+- Phase 14 added: 新账号的计划起步（Plan Onboarding）：空计划起步、从示例里勾选（所有者 2026-11-12 决定，放在总体验收之前）
+- Phase 15 added: 健身页（Fitness Tab）：第五个标签，力量目标、按组记录训练、趋势图（所有者 2026-11-12 决定，放在总体验收之前）
+- Phase 16 added: 新版本上线与总体验收（Release & Acceptance）：原 13-15 移到这里，计划存为 16-SEED-from-13-15.md
+- Phase 13 edited: 改名为部署与加固；13-15 总体验收和 OPS-04 的真机部分移到 Phase 16
 
 ## Deferred Items
 
