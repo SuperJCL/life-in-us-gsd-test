@@ -703,6 +703,8 @@ export const pkPicked = (g: number, l: number): string => `已选 ${pkParts(g, l
 export const pkDone = (g: number, l: number): string => `已加入 ${pkParts(g, l)}，计划已保存`;
 // Phase 14-02：卡片模式的断网、过期说明（应用里 T_PK_WHY_OFFLINE、T_PK_WHY_EXPIRED，逐字相同）。挑选对话框里的提示行复用上面的 PE_HINT_EXPIRED、PE_HINT_OFFLINE
 export const PK_WHY_OFFLINE = '联网后才能从示例里挑';
+// 14-UI-REVIEW：pkSave 里计划校验失败时提示行的错误文字（应用里 T_PK_INVALID，逐字相同）
+export const PK_INVALID = '这次没能加进计划，请关掉后重新打开再试';
 export const PK_WHY_EXPIRED = '登录已过期，重新登录后才能从示例里挑';
 // Phase 14-02：挑选期间别的设备保存了计划时的三选一（挑选版措辞，应用里 T_PK_CF_L1–L4、T_PK_BACK、T_PK_TAKE、T_PK_TAKEN 逐字相同）。
 // 标题复用 PE_CONFLICT_TITLE，确认按钮复用 BTN_PE_OVERWRITE，覆盖留底后的 toast 复用 TOAST_PLAN_SAVED_KEPT

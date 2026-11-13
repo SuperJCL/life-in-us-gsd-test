@@ -307,6 +307,8 @@ dialog#confirm .ed-foot.three{flex-wrap:wrap;justify-content:flex-end}
 /* S4: editor entry row */
 #tab-plan .pe-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px}
 #tab-plan .pe-tools-note{font-size:12px;line-height:1.55;color:var(--muted)}
+/* 14-UI-REVIEW: desktop buttons in the empty card and the editor entry row reach the 36px floor (font and padding already come from the Phase 12 scoped rules) */
+@media (min-width:561px){.pe-empty-act button,#tab-plan .pe-tools .ghost{min-height:36px}}
 /* S2: picker dialog (backdrop: dialog#sample::backdrop is in the dialog#editor/#confirm backdrop selector) */
 dialog#sample{border:1px solid var(--line);border-radius:14px;padding:0;width:min(520px,calc(100vw - 24px));max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);background:var(--surface);color:var(--ink);font-size:14px;line-height:1.55}
 dialog#sample[open]{display:flex;flex-direction:column}
@@ -3021,7 +3023,7 @@ async function savePlanDraft(){
    示例的 id（P1、bench 等）只当复选框的 data-pk 键，从不写进计划；写进计划的项由 pickSample 换成新 id */
 const T_PK_TITLE_CARD="从示例里挑",T_PK_DESC_CARD="示例是一份通用的样本计划。勾选要用的，点「添加并保存」就加进你的计划；没勾的不会加。",T_PK_SEC_GROUPS="目标组",T_PK_SEC_LIFTS="力量项",T_PK_COUNT=n=>"共 "+n+" 个",T_PK_TASKS=n=>n+" 项任务",T_PK_TARGET=(t,u)=>"目标 "+t+" "+u,T_PK_NONE="先勾选要加入的项",T_PK_OK_CARD="添加并保存",T_PK_CANCEL="先不添加";
 /* 14-02 D-07、12 D-11、D-12：断网或登录过期时空计划卡片上的「从示例里挑」变灰加说明（aria-disabled，不用 disabled，留在 Tab 顺序里），点它只弹同一句 toast */
-const T_PK_WHY_OFFLINE="联网后才能从示例里挑",T_PK_WHY_EXPIRED="登录已过期，重新登录后才能从示例里挑";
+const T_PK_WHY_OFFLINE="联网后才能从示例里挑",T_PK_WHY_EXPIRED="登录已过期，重新登录后才能从示例里挑",T_PK_INVALID="这次没能加进计划，请关掉后重新打开再试";
 /* 14-02 D-07、12 D-07：挑选期间别的设备保存了新的计划，点「添加并保存」时的三选一（挑选版措辞；标题复用 T_PE_CF_TITLE，确认按钮复用 T_PE_OVERWRITE） */
 const T_PK_CF_L1="你挑选示例的这段时间里，别的设备保存了新的计划。",T_PK_CF_L2="用我的覆盖：把你挑的项加进你看到的这份计划再保存；别的设备上的那一版会在本机留一份，可以下载。",T_PK_CF_L3="放弃我的选择，用新版：不加你挑的项，改用别的设备上的新计划。",T_PK_CF_L4="回去继续挑：回到挑选列表，什么都不变。",T_PK_BACK="回去继续挑",T_PK_TAKE="放弃我的选择，用新版",T_PK_TAKEN="已改用别的设备上的新计划，你挑的项没有加";
 function pkWhy(){
@@ -3126,7 +3128,7 @@ async function pkSave(){
   if(!s||s.busy)return;
   /* 12 D-11、D-12：过期或断网时不保存（和保存计划同一句） */
   const blk=peBlock();
-  if(blk){toast(blk,null,3000);return}
+  if(blk){toast(blk,null,3000);pkHint();return}
   const ep=sessionEpoch,live=()=>pk===s&&ep===sessionEpoch;
   pkBusy(true);
   const merge=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}};
@@ -3154,7 +3156,7 @@ async function pkSave(){
   const draft=JSON.parse(JSON.stringify(s.base));
   add.groups.forEach(x=>draft.groups.push(x));add.lifts.forEach(x=>draft.lifts.push(x));
   const np=normalizePlan(draft);
-  if(!np){pkBusy(false);return}
+  if(!np){pkBusy(false);const h=$("pk-hint");h.textContent=T_PK_INVALID;h.setAttribute("data-tone","error");return}
   const r=planCommit(np,overwrite);
   if(!r.ok){if(r.why==="toolarge")s.tooLarge=true;pkBusy(false);pkHint();return}
   if(s.tooLarge)peClearTooLarge();
