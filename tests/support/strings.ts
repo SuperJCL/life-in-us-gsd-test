@@ -780,3 +780,31 @@ export const FL_ERR_SLIMIT = '最多 20 组'; // T_FL_ERR.slimit
 export const FL_ERR_MNONE = '请填写时长（分钟）'; // T_FL_ERR.mnone
 export const FL_ERR_MINT = '时长要是 1 到 1440 之间的整数'; // T_FL_ERR.mint
 export const FL_ERR_DRANGE = '距离要大于 0，不超过 1000'; // T_FL_ERR.drange
+// T_FL_LAST（参考行；d 是 md() 的结果，s 是各组文字）
+export const flLast = (d: string, s: string): string => `上次（${d}）：${s}`;
+// T_FL_LAST_NONE
+export const FL_LAST_NONE = '还没有这个动作的训练记录。';
+// T_FL_FILL_LAST
+export const BTN_FL_FILL_LAST = '照上次填';
+// T_FL_SET_DELETED（删一组的 toast）
+export const flSetDeleted = (n: number): string => `已删除第 ${n} 组`;
+// T_FL_SET_LIMIT（20 组时「＋ 添加一组」旁边）
+export const FL_SET_LIMIT = '最多 20 组';
+// T_FL_REMOVED、T_FL_UNDO_RM（移除动作 / 有氧项的 toast 和按钮；n 是名称，超过 10 字截断加…）
+export const flRemoved = (n: string): string => `已移除：${n}`;
+export const BTN_UNDO_REMOVE = '撤销移除';
+// T_FL_DISCARD、T_FL_CF_DISCARD_T、T_FL_CF_DISCARD_B、T_FL_KEEP、T_FL_DISCARD_OK（放弃未保存的内容和它的确认框）
+export const BTN_FL_DISCARD_OPEN = '放弃未保存的内容';
+export const FL_CF_DISCARD_T = '放弃没保存的内容？';
+export const FL_CF_DISCARD_B = '这次训练填的内容还没有保存，放弃后会恢复成上次保存的样子。';
+export const BTN_FL_KEEP_EDITING = '继续填写';
+export const BTN_FL_DISCARD = '放弃内容';
+// T_FL_CTARGET（有氧行 legend 里的目标；s 是「每次 5 公里」这类说明）
+export const flCardioTarget = (s: string): string => `目标 ${s}`;
+// T_FL_LIFT_NONE、T_FL_CARDIO_NONE、T_FL_LIFT_ALL_ADDED、T_FL_CARDIO_ALL_ADDED、T_FL_EMPTY_ALL、T_FL_GO_PLAN
+export const FL_LIFT_NONE = '计划里还没有力量项。';
+export const FL_CARDIO_NONE = '计划里还没有有氧项。';
+export const FL_LIFT_ALL_ADDED = '计划里的力量项都已加进这次训练。';
+export const FL_CARDIO_ALL_ADDED = '计划里的有氧项都已加进这次训练。';
+export const FL_EMPTY_ALL = '计划里还没有力量项和有氧项，先去编辑计划添加动作，才能记录训练。';
+export const BTN_FL_GO_PLAN = '去编辑计划添加动作';

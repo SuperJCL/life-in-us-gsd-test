@@ -83,3 +83,30 @@ export async function readFl(page: Page): Promise<FlRead[]> {
     })),
   );
 }
+
+// 点芯片，把有氧项 id 对应的有氧行加进这次训练
+export async function flAddCardio(page: Page, id: string) {
+  await page.locator(`[data-fl-add="cardio:${id}"]`).click();
+  await expect(page.locator(`.fl-cd[data-cardio="${id}"]`)).toBeVisible();
+}
+
+// 填有氧行的时长，距离留空就不传
+export async function flFillCardio(page: Page, id: string, m: string, d?: string) {
+  await page.locator(`#fl-m-${id}`).fill(m);
+  if (d !== undefined) await page.locator(`#fl-d-${id}`).fill(d);
+}
+
+// 点某个动作块第 j 组（从 0 数）的「删除」
+export async function flDeleteSet(page: Page, id: string, j: number) {
+  await page.locator(`.fl-ex[data-lift="${id}"] .fl-set`).nth(j).locator('[data-flact="delset"]').click();
+}
+
+// 点某个动作块的「移除这个动作」
+export async function flRemoveEx(page: Page, id: string) {
+  await page.locator(`.fl-ex[data-lift="${id}"] [data-flact="rmex"]`).click();
+}
+
+// 芯片行里每个芯片的 data-fl-add（lift:<id> / cardio:<id>）
+export async function flChipIds(page: Page): Promise<string[]> {
+  return page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('#fl [data-fl-add]')).map((b) => b.dataset.flAdd ?? ''));
+}

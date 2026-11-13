@@ -830,6 +830,7 @@ function isArchived(t){const m=planMeta();return m.arch.has(t.id)||m.garch.has(t
 function activeTasks(){return allTasks().filter(t=>!isArchived(t))}
 function activeGroups(){return plan.groups.filter(g=>!g.archived)}
 function activeLifts(){return plan.lifts.filter(L=>!L.archived)}
+function activeCardio(){return planCardio(plan).filter(c=>!c.archived)}
 /* D-16：空计划 = 没有未归档的组，也没有未归档的力量项（可以保存，不会被示例计划顶替）；目标页换成空计划卡片，本周页多一行说明 */
 function planEmpty(){return !activeGroups().length&&!activeLifts().length}
 
@@ -895,6 +896,16 @@ function workoutProblems(d){
     if(!woBlank(x.d)){const v=Number(x.d);if(!isFinite(v)||v<=0||v>WO_MAX.d)P("fc:"+k+":d","drange")}
   });
   return out;
+}
+/* 参考行（A3）：这个力量项在 before 之前最近一次有组的训练 {date,sets}，日期严格早于 before；没有返回 null。只是参考，不会自动填进表单 */
+function liftLast(s,id,before){
+  const m=woMap(s);let best=null;
+  Object.keys(m).forEach(d=>{
+    if(d>=before||(best&&d<best.date))return;
+    const L=isObj(m[d])&&Array.isArray(m[d].lifts)?m[d].lifts:[],x=L.find(z=>z&&z.id===id);
+    if(x&&Array.isArray(x.sets)&&x.sets.length)best={date:d,sets:x.sets};
+  });
+  return best;
 }
 /* S9：本周、日历、时间线共用的一行文字。力量动作名最多 3 个，超过写「等 n 项」，后接「（共 s 组）」；有氧最多 2 个；两段用「 · 」连；名字取计划里的力量项和有氧项（含归档的），找不到的 id 写下面两句（UI-SPEC 之外新增） */
 const T_FIT_GONE_L="已删除的力量项",T_FIT_GONE_C="已删除的有氧项";
@@ -2531,6 +2542,10 @@ const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次
 const T_FL_STATE_SAVED="这一天已经记过训练，改动保存后会更新。",T_FL_DELETE="删除这次训练",T_FL_DELETED=d=>"已删除 "+d+" 的训练",T_FL_UNDO_DEL="撤销删除",T_FL_LIVE_UNDONE="已撤销：",T_FL_COPY="复制上一组";
 const T_FL_HINT_DIRTY="有没保存的内容",T_FL_HINT_EMPTY="先添加动作或有氧项，再保存",T_FL_HINT_SAVED="已保存";
 const T_FL_ERR={wnone:"请填写重量，徒手动作填 0",wrange:"重量要在 0 到 1000 之间",rnone:"请填写次数",rint:"次数要是 1 到 999 之间的整数",exnone:"这个动作还没有记录任何一组，填一组或移除这个动作",slimit:"最多 20 组",mnone:"请填写时长（分钟）",mint:"时长要是 1 到 1440 之间的整数",drange:"距离要大于 0，不超过 1000"};
+const T_FL_DEL_SET_ARIA=(n,i)=>"删除"+n+"第 "+i+" 组",T_FL_DEL_SET="删除",T_FL_SET_DELETED=i=>"已删除第 "+i+" 组",T_FL_LIVE_SET_DELETED=(n,i)=>"已删除"+n+"第 "+i+" 组",T_FL_SET_LIMIT="最多 20 组",T_FL_LAST=(d,s)=>"上次（"+d+"）："+s,T_FL_LAST_MORE=n=>"…共 "+n+" 组",T_FL_LAST_NONE="还没有这个动作的训练记录。",T_FL_BW="徒手",T_FL_FILL_LAST="照上次填";
+const T_FL_RM_LIFT="移除这个动作",T_FL_RM_CARDIO="移除这个有氧项",T_FL_REMOVED=n=>"已移除："+n,T_FL_UNDO_RM="撤销移除",T_FL_DISCARD="放弃未保存的内容",T_FL_CF_DISCARD_T="放弃没保存的内容？",T_FL_CF_DISCARD_B="这次训练填的内容还没有保存，放弃后会恢复成上次保存的样子。",T_FL_KEEP="继续填写",T_FL_DISCARD_OK="放弃内容";
+const T_FL_SEC_CARDIO="有氧",T_FL_CAP_CARDIO="点一下有氧项，加进这次训练",T_FL_CTARGET=s=>"目标 "+s,T_FL_EVERY_KM=v=>"每次 "+v+" 公里",T_FL_EVERY_MIN=v=>"每次 "+v+" 分钟",T_FL_LBL_MIN="时长（分钟）",T_FL_LBL_KM="距离（公里，选填）";
+const T_FL_LIFT_NONE="计划里还没有力量项。",T_FL_CARDIO_NONE="计划里还没有有氧项。",T_FL_LIFT_ALL_ADDED="计划里的力量项都已加进这次训练。",T_FL_CARDIO_ALL_ADDED="计划里的有氧项都已加进这次训练。",T_FL_EMPTY_ALL="计划里还没有力量项和有氧项，先去编辑计划添加动作，才能记录训练。",T_FL_GO_PLAN="去编辑计划添加动作";
 let fl=null;
 function flDraftOf(day){
   const d=isObj(day)?day:{};
@@ -2541,6 +2556,11 @@ function flOpen(date){const dr=flDraftOf(woMap(state)[date]);fl={date,draft:dr,o
 const flDirty=()=>!!fl&&JSON.stringify(fl.draft)!==fl.orig;
 const flEmpty=()=>!!fl&&!fl.draft.lifts.length&&!fl.draft.cardio.length;
 function flKeepClear(){}
+const flLiftName=id=>{const L=plan.lifts.find(l=>l.id===id);return L?L.n:T_FIT_GONE_L};
+const flCardioName=id=>{const C=planCardio(plan).find(c=>c.id===id);return C?C.n:T_FIT_GONE_C};
+const flShort=n=>{const a=Array.from(n);return a.length>10?a.slice(0,10).join("")+"…":n};
+const flBlankSet=z=>woBlank(z.w)&&woBlank(z.r);
+const flLastText=l=>T_FL_LAST(md(l.date),l.sets.slice(0,8).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，")+(l.sets.length>8?T_FL_LAST_MORE(l.sets.length):""));
 /* 字段元素 → 校验键（同 workoutProblems 的 key）：data-flw / data-flr 是 <动作下标>:<组下标>，data-flm / data-fld 是 <有氧下标> */
 function flKeyOf(el){
   const d=el&&el.dataset;if(!d)return null;
@@ -2581,7 +2601,7 @@ function flFirstBad(pr){
   if(j==="ex")return $("fl-w-"+ex.id+"-0")||$("fl").querySelector('.fl-ex[data-lift="'+ex.id+'"] [data-flact="addset"]');
   return $("fl-"+(f==="r"?"r":"w")+"-"+ex.id+"-"+Math.min(+j,WO_MAX.sets-1));
 }
-/* 保存栏提示行按优先级只写一条：1 点过保存但校验没通过 > 3 草稿有未保存内容 > 5 草稿是空的且这一天没保存过 > 6 已保存没有改动；保存按钮的 aria-disabled 只看「草稿空且没保存过」或「已保存且没改动」，不弹 toast */
+/* 保存栏提示行按优先级只写一条：1 点过保存但校验没通过 > 3 草稿有未保存内容 > 5 草稿是空的且这一天没保存过 > 6 已保存没有改动；保存按钮的 aria-disabled 只看「草稿空且没保存过」或「已保存且没改动」，不弹 toast；「放弃未保存的内容」只在有未保存内容时在提示行后面出现 */
 function flHint(){
   const h=$("fl-hint"),sb=$("fl-save");if(!fl||!h||!sb)return;
   const saved=!!woMap(state)[fl.date],dirty=flDirty(),pr=fl.tried?workoutProblems(fl.draft):[];
@@ -2593,27 +2613,49 @@ function flHint(){
   if(h.textContent!==t)h.textContent=t;
   if(tone)h.setAttribute("data-tone",tone);else h.removeAttribute("data-tone");
   if((flEmpty()&&!saved)||(saved&&!dirty))sb.setAttribute("aria-disabled","true");else sb.removeAttribute("aria-disabled");
+  const dd=$("flDiscard");
+  if(dirty&&!dd)h.insertAdjacentHTML("afterend",`<button type="button" class="ghost" id="flDiscard" data-fl>${T_FL_DISCARD}</button>`);
+  else if(!dirty&&dd)dd.remove();
 }
-/* 「复制上一组」随输入实时开关：最后一行重量或次数没填完整、或已有 20 组时真 disabled */
+/* 随输入实时更新：「复制上一组」最后一行重量或次数没填完整、或已有 20 组时真 disabled；「照上次填」有了任何输入就不要了 */
 const flCopyOff=x=>{const l=x.sets[x.sets.length-1];return !l||woBlank(l.w)||woBlank(l.r)||x.sets.length>=WO_MAX.sets};
 function flSyncCopy(){
   $("fl").querySelectorAll(".fl-ex").forEach(bx=>{
     const ex=fl.draft.lifts.find(x=>x.id===bx.dataset.lift),b=bx.querySelector('[data-flact="copyset"]');
-    if(ex&&b)b.disabled=flCopyOff(ex);
+    if(!ex)return;
+    if(b)b.disabled=flCopyOff(ex);
+    if(!ex.sets.every(flBlankSet)){const f=bx.querySelector('[data-flact="filllast"]');if(f)f.remove()}
   });
 }
 function flExHTML(x,i){
-  const L=plan.lifts.find(l=>l.id===x.id),n=L?L.n:T_FIT_GONE_L,u=L?L.unit:"kg",id=esc(x.id);
-  const rows=x.sets.map((z,j)=>`<li class="fl-set"><span class="fl-n" aria-hidden="true">${j+1}</span><label class="sr-only" for="fl-w-${id}-${j}">${esc(T_FL_LBL_W(n,j+1,u))}</label><input id="fl-w-${id}-${j}" type="number" inputmode="decimal" min="0" max="1000" step="any" data-fl data-flw="${i}:${j}" value="${esc(z.w)}" aria-describedby="fl-e-${id}-${j}"><span class="fl-x" aria-hidden="true">×</span><label class="sr-only" for="fl-r-${id}-${j}">${esc(T_FL_LBL_R(n,j+1))}</label><input id="fl-r-${id}-${j}" type="number" inputmode="numeric" min="1" max="999" step="1" data-fl data-flr="${i}:${j}" value="${esc(z.r)}" aria-describedby="fl-e-${id}-${j}"><p class="pe-err" id="fl-e-${id}-${j}" hidden></p></li>`).join("");
-  return `<fieldset class="fl-ex k-fit" data-lift="${id}"><legend><span class="fl-name">${esc(n)}</span>${L?`<span class="fl-tg">${esc(T_FL_TARGET(L.target,u))}</span>`:""}</legend><div class="fl-cols" aria-hidden="true"><span></span><span>${esc(T_FL_COL_W(u))}</span><span></span><span>${esc(T_FL_COL_R)}</span><span></span></div><ol class="fl-sets">${rows}</ol><p class="pe-err" id="fl-e-${id}" hidden></p><div class="fl-ex-act"><button type="button" class="ghost" data-fl data-flact="addset">${T_FL_ADD_SET}</button><button type="button" class="ghost" data-fl data-flact="copyset"${flCopyOff(x)?" disabled":""}>${T_FL_COPY}</button></div></fieldset>`;
+  const L=plan.lifts.find(l=>l.id===x.id),n=L?L.n:T_FIT_GONE_L,u=L?L.unit:"kg",id=esc(x.id),full=x.sets.length>=WO_MAX.sets;
+  const last=liftLast(state,x.id,fl.date);
+  const rows=x.sets.map((z,j)=>`<li class="fl-set"><span class="fl-n" aria-hidden="true">${j+1}</span><label class="sr-only" for="fl-w-${id}-${j}">${esc(T_FL_LBL_W(n,j+1,u))}</label><input id="fl-w-${id}-${j}" type="number" inputmode="decimal" min="0" max="1000" step="any" data-fl data-flw="${i}:${j}" value="${esc(z.w)}" aria-describedby="fl-e-${id}-${j}"><span class="fl-x" aria-hidden="true">×</span><label class="sr-only" for="fl-r-${id}-${j}">${esc(T_FL_LBL_R(n,j+1))}</label><input id="fl-r-${id}-${j}" type="number" inputmode="numeric" min="1" max="999" step="1" data-fl data-flr="${i}:${j}" value="${esc(z.r)}" aria-describedby="fl-e-${id}-${j}"><button type="button" class="ghost" data-fl data-flact="delset" data-fli="${i}" data-flj="${j}" aria-label="${esc(T_FL_DEL_SET_ARIA(n,j+1))}">${T_FL_DEL_SET}</button><p class="pe-err" id="fl-e-${id}-${j}" hidden></p></li>`).join("");
+  return `<fieldset class="fl-ex k-fit" data-lift="${id}"><legend><span class="fl-name">${esc(n)}</span>${L&&L.archived?`<span class="arch-mark">${T_ARCH_MARK}</span>`:""}${L?`<span class="fl-tg">${esc(T_FL_TARGET(L.target,u))}</span>`:""}</legend><p class="fl-last">${last?esc(flLastText(last)):T_FL_LAST_NONE}</p><div class="fl-cols" aria-hidden="true"><span></span><span>${esc(T_FL_COL_W(u))}</span><span></span><span>${esc(T_FL_COL_R)}</span><span></span></div><ol class="fl-sets">${rows}</ol><p class="pe-err" id="fl-e-${id}" hidden></p><div class="fl-ex-act"><button type="button" class="ghost" data-fl data-flact="addset" data-fli="${i}"${full?" disabled":""}>${T_FL_ADD_SET}</button>${full?`<span class="fl-cap">${T_FL_SET_LIMIT}</span>`:""}<button type="button" class="ghost" data-fl data-flact="copyset" data-fli="${i}"${flCopyOff(x)?" disabled":""}>${T_FL_COPY}</button>${last&&x.sets.every(flBlankSet)?`<button type="button" class="ghost" data-fl data-flact="filllast" data-fli="${i}">${T_FL_FILL_LAST}</button>`:""}<button type="button" class="ghost fl-rm" data-fl data-flact="rmex" data-fli="${i}">${T_FL_RM_LIFT}</button></div></fieldset>`;
 }
+function flCdHTML(x,k){
+  const C=planCardio(plan).find(c=>c.id===x.id),n=C?C.n:T_FIT_GONE_C,id=esc(x.id);
+  const tg=C&&C.target?T_FL_CTARGET(C.target.kind==="km"?T_FL_EVERY_KM(C.target.v):T_FL_EVERY_MIN(C.target.v)):"";
+  return `<fieldset class="fl-cd k-fit" data-cardio="${id}"><legend><span class="fl-name">${esc(n)}</span>${C&&C.archived?`<span class="arch-mark">${T_ARCH_MARK}</span>`:""}${tg?`<span class="fl-tg">${esc(tg)}</span>`:""}</legend><div class="fl-cd-f"><label class="f">${T_FL_LBL_MIN}<input id="fl-m-${id}" type="number" inputmode="numeric" min="1" max="1440" step="1" data-fl data-flm="${k}" value="${esc(x.m)}" aria-describedby="fl-ec-${id}"></label><label class="f">${T_FL_LBL_KM}<input id="fl-d-${id}" type="number" inputmode="decimal" min="0" max="1000" step="any" data-fl data-fld="${k}" value="${esc(x.d)}" aria-describedby="fl-ec-${id}"></label></div><p class="pe-err" id="fl-ec-${id}" hidden></p><div class="fl-ex-act"><button type="button" class="ghost fl-rm" data-fl data-flact="rmcd" data-fli="${k}">${T_FL_RM_CARDIO}</button></div></fieldset>`;
+}
+const flGoBtn=first=>CLOUD&&me?`<button type="button" class="ghost" data-fl data-flact="goplan"${first?' id="flGoPlan"':""}>${T_FL_GO_PLAN}</button>`:"";
 function renderFl(){
   if(!fl)flOpen(today());
-  const date=fl.date,dr=fl.draft,saved=!!woMap(state)[date],have=new Set(dr.lifts.map(x=>x.id));
-  const chips=plan.lifts.filter(L=>!L.archived&&!have.has(L.id)).map(L=>`<button type="button" class="ghost fl-chip" data-fl data-fl-add="lift:${esc(L.id)}" aria-label="${esc(T_FL_ADD_ARIA(L.n))}">＋ ${esc(L.n)}</button>`).join("");
-  $("fl").innerHTML=`<div class="fl-head"><h3 id="fl-title" tabindex="-1">${esc(date===today()?T_FL_TITLE_TODAY:T_FL_TITLE_DAY(md(date)))}</h3><label class="fl-date">${T_FL_DATE} <input type="date" id="fl-date" data-fl max="${esc(today())}" value="${esc(date)}"></label></div>
+  const date=fl.date,dr=fl.draft,saved=!!woMap(state)[date];
+  const title=`<h3 id="fl-title" tabindex="-1">${esc(date===today()?T_FL_TITLE_TODAY:T_FL_TITLE_DAY(md(date)))}</h3>`;
+  const aL=activeLifts(),aC=activeCardio();
+  /* 计划里没有未归档的力量项也没有有氧项，草稿也是空的：整个记录区只剩一行说明和入口，不渲染日期和保存栏 */
+  if(!aL.length&&!aC.length&&flEmpty()){$("fl").innerHTML=`<div class="fl-head">${title}</div><p class="empty">${T_FL_EMPTY_ALL}</p>${flGoBtn(true)}`;return}
+  let first=true;const go=()=>{const r=flGoBtn(first);if(r)first=false;return r};
+  const haveL=new Set(dr.lifts.map(x=>x.id)),haveC=new Set(dr.cardio.map(x=>x.id));
+  const chip=(kind,id,n)=>`<button type="button" class="ghost fl-chip" data-fl data-fl-add="${kind}:${esc(id)}" aria-label="${esc(T_FL_ADD_ARIA(n))}">＋ ${esc(n)}</button>`;
+  const lc=aL.filter(L=>!haveL.has(L.id)).map(L=>chip("lift",L.id,L.n)),cc=aC.filter(c=>!haveC.has(c.id)).map(c=>chip("cardio",c.id,c.n));
+  const pickL=lc.length?`<p class="fl-cap">${T_FL_CAP_LIFT}</p><div class="fl-pick">${lc.join("")}${go()}</div>`:`${aL.length?`<p class="fl-cap">${T_FL_LIFT_ALL_ADDED}</p>`:`<p class="empty">${T_FL_LIFT_NONE}</p>`}${go()}`;
+  const pickC=cc.length?`<p class="fl-cap">${T_FL_CAP_CARDIO}</p><div class="fl-pick">${cc.join("")}${go()}</div>`:`${aC.length?`<p class="fl-cap">${T_FL_CARDIO_ALL_ADDED}</p>`:`<p class="empty">${T_FL_CARDIO_NONE}</p>`}${go()}`;
+  $("fl").innerHTML=`<div class="fl-head">${title}<label class="fl-date">${T_FL_DATE} <input type="date" id="fl-date" data-fl max="${esc(today())}" value="${esc(date)}"></label></div>
     <p id="fl-state" role="status" class="fl-state"></p>
-    <fieldset class="fl-sec"><legend>${T_FL_SEC_LIFT}</legend>${dr.lifts.map(flExHTML).join("")}<p class="fl-cap">${T_FL_CAP_LIFT}</p><div class="fl-pick">${chips}</div></fieldset>
+    <fieldset class="fl-sec"><legend>${T_FL_SEC_LIFT}</legend>${dr.lifts.map(flExHTML).join("")}${pickL}</fieldset>
+    <fieldset class="fl-sec"><legend>${T_FL_SEC_CARDIO}</legend>${dr.cardio.map(flCdHTML).join("")}${pickC}</fieldset>
     <div class="fl-bar"><p id="fl-hint" role="status"></p>${saved?`<button type="button" class="danger" id="flDelete" data-fl>${T_FL_DELETE}</button>`:""}<button type="button" class="primary" id="fl-save" data-fl aria-describedby="fl-hint">${saved?T_FL_SAVE_EDIT:T_FL_SAVE}</button></div>`;
   $("fl-state").textContent=saved?T_FL_STATE_SAVED:"";
   flErrs();flHint();
@@ -2660,27 +2702,84 @@ function flDelete(){
   }},6000);
   $("fl-live").textContent=msg;
 }
+/* 草稿里的删除：删一组（该行有内容才弹撤销 toast）、移除一个动作或有氧项（块里有内容才弹）；撤销只改草稿，闭包里带日期，换了日期就什么都不做；撤销之后不再弹 toast，只写读屏播报 */
+function flDelSet(i,j){
+  const ex=fl.draft.lifts[i],z=ex&&ex.sets[j];if(!z)return;
+  const date=fl.date,id=ex.id,name=flLiftName(id),copy={w:z.w,r:z.r},had=!flBlankSet(z),msg=T_FL_SET_DELETED(j+1);
+  ex.sets.splice(j,1);renderFl();
+  const nx=$("fl-w-"+id+"-"+j)||$("fl-w-"+id+"-"+(j-1))||$("fl").querySelector('.fl-ex[data-lift="'+id+'"] [data-flact="addset"]');if(nx)nx.focus();
+  $("fl-live").textContent=T_FL_LIVE_SET_DELETED(name,j+1);
+  if(had)toast(msg,{label:T_FL_UNDO_DEL,fn:()=>{
+    const e=fl&&fl.date===date&&fl.draft.lifts.find(x=>x.id===id);if(!e||e.sets.length>=WO_MAX.sets)return;
+    e.sets.splice(Math.min(j,e.sets.length),0,copy);renderFl();
+    const w=$("fl-w-"+id+"-"+Math.min(j,e.sets.length-1));if(w)w.focus();
+    $("fl-live").textContent=T_FL_LIVE_UNDONE+msg;
+  }},5000);
+}
+function flRemove(kind,i){
+  const list=kind==="lift"?fl.draft.lifts:fl.draft.cardio,x=list[i];if(!x)return;
+  const date=fl.date,snap=JSON.parse(JSON.stringify(x)),name=kind==="lift"?flLiftName(x.id):flCardioName(x.id),msg=T_FL_REMOVED(flShort(name));
+  const had=kind==="lift"?x.sets.some(z=>!flBlankSet(z)):!(woBlank(x.m)&&woBlank(x.d));
+  list.splice(i,1);renderFl();
+  const nx=$("fl").querySelectorAll(kind==="lift"?".fl-ex":".fl-cd")[i],f=(nx&&nx.querySelector("input"))||$("fl").querySelector(kind==="lift"?'[data-fl-add^="lift:"]':'[data-fl-add^="cardio:"]');if(f)f.focus();
+  $("fl-live").textContent=msg;
+  if(had)toast(msg,{label:T_FL_UNDO_RM,fn:()=>{
+    if(!fl||fl.date!==date)return;
+    const l2=kind==="lift"?fl.draft.lifts:fl.draft.cardio;if(l2.some(y=>y.id===snap.id))return;
+    l2.splice(Math.min(i,l2.length),0,snap);renderFl();
+    $("fl-live").textContent=T_FL_LIVE_UNDONE+msg;
+  }},5000);
+}
 $("fl").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b||!fl||b.getAttribute("aria-disabled")==="true"||b.disabled)return;
+  const act=b.dataset.flact,i=+b.dataset.fli;
   if(b.dataset.flAdd){
-    const [kind,id]=b.dataset.flAdd.split(":"),L=plan.lifts.find(l=>l.id===id&&!l.archived);
-    if(kind!=="lift"||!L||!LIFT_ID_RE.test(id)||fl.draft.lifts.some(x=>x.id===id))return;
-    fl.draft.lifts.push({id,sets:[{w:"",r:""}]});renderFl();
-    const w=$("fl-w-"+id+"-0");if(w)w.focus();$("fl-live").textContent=T_FL_LIVE_ADDED(L.n);
-  }else if(b.dataset.flact==="addset"){
-    const bx=b.closest(".fl-ex"),ex=bx&&fl.draft.lifts.find(x=>x.id===bx.dataset.lift);if(!ex||ex.sets.length>=WO_MAX.sets)return;
+    const [kind,id]=b.dataset.flAdd.split(":");
+    if(kind==="lift"){
+      const L=activeLifts().find(l=>l.id===id);
+      if(!L||!LIFT_ID_RE.test(id)||fl.draft.lifts.some(x=>x.id===id))return;
+      fl.draft.lifts.push({id,sets:[{w:"",r:""}]});renderFl();
+      const w=$("fl-w-"+id+"-0");if(w)w.focus();$("fl-live").textContent=T_FL_LIVE_ADDED(L.n);
+    }else if(kind==="cardio"){
+      const C=activeCardio().find(c=>c.id===id);
+      if(!C||!CARDIO_ID_RE.test(id)||fl.draft.cardio.some(x=>x.id===id))return;
+      fl.draft.cardio.push({id,m:"",d:""});renderFl();
+      const m=$("fl-m-"+id);if(m)m.focus();$("fl-live").textContent=T_FL_LIVE_ADDED(C.n);
+    }
+  }else if(act==="addset"){
+    const ex=fl.draft.lifts[i];if(!ex||ex.sets.length>=WO_MAX.sets)return;
     ex.sets.push({w:"",r:""});renderFl();const w=$("fl-w-"+ex.id+"-"+(ex.sets.length-1));if(w)w.focus();
-  }else if(b.dataset.flact==="copyset"){
-    const bx=b.closest(".fl-ex"),ex=bx&&fl.draft.lifts.find(x=>x.id===bx.dataset.lift);if(!ex||flCopyOff(ex))return;
+  }else if(act==="copyset"){
+    const ex=fl.draft.lifts[i];if(!ex||flCopyOff(ex))return;
     const l=ex.sets[ex.sets.length-1];ex.sets.push({w:l.w,r:l.r});renderFl();
     const w=$("fl-w-"+ex.id+"-"+(ex.sets.length-1));if(w){w.focus();w.select()}
+  }else if(act==="filllast"){
+    const ex=fl.draft.lifts[i],last=ex&&liftLast(state,ex.id,fl.date);if(!ex||!last||!ex.sets.every(flBlankSet))return;
+    ex.sets=last.sets.slice(0,WO_MAX.sets).map(z=>({w:String(z.w),r:String(z.r)}));renderFl();
+    const w=$("fl-w-"+ex.id+"-0");if(w)w.focus();
+  }else if(act==="delset")flDelSet(i,+b.dataset.flj);
+  else if(act==="rmex")flRemove("lift",i);
+  else if(act==="rmcd")flRemove("cardio",i);
+  else if(act==="goplan")goPlan();
+  else if(b.id==="flDiscard"){
+    confirmBox({title:T_FL_CF_DISCARD_T,lines:[T_FL_CF_DISCARD_B],cancel:T_FL_KEEP,ok:T_FL_DISCARD_OK}).then(ok=>{
+      if(!ok||!fl)return;
+      flKeepClear();flOpen(fl.date);renderFit(true);
+      const dd=$("fl-date");if(dd)dd.focus({preventScroll:true});
+    });
   }else if(b.id==="flDelete")flDelete();
   else if(b.id==="fl-save")flSave();
 });
 $("fl").addEventListener("input",e=>{
-  const t=e.target,w=t.dataset&&t.dataset.flw,r=t.dataset&&t.dataset.flr;if(!fl||(w===undefined&&r===undefined))return;
-  const [i,j]=(w!==undefined?w:r).split(":").map(Number),ex=fl.draft.lifts[i];if(!ex||!ex.sets[j])return;
-  ex.sets[j][w!==undefined?"w":"r"]=t.value;flSyncCopy();flErrs();flHint();
+  const t=e.target,d=t.dataset||{};if(!fl)return;
+  if(d.flw!==undefined||d.flr!==undefined){
+    const [i,j]=(d.flw!==undefined?d.flw:d.flr).split(":").map(Number),ex=fl.draft.lifts[i];if(!ex||!ex.sets[j])return;
+    ex.sets[j][d.flw!==undefined?"w":"r"]=t.value;
+  }else if(d.flm!==undefined||d.fld!==undefined){
+    const c=fl.draft.cardio[+(d.flm!==undefined?d.flm:d.fld)];if(!c)return;
+    c[d.flm!==undefined?"m":"d"]=t.value;
+  }else return;
+  flSyncCopy();flErrs();flHint();
 });
 /* 鼠标或手指按住记录区里的按钮时，字段失焦不立刻显示错误：错误行一出现，按钮会被挤到下面，抬起时已经不在按钮上，这一下点击就丢了；抬起之后（点击处理完）再补显示 */
 let flPtr=false;
