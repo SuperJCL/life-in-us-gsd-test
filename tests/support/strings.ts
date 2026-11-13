@@ -704,3 +704,14 @@ export const pkDone = (g: number, l: number): string => `已加入 ${pkParts(g, 
 // Phase 14-02：卡片模式的断网、过期说明（应用里 T_PK_WHY_OFFLINE、T_PK_WHY_EXPIRED，逐字相同）。挑选对话框里的提示行复用上面的 PE_HINT_EXPIRED、PE_HINT_OFFLINE
 export const PK_WHY_OFFLINE = '联网后才能从示例里挑';
 export const PK_WHY_EXPIRED = '登录已过期，重新登录后才能从示例里挑';
+// Phase 14-02：挑选期间别的设备保存了计划时的三选一（挑选版措辞，应用里 T_PK_CF_L1–L4、T_PK_BACK、T_PK_TAKE、T_PK_TAKEN 逐字相同）。
+// 标题复用 PE_CONFLICT_TITLE，确认按钮复用 BTN_PE_OVERWRITE，覆盖留底后的 toast 复用 TOAST_PLAN_SAVED_KEPT
+export const PK_CF_LINES = [
+  '你挑选示例的这段时间里，别的设备保存了新的计划。',
+  '用我的覆盖：把你挑的项加进你看到的这份计划再保存；别的设备上的那一版会在本机留一份，可以下载。',
+  '放弃我的选择，用新版：不加你挑的项，改用别的设备上的新计划。',
+  '回去继续挑：回到挑选列表，什么都不变。',
+];
+export const BTN_PK_BACK = '回去继续挑';
+export const BTN_PK_TAKE = '放弃我的选择，用新版';
+export const PK_TAKEN = '已改用别的设备上的新计划，你挑的项没有加';

@@ -8,7 +8,9 @@ import { gotoCalendar } from '../support/calendar';
 import { gotoTimeline, readTimeline } from '../support/timeline';
 import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
+import type { Page } from '@playwright/test';
 import { expectToast } from '../support/toast';
+import { confirmMid, confirmOk, readConfirm } from '../support/confirm';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { openPicker, pick, readCardEntry, readPicker } from '../support/plan-picker';
 import { FROZEN_NOW } from '../support/constants';
@@ -17,7 +19,15 @@ import {
   BTN_PICK_SAMPLE,
   BTN_PK_OK_CARD,
   BTN_PLAN_BUILD,
+  BTN_DOWNLOAD_SNAPSHOT,
+  BTN_PE_OVERWRITE,
+  BTN_PK_BACK,
+  BTN_PK_TAKE,
+  PE_CONFLICT_TITLE,
   PE_HINT_OFFLINE,
+  PK_CF_LINES,
+  PK_TAKEN,
+  TOAST_PLAN_SAVED_KEPT,
   PK_HINT_NONE,
   PK_WHY_OFFLINE,
   PK_TITLE_CARD,
@@ -188,6 +198,32 @@ const LIST_PATH = '/api/collections/journey_docs/records';
 const ITEM_PATH = /\/api\/collections\/journey_docs\/records\/[^/]+$/;
 const planWritesOf = (app: { fake: any }) => (app.fake.writes as Array<{ path: string }>).filter((w) => w.path === 'journey_docs:plan').length;
 
+// 另一个写入方（另一台设备）保存了服务器上的计划：mutate 改一份深拷贝，返回写入的内容
+async function otherWriterSavesPlan(app: { fake: any }, mutate: (plan: any) => void) {
+  const data = app.fake.lastPlan(0);
+  mutate(data);
+  const res = await app.fake.request(0, 'PATCH', `${LIST_PATH}/${app.fake.docId(0, 'plan')}`, { data, writer: 'synth-other-writer' });
+  expect(res.status).toBe(200);
+  return data;
+}
+// 页面的计划缓存记录 { base, dirty, data, ... }；页面拿到新的计划版本时 base 变化（挑选对话框开着时新版本只挂起，不应用）
+const planCache = (page: Page, userId: string) =>
+  page.evaluate((k) => {
+    const raw = localStorage.getItem(k);
+    return raw ? JSON.parse(raw) : null;
+  }, `usj:v2:${userId}:plan`);
+async function waitPlanVersion(page: Page, userId: string, before: string) {
+  await expect
+    .poll(async () => (await planCache(page, userId))?.base ?? before, { message: '等待页面拿到新的计划版本' })
+    .not.toBe(before);
+}
+// 本机留底记录 { kind, data, told }
+const snapshotOf = (page: Page, userId: string) =>
+  page.evaluate((k) => {
+    const raw = localStorage.getItem(k);
+    return raw ? JSON.parse(raw) : null;
+  }, `usj:v2:${userId}:snapshot`);
+
 // 卡片模式套用编辑页保存的规则（D-07）：断网、过期、冲突、容量。时钟由用例控制，轮询用 runFor 推进
 test.describe('empty plan card entry with the clock under test control', () => {
   test.use({ clockMode: 'manual' });
@@ -280,4 +316,93 @@ test.describe('empty plan card entry with the clock under test control', () => {
     await expectToast(page, pkDone(1, 0));
     await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(1);
   });
+});
+
+test('PLAN-07 a plan saved on another device while picking asks on save, going back keeps the picks and overwriting keeps the other version here (D-07)', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('cf'), login: 0 });
+  const userId = app.fake.users[0].id;
+  await gotoGoals(page);
+  await openPicker(page);
+  const base0 = (await planCache(page, userId)).base as string;
+
+  // 挑选期间另一个写入方保存了计划（只改健身说明，计划仍是空的）；页面拿到新版本，但对话框开着，新版本挂起不应用
+  await otherWriterSavesPlan(app, (p) => {
+    p.fitNote = 'SYNTH-cf other note';
+  });
+  await waitPlanVersion(page, userId, base0);
+  await expect(page.locator('#goals .pe-empty')).toBeVisible();
+  const writesBefore = planWritesOf(app);
+
+  // 挑第 4 组，点确认：三选一（标题、四行正文、三个按钮的文字和顺序）；保存中确认 disabled 带 aria-busy，取消 disabled，对话框仍开着
+  await pick(page, 'g:P4');
+  await page.locator('#pkOk').click();
+  const cf = await readConfirm(page);
+  expect(cf.title).toBe(PE_CONFLICT_TITLE);
+  expect(cf.lines).toEqual(PK_CF_LINES);
+  expect(cf.buttons.map((b) => b.text)).toEqual([BTN_PK_BACK, BTN_PK_TAKE, BTN_PE_OVERWRITE]);
+  expect(cf.focused).toBe('cfCancel');
+  let pk = await readPicker(page);
+  expect([pk.open, pk.okBusy, pk.okDisabled, pk.cancelDisabled]).toEqual([true, true, true, true]);
+
+  // 回去继续挑（Esc 等同）：只关确认框，挑选对话框还在，勾选保留，确认恢复可点并获得焦点，什么都没写
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog#confirm')).toHaveJSProperty('open', false);
+  pk = await readPicker(page);
+  expect([pk.open, pk.checked, pk.okBusy, pk.okDisabled, pk.cancelDisabled, pk.focusKey]).toEqual([true, ['g:P4'], false, false, false, 'pkOk']);
+  expect(planWritesOf(app)).toBe(writesBefore);
+
+  // 再点确认：同一个三选一 → 用我的覆盖：对话框关闭，toast 说对方那一版已在本机留底并带「下载留底」，留底入口出现
+  await page.locator('#pkOk').click();
+  await readConfirm(page);
+  await confirmOk(page);
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, TOAST_PLAN_SAVED_KEPT);
+  await expect(page.locator('#toast button')).toHaveText(BTN_DOWNLOAD_SNAPSHOT);
+  await expect(page.locator('#snapshotBtn')).toBeVisible();
+
+  // 服务器计划：打开时看到的计划（空）加上挑的一组，新 id；健身说明是打开时看到的示例句，不是对方那句
+  await expect.poll(() => (app.fake.lastPlan(0)?.groups ?? []).length, { message: '等待计划上传' }).toBe(1);
+  const saved = app.fake.lastPlan(0);
+  expect(/^g-/.test(saved.groups[0].id) && saved.groups[0].tasks.length === BUILTIN_GROUP_SIZES.P4).toBe(true);
+  expect(saved.fitNote === SEED_PLAN.fitNote).toBe(true);
+  expect(saved.fitNote === 'SYNTH-cf other note').toBe(false);
+
+  // 本机留底是计划类型，里面是对方的版本
+  const kept = await snapshotOf(page, userId);
+  expect(kept?.kind).toBe('plan');
+  expect(kept?.data?.fitNote === 'SYNTH-cf other note').toBe(true);
+  expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+test("PLAN-07 taking the other device's new plan while picking adds nothing and shows that plan (D-07)", async ({ app, page }) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('cfo'), login: 0 });
+  const userId = app.fake.users[0].id;
+  await gotoGoals(page);
+  await openPicker(page);
+  const base0 = (await planCache(page, userId)).base as string;
+
+  // 挑选期间另一个写入方把计划换成带一个合成组 g-cfo1 的计划：目标页仍是空计划卡片（新版本挂起）
+  await otherWriterSavesPlan(app, (p) => {
+    Object.assign(p, syntheticPlan('cfo', 1));
+  });
+  await waitPlanVersion(page, userId, base0);
+  await expect(page.locator('#goals .pe-empty')).toBeVisible();
+  const writesBefore = planWritesOf(app);
+
+  // 挑第 1 组，点确认 → 放弃我的选择，用新版：对话框关闭，toast，目标页显示对方的计划，焦点在「编辑计划」，本页没有写计划
+  await pick(page, 'g:P1');
+  await page.locator('#pkOk').click();
+  await readConfirm(page);
+  await confirmMid(page);
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, PK_TAKEN);
+  expect(await readGroupIds(page)).toEqual(['g-cfo1']);
+  await expect(page.locator('#planEditBtn')).toBeFocused();
+  expect(planWritesOf(app)).toBe(writesBefore);
+  expect(app.fake.lastPlan(0).groups.map((g: { id: string }) => g.id)).toEqual(['g-cfo1']);
+  expect(await snapshotOf(page, userId)).toBeNull();
+  expect(app.fake.fulfillErrors).toEqual([]);
 });

@@ -3019,6 +3019,8 @@ async function savePlanDraft(){
 const T_PK_TITLE_CARD="从示例里挑",T_PK_DESC_CARD="示例是一份通用的样本计划。勾选要用的，点「添加并保存」就加进你的计划；没勾的不会加。",T_PK_SEC_GROUPS="目标组",T_PK_SEC_LIFTS="力量项",T_PK_COUNT=n=>"共 "+n+" 个",T_PK_TASKS=n=>n+" 项任务",T_PK_TARGET=(t,u)=>"目标 "+t+" "+u,T_PK_NONE="先勾选要加入的项",T_PK_OK_CARD="添加并保存",T_PK_CANCEL="先不添加";
 /* 14-02 D-07、12 D-11、D-12：断网或登录过期时空计划卡片上的「从示例里挑」变灰加说明（aria-disabled，不用 disabled，留在 Tab 顺序里），点它只弹同一句 toast */
 const T_PK_WHY_OFFLINE="联网后才能从示例里挑",T_PK_WHY_EXPIRED="登录已过期，重新登录后才能从示例里挑";
+/* 14-02 D-07、12 D-07：挑选期间别的设备保存了新的计划，点「添加并保存」时的三选一（挑选版措辞；标题复用 T_PE_CF_TITLE，确认按钮复用 T_PE_OVERWRITE） */
+const T_PK_CF_L1="你挑选示例的这段时间里，别的设备保存了新的计划。",T_PK_CF_L2="用我的覆盖：把你挑的项加进你看到的这份计划再保存；别的设备上的那一版会在本机留一份，可以下载。",T_PK_CF_L3="放弃我的选择，用新版：不加你挑的项，改用别的设备上的新计划。",T_PK_CF_L4="回去继续挑：回到挑选列表，什么都不变。",T_PK_BACK="回去继续挑",T_PK_TAKE="放弃我的选择，用新版",T_PK_TAKEN="已改用别的设备上的新计划，你挑的项没有加";
 function pkWhy(){
   const b=$("planSampleBtn"),w=$("planSampleWhy");
   if(!b||!w)return;
@@ -3075,23 +3077,41 @@ async function pkSave(){
   /* 12 D-11、D-12：过期或断网时不保存（和保存计划同一句） */
   const blk=peBlock();
   if(blk){toast(blk,null,3000);return}
+  const ep=sessionEpoch,live=()=>pk===s&&ep===sessionEpoch;
   pkBusy(true);
-  /* 并入挂起的远端版本；基准取并入之后最新的计划，只往末尾追加，别的设备的修改不会丢（冲突三选一由 14-02 插在这里） */
-  if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}
-  s.base=JSON.parse(JSON.stringify(plan));
+  const merge=()=>{if(takeRemote()){remoteView=false;hideBar("remote");renderKeep()}};
+  /* 并入挂起的远端版本（挑选期间远端更新一直挂着，isBusy 含 pkDlg.open） */
+  merge();
+  /* D-07、12 D-07：打开对话框之后别的设备改过了计划（内容和打开时看到的不同）→ 三选一。回去继续挑（取消、Esc、点遮罩）什么都不变，勾选保留；放弃我的选择，用新版：不加、不写，目标页显示别的设备的计划；用我的覆盖：以打开时看到的计划加上挑的项保存，被盖掉的那一版在写入之前由 planCommit 留底。每处 await 之后核对会话 */
+  let overwrite=false;
+  if(peCanon(plan)!==s.orig){
+    const r=await confirmBox({title:T_PE_CF_TITLE,lines:[T_PK_CF_L1,T_PK_CF_L2,T_PK_CF_L3,T_PK_CF_L4],cancel:T_PK_BACK,mid:{text:T_PK_TAKE,cls:"danger"},ok:T_PE_OVERWRITE,scope:"plan"});
+    if(!live())return;
+    if(r===false){pkBusy(false);const o=$("pkOk");if(o)o.focus();return}
+    merge();
+    if(r==="mid"){
+      renderAll();
+      s.focus=$("planEditBtn")||$("planEditBtn2")||$("goals");
+      pkDlg.close();
+      toast(T_PK_TAKEN,null,6000);
+      return;
+    }
+    overwrite=true;
+  }
+  /* 新项以打开对话框时看到的那份计划（s.base）为底往末尾追加；新 id 要避开两份计划里已有的 id */
   const {keys,g,l}=pkPicked();
-  const add=pickSample(keys,planUsedIds(s.base));
+  const add=pickSample(keys,new Set([...planUsedIds(s.base),...planUsedIds(plan)]));
   const draft=JSON.parse(JSON.stringify(s.base));
   add.groups.forEach(x=>draft.groups.push(x));add.lifts.forEach(x=>draft.lifts.push(x));
   const np=normalizePlan(draft);
   if(!np){pkBusy(false);return}
-  const r=planCommit(np,false);
+  const r=planCommit(np,overwrite);
   if(!r.ok){if(r.why==="toolarge")s.tooLarge=true;pkBusy(false);pkHint();return}
   if(s.tooLarge)peClearTooLarge();
   renderAll();
   s.focus=$("planEditBtn")||$("goals");
   pkDlg.close();
-  planSavedToast(r,false,T_PK_DONE(g,l),4000);
+  planSavedToast(r,overwrite,T_PK_DONE(g,l),4000);
 }
 $("pk-body").addEventListener("change",pkHint);
 $("pk-body").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches&&e.target.matches("input[data-pk]"))e.preventDefault()});
