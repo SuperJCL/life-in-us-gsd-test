@@ -8,6 +8,7 @@ import { gotoCalendar } from '../support/calendar';
 import { gotoTimeline, readTimeline } from '../support/timeline';
 import { loadAppPure } from '../support/app-source';
 import { gotoGoals, readGroupIds, readGroups } from '../support/goals';
+import { gotoFitness } from '../support/fitness';
 import type { Page } from '@playwright/test';
 import { expectToast } from '../support/toast';
 import { confirmMid, confirmOk, readConfirm } from '../support/confirm';
@@ -148,10 +149,11 @@ test('PLAN-07 a new account picks one sample group and one lift from the empty p
   expect(saved.presets).toEqual(EMPTY_PLAN.presets);
   expect(saved.fitGoal).toEqual([2, 4]);
 
-  // 目标页马上显示：留在目标页，1 个组（编号 P1）、1 张力量卡，焦点在「编辑计划」入口
+  // 目标页马上显示：留在目标页，1 个组（编号 P1），焦点在「编辑计划」入口；力量项显示在健身页：1 张力量目标卡
   expect((await readGroups(page)).map((x) => x.code)).toEqual(['P1']);
-  await expect(page.locator('#goals .lift')).toHaveCount(1);
   await expect(page.locator('#planEditBtn')).toBeFocused();
+  await gotoFitness(page);
+  await expect(page.locator('#tab-fit .fw-lift')).toHaveCount(1);
 
   // 保存成功后再从编辑页打开「从示例添加」：按钮状态是干净的（CR-01），勾一项后能添加到草稿
   await openEditor(page);
@@ -1006,9 +1008,10 @@ test('PLAN-07 a plan picked from the empty plan card on one device shows on anot
     await second.app.open({ mode: 'cloud', login: 0 });
     await gotoGoals(second.page);
     await expect.poll(() => readGroupIds(second.page), { message: '等待设备二显示计划' }).toEqual(first);
-    await expect(second.page.locator('#goals .lift')).toHaveCount(1);
     await expect(second.page.locator('#planEditBtn')).toHaveCount(1);
     await expect(second.page.locator('#goals .pe-empty')).toHaveCount(0);
+    await gotoFitness(second.page);
+    await expect(second.page.locator('#tab-fit .fw-lift')).toHaveCount(1);
   } finally {
     await second.context.close();
   }

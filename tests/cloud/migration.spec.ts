@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import { test, expect } from '../support/test';
 import { syntheticState } from '../support/cloud-data';
 import { confirmOk, readConfirm } from '../support/confirm';
-import { expectedCategory, expectedNormalize, expectedTimeline, liftHistoryText } from '../support/expect-from-fixture';
-import { gotoGoals, liftHistoryEquals, readGroups } from '../support/goals';
+import { expectedCategory, expectedNormalize, expectedTimeline } from '../support/expect-from-fixture';
+import { gotoGoals, readGroups } from '../support/goals';
+import { gotoFitness, readCharts, setRange } from '../support/fitness';
 import { chooseImportFile, textImportFile } from '../support/import-file';
 import { gotoTimeline, readTimeline } from '../support/timeline';
 import { expectToast } from '../support/toast';
@@ -106,7 +107,7 @@ test('IO-09 a synthetic legacy backup and seed plan composed by the migration sc
     expect(server.lifts).toEqual(legacy.lifts);
     expect(server.arrival).toBe(legacy.arrival);
 
-    // 页面：目标页的完成状态、力量卡的历史、时间线都对应到合成数据
+    // 页面：目标页的完成状态、健身页趋势图里的力量历史、时间线都对应到合成数据
     await gotoGoals(page);
     const groups = await readGroups(page);
     expect(groups.map((g) => g.code)).toEqual(expect.arrayContaining(['P1', 'P2']));
@@ -117,9 +118,16 @@ test('IO-09 a synthetic legacy backup and seed plan composed by the migration sc
     expect(g2.taskIds).toEqual(expect.arrayContaining(['P2-1', 'P2-2', ...customIds]));
     expect(g2.doneIds).toEqual(customIds.filter((id) => keptProgress[id]?.done));
     expect(g2.dueInputIds).toContain('P2-1');
-    const benchHist = liftHistoryText(legacy.lifts.bench.hist);
-    expect(benchHist).not.toBeNull();
-    expect(await liftHistoryEquals(page, 'bench', benchHist as string)).toBe(true);
+    // 健身页：以前手填的力量历史在趋势图「全部」范围里是空心点（旧备份没有训练），按日期升序，和合成旧备份的 bench 历史一致
+    await gotoFitness(page);
+    await setRange(page, 'all');
+    const benchHist = (legacy.lifts.bench.hist as Array<{ date: string; v: number }>)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+      .map((h) => [h.date, String(h.v), true]);
+    expect(benchHist.length, '合成旧备份的 bench 有历史').toBeGreaterThan(0);
+    const benchChart = (await readCharts(page)).find((c) => c.lift === 'bench');
+    expect(benchChart?.pts.map((p) => [p.date, p.v, p.old]), 'bench 趋势图的点都是以前手填的空心点').toEqual(benchHist);
 
     await gotoTimeline(page);
     expect(await readTimeline(page)).toEqual(expectedTimeline(server, FILTER_ALL));

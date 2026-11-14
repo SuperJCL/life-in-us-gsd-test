@@ -2,7 +2,8 @@
 // 失败消息只写 id、计数、布尔和界面文案，不回显计划文字；计划文字都带 `SYNTH-<label>`。
 import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
-import { gotoGoals, readGroups, readLifts } from '../support/goals';
+import { gotoGoals, readGroups } from '../support/goals';
+import { gotoFitness, readLiftGoals } from '../support/fitness';
 import { act, card, expand, field, openEditor, readEditor, savePlan } from '../support/plan-editor';
 import { expectToast } from '../support/toast';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
@@ -34,7 +35,7 @@ import {
   weekFitGoalLine,
 } from '../support/strings';
 
-test('PLAN-02 the weekly fitness goal, the fitness note and a new lift edited in the plan editor are saved and shown on the goals and week views (D-15)', async ({
+test('PLAN-02 the weekly fitness goal, the fitness note and a new lift edited in the plan editor are saved and shown on the fitness and week views (D-15)', async ({
   app,
   page,
 }) => {
@@ -101,10 +102,12 @@ test('PLAN-02 the weekly fitness goal, the fitness note and a new lift edited in
   // 原来的力量项不变
   expect(saved.lifts[0]).toEqual(plan.lifts[0]);
 
-  // 目标页：两张力量卡，新卡的输入框值是 2.5
-  await gotoGoals(page);
-  expect((await readLifts(page, ['l-pf1', newId])).count).toBe(2);
-  await expect(page.locator(`#lf-${newId}`)).toHaveValue('2.5');
+  // 健身页：两张力量目标卡，新卡的当前值是 2.5（没有训练，回落到起始值），健身说明显示新的说明
+  await gotoFitness(page);
+  const goals = await readLiftGoals(page, ['l-pf1', newId]);
+  expect(goals.map((c) => c.lift)).toEqual(['l-pf1', newId]);
+  expect(goals[1].value).toBe('2.5');
+  expect(await page.locator('#fw-note').evaluate((el, n) => el.textContent === n, newNote), '健身说明显示新的说明').toBe(true);
 
   // 本周页：健身目标行按新天数显示（合成记录是语言类，训练 0 天）
   await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
@@ -206,7 +209,8 @@ test('PLAN-02 a loaded plan whose values break the editor rules is shown as it i
   // 目标页照常显示这份计划（不是示例计划）
   await gotoGoals(page);
   expect((await readGroups(page)).map((g) => g.code)).toEqual(['P1']);
-  await expect(page.locator('#lf-l-pv1')).toHaveCount(1);
+  await gotoFitness(page);
+  await expect(page.locator('#tab-fit .fw-lift[data-lift="l-pv1"]')).toHaveCount(1);
 
   // 打开编辑页、不做任何操作：三处错误已标出，力量项卡已展开，提示行写数量
   await openEditor(page);

@@ -3,6 +3,7 @@
 import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { gotoGoals, readArchived, readGroupIds, readGroups } from '../support/goals';
+import { gotoFitness } from '../support/fitness';
 import { gotoCalendar, readMonth } from '../support/calendar';
 import { gotoTimeline } from '../support/timeline';
 import { act, discardPlan, expand, openEditor, readEditor, savePlan } from '../support/plan-editor';
@@ -350,7 +351,10 @@ test('PLAN-02 an emptied plan shows the empty plan card with its two entries and
   await savePlan(page);
   await expectToast(page, TOAST_PLAN_SAVED);
   await expect.poll(() => app.fake.lastPlan(0)?.lifts?.length, { message: '等待新计划上传' }).toBe(0);
-  await expect(page.locator('#goals .group.k-fit > p.empty')).toHaveText(GOALS_NO_LIFTS);
+  // 力量项的空状态在健身页（Phase 15）；目标页照常显示组
+  await gotoFitness(page);
+  await expect(page.locator('#fw > p.empty')).toHaveText(GOALS_NO_LIFTS);
+  await gotoGoals(page);
   expect(await readGroupIds(page)).toEqual(['g-em1']);
   await expect(page.locator('#planEditBtn')).toHaveCount(1);
 

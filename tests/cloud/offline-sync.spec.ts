@@ -622,11 +622,11 @@ test('SYNC-03 the pending count counts each changed item once', async ({ app, pa
   expect(touched).toHaveLength(8);
   expect(new Set(touched).size).toBe(8);
   const kinds = new Set(touched.map((k) => k.split(':')[0]));
-  expect([...kinds].sort()).toEqual(['arrival', 'custom', 'lift', 'log', 'preset', 'review', 'task']);
+  expect([...kinds].sort()).toEqual(['arrival', 'custom', 'log', 'preset', 'review', 'task', 'wo']);
   expect(touched).toContain(`log:${made.aId}`);
   expect(touched).toContain(`log:${made.bId}`);
   expect(touched).toContain(`task:${made.taskId}`);
-  expect(touched).toContain(`lift:${made.liftId}`);
+  expect(touched).toContain(`wo:${made.woDate}`);
   expect(touched).toContain(`review:${WEEK_START_FROZEN}`);
   expect(touched).toContain(`preset:${made.presetCat}|${made.presetText}`);
   expect(touched).toContain('arrival');
@@ -645,7 +645,7 @@ test('SYNC-03 the pending count counts each changed item once', async ({ app, pa
     logs: Array<{ id: string; text: string }>;
     reviews: Record<string, string>;
     tasks: Record<string, { done?: boolean }>;
-    lifts: Record<string, { cur: number }>;
+    workouts: Record<string, unknown>;
     custom: Array<{ id: string; group: string; text: string }>;
     presets: Record<string, { add?: string[] }>;
     arrival: string;
@@ -656,7 +656,7 @@ test('SYNC-03 the pending count counts each changed item once', async ({ app, pa
   expect(count(`SYNTH-1012 A`)).toBe(0);
   expect(server.reviews[WEEK_START_FROZEN]).toBe(made.reviewText);
   expect(server.tasks[made.taskId]?.done ?? false).toBe(false);
-  expect(server.lifts[made.liftId].cur).toBe(made.liftValue);
+  expect(server.workouts[made.woDate]).toEqual({ lifts: [{ id: made.woLiftId, sets: [made.woSet] }], cardio: [] });
   expect(server.custom.filter((c) => c.text === made.customText && c.group === made.customGroup)).toHaveLength(1);
   expect(server.presets[made.presetCat].add).toEqual([made.presetText]);
   expect(server.arrival).toBe(made.arrival);

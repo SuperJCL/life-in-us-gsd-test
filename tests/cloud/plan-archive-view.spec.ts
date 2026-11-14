@@ -5,6 +5,7 @@ import { test, expect } from '../support/test';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { downloadOf } from '../support/download';
 import { gotoGoals, readArchived, readGroups } from '../support/goals';
+import { gotoFitness } from '../support/fitness';
 import { gotoCalendar, readDayPanel, readMonth } from '../support/calendar';
 import { gotoTimeline } from '../support/timeline';
 import { FROZEN_TODAY } from '../support/constants';
@@ -146,9 +147,11 @@ test('PLAN-03 archived tasks and lifts are listed read-only in the archived area
   expect(langCount, '本周语言分类的计数').toBe(1);
 
   await gotoGoals(page);
-  // 力量目标卡：没有归档的力量项，未归档的照常在
-  await expect(page.locator('#lf-l-al2')).toHaveCount(0);
-  await expect(page.locator('#lf-l-al1')).toHaveCount(1);
+  // 力量目标卡在健身页：没有归档的力量项，未归档的照常在
+  await gotoFitness(page);
+  await expect(page.locator('#tab-fit .fw-lift[data-lift="l-al2"]')).toHaveCount(0);
+  await expect(page.locator('#tab-fit .fw-lift[data-lift="l-al1"]')).toHaveCount(1);
+  await gotoGoals(page);
   // 目标页第 1 组的完成数只数未归档的任务
   const groups = await readGroups(page);
   expect(groups[0].cnt).toBe('1/1');

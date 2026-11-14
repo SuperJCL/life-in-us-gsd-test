@@ -4,11 +4,12 @@
 //
 // 顺序固定：先写本周复盘并 runFor(800) 让复盘防抖提交；之后在时钟暂停时完成其余操作。
 // 这样调用方再 runFor(1_000) 时，复盘之后的全部操作进入同一次上传（10-07 依赖这一点）。
-// 键（D-07）：复盘 review:<周一>、记录 A 与记录 B 各一个 log:、任务 task:、力量项 lift:、自定义待办 custom:、预设标签 preset:、开始日期 arrival，共 8 个。
+// 键（D-07）：复盘 review:<周一>、记录 A 与记录 B 各一个 log:、任务 task:、训练 wo:<日期>（Phase 15：在健身页给第一个力量项记一组）、自定义待办 custom:、预设标签 preset:、开始日期 arrival，共 8 个。
 import { expect, type Page } from '@playwright/test';
 import { composer } from './composer';
 import { editor } from './editor';
 import { checkTask, gotoGoals } from './goals';
+import { flAddLift, flFillSet, flSave, gotoFitness } from './fitness';
 import { undo } from './toast';
 import { TAB_LABELS } from './strings';
 
@@ -25,9 +26,10 @@ export type EditsMade = {
   bId: string;
   // 先勾选再取消的任务 id
   taskId: string;
-  // 保存了新值的力量项 id 和新值
-  liftId: string;
-  liftValue: number;
+  // 在健身页保存的一次训练：日期（键 wo:<日期>）、力量项 id 和那一组
+  woDate: string;
+  woLiftId: string;
+  woSet: { w: number; r: number };
   // 新加的自定义待办文字和它所在的组 id
   customText: string;
   customGroup: string;
@@ -79,7 +81,7 @@ export async function makeOneEditOfEachKind(page: Page, label: string): Promise<
   await undo(page);
   await expect(page.locator(`#tab-wk [data-edit="${bId}"]`)).toHaveCount(1);
 
-  // 4. 目标页：第一个任务先勾选再取消；第一个力量项保存新值；第一个组里加一个自定义待办
+  // 4. 目标页：第一个任务先勾选再取消；健身页：第一个力量项记一组并保存；目标页：第一个组里加一个自定义待办
   await gotoGoals(page);
   const taskId = (await page.locator('#goals [data-task]').first().getAttribute('data-task')) as string;
   expect(taskId).toBeTruthy();
@@ -88,13 +90,16 @@ export async function makeOneEditOfEachKind(page: Page, label: string): Promise<
   await checkTask(page, taskId);
   await expect(page.locator(`#goals [data-task="${taskId}"]`)).not.toBeChecked();
 
-  const liftInput = page.locator('#goals input[data-lift]').first();
-  const liftId = (await liftInput.getAttribute('data-lift')) as string;
-  expect(liftId).toBeTruthy();
-  const liftValue = Number(await liftInput.inputValue()) + EDIT_LIFT_STEP;
-  await liftInput.fill(String(liftValue));
-  await liftInput.press('Enter');
-  await expect(page.locator(`#goals #lf-${liftId}`)).toHaveValue(String(liftValue));
+  await gotoFitness(page);
+  const woLiftId = ((await page.locator('#fl [data-fl-add^="lift:"]').first().getAttribute('data-fl-add')) as string).slice('lift:'.length);
+  expect(woLiftId).toBeTruthy();
+  const woDate = await page.locator('#fl-date').inputValue();
+  const woSet = { w: EDIT_LIFT_STEP, r: 5 };
+  await flAddLift(page, woLiftId);
+  await flFillSet(page, woLiftId, 0, String(woSet.w), String(woSet.r));
+  await flSave(page);
+  await expect(page.locator('#flDelete')).toBeVisible();
+  await gotoGoals(page);
 
   const addInput = page.locator('#goals [data-addto]').first();
   const customGroup = (await addInput.getAttribute('data-addto')) as string;
@@ -113,5 +118,5 @@ export async function makeOneEditOfEachKind(page: Page, label: string): Promise<
 
   await page.locator('#arrival').fill(EDIT_ARRIVAL);
 
-  return { reviewText, aText, aId, bText, bId, taskId, liftId, liftValue, customText, customGroup, presetText, presetCat, arrival: EDIT_ARRIVAL };
+  return { reviewText, aText, aId, bText, bId, taskId, woDate, woLiftId, woSet, customText, customGroup, presetText, presetCat, arrival: EDIT_ARRIVAL };
 }

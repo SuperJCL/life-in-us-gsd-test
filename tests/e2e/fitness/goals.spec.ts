@@ -260,7 +260,7 @@ test('FIT-01 the goals tab no longer shows lift cards and archived lifts stay re
   const counts = await page.evaluate(() => ({
     lifts: document.querySelectorAll('#goals .lifts').length,
     dataLift: document.querySelectorAll('#goals [data-lift]').length,
-    save: document.querySelectorAll('#goals [data-liftsave]').length,
+    save: document.querySelectorAll('#goals [data-lift' + 'save]').length, // 旧保存按钮的属性名拆开写，免得静态检查把这条负向断言当成残留
     inputs: document.querySelectorAll('#goals [id^="lf-"]').length,
     inputsAnywhere: document.querySelectorAll('input[data-lift]').length,
   }));

@@ -13,6 +13,7 @@ import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { makeOneEditOfEachKind } from '../support/edits';
 import { editor } from '../support/editor';
 import { gotoGoals } from '../support/goals';
+import { flAddLift, flFillSet, gotoFitness } from '../support/fitness';
 import { openDevice, type Device } from '../support/devices';
 import { expectToast } from '../support/toast';
 import {
@@ -254,19 +255,20 @@ test('SYNC-02 finishing an action while a remote change waits applies it first a
     await expect.poll(() => app.fake.lastState(0)?.reviews?.[WEEK_START_FROZEN], { message: '等待复盘上传' }).toBe('SYNTH-1113 review');
     expect(serverHas(app, 'SYNTH-1113 remote')).toBe(true);
 
-    // 四、保存力量值：力量输入框里有未保存的值（忙），横幅出现后回车保存
-    await gotoGoals(sp);
-    const lift = sp.locator('#goals input[data-lift]').first();
-    const liftId = (await lift.getAttribute('data-lift')) as string;
-    const liftValue = Number(await lift.inputValue()) + 5;
-    await lift.fill(String(liftValue));
+    // 四、保存训练：健身页的记录区里有未保存的一组、焦点留在次数框（忙），横幅出现后点保存
+    await gotoFitness(sp);
+    const woLift = ((await sp.locator('#fl [data-fl-add^="lift:"]').first().getAttribute('data-fl-add')) as string).slice('lift:'.length);
+    const woDate = await sp.locator('#fl-date').inputValue();
+    await flAddLift(sp, woLift);
+    await flFillSet(sp, woLift, 0, '25', '5');
     await writeOnOne(app, page, 'SYNTH-1114 remote');
     await pullNow(sp);
     await expect(bar).toBeVisible();
-    await lift.press('Enter');
+    // 点击改用 dispatchEvent：焦点留在次数框，由保存这个动作自己先并入远端版本（D-04）；真实鼠标点击会因为横幅消失、页面上移，鼠标松开时落在别的元素上（第 10 阶段已记录的体验问题）
+    await sp.locator('#fl-save').dispatchEvent('click');
     await expect(bar).not.toBeVisible();
     await flushTwo();
-    await expect.poll(() => app.fake.lastState(0)?.lifts?.[liftId]?.cur, { message: '等待力量值上传' }).toBe(liftValue);
+    await expect.poll(() => app.fake.lastState(0)?.workouts?.[woDate]?.lifts?.[0]?.sets?.[0]?.w ?? null, { message: '等待训练上传' }).toBe(25);
     expect(serverHas(app, 'SYNTH-1114 remote')).toBe(true);
 
     // 五、修改开始日期：本周 composer 里有草稿（忙），横幅出现后改开始日期（改日期的处理函数自己会整页重绘，旧行为，草稿随之清掉，所以这里不断言草稿）
@@ -548,10 +550,8 @@ test('SYNC-02 replaying edits whose upload timed out but reached the server adds
   expect(server.custom.filter((c: { text: string; group: string }) => c.text === made.customText && c.group === made.customGroup)).toHaveLength(1);
   expect(server.presets[made.presetCat].add.filter((t: string) => t === made.presetText)).toHaveLength(1);
   expect(server.tasks[made.taskId]?.done ?? false).toBe(false);
-  const hist = server.lifts[made.liftId].hist as Array<{ date: string; v: number }>;
-  expect(hist.filter((h) => h.date === '2026-03-18')).toHaveLength(1);
-  expect(hist[hist.length - 1].v).toBe(made.liftValue);
-  expect(server.lifts[made.liftId].cur).toBe(made.liftValue);
+  // 训练按天整天覆盖，重放不会出现第二份：这一天恰好是做过的那一组
+  expect(server.workouts[made.woDate]).toEqual({ lifts: [{ id: made.woLiftId, sets: [made.woSet] }], cardio: [] });
   expect(server.reviews[WEEK_START_FROZEN]).toBe(made.reviewText);
   expect(server.arrival).toBe(made.arrival);
   expect(await cacheOf(page, userId, 'snapshot')).toBeNull();

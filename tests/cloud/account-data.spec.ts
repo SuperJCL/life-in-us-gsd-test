@@ -5,7 +5,9 @@ import { test, expect } from '../support/test';
 import { composer } from '../support/composer';
 import { syntheticPlan, syntheticState } from '../support/cloud-data';
 import { openDevice } from '../support/devices';
-import { checkTask, gotoGoals, readGroupIds, readGroups, readLifts, readTaskRow } from '../support/goals';
+import { checkTask, gotoGoals, readGroupIds, readGroups, readTaskRow } from '../support/goals';
+import { flAddLift, flFillSet, flSave, gotoFitness, readLiftGoals } from '../support/fitness';
+import { readWeekWo } from '../support/fitness';
 import { gotoCalendar, readMonth } from '../support/calendar';
 import { gotoTimeline, readTimeline } from '../support/timeline';
 import { FROZEN_TODAY, WEEK_START_FROZEN } from '../support/constants';
@@ -34,8 +36,10 @@ test("PLAN-01 each account sees its own plan and records and none of the other a
   await expect(page.locator('#days [data-edit="synthetic-a"]')).toBeVisible();
   await gotoGoals(page);
   expect((await readGroupIds(page))).toEqual(['g-a1', 'g-a2']);
-  await expect(page.locator('#goals')).toContainText('SYNTH-a lift');
-  await expect(page.locator('#goals .group.k-fit .note')).toHaveText('SYNTH-a fit note');
+  // 力量项名称和健身说明在健身页（Phase 15）
+  await gotoFitness(page);
+  await expect(page.locator('#fw')).toContainText('SYNTH-a lift');
+  await expect(page.locator('#fw-note')).toHaveText('SYNTH-a fit note');
   const htmlA = await page.content();
   expect(htmlA).not.toContain('SYNTH-b');
   expect(htmlA).not.toContain('合成记录 b');
@@ -52,8 +56,9 @@ test("PLAN-01 each account sees its own plan and records and none of the other a
     await expect(pageB.locator('#days [data-edit="synthetic-b"]')).toBeVisible();
     await gotoGoals(pageB);
     expect((await readGroupIds(pageB))).toEqual(['g-b1', 'g-b2', 'g-b3']);
-    await expect(pageB.locator('#goals')).toContainText('SYNTH-b lift');
-    await expect(pageB.locator('#goals .group.k-fit .note')).toHaveText('SYNTH-b fit note');
+    await gotoFitness(pageB);
+    await expect(pageB.locator('#fw')).toContainText('SYNTH-b lift');
+    await expect(pageB.locator('#fw-note')).toHaveText('SYNTH-b fit note');
     const htmlB = await pageB.content();
     expect(htmlB).not.toContain('SYNTH-a');
     expect(htmlB).not.toContain('合成记录 a');
@@ -67,7 +72,7 @@ test("PLAN-01 each account sees its own plan and records and none of the other a
   expect(app.fake.fulfillErrors).toEqual([]);
 });
 
-test('SYNC-01 records, a review, a task tick and a lift value saved on one device show up in all four views on another device', async ({
+test('SYNC-01 records, a review, a task tick and a training saved on one device show up in all five views on another device', async ({
   app,
   page,
   browser,
@@ -84,8 +89,10 @@ test('SYNC-01 records, a review, a task tick and a lift value saved on one devic
     .toBe('SYNTH-0910 review');
   await gotoGoals(page);
   await checkTask(page, 't-a1x1');
-  await page.locator('#lf-l-a1').fill('15');
-  await page.locator('[data-liftsave="l-a1"]').click();
+  await gotoFitness(page);
+  await flAddLift(page, 'l-a1');
+  await flFillSet(page, 'l-a1', 0, '15', '5');
+  await flSave(page);
   await expect
     .poll(
       () => {
@@ -94,12 +101,12 @@ test('SYNC-01 records, a review, a task tick and a lift value saved on one devic
           log: (s?.logs ?? []).some((l: { text: string }) => l.text === 'SYNTH-0910 four views'),
           review: s?.reviews?.[WEEK_START_FROZEN] ?? null,
           done: s?.tasks?.['t-a1x1']?.done ?? false,
-          lift: s?.lifts?.['l-a1']?.cur ?? null,
+          wo: s?.workouts?.[FROZEN_TODAY]?.lifts?.[0]?.sets?.[0]?.w ?? null,
         };
       },
       { message: '等待四项修改都上传到 state 文档' },
     )
-    .toEqual({ log: true, review: 'SYNTH-0910 review', done: true, lift: 15 });
+    .toEqual({ log: true, review: 'SYNTH-0910 review', done: true, wo: 15 });
   const id = (app.fake.lastState(0).logs as Array<{ id: string; text: string }>).find((l) => l.text === 'SYNTH-0910 four views')!.id;
 
   const second = await openDevice({ browser, guard, fake: app.fake });
@@ -110,6 +117,7 @@ test('SYNC-01 records, a review, a task tick and a lift value saved on one devic
     // 本周
     await expect(p.locator(`#days [data-edit="${id}"]`)).toBeVisible();
     await expect(p.locator('#review')).toHaveValue('SYNTH-0910 review');
+    expect(await readWeekWo(p, FROZEN_TODAY), '本周页这一天有训练行').not.toBeNull();
 
     // 日历
     await gotoCalendar(p);
@@ -121,8 +129,10 @@ test('SYNC-01 records, a review, a task tick and a lift value saved on one devic
     await gotoGoals(p);
     expect((await readGroupIds(p))).toEqual(['g-a1', 'g-a2']);
     expect((await readTaskRow(p, 't-a1x1')).isdone).toBe(true);
-    const lifts = await readLifts(p, ['l-a1']);
-    expect(lifts.cards.find((c) => c.fixtureId === 'l-a1')?.value).toBe('15');
+
+    // 健身：l-a1 的当前值由这次训练算出
+    await gotoFitness(p);
+    expect((await readLiftGoals(p, ['l-a1'])).find((c) => c.lift === 'l-a1')?.value).toBe('15');
 
     // 时间线
     await gotoTimeline(p);
