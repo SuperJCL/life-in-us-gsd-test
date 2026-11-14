@@ -300,3 +300,70 @@ export async function hasWoDraft(page: Page): Promise<{ has: boolean; date: stri
     }
   });
 }
+
+// ---- Phase 15-04：本周训练和力量目标面板（#fw）的读回 ----
+
+export type LiftGoalRead = {
+  lift: string | null; // data-lift，只在属于 ids 时返回，否则 null
+  value: string | null; // .fw-lv 里单位之前的文字（当前值，原样）；只对 lift 不为 null 的卡返回
+  unit: string | null; // .fw-lv small 的文字（带前导空格），同上
+  target: string | null; // .fw-tg 的文字，同上
+  dataW: number | null; // 进度条 i 的 data-w（未取整的百分比）
+  width: string | null; // 进度条 i 的 style.width（CSSOM 赋值的结果，如 100%）
+  now: string | null; // 进度条的 aria-valuenow
+  captions: string[] | null; // 全部 .fw-cap 的文字（百分比行、最近一次训练或还没有训练记录、徒手行、备注），同上
+};
+
+// 一次 evaluate 读回健身页的力量目标卡（#tab-fit .fw-lift，按 DOM 顺序，每一张都在）。
+// lift 只在属于 ids 时返回，其余卡的 id、名称、备注都不带回 Node（隐私：只对示例和合成计划返回文字）。
+export async function readLiftGoals(page: Page, ids: readonly string[]): Promise<LiftGoalRead[]> {
+  return page.evaluate((idList) => {
+    return Array.from(document.querySelectorAll<HTMLElement>('#tab-fit .fw-lift')).map((card) => {
+      const id = card.dataset.lift ?? '';
+      const ok = idList.includes(id);
+      const bar = card.querySelector<HTMLElement>('.fw-bar i');
+      const small = card.querySelector('.fw-lv small');
+      return {
+        lift: ok ? id : null,
+        value: ok ? (card.querySelector('.fw-lv')?.firstChild?.textContent ?? '') : null,
+        unit: ok ? (small?.textContent ?? '') : null,
+        target: ok ? (card.querySelector('.fw-tg')?.textContent ?? '') : null,
+        dataW: bar ? parseFloat(bar.getAttribute('data-w') ?? 'NaN') : null,
+        width: bar ? bar.style.width : null,
+        now: card.querySelector('.fw-bar')?.getAttribute('aria-valuenow') ?? null,
+        captions: ok ? Array.from(card.querySelectorAll('.fw-cap')).map((x) => x.textContent ?? '') : null,
+      };
+    });
+  }, [...ids]);
+}
+
+export type FitWeekRead = {
+  n: string; // .fw-n
+  goal: string; // .fw-goal
+  ok: string | null; // .fw-ok 的文字，没有是 null
+  on: string[]; // 实心的日点，写成「周一」这样
+  today: string | null; // 今天的日点，写成「周三」
+  dots: number; // 日点总数
+  aria: string; // .fw-dots 的 aria-label
+  role: string | null; // .fw-dots 的 role
+};
+
+// 读健身页的本周训练块
+export async function readFitWeek(page: Page): Promise<FitWeekRead> {
+  return page.evaluate(() => {
+    const dots = Array.from(document.querySelectorAll<HTMLElement>('#fw .fw-d'));
+    const name = (d: HTMLElement) => '周' + (d.querySelector('span')?.textContent ?? '');
+    const dotsEl = document.querySelector('#fw .fw-dots');
+    const t = dots.find((d) => d.classList.contains('today'));
+    return {
+      n: document.querySelector('#fw .fw-n')?.textContent ?? '',
+      goal: document.querySelector('#fw .fw-goal')?.textContent ?? '',
+      ok: document.querySelector('#fw .fw-ok')?.textContent ?? null,
+      on: dots.filter((d) => d.classList.contains('on')).map(name),
+      today: t ? name(t) : null,
+      dots: dots.length,
+      aria: dotsEl?.getAttribute('aria-label') ?? '',
+      role: dotsEl?.getAttribute('role') ?? null,
+    };
+  });
+}

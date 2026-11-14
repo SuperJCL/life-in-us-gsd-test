@@ -873,3 +873,20 @@ export const FC_CD_EMPTY_RANGE = '这段时间没有有氧记录，可以选更�
 export const FC_CD_COLS = ['周（起始日）', '总时长（分钟）', '有氧天数'] as const;
 export const FC_CD_THIS = '本周';
 export const fcCardioAria = (r: string, n: number, m: number): string => `每周有氧总时长柱形图，${r}，共 ${n} 周，本周 ${m} 分钟`;
+
+// ---- Phase 15-04：本周训练和力量目标（应用里 T_FW_*，逐字相同，来源 15-UI-SPEC 的 Copywriting Contract）----
+// T_FW_TITLE：只给读屏用的面板标题，15-UI-SPEC 的 Copywriting Contract 里没有（计划正文定的）
+export const FW_TITLE = '本周训练和力量目标';
+export const FW_DAYS = '本周训练';
+export const FW_DAY_UNIT = '天';
+export const fwGoal = (a: number, b: number): string => `目标 ${a}～${b} 天`;
+export const FW_REACHED = '已达到目标';
+export const fwDaysAria = (d: number, ws: readonly string[]): string => `本周训练 ${d} 天：${ws.join('、')}`;
+export const FW_DAYS_NONE = '本周还没有训练';
+export const FW_LIFTS = '力量目标';
+export const fwTarget = (t: string, u: string): string => `目标 ${t} ${u}`;
+export const fwPct = (n: number): string => `${n}%`;
+export const fwLast = (d: string): string => `最近一次训练：${d}`;
+export const FW_NO_TRAINING = '还没有训练记录';
+export const fwBodyweight = (n: number): string => `徒手完成，最多 ${n} 次`;
+export const fwBarAria = (n: string): string => `${n}进度`;

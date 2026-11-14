@@ -192,6 +192,9 @@ test('FIT-03 charts are paged four at a time on a desktop and three at 375 px wi
   await expect(page.locator('#fcNext')).toHaveText(BTN_FC_NEXT);
 
   // 下一组：只剩第 5 个；到边缘时焦点移到上一组；读屏播报以「第 2 / 2 组：」开头
+  // 力量目标面板（#fw）在记录区和趋势图之间，翻页器可能在首屏之外：先把它滚进视野，再比较点击前后的滚动位置
+  await page.locator('#fcNext').scrollIntoViewIfNeeded();
+  const y0 = await page.evaluate(() => window.scrollY);
   await page.locator('#fcNext').click();
   pg = await readPager(page);
   expect(pg.lifts, 'second page').toEqual(['l-synth5']);
@@ -199,7 +202,7 @@ test('FIT-03 charts are paged four at a time on a desktop and three at 375 px wi
   expect(pg.nextDisabled && !pg.prevDisabled, 'next is disabled on the last page').toBe(true);
   expect(pg.focused, 'focus moved to the other button').toBe('fcPrev');
   expect(pg.live.startsWith(fcLivePage(2, 2, '')), 'live announcement').toBe(true);
-  expect(await page.evaluate(() => window.scrollY), 'paging does not scroll the page').toBe(0);
+  expect(await page.evaluate(() => window.scrollY), 'paging does not scroll the page').toBe(y0);
 
   // 窄屏 375：新页号 = floor(4 ÷ 3) = 1，第 2 / 2 组，每页 3 张，单列
   await page.setViewportSize({ width: 375, height: 800 });

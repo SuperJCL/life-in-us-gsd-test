@@ -660,6 +660,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
   <section id="tab-fit" class="hidden" aria-labelledby="fit-h2">
     <h2 id="fit-h2" class="sr-only">健身</h2>
     <section class="panel" id="fl" aria-labelledby="fl-title"></section>
+    <section class="panel" id="fw" aria-labelledby="fw-title"></section>
     <section class="panel" id="fc" aria-labelledby="fc-title"></section>
     <div id="fl-live" class="sr-only" aria-live="polite"></div>
     <div id="fc-live" class="sr-only" aria-live="polite"></div>
@@ -907,6 +908,28 @@ function liftLast(s,id,before){
     if(x&&Array.isArray(x.sets)&&x.sets.length)best={date:d,sets:x.sets};
   });
   return best;
+}
+/* D-07：[from,to]（含两端）里「记了训练的日子」与「有『健身』类文字记录的日子」的并集，同一天只算一次；本周页的健身卡和健身页的本周训练块共用这一个函数，只有一个口径 */
+function trainDays(s,from,to){
+  const out=new Set();
+  Object.keys(woMap(s)).forEach(d=>{if(d>=from&&d<=to)out.add(d)});
+  (s&&Array.isArray(s.logs)?s.logs:[]).forEach(l=>{if(l&&l.cat==="健身"&&l.date>=from&&l.date<=to)out.add(l.date)});
+  return out;
+}
+/* D-15：一个力量项的当前值完全由训练记录算：有这个动作（且有组）的最近一天里最重一组的重量；v 为 0 表示徒手（bw），reps 是那天最多的次数。没有训练时回落到以前手填的 s.lifts[id].cur（原样返回），再没有就是计划里的起始值 def；
+   日期取最大的那一天，不管它是不是今天之后（导入的数据）；只读，不写 s.lifts */
+function liftNow(s,L){
+  const m=woMap(s),fin=v=>typeof v==="number"&&isFinite(v);let best=null;
+  Object.keys(m).forEach(d=>{
+    if(best&&d<best.date)return;
+    const lf=isObj(m[d])&&Array.isArray(m[d].lifts)?m[d].lifts:[],x=lf.find(z=>isObj(z)&&z.id===L.id);
+    if(!x||!Array.isArray(x.sets))return;
+    const sets=x.sets.filter(z=>isObj(z)&&fin(z.w)&&fin(z.r));
+    if(sets.length)best={date:d,sets};
+  });
+  if(best){const v=Math.max(...best.sets.map(z=>z.w));return {v,date:best.date,bw:v===0,reps:Math.max(...best.sets.map(z=>z.r))}}
+  const h=s&&isObj(s.lifts)&&isObj(s.lifts[L.id])?s.lifts[L.id]:null;
+  return {v:h&&h.cur!==undefined?h.cur:L.def,date:null,bw:false,reps:0};
 }
 /* 趋势图（15-03）的取点和刻度，都是纯函数：只读参数、不碰 DOM。range 是 "1m"|"3m"|"6m"|"1y"|"all"，t 是今天（YYYY-MM-DD） */
 /* 时间范围起点：今天往前 1 / 3 / 6 / 12 个日历月的同一天（那个月没有这一天就取它的最后一天）；"all" 返回 null；不认识的值当 "1m" */
@@ -2475,9 +2498,9 @@ function renderWeek(){
   const logs=state.logs.filter(l=>l.date>=wk&&l.date<=end);
   const doneT=activeTasks().filter(t=>{const s=tstate(t.id);return s.done&&s.doneDate>=wk&&s.doneDate<=end});
   $("areas").innerHTML=CATS.map(C=>{
-    const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>(planCat[t.group]||"其他")===C.n).length;
+    const n=logs.filter(l=>l.cat===C.n).length+doneT.filter(t=>(planCat[t.group]||"其他")===C.n).length+(C.n==="健身"?Object.keys(woMap(state)).filter(x=>x>=wk&&x<=end).length:0);
     let goal="";
-    if(C.n==="健身"){const d=new Set(logs.filter(l=>l.cat==="健身").map(l=>l.date)).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${esc(plan.fitGoal[0])}～${esc(plan.fitGoal[1])} 天</div>`}
+    if(C.n==="健身"){const d=trainDays(state,wk,end).size;goal=`<div class="goal ${d>=plan.fitGoal[0]?"ok":""}">训练 ${d} 天，目标 ${esc(plan.fitGoal[0])}～${esc(plan.fitGoal[1])} 天</div>`}
     else{const d=new Set(logs.filter(l=>l.cat===C.n).map(l=>l.date)).size;goal=`<div class="goal">${d} 天有记录</div>`}
     return `<div class="area k-${C.k}"><div class="nm">${esc(C.n)}</div><div class="v">${n}<small>项</small></div>${goal}</div>`}).join("");
   const t=today();
@@ -2593,6 +2616,9 @@ function renderTimeline(){
 const T_FL_TITLE_TODAY="今天的训练",T_FL_TITLE_DAY=d=>d+"的训练",T_FL_DATE="日期",T_FL_SEC_LIFT="力量",T_FL_CAP_LIFT="点一下动作名，加进这次训练",T_FL_ADD_SET="＋ 添加一组",T_FL_SAVE="保存训练",T_FL_SAVE_EDIT="保存修改",T_FL_SAVED="训练已保存";
 const T_FL_TARGET=(t,u)=>"目标 "+t+" "+u,T_FL_COL_W=u=>"重量（"+u+"）",T_FL_COL_R="次数",T_FL_LBL_W=(n,i,u)=>n+"第 "+i+" 组重量（"+u+"）",T_FL_LBL_R=(n,i)=>n+"第 "+i+" 组次数",T_FL_ADD_ARIA=n=>"添加动作："+n,T_FL_LIVE_ADDED=n=>"已添加动作："+n;
 const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次训练："+s;
+/* 15-04：本周训练和力量目标面板（#fw）。T_FW_TITLE 只给读屏用（面板标题，sr-only） */
+const T_FW_TITLE="本周训练和力量目标",T_FW_DAYS="本周训练",T_FW_DAY_UNIT="天",T_FW_GOAL=(a,b)=>"目标 "+a+"～"+b+" 天",T_FW_REACHED="已达到目标",T_FW_DAYS_ARIA=(d,ws)=>"本周训练 "+d+" 天："+ws.join("、"),T_FW_DAYS_NONE="本周还没有训练";
+const T_FW_LIFTS="力量目标",T_FW_TARGET=(t,u)=>"目标 "+t+" "+u,T_FW_PCT=n=>n+"%",T_FW_LAST=d=>"最近一次训练："+d,T_FW_NO_TRAINING="还没有训练记录",T_FW_BW=n=>"徒手完成，最多 "+n+" 次",T_FW_BAR_ARIA=n=>n+"进度";
 /* fl 是记录区的一次会话 {date,draft,orig,seen,tried}：draft 是输入框里的字符串（形状同 woFromDraft 的参数），orig 是载入时 draft 的 JSON，用来判断有没有未保存的改动；seen 是失去过焦点的字段键，tried 是点过保存；点「保存训练」才写进 state.workouts */
 const T_FL_STATE_SAVED="这一天已经记过训练，改动保存后会更新。",T_FL_DELETE="删除这次训练",T_FL_DELETED=d=>"已删除 "+d+" 的训练",T_FL_UNDO_DEL="撤销删除",T_FL_LIVE_UNDONE="已撤销：",T_FL_COPY="复制上一组";
 const T_FL_HINT_DIRTY="有没保存的内容",T_FL_HINT_EMPTY="先添加动作或有氧项，再保存",T_FL_HINT_SAVED="已保存";
@@ -2756,12 +2782,34 @@ function renderFl(){
   $("fl-state").textContent=fl.restored?T_FL_STATE_RESTORED:saved?T_FL_STATE_SAVED:"";
   flErrs();flHint();if(flDirty())flKeep();
 }
+/* 本周训练和力量目标（S6、D-07、D-15）：只由 state 和计划算出，没有输入，所以不看草稿，每次都整块重画。本周永远是今天所在的周（不跟着本周页翻到的那一周走）；
+   天数用 trainDays，和本周页健身卡同一个函数；当前值用 liftNow；进度条宽度只写 data-w，由 fitBars 用 CSSOM 赋值 */
+function renderFw(){
+  const t=today(),w0=monday(t),days=[...Array(7)].map((_,i)=>addDays(w0,i)),set=trainDays(state,w0,days[6]),d=set.size;
+  const names=days.map((x,i)=>set.has(x)?"周"+"一二三四五六日"[i]:null).filter(Boolean);
+  const dots=days.map((x,i)=>`<li class="fw-d${set.has(x)?" on":""}${x===t?" today":""}"><i></i><span>${"一二三四五六日"[i]}</span></li>`).join("");
+  const goal=plan.fitGoal;
+  const lifts=activeLifts().map(L=>{
+    const v=liftNow(state,L),n=Number(v.v),cur=isFinite(n)?n:0,pct=Math.max(0,Math.min(100,(cur/L.target)*100)),done=pct>=100;
+    return `<div class="fw-lift k-fit" data-lift="${esc(L.id)}"><p class="fw-ln">${esc(L.n)}</p><p class="fw-lv">${esc(String(v.v))}<small> ${esc(L.unit)}</small></p><p class="fw-tg">${esc(T_FW_TARGET(L.target,L.unit))}</p>
+      <div class="fw-bar" role="progressbar" aria-label="${esc(T_FW_BAR_ARIA(L.n))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i data-w="${pct}"></i></div>
+      <p class="fw-cap">${esc(T_FW_PCT(Math.round(pct)))}${done?"　"+esc(T_FW_REACHED):""}</p>
+      <p class="fw-cap">${esc(v.date?T_FW_LAST(md(v.date)):T_FW_NO_TRAINING)}</p>${v.bw?`<p class="fw-cap">${esc(T_FW_BW(v.reps))}</p>`:""}${L.note?`<p class="fw-cap">${esc(L.note)}</p>`:""}</div>`}).join("");
+  $("fw").innerHTML=`<div class="fw-head"><h3 id="fw-title" class="sr-only">${T_FW_TITLE}</h3></div>
+    <div class="fw-days" role="group" aria-labelledby="fw-days-t"><h4 id="fw-days-t" class="fw-sub">${T_FW_DAYS}</h4>
+      <p class="fw-line"><span class="fw-n">${d}</span><span>${T_FW_DAY_UNIT}</span><span class="fw-goal">${esc(T_FW_GOAL(goal[0],goal[1]))}</span>${d>=goal[0]?`<span class="fw-ok">${T_FW_REACHED}</span>`:""}</p>
+      <ol class="fw-dots" role="img" aria-label="${esc(d?T_FW_DAYS_ARIA(d,names):T_FW_DAYS_NONE)}">${dots}</ol></div>
+    <h4 class="fw-sub">${T_FW_LIFTS}</h4>${lifts?`<div class="fw-lifts">${lifts}</div>`:`<p class="empty">${T_GOALS_NO_LIFTS}</p>`}`;
+  fitBars();
+}
+/* 进度条宽度：和 goalsBars 一样只用 CSSOM（style-src-attr 'none'），没有过渡 */
+function fitBars(){$("fw").querySelectorAll("i[data-w]").forEach(i=>{i.style.width=i.getAttribute("data-w")+"%"})}
 /* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
 function renderFit(force){
   const rs=flTryRestore();
   if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
   else{flRemoteCheck();flHint()}
-  renderFc();
+  renderFw();renderFc();
   applyGate();
 }
 /* 换一天：草稿有未保存内容先确认，拒绝时日期框恢复原值；切标签不确认，草稿留着 */
