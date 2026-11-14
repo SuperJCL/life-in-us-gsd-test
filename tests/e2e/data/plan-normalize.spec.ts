@@ -7,7 +7,7 @@ import { loadAppPure } from '../../support/app-source';
 import { CAT_LANGUAGE } from '../../support/strings';
 import { BUILTIN_GROUP_SIZES } from '../../support/task-ids';
 
-const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX', 'liftHistoryCount', 'emptyPlan', 'planUsedIds', 'planCardio'] as const;
+const NAMES = ['DEFAULT_PLAN', 'normalizePlan', 'usePlan', 'allTasks', 'normalize', 'importProblem', 'classifyBackup', 'GROUP_NONE', 'planProblems', 'PLAN_MAX', 'liftHistoryCount', 'emptyPlan', 'planUsedIds', 'planCardio', 'cardioHistoryCount', 'liftSetCount'] as const;
 const TOTAL_BUILTIN = Object.values(BUILTIN_GROUP_SIZES).reduce((a, b) => a + b, 0);
 const BUILTIN_IDS = Object.entries(BUILTIN_GROUP_SIZES).flatMap(([code, size]) =>
   Array.from({ length: size }, (_, i) => `${code}-${i + 1}`),
@@ -252,11 +252,11 @@ test('PLAN-02 planProblems reports empty names and texts of groups and tasks in 
   expect(problems(a), '归档的组和任务不应报问题').toEqual([]);
 
   // 各项上限
-  expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 8, cardio: 20, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
+  expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 20, cardio: 20, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
 });
 
 test('PLAN-02 planProblems checks lift values and weekly fitness days and ignores archived lifts (D-15, D-17)', async () => {
-  const { DEFAULT_PLAN, planProblems, liftHistoryCount } = loadAppPure(NAMES);
+  const { DEFAULT_PLAN, planProblems, liftHistoryCount, cardioHistoryCount, liftSetCount } = loadAppPure(NAMES);
   const base = (): any => JSON.parse(JSON.stringify(DEFAULT_PLAN));
   const problems = (p: unknown) => plain(planProblems(p));
   const lid = base().lifts[0].id;
@@ -327,6 +327,28 @@ test('PLAN-02 planProblems checks lift values and weekly fitness days and ignore
   expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5 } } }, 'l-x')).toBe(0);
   expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5, hist: [{}, {}, {}] } } }, 'l-x')).toBe(3);
   expect(liftHistoryCount({}, 'l-x')).toBe(0);
+
+  // D-04（15）：第 20 个力量项合规，第 21 个未归档的报 llimit（标在第 21 个上）；其中一个归档就不报
+  const many = base();
+  many.lifts = Array.from({ length: 21 }, (_, i) => ({ id: `l-m${i + 1}`, n: `SYNTH-${i + 1}`, unit: 'kg', def: 0, target: 10, note: '' }));
+  expect(problems(many), '21 个未归档').toEqual([{ key: 'l:l-m21:n', code: 'llimit' }]);
+  many.lifts[5].archived = true;
+  expect(problems(many), '其中一个归档').toEqual([]);
+
+  // 12 D-01、A9（15-06）：训练记录也算历史。2 个手填点加 3 天含这个动作的训练是 5；只有一个空 sets 的天、别的动作的天不算
+  const wo = {
+    '2026-03-01': { lifts: [{ id: 'l-x', sets: [{ w: 20, r: 8 }, { w: 20, r: 6 }] }], cardio: [] },
+    '2026-03-02': { lifts: [{ id: 'l-y', sets: [{ w: 5, r: 5 }] }, { id: 'l-x', sets: [{ w: 22, r: 5 }] }], cardio: [{ id: 'r-a', m: 20 }] },
+    '2026-03-03': { lifts: [{ id: 'l-x', sets: [{ w: 25, r: 3 }] }], cardio: [{ id: 'r-a', m: 30, d: 4 }, { id: 'r-b', m: 10 }] },
+    '2026-03-04': { lifts: [{ id: 'l-x', sets: [] }], cardio: [] },
+  };
+  const s = { lifts: { 'l-x': { cur: 25, hist: [{ date: '2026-02-01', v: 20 }, { date: '2026-02-08', v: 22 }] } }, workouts: wo };
+  expect(liftHistoryCount(s, 'l-x'), '2 个手填点加 3 天训练').toBe(5);
+  expect(liftHistoryCount({ workouts: wo }, 'l-x'), '只有训练').toBe(3);
+  expect(liftHistoryCount(s, 'l-y'), '另一个动作只有 1 天训练').toBe(1);
+  expect(liftSetCount(s, 'l-x'), '组数之和').toBe(4);
+  expect([liftSetCount(s, 'l-y'), liftSetCount(s, 'l-none'), liftSetCount({}, 'l-x')]).toEqual([1, 0, 0]);
+  expect([cardioHistoryCount(s, 'r-a'), cardioHistoryCount(s, 'r-b'), cardioHistoryCount(s, 'r-none'), cardioHistoryCount({}, 'r-a')]).toEqual([2, 1, 0, 0]);
 });
 
 // D-02、D-04（Phase 15-06）：有氧项的校验。期望值在这里独立写出

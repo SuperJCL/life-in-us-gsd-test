@@ -30,6 +30,7 @@ import {
   TAB_LABELS,
   TOAST_PLAN_SAVED,
   peBadCount,
+  peCount,
   peHintErrors,
   pePresetCount,
   weekFitGoalLine,
@@ -128,20 +129,20 @@ function planWithLifts(label: string, n: number): any {
   return plan;
 }
 
-test('PLAN-02 lift and weekly fitness values outside the rules block saving with the error next to the field, and the add button stops at 8 lifts (D-15, D-17)', async ({
+test('PLAN-02 lift and weekly fitness values outside the rules block saving with the error next to the field, and the add button stops at 20 lifts (D-15, D-17, 15 D-04)', async ({
   app,
   page,
 }) => {
-  const plan = planWithLifts('pl', 8);
+  const plan = planWithLifts('pl', 20);
   await app.open({ mode: 'cloud', seed: syntheticState('pl'), plan, login: 0 });
   await openEditor(page);
 
-  // 上限：8 个力量项时添加按钮 disabled，旁边写「最多 8 个」，分区计数 8/8
+  // 上限（15 D-04 起是 20）：20 个力量项时添加按钮 disabled，旁边写「最多 20 个」，分区计数 20/20
   let ed = await readEditor(page);
-  expect(ed.lifts.length).toBe(8);
+  expect(ed.lifts.length).toBe(20);
   await expect(act(page, 'addlift')).toBeDisabled();
   await expect(page.locator('#pe-main .pe-lim')).toHaveText(PE_LIMIT_LIFTS);
-  await expect(page.locator('#pe-main #pe-h-fit ~ h4.pe-sub .pe-count').first()).toHaveText('8/8');
+  await expect(page.locator('#pe-main #pe-h-fit ~ h4.pe-sub .pe-count').first()).toHaveText(peCount(20, 20));
 
   // 输入限制：名称 40、单位 8、备注 200（超出被截断）
   await expand(page, 'l:l-pl1');

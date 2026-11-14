@@ -570,10 +570,10 @@ export const PE_ERR_LIFT_TARGET = '目标值要大于 0';
 export const PE_ERR_LIFT_DEF = '起始值不能小于 0';
 export const PE_ERR_FIT_INT = '请填 0 到 7 之间的整数';
 export const PE_ERR_FIT_ORDER = '最少天数不能大于最多天数';
-export const PE_LIMIT_LIFTS = '最多 8 个';
+export const PE_LIMIT_LIFTS = '最多 20 个';
 export const PE_DEL_LIFT = '删除这个力量项';
 export const PE_ARCH_LIFT_TITLE = '归档这个力量项？';
-export const PE_ARCH_LIFT_BODY = '归档后目标页只读显示它的历史，不能再记录新的重量。';
+export const PE_ARCH_LIFT_BODY = '归档后它不再出现在健身页的记录和趋势图里，只在目标页底部的「已归档」里保留历史；训练历史里的旧记录照常保留。';
 export const BTN_PE_ARCH_LIFT = '归档力量项';
 
 // Phase 12-05 Task 3：基础预设标签分区和标签的校验错误（应用里 T_PE_PRESETS_TITLE、T_PE_PRESETS_NOTE、T_PE_PRESETS_EMPTY、T_PE_ADD_TAG、T_PE_LIM_TAGS、T_PE_TAG_COUNT、PE_ERR 的 tag 与 tagdup，逐字相同）
@@ -589,7 +589,7 @@ export const PE_LIMIT_TAGS = '最多 20 个';
 // Phase 12 审查修复 WR-02：保存关口的数量和长度上限错误（应用里 PE_ERR 的 glimit、tlimit、llimit、taglimit、nlong、tlong、ulong、taglong，逐字相同）
 export const PE_ERR_GROUP_LIMIT = '目标组最多 20 个，请先删掉或归档多余的';
 export const PE_ERR_TASK_LIMIT = '每组最多 50 项任务，请先删掉或归档多余的';
-export const PE_ERR_LIFT_LIMIT = '力量项最多 8 个，请先删掉或归档多余的';
+export const PE_ERR_LIFT_LIMIT = '力量项最多 20 个，请先删掉或归档多余的';
 export const PE_ERR_TAG_LIMIT = '每个分类最多 20 个标签，请先删掉多余的';
 export const PE_ERR_NAME_LONG = '名称最多 40 个字';
 export const PE_ERR_TASK_LONG = '任务内容最多 200 个字';
@@ -624,7 +624,7 @@ export const PE_PURGE_LIFT_TITLE = '彻底删除这个力量项？';
 export const BTN_PURGE_LIFT = '彻底删除力量项';
 export const PE_RESTORE_LIMIT_GROUPS = '目标组已满（20 个），先删掉一个再恢复';
 export const PE_RESTORE_LIMIT_TASKS = '任务已满（50 项），先删掉一个再恢复';
-export const PE_RESTORE_LIMIT_LIFTS = '力量项已满（8 个），先删掉一个再恢复';
+export const PE_RESTORE_LIMIT_LIFTS = '力量项已满（20 个），先删掉一个再恢复';
 
 // Phase 12-06 Task 3（Phase 14 起 PE_EMPTY_BODY 和 WEEK_EMPTY_PLAN 是新值）：空计划（应用里 T_PE_EMPTY_TITLE、T_PE_EMPTY_BODY、T_PE_SAMPLE_BTN、T_GOALS_NO_LIFTS、T_GOALS_NO_GROUPS、T_PE_GROUPS_EMPTY 和 #wkEmpty 的静态文字，逐字相同）
 export const PE_EMPTY_TITLE = '计划是空的';
@@ -733,8 +733,8 @@ export const PK_DUP_G = '计划里已有同名组';
 export const PK_DUP_L = '计划里已有同名力量项';
 export const pkLimG = (k: number): string => `目标组最多 20 个，还能再加 ${k} 个`;
 export const PK_FULL_G = '目标组已满（20 个），先删掉一个再添加';
-export const pkLimL = (k: number): string => `力量项最多 8 个，还能再加 ${k} 个`;
-export const PK_FULL_L = '力量项已满（8 个），先删掉一个再添加';
+export const pkLimL = (k: number): string => `力量项最多 20 个，还能再加 ${k} 个`;
+export const PK_FULL_L = '力量项已满（20 个），先删掉一个再添加';
 
 // ---- Phase 15-01：健身页（逐字镜像应用里的常量，来源 15-UI-SPEC 的 Copywriting Contract；每条注释写明应用里的常量名）----
 // T_FL_TITLE_TODAY
@@ -949,3 +949,33 @@ export const PE_ERR_CARDIO_TARGET = '目标要大于 0';
 export const peErrCardioLimit = (n: number): string => `有氧项最多 ${n} 个，请先删掉或归档多余的`;
 // 分区小标题旁的计数「{n}/{max}」
 export const peCount = (n: number, max: number): string => `${n}/${max}`;
+
+// ---- Phase 15-06：有氧项的删除、归档、恢复、彻底删除，力量项的训练历史文案（应用里 T_PE_ARCH_CD_*、T_PE_PG_CD_*、T_PE_PG_LIFT_SETS、T_PE_RECHECK_CD、T_PE_AR_LIM 拼出的整句，逐字相同；
+// peArchLiftCount、peArchCardioCount 等整句函数在这里独立写出）----
+// 力量项归档确认的第一段（应用里在 PE_ARCH_LIFT_BODY 之前拼出，n = 手填历史点数 + 训练天数）
+export const peArchLiftCount = (name: string, n: number): string => `「${name}」有 ${n} 条力量记录。`;
+// T_PE_PG_LIFT_SETS（彻底删除力量项，训练历史里它有组时的第一段）
+export const pePurgeLiftSets = (name: string, n: number, m: number): string => `「${name}」的 ${n} 条力量记录，和训练历史里它的 ${m} 组会一起删除。`;
+// 没有训练组时彻底删除力量项的第一段（沿用原句）
+export const pePurgeLiftRecords = (name: string, n: number): string => `「${name}」的 ${n} 条力量记录会一起删除。`;
+// T_PE_ARCH_CD_TITLE、T_PE_ARCH_CD_COUNT、T_PE_ARCH_CD_BODY、T_PE_ARCH_CD_YES
+export const PE_ARCH_CARDIO_TITLE = '归档这个有氧项？';
+export const peArchCardioCount = (name: string, n: number): string => `「${name}」有 ${n} 次有氧记录。`;
+export const PE_ARCH_CARDIO_BODY = '归档后不能再用它记录训练，训练历史里的旧记录照常保留。';
+export const BTN_PE_ARCH_CARDIO = '归档有氧项';
+// T_PE_ARCH_CD_RECS（「已归档」区每行的说明）
+export const peArchCardioRecs = (n: number): string => `${n} 次有氧记录`;
+// T_PE_PG_CD_TITLE、T_PE_PG_CD_BODY、T_PE_PG_CD_YES
+export const PE_PURGE_CARDIO_TITLE = '彻底删除这个有氧项？';
+export const pePurgeCardio = (name: string, n: number): string => `「${name}」的 ${n} 次有氧记录会一起删除。`;
+export const BTN_PURGE_CARDIO = '彻底删除有氧项';
+// T_PE_RECHECK_CD（保存前复查框里的一行）
+export const peRecheckCardio = (name: string, n: number): string => `有氧项「${name}」（${n} 次记录）`;
+// T_PE_AR_LIM("有氧项", 20, "个")
+export const PE_RESTORE_LIMIT_CARDIO = '有氧项已满（20 个），先删掉一个再恢复';
+// 「已归档」区里有氧项那一组的小标题复用 PE_CD_TITLE
+// 直接移除的 toast「已从草稿移除：{短名}」（应用里 T_PE_REMOVED + peShort：名称超过 10 个字时取前 10 个字加省略号）
+export const peRemoved = (name: string): string => {
+  const a = Array.from(name);
+  return TOAST_PE_REMOVED_PREFIX + (a.length > 10 ? `${a.slice(0, 10).join('')}…` : a.join(''));
+};

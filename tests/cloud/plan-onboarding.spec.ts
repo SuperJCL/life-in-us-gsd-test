@@ -730,11 +730,11 @@ test('PLAN-07 the picker stops at the group and lift limits and says how many mo
   app,
   page,
 }) => {
-  // 18 个未归档组加 1 个归档组、7 个未归档力量项加 1 个归档力量项：还能加 2 个组、1 个力量项
+  // 18 个未归档组加 1 个归档组、19 个未归档力量项加 1 个归档力量项（15 D-04 起上限是 20）：还能加 2 个组、1 个力量项
   const plan: any = syntheticPlan('lm', 18);
   plan.groups.push({ id: 'g-lm19', cat: '其他', name: 'SYNTH-lm archived group', archived: true, tasks: [{ id: 't-lm19x1', text: 'SYNTH-lm task 19.1' }] });
-  for (let i = 2; i <= 8; i++) {
-    plan.lifts.push({ id: `l-lm${i}`, n: `SYNTH-lm lift ${i}`, unit: 'kg', def: 10, target: 20, note: '', ...(i === 8 ? { archived: true } : {}) });
+  for (let i = 2; i <= 20; i++) {
+    plan.lifts.push({ id: `l-lm${i}`, n: `SYNTH-lm lift ${i}`, unit: 'kg', def: 10, target: 20, note: '', ...(i === 20 ? { archived: true } : {}) });
   }
   await app.open({ mode: 'cloud', seed: syntheticState('lm'), plan, login: 0 });
   await openEditor(page);

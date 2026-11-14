@@ -69,7 +69,7 @@ export type EditorRead = {
   errors: Array<{ key: string; text: string }>;
   addGroupDisabled: boolean;
   // 底部「已归档」区（12-06）：是否渲染、是否展开、摘要文字（界面文案加数字）、三类归档项的键（g:、t:、l: 加 id，不含计划文字）
-  archived: { present: boolean; open: boolean; summary: string; groups: string[]; tasks: string[]; lifts: string[] };
+  archived: { present: boolean; open: boolean; summary: string; groups: string[]; tasks: string[]; lifts: string[]; cardio: string[] };
   // 被禁用的「恢复」按钮的键（超出数量上限时）
   restoreDisabled: string[];
 };
@@ -135,6 +135,7 @@ export async function readEditor(page: Page): Promise<EditorRead> {
           groups: rows('g:'),
           tasks: rows('t:'),
           lifts: rows('l:'),
+          cardio: rows('r:'),
         };
       })(document.querySelector<HTMLDetailsElement>('#pe-archived')),
       restoreDisabled: Array.from(document.querySelectorAll<HTMLButtonElement>('#pe-archived [data-peact="restore"]'))

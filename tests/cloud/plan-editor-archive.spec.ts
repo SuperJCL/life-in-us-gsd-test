@@ -77,6 +77,7 @@ test("PLAN-03 an archived task is restored from the editor's archived area to th
     groups: [],
     tasks: ['t:t-rs1x1'],
     lifts: [],
+    cardio: [],
   });
   expect(ed.restoreDisabled).toEqual([]);
   expect(ed.groups[0].taskKeys).toEqual(['t:t-rs1x2']);
@@ -247,7 +248,7 @@ test('PLAN-03 an archived group carries its custom to-dos, a task archived on it
   page,
 }) => {
   // 19 个未归档的组；g-gaz 归档，里面 t-gazx1 单独归档、t-gazx2 已完成，自定义待办 c-ga-1 已完成；g-gby 归档
-  // 第 1 组有 50 项未归档任务加 1 个归档任务 t-ga1z；力量项 8 个未归档加 1 个归档的 l-gaz
+  // 第 1 组有 50 项未归档任务加 1 个归档任务 t-ga1z；力量项 20 个未归档加 1 个归档的 l-gaz（15 D-04 起上限是 20）
   const plan: any = syntheticPlan('ga', 19);
   plan.groups[0].tasks.push(...Array.from({ length: 48 }, (_, i) => ({ id: `t-ga1y${i + 3}`, text: `SYNTH-ga task y${i + 3}` })));
   plan.groups[0].tasks.push({ id: 't-ga1z', text: 'SYNTH-ga task z', archived: true });
@@ -262,7 +263,7 @@ test('PLAN-03 an archived group carries its custom to-dos, a task archived on it
     ],
   });
   plan.groups.push({ id: 'g-gby', cat: '其他', name: 'SYNTH-ga group by', archived: true, tasks: [{ id: 't-gbyx1', text: 'SYNTH-ga task by' }] });
-  for (let i = 2; i <= 8; i++) plan.lifts.push({ id: `l-ga${i}`, n: `SYNTH-ga lift ${i}`, unit: 'kg', def: 10, target: 20, note: '' });
+  for (let i = 2; i <= 20; i++) plan.lifts.push({ id: `l-ga${i}`, n: `SYNTH-ga lift ${i}`, unit: 'kg', def: 10, target: 20, note: '' });
   plan.lifts.push({ id: 'l-gaz', n: 'SYNTH-ga lift z', unit: 'kg', def: 10, target: 20, note: '', archived: true });
   const done = { done: true, doneDate: '2026-03-10' };
   const seed = syntheticState('ga', {
