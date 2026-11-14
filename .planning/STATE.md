@@ -4,17 +4,17 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
-status: executing
-stopped_at: Completed 15-06-PLAN.md
-last_updated: "2026-11-14T07:14:12.545Z"
+status: verifying
+stopped_at: Completed 15-07-PLAN.md
+last_updated: "2026-11-14T08:00:29.317Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: 0ca066447372553f9c492ee46a03f48ecdf624f9
+state_head: 52c217ce95e987dd1fd38ce66b0b0a57ca82dab5
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 87
+  completed_plans: 88
   percent: 73
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 
 Phase: 15 (健身页（Fitness Tab）) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-13 — Phase 15 execution started
 
 Progress: [███████░░░] 73%
@@ -178,6 +178,7 @@ Progress: [███████░░░] 73%
 | Phase 15 P04 | 3h | 3 tasks | 22 files |
 | Phase 15 P05 | 27min | 3 tasks | 9 files |
 | Phase 15 P06 | 17min | 3 tasks | 10 files |
+| Phase 15 P07 | 29min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -385,6 +386,9 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 有氧项区接进编辑页每一处按键首字符分派（r 前缀），草稿 cardio 无键时经 peCardioList 补数组，peCanon 把空 cardio 当没有键
 - [Phase 15]: 训练记录算作力量项和有氧项的历史：有历史只能归档，彻底删除时 planCommit 在同一个 commit 里连 workouts 条目一起清（归档不清，按 id 过滤、幂等、带 wo:<日期> 键）
 - [Phase 15]: 力量项上限放宽到 20，有氧项上限 20，归档项不占名额；示例挑选的有氧栏用 r: 键，pickSample 换新 r- id，提示和 toast 三段式为 0 省略
+- [Phase 15]: 15-07: three malformed-workout backups live in MALFORMED_WORKOUT_IMPORTS, not MALFORMED_IMPORTS (the latter's count and kinds are pinned by other specs)
+- [Phase 15]: 15-07: cross-device offline cases use 503 (retry state), not refused connections; a refused connection takes the Phase 10 D-03 path (whole upload, other device's version kept as a snapshot) - handed to Phase 16
+- [Phase 15]: 15-07: syncOnce takes heldSlot=pendRemote.state before uploading and swaps it for the uploaded body on success, fixing lost local operations after a retried upload
 
 ### Pending Todos
 
@@ -461,8 +465,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T07:14:07.180Z
-Stopped at: Completed 15-06-PLAN.md
+Last session: 2026-11-14T08:00:23.721Z
+Stopped at: Completed 15-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
