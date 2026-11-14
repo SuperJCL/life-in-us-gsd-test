@@ -6,7 +6,12 @@
 import { test, expect } from '../../support/test';
 import { loadAppPure } from '../../support/app-source';
 import { loadFixture } from '../../support/fixture-files';
-import { MALFORMED_IMPORTS } from '../../fixtures/malformed-imports';
+import { MALFORMED_IMPORTS, MALFORMED_WORKOUT_IMPORTS } from '../../fixtures/malformed-imports';
+import { FROZEN_NOW } from '../../support/constants';
+import { chooseImportFile, recordDialogs } from '../../support/import-file';
+import { composer } from '../../support/composer';
+import { expectToast, expectToastGone } from '../../support/toast';
+import { TOAST_IMPORT_BAD_FORMAT } from '../../support/strings';
 
 // JSON 往返：把 vm 里的对象换成本 realm 的普通对象再比较
 const plain = (v: any): any => (v === null || v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -300,4 +305,75 @@ test('PLAN-05 backups with g-, t- and l- prefixed ids pass the import check and 
   expect(Object.keys(back.tasks).sort()).toEqual(['P1-1', 'c-synth-1']);
   expect(back.custom[0].group).toBe('g-synth1');
   expect(back.lifts['l-synth1']).toEqual({ cur: 5, hist: [{ date: '2026-03-02', v: 5 }] });
+});
+
+// Phase 15：训练的载入修正和导入拒绝（页面用例，和上面的单元用例互补）。manual 时钟加哨兵写入证明“没有保存”。
+test.describe('SEC-01 stored workouts', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('SEC-01 stored workouts with bad dates, ids and values are repaired on load without losing other days or any log text, and a backup with a malformed workout is rejected as a whole', async ({
+    page,
+    app,
+  }) => {
+    const SENTINEL = 'SYNTH-SEC01 workout sentinel';
+    const good = { lifts: [{ id: 'bench', sets: [{ w: 60, r: 5 }] }], cardio: [{ id: 'r-run', m: 30, d: 5 }] };
+    const seed = fresh();
+    const fixtureLogs: { id: string; text: string }[] = seed.logs.map((l: any) => ({ id: l.id, text: l.text }));
+    seed.workouts = {
+      '2026-03-16': good,
+      // 日期键不是真实日期：整天丢掉
+      '2026-02-31': { lifts: [{ id: 'bench', sets: [{ w: 60, r: 5 }] }], cardio: [] },
+      // 一天里混着坏 id 和越界数值：只留合格的部分（d 为 0 的有氧只去掉 d），第 21 组被截掉
+      '2026-03-17': {
+        lifts: [
+          { id: 'L-bad', sets: [{ w: 60, r: 5 }] },
+          { id: 'squat', sets: [{ w: 1001, r: 5 }, { w: 80, r: 0 }, { w: 100, r: 5 }] },
+          { id: 'dead', sets: Array.from({ length: 21 }, (_, i) => ({ w: 100 + i, r: 1 })) },
+        ],
+        cardio: [{ id: 'run', m: 30 }, { id: 'r-bike', m: 0 }, { id: 'r-walk', m: 20, d: 0 }],
+      },
+    };
+
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ mode: 'account', seed });
+    await app.expectAccountMode();
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const writesBefore = app.backend.writes.length;
+    expect(writesBefore, '载入本身不保存').toBe(0);
+
+    // 三个坏训练备份：整份拒绝、不弹确认框、没有保存
+    const dialogs = recordDialogs(page);
+    for (const m of MALFORMED_WORKOUT_IMPORTS) {
+      await chooseImportFile(page, m);
+      await expectToast(page, TOAST_IMPORT_BAD_FORMAT);
+      expect(dialogs, `${m.name} 不应弹出确认框`).toEqual([]);
+      await page.clock.runFor(2_000);
+      await expectToastGone(page);
+      expect(app.backend.writes.length, `${m.name} 之后出现了保存`).toBe(writesBefore);
+    }
+
+    // 哨兵触发保存：写入恰好一次，训练只剩合格的部分，别的日子一天不少，全部记录文字原样
+    const comp = composer(page, 'w');
+    await comp.type(SENTINEL);
+    await comp.submit();
+    await page.clock.runFor(2_000);
+    await expect
+      .poll(() => app.backend.writes.some((w) => w.data.logs.some((l: any) => l.text === SENTINEL)), {
+        message: '等待哨兵写入到达 mock',
+      })
+      .toBe(true);
+    expect(app.backend.writes.length, '哨兵之前出现了多余的保存').toBe(writesBefore + 1);
+    const saved = app.backend.writes[app.backend.writes.length - 1].data;
+    expect(saved.logs.filter((l: any) => l.text !== SENTINEL).map((l: any) => ({ id: l.id, text: l.text })), '记录一条不少、文字不变').toEqual(fixtureLogs);
+    expect(plain(saved.workouts), '保存的训练只剩合格的天和那一天里合格的部分').toEqual({
+      '2026-03-16': good,
+      '2026-03-17': {
+        lifts: [
+          { id: 'squat', sets: [{ w: 100, r: 5 }] },
+          { id: 'dead', sets: Array.from({ length: 20 }, (_, i) => ({ w: 100 + i, r: 1 })) },
+        ],
+        cardio: [{ id: 'r-walk', m: 20 }],
+      },
+    });
+  });
 });

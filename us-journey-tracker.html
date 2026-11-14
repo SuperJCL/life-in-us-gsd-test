@@ -988,8 +988,8 @@ function cardioWeeks(s,range,t){
 /* S9：本周、日历、时间线共用的一行文字。力量动作名最多 3 个，超过写「等 n 项」，后接「（共 s 组）」；有氧最多 2 个；两段用「 · 」连；名字取计划里的力量项和有氧项（含归档的），找不到的 id 写下面两句（UI-SPEC 之外新增） */
 const T_FIT_GONE_L="已删除的力量项",T_FIT_GONE_C="已删除的有氧项";
 function woSummary(day,p){
-  if(!day)return "";
-  const L=Array.isArray(day.lifts)?day.lifts:[],C=Array.isArray(day.cardio)?day.cardio:[],parts=[];
+  if(!isObj(day))return "";
+  const L=(Array.isArray(day.lifts)?day.lifts:[]).filter(isObj),C=(Array.isArray(day.cardio)?day.cardio:[]).filter(isObj),parts=[];
   if(L.length){
     const nm=x=>{const f=((p&&p.lifts)||[]).find(l=>l.id===x.id);return f?f.n:T_FIT_GONE_L};
     const sets=L.reduce((a,x)=>a+(Array.isArray(x.sets)?x.sets.length:0),0);
@@ -2642,8 +2642,8 @@ const T_FL_LIFT_NONE="计划里还没有力量项。",T_FL_CARDIO_NONE="计划�
 let fl=null;
 function flDraftOf(day){
   const d=isObj(day)?day:{};
-  return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:x.sets.map(z=>({w:String(z.w),r:String(z.r)}))})),
-    cardio:(Array.isArray(d.cardio)?d.cardio:[]).filter(x=>CARDIO_ID_RE.test(x.id)).map(x=>({id:x.id,m:String(x.m),d:x.d==null?"":String(x.d)}))};
+  return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>isObj(x)&&typeof x.id==="string"&&LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:(Array.isArray(x.sets)?x.sets:[]).filter(isObj).map(z=>({w:String(z.w),r:String(z.r)}))})),
+    cardio:(Array.isArray(d.cardio)?d.cardio:[]).filter(x=>isObj(x)&&typeof x.id==="string"&&CARDIO_ID_RE.test(x.id)).map(x=>({id:x.id,m:String(x.m),d:x.d==null?"":String(x.d)}))};
 }
 const flSavedJson=date=>JSON.stringify(woMap(state)[date]||null);
 /* base 是载入时这一天已保存内容的 JSON：草稿有内容时它和现在已保存的不同，说明这一天在别的设备上更新过（fl.remote） */
@@ -2830,8 +2830,9 @@ const T_FH_TITLE="训练历史",T_FH_MONTH=(y,m)=>y+" 年 "+m+" 月",T_FH_DAY=(d
 const FH_PAGE=20,fhOpen=new Set();let fhN=FH_PAGE;
 function fhBody(day){
   const lines=[];
-  (Array.isArray(day.lifts)?day.lifts:[]).forEach(x=>{const f=plan.lifts.find(l=>l.id===x.id),sets=(Array.isArray(x.sets)?x.sets:[]).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，");lines.push(T_FH_LIFT(f?f.n:T_FIT_GONE_L,sets))});
-  (Array.isArray(day.cardio)?day.cardio:[]).forEach(x=>{const f=planCardio(plan).find(c=>c.id===x.id);lines.push(T_FH_CARDIO(f?f.n:T_FIT_GONE_C,x.m,x.d))});
+  if(!isObj(day))return "";
+  (Array.isArray(day.lifts)?day.lifts:[]).filter(isObj).forEach(x=>{const f=plan.lifts.find(l=>l.id===x.id),sets=(Array.isArray(x.sets)?x.sets:[]).filter(isObj).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，");lines.push(T_FH_LIFT(f?f.n:T_FIT_GONE_L,sets))});
+  (Array.isArray(day.cardio)?day.cardio:[]).filter(isObj).forEach(x=>{const f=planCardio(plan).find(c=>c.id===x.id);lines.push(T_FH_CARDIO(f?f.n:T_FIT_GONE_C,x.m,x.d))});
   return lines.map(l=>`<p>${esc(l)}</p>`).join("");
 }
 function renderFh(){
@@ -3918,7 +3919,7 @@ function planCommit(np,overwrite){
   if(outT.length||outC.length||outL.length||outWd.length){
     const dt=outT.slice(),dc=new Set(outC),dl=outL.slice(),wl=new Set(outWL),wr=new Set(outWR),wd=outWd.slice();
     /* 训练里的清理按 id 过滤，重复执行结果相同；一天的两个数组都空了就整天去掉（woPut），删到最后一天时 workouts 键也去掉 */
-    const wclean=st=>wd.forEach(d=>{const day=isObj(st.workouts)?st.workouts[d]:null;if(!isObj(day))return;woPut(st,d,{lifts:(Array.isArray(day.lifts)?day.lifts:[]).filter(x=>!wl.has(x.id)),cardio:(Array.isArray(day.cardio)?day.cardio:[]).filter(x=>!wr.has(x.id))})});
+    const wclean=st=>wd.forEach(d=>{const day=isObj(st.workouts)?st.workouts[d]:null;if(!isObj(day))return;woPut(st,d,{lifts:(Array.isArray(day.lifts)?day.lifts:[]).filter(x=>!(isObj(x)&&wl.has(x.id))),cardio:(Array.isArray(day.cardio)?day.cardio:[]).filter(x=>!(isObj(x)&&wr.has(x.id)))})});
     commit(dt.map(i=>"task:"+i).concat(outC.map(i=>"custom:"+i),dl.map(i=>"lift:"+i),wd.map(d=>"wo:"+d)),st=>{dt.forEach(i=>{delete st.tasks[i]});dc.forEach(i=>{delete st.tasks[i]});st.custom=(st.custom||[]).filter(c=>!dc.has(c.id));dl.forEach(i=>{delete st.lifts[i]});wclean(st)});
   }
   showSync();requestSync("save");

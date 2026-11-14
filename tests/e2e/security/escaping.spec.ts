@@ -28,13 +28,16 @@ import {
   DATE_ATTR_PAYLOAD,
   GROUP_PAYLOAD,
   ID_PAYLOAD,
+  IMG_PAYLOAD,
   SCRIPT_PAYLOAD,
   DQ_PAYLOAD,
   TAG_PAYLOAD,
+  WO_ID_PAYLOAD,
   maliciousPlanValues,
   maliciousState,
 } from '../../fixtures/malicious-state';
 import { loadFixture } from '../../support/fixture-files';
+import { setRange } from '../../support/fitness';
 import { APP_FILE_NAME, FROZEN_TODAY } from '../../support/constants';
 import { CAT_LANGUAGE, GROUP_UNKNOWN_LABEL, TAB_LABELS } from '../../support/strings';
 
@@ -45,12 +48,16 @@ type Injection = { flag: number; marked: number; foreign: number; handlers: numb
 // 应用本身没有这些元素，只有一个脚本，所以“干净”就是前四项为 0、scripts 为 1。
 // 例外（Phase 12-02，所有者 2026-11-11 批准）：应用自己的目标页「已归档」区 details#goalsArch 不算外来元素；
 // 但第二个及以后的 #goalsArch 仍算外来元素，所以注入一个借用这个 id 的元素照样被检测到。
+// 例外（Phase 15-07）：健身页自己画的东西不算外来元素：训练历史里 #fh 下的 details.fh-item、趋势图里 #fc 下的 details.fc-data（查看数据）、
+// 趋势图容器 .fc-pl 直接子级的 svg.fc-svg；用例另外断言它们的个数，所以多出来的同类元素仍会被发现。
 async function readInjection(page: Page): Promise<Injection> {
   return page.evaluate(() => ({
     flag: Number((window as unknown as { __synthXss?: number }).__synthXss || 0),
     marked: document.querySelectorAll('[data-synth-xss]').length,
     foreign:
-      document.querySelectorAll('s, details:not(#goalsArch), img, iframe, svg, object, embed').length +
+      document.querySelectorAll(
+        's, details:not(#goalsArch):not(#fh details.fh-item):not(#fc details.fc-data), img, iframe, svg:not(#fc .fc-pl > svg.fc-svg), object, embed',
+      ).length +
       Math.max(0, document.querySelectorAll('#goalsArch').length - 1),
     handlers: Array.from(document.querySelectorAll('*')).filter((el) =>
       Array.from(el.attributes).some((a) => a.name.startsWith('on')),
@@ -113,6 +120,20 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
     const fig = document.querySelector('#fc figure.fc[data-lift="bench"]');
     return !!fig && fig.querySelectorAll('.fc-pt.old').length === 0;
   });
+  // 训练历史全部展开、趋势图范围切到「全部」、每张图的「查看数据」展开：四个分区里的训练行、点和数据表都干净
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item, #fc details.fc-data').forEach((d) => (d.open = true));
+  });
+  await setRange(page, 'all');
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item, #fc details.fc-data').forEach((d) => (d.open = true));
+  });
+  await expectClean(page, '健身（历史展开、范围全部）');
+  const fitDrawn = await page.evaluate(() => ({
+    history: document.querySelectorAll('#fh details.fh-item').length,
+    benchSvg: document.querySelectorAll('#fc figure.fc[data-lift="bench"] svg.fc-svg').length,
+    benchPoints: document.querySelectorAll('#fc figure.fc[data-lift="bench"] .fc-pt').length,
+  }));
   await openTab(page, 'tl');
   await expectClean(page, '时间线');
 
@@ -124,13 +145,17 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
         weekText: all('#days .ent span').some((e) => e.textContent === p.tag),
         editId: all<HTMLElement>('[data-edit]').some((e) => e.dataset.edit === p.id),
         taskId: all<HTMLElement>('[data-task]').some((e) => e.dataset.task === p.cid),
-        liftCur: (document.querySelector('#tab-fit .fw-lift[data-lift="bench"] .fw-lv')?.textContent ?? '').startsWith(p.cur),
+        liftCur: (document.querySelector('#tab-fit .fw-lift[data-lift="squat"] .fw-lv')?.textContent ?? '').startsWith(p.cur),
         due: all<HTMLElement>('input[data-due]').some((e) => e.dataset.due === 'c-synth-1' && e.getAttribute('value') === p.date),
         // 组 id 不再作为文字进入页面（D-14）：找不到组的待办显示「未知目标组」，载荷不出现在任何标签里
+        // 训练：时间线里有 data-wo 等于日期载荷的训练行；记录区的有氧块 data-cardio 等于有氧 id 载荷（打开了今天的记录）
+        woRow: all<HTMLElement>('#timeline .tl-item.wo').some((e) => e.dataset.wo === p.date),
+        // 记录区只用合格的 id 建块：带载荷的有氧 id 过不了正则，不会成为属性值，也不会多出元素
+        woIdBlocked: !all<HTMLElement>('#fl [data-cardio]').some((e) => e.dataset.cardio === p.woid),
         group: all('#dayPanel .tag').some((e) => e.textContent === p.unknown) && !all('#dayPanel .tag').some((e) => (e.textContent || '').includes(p.group)),
       };
     },
-    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, unknown: GROUP_UNKNOWN_LABEL },
+    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, unknown: GROUP_UNKNOWN_LABEL, woid: WO_ID_PAYLOAD },
   );
   expect({ ...roundTrip, histNotDrawn }, '恶意字符串没有原样出现在文字或属性值里，或非数字的手填历史被画了出来').toEqual({
     weekText: true,
@@ -138,9 +163,13 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
     taskId: true,
     liftCur: true,
     due: true,
+    woRow: true,
+    woIdBlocked: true,
     group: true,
     histNotDrawn: true,
   });
+  // 五个键都在历史里（今天、日期载荷、形状不对的三天）；bench 取同一天里第一个 bench 条目，只有今天的 40 × 5 能画出点（03-17 的第一个 bench 条目 sets 不是数组，整天跳过），载荷的重量被跳过
+  expect(fitDrawn, '训练历史条数、bench 图的线和点数不对').toEqual({ history: 5, benchSvg: 1, benchPoints: 1 });
 
   // 两个编辑弹窗：日期载荷那条记录、doneDate 载荷那条完成计划，都从时间线打开
   const ed = editor(page);
@@ -190,17 +219,24 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
   delete seed.lifts.bench;
   delete seed.lifts.squat;
   seed.logs.push({ id: 'synth-plan-log', date: FROZEN_TODAY, cat: CAT_LANGUAGE, text: 'SYNTH plan value record' });
+  // 有氧项名称（载荷）出现在训练的显示位置：记录区的有氧块、训练历史、本周和时间线的训练行（Phase 15）
+  seed.workouts = {
+    [FROZEN_TODAY]: { lifts: [], cardio: [{ id: 'r-run', m: 30, d: 5 }] },
+    '2026-03-17': { lifts: [], cardio: [{ id: 'r-run', m: 20 }] },
+  };
   await app.open({ mode: 'account', seed });
   await app.expectAccountMode();
 
   // 四个视图都干净，P1-1 的任务文字载荷出现在本周、日面板、时间线
   await expectClean(page, '本周');
   expect(await hasLeafText(page, '#tab-wk', taskText), '本周视图里没有字段 groups[0].tasks[0].text 的载荷文字').toBe(true);
+  expect(await hasLeafText(page, '#days .ent.wo', val('cardio[0].n')), '本周视图的训练行里没有字段 cardio[0].n 的载荷文字').toBe(true);
 
   await openTab(page, 'cal');
   await page.locator(`#grid [data-date="${FROZEN_TODAY}"]`).click();
   await expectClean(page, '日历');
   expect(await hasLeafText(page, '#dayPanel', taskText), '日面板里没有字段 groups[0].tasks[0].text 的载荷文字').toBe(true);
+  expect(await hasLeafText(page, '#dayPanel .wo', val('cardio[0].n')), '日面板的训练行里没有字段 cardio[0].n 的载荷文字').toBe(true);
 
   await openTab(page, 'goal');
   await expectClean(page, '目标');
@@ -213,10 +249,19 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
   for (const field of ['lifts[0].n', 'lifts[0].note', 'fitNote']) {
     expect(await hasLeafText(page, '#fw', val(field)), `健身页里没有字段 ${field} 的载荷文字`).toBe(true);
   }
+  // 有氧项名称：记录区的有氧块标题和训练历史的一行（备注只在编辑计划页，本地版没有，由云端用例和源码门槛覆盖）
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item').forEach((d) => (d.open = true));
+  });
+  await expectClean(page, '健身（历史展开）');
+  for (const [where, scope] of [['记录区', '#fl .fl-cd'], ['训练历史', '#fh summary']] as const) {
+    expect(await hasLeafText(page, scope, val('cardio[0].n')), `${where}里没有字段 cardio[0].n 的载荷文字`).toBe(true);
+  }
 
   await openTab(page, 'tl');
   await expectClean(page, '时间线');
   expect(await hasLeafText(page, '#timeline', taskText), '时间线里没有字段 groups[0].tasks[0].text 的载荷文字').toBe(true);
+  expect(await hasLeafText(page, '#timeline .tl-item.wo', val('cardio[0].n')), '时间线的训练行里没有字段 cardio[0].n 的载荷文字').toBe(true);
 
   // 回到本周：composer 切到语言类别，预设标签干净，预设载荷原样往返
   await openTab(page, 'wk');
@@ -259,6 +304,68 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
   expect(dialogOk, '完成计划弹窗里没有字段 groups[0].tasks[0].text 的载荷文字').toBe(true);
   await page.keyboard.press('Escape');
   await ed.expectClosed();
+});
+
+test('SEC-01 malicious cardio names and malformed workouts render as plain text on the fitness tab, its charts and history and in the fitness rows of the other views', async ({
+  page,
+  app,
+}) => {
+  // 入口检查照常；页面变体只把两个有氧项的名称换成载荷（有氧项没有外部入口，照计划值用例的做法）
+  const nameImg = IMG_PAYLOAD + ' SYNTH-C1';
+  const nameTag = TAG_PAYLOAD + ' SYNTH-C2';
+  await serveAppVariant(page, [
+    planValueEdit([
+      { path: 'cardio[0].n', value: nameImg },
+      { path: 'cardio[1].n', value: nameTag },
+    ]),
+  ]);
+  const seed = loadFixture('full-state.json');
+  delete seed.lifts.bench;
+  delete seed.lifts.squat;
+  // 两天合格的有氧；再混进坏日期键、坏 id、非数字的分钟（入口检查会修掉，页面不报错、不少画一天）
+  seed.workouts = {
+    [FROZEN_TODAY]: { lifts: [], cardio: [{ id: 'r-run', m: 30, d: 5 }, { id: 'r-bike', m: 45 }] },
+    '2026-03-17': { lifts: [], cardio: [{ id: 'r-run', m: 20 }] },
+    '2026-02-31': { lifts: [], cardio: [{ id: 'r-run', m: 99 }] },
+    '2026-03-16': { lifts: [{ id: 'L-bad', sets: [{ w: 40, r: 5 }] }], cardio: [{ id: 'run', m: 30 }, { id: 'r-walk', m: 'SYNTH-nan' }] },
+  };
+  await app.open({ mode: 'account', seed });
+  await app.expectAccountMode();
+
+  // 健身页：记录区的有氧块、训练历史（展开）、有氧周图和它的数据表
+  await openTab(page, 'fit');
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item, #fc details.fc-data').forEach((d) => (d.open = true));
+  });
+  await setRange(page, 'all');
+  await expectClean(page, '健身');
+  const fit = await page.evaluate(
+    (n) => ({
+      history: document.querySelectorAll('#fh details.fh-item').length,
+      cardioSvg: document.querySelectorAll('#fc figure.fc-cd svg.fc-svg').length,
+      recordName: Array.from(document.querySelectorAll('#fl .fl-cd .fl-name')).some((e) => e.textContent === n.img),
+      historyName: Array.from(document.querySelectorAll('#fh summary span')).some((e) => (e.textContent || '').includes(n.img)),
+    }),
+    { img: nameImg },
+  );
+  expect(fit, '健身页：坏的训练没有被修掉，或有氧项名称没有按纯文字出现').toEqual({
+    history: 2,
+    cardioSvg: 1,
+    recordName: true,
+    historyName: true,
+  });
+
+  // 本周：训练行；日历：选中今天的日面板；时间线
+  await openTab(page, 'wk');
+  await expectClean(page, '本周');
+  expect(await hasLeafText(page, '#days .ent.wo', nameImg), '本周的训练行里没有有氧项名称').toBe(true);
+  await openTab(page, 'cal');
+  await page.locator(`#grid [data-date="${FROZEN_TODAY}"]`).click();
+  await expectClean(page, '日历');
+  expect(await hasLeafText(page, '#dayPanel .wo', nameTag), '日面板的训练行里没有有氧项名称').toBe(true);
+  await openTab(page, 'tl');
+  await expectClean(page, '时间线');
+  expect(await hasLeafText(page, '#timeline .tl-item.wo', nameTag), '时间线的训练行里没有有氧项名称').toBe(true);
 });
 
 // 两道防线合在一起：磁盘上的真实应用，没有任何内存变体。入口检查先修正坏 id 和坏日期，渲染转义再把恶意文字当纯文本显示。
@@ -305,6 +412,16 @@ test('SEC-01 malicious text in every field renders as plain text in the four vie
     ),
     '目标视图：坏的待办 id 还在页面上',
   ).toBe(false);
+
+  // 健身：入口检查修掉了坏的 id、日期和数值，训练历史只剩今天那一条，bench 的手填历史载荷不画
+  await openTab(page, 'fit');
+  await expectClean(page, '健身');
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item, #fc details.fc-data').forEach((d) => (d.open = true));
+  });
+  await setRange(page, 'all');
+  await expectClean(page, '健身（历史展开、范围全部）');
+  expect(await page.locator('#fh details.fh-item').count(), '训练历史里只应有一条合格的训练').toBe(1);
 
   // 时间线
   await openTab(page, 'tl');
@@ -374,6 +491,10 @@ test('SEC-01 malicious text in every field renders as plain text in the four vie
     '保存的待办里还有不以 c- 开头的 id',
   ).toBe(true);
   expect(saved.custom.length, '保存的待办条数').toBe(bad.custom.length);
+  // 训练：坏日期键、坏 id、非数字的重量和次数、形状不对的天都被入口检查修掉，今天那天只剩合格的 bench 一组
+  expect(saved.workouts, '保存的训练里还有不合格的部分，或合格的部分丢了').toEqual({
+    [FROZEN_TODAY]: { lifts: [{ id: 'bench', sets: [{ w: 40, r: 5 }] }], cardio: [] },
+  });
   await expectClean(page, '保存之后');
 });
 
@@ -403,7 +524,7 @@ test('SEC-01 the injection detector reports elements injected by a variant witho
 
 // 源码门槛：每一条都是紧跟右花括号的完整插值，例如 ${L.unit==="kg"?2.5:1} 这种算出数字的写法不在其中。
 // 清单与转义清单逐项对应：记录和任务的 id、group、due、doneDate、记录日期、力量字段（含力量历史的数值）、
-// 组字段、周目标、力量组说明、类别名和筛选项。
+// 组字段、周目标、力量组说明、类别名和筛选项；Phase 15 健身页再加训练和有氧项的字段（日期、组的重量和次数、有氧分钟和距离、有氧项名称、备注、id、目标）。
 const BARE_TOKENS = [
   'l.id',
   'x.id',
@@ -430,6 +551,28 @@ const BARE_TOKENS = [
   'C.n',
   'o',
   'x.v',
+  // Phase 15 健身页：训练和计划的字段（按应用里 ${esc(…)} 的内层表达式逐个补）
+  'x.m', // 有氧分钟（训练历史、记录区）
+  'x.d', // 有氧距离
+  'z.w', // 组的重量
+  'z.r', // 组的次数
+  'p.date', // 趋势图点和数据表的日期
+  'w.wk', // 每周有氧图的周起点
+  'date', // 记录区的训练日期
+  'c.id', // 示例挑选的有氧项 id
+  'R.n', // 编辑页有氧卡的名称
+  'R.note||""', // 编辑页有氧卡的备注
+  'R.target.v', // 编辑页有氧卡的目标数值
+  'L.def', // 力量项的起始值
+  'L.n||T_PE_UNNAMED', // 编辑页力量卡的名称
+  'g.cat',
+  'd.fitNote||""',
+  'd.fitGoal[0]',
+  'd.fitGoal[1]',
+  'String(v)', // 力量目标卡和已归档区的当前值
+  'String(v.v)',
+  'woSummary(e.wo,plan)', // 训练行的结果文字（本周、日历、日面板）
+  'woSummary(day,plan)',
 ];
 const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const BARE_PATTERNS: RegExp[] = [

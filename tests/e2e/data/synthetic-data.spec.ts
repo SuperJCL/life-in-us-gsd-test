@@ -11,7 +11,7 @@ import {
   logsOutsideWeek,
   taskBuckets,
 } from '../../support/expect-from-fixture';
-import { MALFORMED_IMPORTS, type MalformedKind } from '../../fixtures/malformed-imports';
+import { MALFORMED_IMPORTS, MALFORMED_WORKOUT_IMPORTS, type MalformedKind } from '../../fixtures/malformed-imports';
 import { BUILTIN_TASK_IDS, LIFT_IDS, ALL_LIFT_IDS } from '../../support/task-ids';
 import { gotoFitness, readCharts, readLiftGoals, setRange } from '../../support/fitness';
 import {
@@ -240,6 +240,25 @@ test('DATA-02 malformed import payloads stay in memory, carry the synthetic mark
       expect(wrongTypes, `${m.name} 至少一个字段类型要错`).toBe(true);
     }
   }
+
+  // Phase 15：三个坏训练备份也只在内存里、带合成标记，并且 workouts 里确实有一处不合格（真实日期、力量 id、有氧 id 各一）
+  expect(MALFORMED_WORKOUT_IMPORTS.length).toBe(3);
+  const realDay = (k: string) => {
+    const t = new Date(Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10))));
+    return /^\d{4}-\d{2}-\d{2}$/.test(k) && t.toISOString().slice(0, 10) === k;
+  };
+  const badOnes = MALFORMED_WORKOUT_IMPORTS.map((m) => {
+    expect(fs.existsSync(path.join(fixturesDir, m.name)), `${m.name} 不应落盘`).toBe(false);
+    const parsed = JSON.parse(m.text);
+    expect(String(parsed._synthetic).startsWith('SYNTH'), `${m.name} 带合成标记`).toBe(true);
+    return Object.entries(parsed.workouts as Record<string, any>).some(
+      ([k, day]) =>
+        !realDay(k) ||
+        day.lifts.some((x: any) => !/^([a-z]{1,16}|l-[A-Za-z0-9_-]{1,40})$/.test(x.id)) ||
+        day.cardio.some((x: any) => !/^r-[A-Za-z0-9_-]{1,40}$/.test(x.id)),
+    );
+  });
+  expect(badOnes, '三个备份的 workouts 都要有不合格的一处').toEqual([true, true, true]);
 
   // 常量文件自己带合成标记
   expect(fs.readFileSync(path.join(fixturesDir, 'malformed-imports.ts'), 'utf8')).toContain('_synthetic');
