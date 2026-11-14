@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: executing
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-11-13T22:04:31.109Z"
+stopped_at: Completed 15-03-PLAN.md
+last_updated: "2026-11-14T00:01:27.798Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: ce881bfa9c3fa5137dcb300d1d05b126232236b9
+state_head: 56e752baa3b6279a1882a2d6dd373ec7af3d2824
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 83
+  completed_plans: 84
   percent: 73
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 ## Current Position
 
 Phase: 15 (健身页（Fitness Tab）) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 15 execution started
 
@@ -174,6 +174,7 @@ Progress: [███████░░░] 73%
 | Phase 14 P03 | 33 min | 3 tasks | 6 files |
 | Phase 15 P01 | 35 min | 2 tasks | 9 files |
 | Phase 15 P02 | 28 min | 3 tasks | 7 files |
+| Phase 15 P03 | 30min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -370,6 +371,8 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 同一天两台设备都改以最后保存的为准；草稿有内容且这一天在别的设备上更新过时提示行第 2 档提醒覆盖风险
 - [Phase 15]: 字段失焦时按住按钮期间不立刻显示错误（flPtr），抬起后补显示，免得错误行把按钮挤走丢掉点击
 - [Phase 15]: 草稿清空后在已保存的一天点保存修改，等同删除整次训练（带撤销 toast）
+- [Phase 15]: 15-03: 图宽从 .fc-pl 的 clientWidth 取，viewBox 宽度等于它，1 个单位就是 1 px；renderFc 只画当前页（电脑 4 张、手机 3 张），跨 560 px 页号 = floor(第一张图序号 ÷ 新每页张数)
+- [Phase 15]: 15-03: 门控收窄为 #goals [data-lift],#goals [data-liftsave]，15-04 搬走目标页力量卡时两条一起删；usj:fit:range 是设备偏好，只认五个值，不进退出登录清理列表
 
 ### Pending Todos
 
@@ -446,8 +449,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T22:04:25.889Z
-Stopped at: Completed 15-02-PLAN.md
+Last session: 2026-11-14T00:01:21.813Z
+Stopped at: Completed 15-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
