@@ -247,6 +247,31 @@ Phase 14（新账号的计划起步）的云端用例同样只在 `npm run test:
 - **D-01 之后的写用例规则：** 云端新账号首次登录建的是空计划，不再是示例计划。要示例计划的用例，必须在 `app.open` 里显式给 `plan: SEED_PLAN`（`SEED_PLAN` 用 `loadAppPure(['normalizePlan', 'DEFAULT_PLAN'])` 生成，写法见 `login.spec.ts`）；只给 seed 时，首登建出来的是空计划。
 - **用例里的计划文字：** 一律以 `SYNTH-` 开头；示例里的名称只做布尔比较，不拼进失败消息。
 
+### 健身页（Phase 15）的用例
+
+Phase 15 给应用加了第五个标签「健身」：记录区（记一次训练）、本周训练和力量目标卡、趋势图、训练历史，本周、日历、时间线里多了「健身」行。下面这些用例和约定都只用示例名称（卧推、深蹲、硬拉、引体、跑步、骑行、快走）和 `SYNTH-` 合成文字，云端用例只连假服务器。
+
+- **默认套件的 spec（`tests/e2e/fitness/`）：**
+  - `workouts-data.spec.ts`：数据层的单元用例，`normalize`、`importProblem`、`workoutProblems` 对训练的修正、整份拒绝和每条规则的边界（不开页面）。
+  - `charts-data.spec.ts`：趋势图的纯函数（`seriesOf`、`cardioWeeks`、`niceMax`、`rangeStart`）。
+  - `log.spec.ts`：记录区（加动作、填组、校验、保存、草稿、换日期、删除）。
+  - `charts.spec.ts`：趋势图的画法（折线、目标线、读数、翻页、指标和范围、数据表、有氧周图）。
+  - `goals.spec.ts`：力量目标卡和本周训练块（当前值由训练算出、进度条、本周天数）。
+  - `history.spec.ts`：训练历史（按月、每次 20 条、展开、编辑、删除加撤销）。
+  - `views.spec.ts`：本周、日历、日面板、时间线里的训练行和它们打开健身页的行为。
+- **云端 spec（`tests/cloud/`）：**
+  - `fitness-sync.spec.ts`：训练按 `wo:<日期>` 上传、第二台设备看到同一行；备份和导入带训练；两台设备不同日子都保留、同一天以后保存的为准；一台设备保存后另一台不刷新就出现（含草稿保留）。
+  - `fitness-log.spec.ts`：空计划的说明和入口、草稿在远端更新和刷新后保留、离线保存、对账门控下记录区的写入控件是真 disabled。
+  - `plan-editor-cardio.spec.ts`：编辑计划页的有氧项（名称、备注、每次目标、校验、上限 20、删除、归档、恢复、彻底删除）。
+- **其他 spec 里的健身页部分：** `tests/e2e/security/escaping.spec.ts`（恶意训练和有氧项名称，绕过入口检查的渲染，源码门槛加了 Phase 15 的字段）、`tests/e2e/security/state-validation.spec.ts`（本机存着的坏训练载入时修正、带坏训练的备份整份拒绝）、`tests/e2e/narrow/narrow.spec.ts`（375 px 五个标签一行、健身页单列）、`tests/cloud/csp.spec.ts`（严格 CSP 下走完五个视图）。
+- **helper（`tests/support/fitness.ts`）：** 操作有 `gotoFitness`、`flAddLift`、`flAddCardio`、`flFillSet`、`flFillCardio`、`flSave`、`flCopySet`、`flDeleteSet`、`flRemoveEx`、`setMetric`、`setRange`；读回有 `readFl`（记录区草稿）、`readCharts`（每张折线图的点、读数、数据表）、`readCardioChart`、`readPager`、`readLiftGoals`（力量目标卡）、`readFitWeek`（本周训练块）、`readHistory`（训练历史）、`readWeekWo`（本周页某天的训练行）、`savedWorkouts`、`hasWoDraft`、`fcStyled`。读回只返回文字、布尔和数，不返回元素句柄。
+- **数据形状：** `state.workouts[<日期>] = { lifts: [{ id, sets: [{ w, r }] }], cardio: [{ id, m, d? }] }`，只在非空时出现（一天的两个数组都空就去掉这一天，最后一天也没有时连 `workouts` 键一起去掉）。计划里可选的 `cardio`：`[{ id, n, note, target? }]`，id 以 `r-` 开头，示例计划有 `r-run`、`r-bike`、`r-walk`。力量项的当前值完全由训练算出，没有训练时回落到手填的 `state.lifts`。
+- **键名：** 同步键 `wo:<日期>`（每一天一个键，经 commit 重放合并）；本机草稿键 `usj:v2:<用户 id>:wodraft`（随账号清理，退出登录时删）；设备偏好 `usj:fit:range`（趋势图范围）和 `usj:fit:note`（健身说明展开状态），不随账号清理；编辑页字段键新增 `r:<id>:n`、`r:<id>:note`、`r:<id>:tv`；示例挑选对话框的有氧项复选框键是 `r:<示例有氧项 id>`。
+- **被删除和被取代的：** 目标页手填力量值的五条 GOAL-02 用例按 D-15 删除；helper `readLifts` 和 `liftHistoryEquals` 已由 `readLiftGoals` 和趋势图读点（`readCharts`）取代。
+- **同步规则（两台设备）：** 一台设备的上传被服务器错误（5xx）挡住时，联网后会在对方的新版本上重放自己的按天写入，两边的日子都保留；真正断网（连接被拒）后应用不再确定自己的操作记录完整，走 Phase 10 的 D-03（整份上传、对方的版本留底，见「Phase 10 的已知限制」）。所以跨设备用例用 503 而不是拒绝连接来制造“A 暂时传不上去”。
+- **注入检测器的例外：** `escaping.spec.ts` 的检测器不把健身页自己画的 `#fh` 下的 `details.fh-item`、`#fc` 下的 `details.fc-data` 和 `.fc-pl` 下的 `svg.fc-svg` 当作外来元素，用例另外断言它们的个数；注入的同类元素在别处仍会被发现。
+- **文字与隐私：** 失败消息只写 id、日期、计数和布尔；动作名、有氧项名只做相等比较，不拼进消息。
+
 ### Phase 13 的用例
 
 Phase 13（部署、加固与验收）的用例：Service Worker 和 CSP 的三个 spec 在 `tests/cloud/`（只在 `npm run test:cloud` 里运行），文件检查和部署工具的两个 spec 在 `tests/e2e/platform/`（默认套件，不开浏览器）。全部只用合成数据，不连任何真实服务器。
