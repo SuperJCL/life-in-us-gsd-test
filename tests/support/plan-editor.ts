@@ -60,6 +60,11 @@ export type EditorRead = {
   // 健身分区：每周健身目标两个输入框的值（数字或空串，不是计划文字）和力量项卡（键 l:<id>、是否展开）
   fit: { min: string; max: string };
   lifts: Array<{ key: string; expanded: boolean; bad: string }>;
+  // 有氧项卡（键 r:<id>，不含计划文字）、两个计数（力量项、有氧项，「n/max」）、「＋ 添加有氧项」是否 disabled 和它旁边的上限说明
+  cardio: Array<{ key: string; expanded: boolean; bad: string }>;
+  counts: { lifts: string; cardio: string };
+  addCardioDisabled: boolean;
+  addCardioLimit: string;
   // 显示中的错误：字段键和错误文字（界面文案，不是计划文字）
   errors: Array<{ key: string; text: string }>;
   addGroupDisabled: boolean;
@@ -103,6 +108,19 @@ export async function readEditor(page: Page): Promise<EditorRead> {
         expanded: c.querySelector('[data-peact="toggle"]')?.getAttribute('aria-expanded') === 'true',
         bad: ((b) => (b && !b.hidden ? (b.textContent ?? '') : ''))(c.querySelector<HTMLElement>('.pe-bad')),
       })),
+      cardio: Array.from(document.querySelectorAll('#pe-main .pe-card[data-key^="r:"]')).map((c) => ({
+        key: c.getAttribute('data-key') ?? '',
+        expanded: c.querySelector('[data-peact="toggle"]')?.getAttribute('aria-expanded') === 'true',
+        bad: ((b) => (b && !b.hidden ? (b.textContent ?? '') : ''))(c.querySelector<HTMLElement>('.pe-bad')),
+      })),
+      // 健身分区里两个 h4.pe-sub 的计数，先力量项后有氧项
+      counts: ((cs) => ({ lifts: cs[0]?.textContent ?? '', cardio: cs[1]?.textContent ?? '' }))(
+        Array.from(document.querySelectorAll('#pe-main section[aria-labelledby="pe-h-fit"] h4.pe-sub .pe-count')),
+      ),
+      addCardioDisabled: !!document.querySelector<HTMLButtonElement>('#pe-main [data-peact="addcardio"]')?.disabled,
+      addCardioLimit: ((n) => (n && n.classList.contains('pe-lim') ? (n.textContent ?? '') : ''))(
+        document.querySelector('#pe-main [data-peact="addcardio"]')?.nextElementSibling ?? null,
+      ),
       errors: Array.from(document.querySelectorAll('#pe-main [data-pefield][aria-invalid="true"]')).map((f) => {
         const id = (f.getAttribute('aria-describedby') ?? '').split(' ')[0];
         return { key: f.getAttribute('data-pefield') ?? '', text: document.getElementById(id)?.textContent ?? '' };
@@ -124,4 +142,27 @@ export async function readEditor(page: Page): Promise<EditorRead> {
         .map((b) => b.getAttribute('data-pekey') ?? ''),
     };
   });
+}
+
+// ---- Phase 15-06：有氧项的操作（卡片键 r:<id>，字段键 r:<id>:n、r:<id>:note、r:<id>:tv）----
+
+// 点「＋ 添加有氧项」，返回新卡的 id（最后一张有氧项卡的键去掉 r: 前缀）
+export async function addCardio(page: Page): Promise<string> {
+  const before = await page.locator('#pe-main .pe-card[data-key^="r:"]').count();
+  await act(page, 'addcardio').click();
+  await expect(page.locator('#pe-main .pe-card[data-key^="r:"]')).toHaveCount(before + 1);
+  const key = (await page.locator('#pe-main .pe-card[data-key^="r:"]').last().getAttribute('data-key')) ?? '';
+  return key.slice(2);
+}
+
+// 有氧项的字段：f 是 n、note 或 tv
+export function cardioField(page: Page, id: string, f: 'n' | 'note' | 'tv'): Locator {
+  return field(page, `r:${id}:${f}`);
+}
+
+// 每次目标三选一：none、km、min
+export async function setCardioTarget(page: Page, id: string, kind: 'none' | 'km' | 'min') {
+  const b = page.locator(`#pe-main [data-peact="ctarget"][data-pekey="r:${id}"][data-pekind="${kind}"]`);
+  await b.click();
+  await expect(b).toHaveAttribute('aria-pressed', 'true');
 }

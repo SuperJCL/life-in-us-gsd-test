@@ -920,3 +920,32 @@ export const CSV_FIT_PREFIX = '[健身] ';
 
 // ---- Phase 15-05：导入摘要的训练天数（UI-SPEC 之外新增，应用里 T_IMP_WO，训练天数大于 0 时才多这一行）----
 export const importWoLine = (n: number): string => `训练 ${n} 天`;
+
+// ---- Phase 15-06：编辑计划页的有氧项（应用里 T_PE_CD_*、T_PE_ADD_CARDIO、T_PE_LIM_CARDIO、T_PE_DEL_CARDIO、T_PE_LIVE_ADDED_CARDIO、PE_ERR 的 cname、ctarget、climit，逐字相同；
+// peCardioSum、peCount、peErrCardioLimit 在这里独立写出，不读应用的常量）----
+// T_PE_CD_TITLE
+export const PE_CD_TITLE = '有氧项';
+// T_PE_ADD_CARDIO
+export const BTN_PE_ADD_CARDIO = '＋ 添加有氧项';
+// T_PE_LIM_CARDIO
+export const PE_LIMIT_CARDIO = '最多 20 个';
+// T_PE_CD_GOAL（每次目标 .seg 的 aria-label）
+export const PE_CD_GOAL = '每次目标';
+// T_PE_CD_KIND（三个按钮的文字）
+export const PE_CD_KIND = { none: '不设目标', km: '每次距离', min: '每次时长' } as const;
+// T_PE_CD_TV_KM、T_PE_CD_TV_MIN（数值框的标签）
+export const PE_CD_TV_KM = '目标距离（公里）';
+export const PE_CD_TV_MIN = '目标时长（分钟）';
+// T_PE_CD_EVERY_KM、T_PE_CD_EVERY_MIN、T_PE_CD_NONE（卡片头部的摘要）
+export const peCardioSum = (kind: 'km' | 'min' | 'none', v?: number): string =>
+  kind === 'km' ? `每次 ${v} 公里` : kind === 'min' ? `每次 ${v} 分钟` : '没有目标';
+// T_PE_DEL_CARDIO
+export const BTN_PE_DEL_CARDIO = '删除这个有氧项';
+// T_PE_LIVE_ADDED_CARDIO
+export const PE_LIVE_ADDED_CARDIO = '已添加：新的有氧项';
+// PE_ERR.cname、PE_ERR.ctarget、PE_ERR.climit（climit 不在 UI-SPEC 里，照力量项 llimit 的写法）
+export const PE_ERR_CARDIO_NAME = '请填写有氧项名称';
+export const PE_ERR_CARDIO_TARGET = '目标要大于 0';
+export const peErrCardioLimit = (n: number): string => `有氧项最多 ${n} 个，请先删掉或归档多余的`;
+// 分区小标题旁的计数「{n}/{max}」
+export const peCount = (n: number, max: number): string => `${n}/${max}`;

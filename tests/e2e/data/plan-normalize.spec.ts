@@ -252,7 +252,7 @@ test('PLAN-02 planProblems reports empty names and texts of groups and tasks in 
   expect(problems(a), '归档的组和任务不应报问题').toEqual([]);
 
   // 各项上限
-  expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 8, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
+  expect(plain(PLAN_MAX)).toEqual({ groups: 20, tasks: 50, lifts: 8, cardio: 20, tags: 20, name: 40, text: 200, note: 200, tag: 30, unit: 8 });
 });
 
 test('PLAN-02 planProblems checks lift values and weekly fitness days and ignores archived lifts (D-15, D-17)', async () => {
@@ -327,6 +327,67 @@ test('PLAN-02 planProblems checks lift values and weekly fitness days and ignore
   expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5 } } }, 'l-x')).toBe(0);
   expect(liftHistoryCount({ lifts: { 'l-x': { cur: 5, hist: [{}, {}, {}] } } }, 'l-x')).toBe(3);
   expect(liftHistoryCount({}, 'l-x')).toBe(0);
+});
+
+// D-02、D-04（Phase 15-06）：有氧项的校验。期望值在这里独立写出
+test('PLAN-02 planProblems checks cardio names, targets and the cardio limit and ignores archived cardio items (D-02, D-04)', async () => {
+  const { DEFAULT_PLAN, planProblems } = loadAppPure(NAMES);
+  const base = (): any => JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  const problems = (p: unknown) => plain(planProblems(p));
+  const cid = base().cardio[0].id;
+
+  // 示例计划的三个有氧项没有问题；没有 cardio 键的旧计划也没有
+  expect(problems(base()), 'DEFAULT_PLAN 不应报问题').toEqual([]);
+  const old = base();
+  delete old.cardio;
+  expect(problems(old), '没有 cardio 键不应报问题').toEqual([]);
+
+  // 名称：空串和全是空格报 cname，41 个字报 nlong，40 个字合规（键 r:<id>:n）
+  for (const n of ['', '   ']) {
+    const b = base();
+    b.cardio[0].n = n;
+    expect(problems(b), `名称 ${JSON.stringify(n)}`).toEqual([{ key: `r:${cid}:n`, code: 'cname' }]);
+  }
+  const long = base();
+  long.cardio[0].n = '长'.repeat(41);
+  expect(problems(long), '名称 41 个字').toEqual([{ key: `r:${cid}:n`, code: 'nlong' }]);
+  const edge = base();
+  edge.cardio[0].n = '长'.repeat(40);
+  expect(problems(edge), '名称 40 个字').toEqual([]);
+
+  // 目标：数值为 0、负数、空串、不是数都报 ctarget（键 r:<id>:tv）；不设目标、小数合规
+  for (const v of [0, -1, '', 'x', null, Infinity]) {
+    const b = base();
+    b.cardio[0].target = { kind: 'km', v };
+    expect(problems(b), `目标值 ${String(v)}`).toEqual([{ key: `r:${cid}:tv`, code: 'ctarget' }]);
+  }
+  const noTarget = base();
+  delete noTarget.cardio[0].target;
+  expect(problems(noTarget), '不设目标').toEqual([]);
+  const decimal = base();
+  decimal.cardio[0].target = { kind: 'min', v: 0.5 };
+  expect(problems(decimal), '目标 0.5').toEqual([]);
+
+  // 名称和目标同时有问题：先名称后目标
+  const both = base();
+  Object.assign(both.cardio[0], { n: '', target: { kind: 'min', v: 0 } });
+  expect(problems(both), '两项各报一次').toEqual([
+    { key: `r:${cid}:n`, code: 'cname' },
+    { key: `r:${cid}:tv`, code: 'ctarget' },
+  ]);
+
+  // 数量：20 个未归档合规，第 21 个报 climit（键标在第 21 个上）；其中一个归档就不报
+  const many = base();
+  many.cardio = Array.from({ length: 21 }, (_, i) => ({ id: `r-m${i + 1}`, n: `SYNTH-${i + 1}`, note: '' }));
+  expect(problems(many), '21 个未归档').toEqual([{ key: 'r:r-m21:n', code: 'climit' }]);
+  many.cardio[3].archived = true;
+  expect(problems(many), '其中一个归档').toEqual([]);
+  expect(problems({ ...many, cardio: many.cardio.slice(0, 20) }), '20 个').toEqual([]);
+
+  // 归档的有氧项（名称空、目标无效）不报
+  const arch = base();
+  Object.assign(arch.cardio[0], { archived: true, n: '', target: { kind: 'km', v: 0 } });
+  expect(problems(arch), '归档的有氧项不应报问题').toEqual([]);
 });
 
 // D-01、D-02、D-03（Phase 14）：云端新账号首次建档用的空计划。期望值在这里独立写出，不读应用的实现

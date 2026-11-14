@@ -141,7 +141,7 @@ test('PLAN-02 lift and weekly fitness values outside the rules block saving with
   expect(ed.lifts.length).toBe(8);
   await expect(act(page, 'addlift')).toBeDisabled();
   await expect(page.locator('#pe-main .pe-lim')).toHaveText(PE_LIMIT_LIFTS);
-  await expect(page.locator('#pe-main #pe-h-fit ~ h4.pe-sub .pe-count')).toHaveText('8/8');
+  await expect(page.locator('#pe-main #pe-h-fit ~ h4.pe-sub .pe-count').first()).toHaveText('8/8');
 
   // 输入限制：名称 40、单位 8、备注 200（超出被截断）
   await expand(page, 'l:l-pl1');
