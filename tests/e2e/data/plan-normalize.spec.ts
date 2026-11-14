@@ -441,13 +441,18 @@ test('PLAN-06 emptyPlan has no groups, lifts or base tags and keeps the weekly f
 test('PLAN-07 pickSample copies only the chosen sample groups and lifts in sample order with new ids and no tags (D-05, D-08)', () => {
   const { pickSample, planUsedIds, DEFAULT_PLAN } = loadAppPure(['pickSample', 'planUsedIds', 'DEFAULT_PLAN']);
   const sample: any = JSON.parse(JSON.stringify(DEFAULT_PLAN));
-  const used = new Set<string>(['g-taken']);
-  // 键倒序传入、带一个不认识的键：结果仍按示例的顺序，不认识的键被忽略
-  const r = plain(pickSample(['l:pull', 'g:P3', 'g:P1', 'g:P9'], used));
+  const used = new Set<string>(['g-taken', 'r-taken']);
+  // 键倒序传入、带不认识的键（g:P9、r:x）：结果仍按示例的顺序，不认识的键被忽略；有氧项用 r: 前缀的键（15-06）
+  const r = plain(pickSample(['l:pull', 'g:P3', 'g:P1', 'g:P9', 'r:r-walk', 'r:r-run', 'r:x'], used));
 
-  expect(Object.keys(r).sort(), '结果只有 groups 和 lifts，没有 presets').toEqual(['groups', 'lifts']);
+  expect(Object.keys(r).sort(), '结果只有 cardio、groups 和 lifts，没有 presets').toEqual(['cardio', 'groups', 'lifts']);
   expect(r.groups).toHaveLength(2);
   expect(r.lifts).toHaveLength(1);
+  // 有氧项按示例顺序（跑步在前、快走在后），名称、备注、目标与示例相同
+  expect(r.cardio.map(({ id, ...rest }: any) => rest), '有氧项与示例的跑步、快走相同').toEqual([
+    { n: sample.cardio[0].n, note: sample.cardio[0].note, target: sample.cardio[0].target },
+    { n: sample.cardio[2].n, note: sample.cardio[2].note, target: sample.cardio[2].target },
+  ]);
   const strip = (g: any) => ({ cat: g.cat, name: g.name, note: g.note, texts: g.tasks.map((t: any) => t.text) });
   expect(r.groups.map(strip), '目标组按示例顺序，内容与示例的第 1、第 3 组相同').toEqual([strip(sample.groups[0]), strip(sample.groups[2])]);
   const lifts = (l: any) => ({ n: l.n, unit: l.unit, def: l.def, target: l.target, note: l.note });
@@ -457,21 +462,24 @@ test('PLAN-07 pickSample copies only the chosen sample groups and lifts in sampl
   const gids: string[] = r.groups.map((g: any) => g.id);
   const tids: string[] = r.groups.flatMap((g: any) => g.tasks.map((t: any) => t.id));
   const lids: string[] = r.lifts.map((l: any) => l.id);
+  const rids: string[] = r.cardio.map((c: any) => c.id);
   expect(gids.every((id) => /^g-/.test(id)), '组 id 前缀').toBe(true);
   expect(tids.every((id) => /^t-/.test(id)), '任务 id 前缀').toBe(true);
   expect(lids.every((id) => /^l-/.test(id)), '力量项 id 前缀').toBe(true);
+  expect(rids.every((id) => /^r-[A-Za-z0-9_-]+$/.test(id) && id !== 'r-taken'), '有氧项 id 前缀，不撞 used').toBe(true);
   const sampleIds = new Set<string>([
     ...sample.groups.flatMap((g: any) => [g.id, ...g.tasks.map((t: any) => t.id)]),
     ...sample.lifts.map((l: any) => l.id),
+    ...sample.cardio.map((c: any) => c.id),
   ]);
-  const all = [...gids, ...tids, ...lids];
+  const all = [...gids, ...tids, ...lids, ...rids];
   expect(all.some((id) => sampleIds.has(id)), '没有复用示例 id').toBe(false);
   expect(new Set(all).size, 'id 互不重复').toBe(all.length);
-  expect(all.every((id) => used.has(id)) && used.has('g-taken'), '新 id 都已加进 used').toBe(true);
+  expect(all.every((id) => used.has(id)) && used.has('g-taken') && used.has('r-taken'), '新 id 都已加进 used').toBe(true);
 
   // 空集合：0 个组 0 个力量项；示例计划本身不被改动
   const none = plain(pickSample([], new Set()));
-  expect([none.groups.length, none.lifts.length], '空集合').toEqual([0, 0]);
+  expect([none.groups.length, none.lifts.length, none.cardio.length], '空集合').toEqual([0, 0, 0]);
   expect(plain(DEFAULT_PLAN), '示例计划没有被改动').toEqual(sample);
   // planUsedIds：全部组 id + 任务 id + 力量项 id + 有氧项 id（Phase 15 起含有氧项）
   const totalTasks = sample.groups.reduce((n: number, g: any) => n + g.tasks.length, 0);

@@ -398,15 +398,15 @@ test('PLAN-02 an emptied plan shows the empty plan card with its two entries and
   expect(await readGroupIds(page)).toEqual([]);
   expect([app.fake.lastPlan(0).groups, app.fake.lastPlan(0).lifts]).toEqual([[], []]);
 
-  // 从示例里挑：对话框打开，勾上全部 11 项，提示行说已选 7 个目标组、4 个力量项；点添加并保存后直接保存，对话框关闭、编辑页没有打开
+  // 从示例里挑：对话框打开，勾上全部 14 项，提示行说已选 7 个目标组、4 个力量项、3 个有氧项；点添加并保存后直接保存，对话框关闭、编辑页没有打开
   await page.locator('#planSampleBtn').click();
   await expect(page.locator('dialog#sample')).toBeVisible();
   const boxes = page.locator('dialog#sample input[data-pk]');
-  await expect(boxes).toHaveCount(11);
-  for (let i = 0; i < 11; i += 1) await boxes.nth(i).check();
-  await expect(page.locator('#pk-hint')).toHaveText(pkPicked(7, 4));
+  await expect(boxes).toHaveCount(14);
+  for (let i = 0; i < 14; i += 1) await boxes.nth(i).check();
+  await expect(page.locator('#pk-hint')).toHaveText(pkPicked(7, 4, 3));
   await page.locator('#pkOk').click();
-  await expectToast(page, pkDone(7, 4));
+  await expectToast(page, pkDone(7, 4, 3));
   await expect(page.locator('dialog#sample')).toBeHidden();
   await expect(page.locator('#tab-plan')).toBeHidden();
 
@@ -417,6 +417,8 @@ test('PLAN-02 an emptied plan shows the empty plan card with its two entries and
   expect(saved.groups.map((g: any) => g.tasks.length)).toEqual(Object.values(BUILTIN_GROUP_SIZES));
   expect(saved.lifts.length).toBe(4);
   expect(saved.lifts.map((l: any) => l.id).every((id: string) => /^l-/.test(id))).toBe(true);
+  expect(saved.cardio.length).toBe(3);
+  expect(saved.cardio.map((c: any) => c.id).every((id: string) => /^r-[A-Za-z0-9_-]+$/.test(id) && !['r-run', 'r-bike', 'r-walk'].includes(id))).toBe(true);
   expect(JSON.stringify(saved.presets) === JSON.stringify(plan.presets), '预设标签不动').toBe(true);
   expect(saved.fitGoal).toEqual(plan.fitGoal);
   expect(saved.fitNote === plan.fitNote, '健身说明不动').toBe(true);

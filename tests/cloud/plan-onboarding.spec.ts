@@ -60,6 +60,12 @@ import {
   PK_SEC_GROUPS,
   PK_SEC_LIFTS,
   pkCount,
+  PK_SEC_CARDIO,
+  PK_DUP_CARDIO,
+  PK_FULL_R,
+  pkCardioTarget,
+  pkLimR,
+  peCardioSum,
 } from '../support/strings';
 
 // 合成种子计划：应用里唯一一份合成示例计划，即 normalizePlan(DEFAULT_PLAN)；JSON 往返后脱离 vm 的 realm
@@ -101,13 +107,13 @@ test('PLAN-07 a new account picks one sample group and one lift from the empty p
   await expect(page.locator('#planEditBtn2')).toHaveClass(/primary/);
   await expect(page.locator('#planSampleBtn')).toHaveText(BTN_PICK_SAMPLE);
 
-  // 打开挑选对话框：标题是卡片模式的标题，11 项（7 个目标组、4 个力量项）一项都没勾，确认不可用，提示行说先勾选
+  // 打开挑选对话框：标题是卡片模式的标题，14 项（7 个目标组、4 个力量项、3 个有氧项）一项都没勾，确认不可用，提示行说先勾选
   await page.locator('#planSampleBtn').click();
   const dlg = page.locator('dialog#sample');
   await expect(dlg).toBeVisible();
   await expect(page.locator('#pk-title')).toHaveText(PK_TITLE_CARD);
   const boxes = dlg.locator('input[data-pk]');
-  await expect(boxes).toHaveCount(11);
+  await expect(boxes).toHaveCount(14);
   expect(await boxes.evaluateAll((els) => els.filter((e) => (e as HTMLInputElement).checked).length)).toBe(0);
   const ok = page.locator('#pkOk');
   await expect(ok).toHaveText(BTN_PK_OK_CARD);
@@ -859,17 +865,17 @@ test('PLAN-07 the picker opens with focus on the first checkbox, closes with Esc
   const writesBefore = planWritesOf(app);
   await openPicker(page);
 
-  // 焦点在第一个目标组的复选框；两个分区是 fieldset 加 legend；每个复选框的 aria-describedby 都指向存在的元素
+  // 焦点在第一个目标组的复选框；三个分区是 fieldset 加 legend；每个复选框的 aria-describedby 都指向存在的元素
   let pk = await readPicker(page);
   expect(pk.focusKey).toBe('g:P1');
   const legends = await page.evaluate(() => Array.from(document.querySelectorAll('dialog#sample fieldset.pk-sec > legend')).map((l) => l.textContent ?? ''));
-  expect(legends).toEqual([PK_SEC_GROUPS + pkCount(7), PK_SEC_LIFTS + pkCount(4)]);
+  expect(legends).toEqual([PK_SEC_GROUPS + pkCount(7), PK_SEC_LIFTS + pkCount(4), PK_SEC_CARDIO + pkCount(3)]);
   const described = await page.evaluate(() =>
     Array.from(document.querySelectorAll('dialog#sample input[data-pk]')).map((i) =>
       (i.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).every((id) => !!document.getElementById(id)),
     ),
   );
-  expect(described).toHaveLength(11);
+  expect(described).toHaveLength(14);
   expect(described.every(Boolean)).toBe(true);
 
   // 空格勾选、取消；提示行跟着变
@@ -1016,4 +1022,118 @@ test('PLAN-07 a plan picked from the empty plan card on one device shows on anot
     await second.context.close();
   }
   expect(app.fake.fulfillErrors).toEqual([]);
+});
+
+// S12（15-06）：示例挑选的有氧栏。示例有氧项是仓库里公开的合成样本（跑步 5 公里、骑行 10 公里、快走 30 分钟），可以直接比较
+test('PLAN-07 the picker lists the three sample cardio items, marks a same-name item and adds the picked ones with new r- ids from the card and in the editor (S12)', async ({
+  app,
+  page,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('pc'), login: 0 });
+  await gotoGoals(page);
+  await openPicker(page);
+
+  // 14 个复选框（7 + 4 + 3），三个图例依次是目标组、力量项、有氧项；有氧三行带 .k-fit 左边框，说明是目标
+  await expect(page.locator('dialog#sample input[data-pk]')).toHaveCount(14);
+  const legends = await page.evaluate(() => Array.from(document.querySelectorAll('dialog#sample fieldset.pk-sec > legend')).map((l) => l.textContent ?? ''));
+  expect(legends).toEqual([PK_SEC_GROUPS + pkCount(7), PK_SEC_LIFTS + pkCount(4), PK_SEC_CARDIO + pkCount(3)]);
+  const rows = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLInputElement>('dialog#sample input[data-pk^="r:"]')).map((i) => ({
+      key: i.getAttribute('data-pk') ?? '',
+      fit: !!i.closest('label')?.classList.contains('k-fit'),
+      meta: document.getElementById((i.getAttribute('aria-describedby') ?? '').split(' ')[0])?.textContent ?? '',
+    })),
+  );
+  expect(rows).toEqual([
+    { key: 'r:r-run', fit: true, meta: pkCardioTarget(peCardioSum('km', 5)) },
+    { key: 'r:r-bike', fit: true, meta: pkCardioTarget(peCardioSum('km', 10)) },
+    { key: 'r:r-walk', fit: true, meta: pkCardioTarget(peCardioSum('min', 30)) },
+  ]);
+  expect((await readPicker(page)).limC, '空计划名额充足，不显示说明').toBeNull();
+
+  // 勾跑步和快走：提示行只写有氧项；添加并保存，toast 同样省略为 0 的部分
+  await pick(page, 'r:r-walk');
+  await pick(page, 'r:r-run');
+  await expect(page.locator('#pk-hint')).toHaveText(pkPicked(0, 0, 2));
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, pkDone(0, 0, 2));
+
+  // 服务器计划：两个有氧项，id 是新的 r- 前缀（不是示例的 r-run、r-walk），名称、备注、目标照示例拷贝，顺序是示例顺序（跑步在前）
+  await expect.poll(() => (app.fake.lastPlan(0)?.cardio ?? []).length, { message: '等待计划上传' }).toBe(2);
+  const saved = app.fake.lastPlan(0);
+  const [run, , walk] = SEED_PLAN.cardio;
+  expect(saved.cardio.every((c: { id: string }) => /^r-[A-Za-z0-9_-]+$/.test(c.id) && c.id !== 'r-run' && c.id !== 'r-walk')).toBe(true);
+  expect(saved.cardio.map(({ id, ...rest }: { id: string }) => rest)).toEqual([
+    { n: run.n, note: run.note, target: run.target },
+    { n: walk.n, note: walk.note, target: walk.target },
+  ]);
+  expect(saved.groups).toEqual([]);
+  expect(saved.lifts).toEqual([]);
+
+  // 编辑页的「从示例添加」：跑步和快走已在计划里，带「计划里已有同名有氧项」，仍可勾
+  await openEditor(page);
+  expect((await readEditor(page)).cardio).toHaveLength(2);
+  await openPickerFromEditor(page);
+  let pk = await readPicker(page);
+  expect(pk.dup).toEqual(['r:r-run', 'r:r-walk']);
+  expect(pk.disabled).toEqual([]);
+  await expect(page.locator('dialog#sample label.pk-item', { has: page.locator('input[data-pk="r:r-run"]') }).locator('.pk-dup')).toHaveText(PK_DUP_CARDIO);
+  await expect(page.locator('dialog#sample label.pk-item', { has: page.locator('input[data-pk="r:r-bike"]') }).locator('.pk-dup')).toHaveCount(0);
+
+  // 勾跑步和骑行加进草稿：toast 和读屏句子只写有氧项；草稿里原来两项在前，新的两项（新 id、折叠）在后，保存前什么都没写
+  const writesBefore = planWritesOf(app);
+  await pick(page, 'r:r-run');
+  await pick(page, 'r:r-bike');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  await expectToast(page, pkDrafted(0, 0, 2));
+  await expect(page.locator('#pe-live')).toHaveText(pkLive(0, 0, 2));
+  const ed = await readEditor(page);
+  expect(ed.cardio).toHaveLength(4);
+  expect(ed.cardio.slice(0, 2).map((c) => c.key)).toEqual(saved.cardio.map((c: { id: string }) => `r:${c.id}`));
+  expect(ed.cardio.slice(2).every((c) => /^r:r-[A-Za-z0-9_-]+$/.test(c.key) && c.key !== 'r:r-run' && c.key !== 'r:r-bike' && !c.expanded)).toBe(true);
+  expect(ed.counts.cardio).toBe('4/20');
+  expect(ed.hint).toBe(PE_HINT_DIRTY);
+  expect(planWritesOf(app)).toBe(writesBefore);
+
+  // 放弃草稿：计划不变
+  await discardPlan(page);
+  await confirmOk(page);
+  expect(app.fake.lastPlan(0).cardio).toHaveLength(2);
+  expect(planWritesOf(app)).toBe(writesBefore);
+});
+
+test('PLAN-07 the picker stops at the cardio limit and says how many more fit, archived cardio items not counting (D-04, S12)', async ({ app, page }) => {
+  // 19 个未归档加 1 个归档（名称和示例的跑步相同，归档的不参与同名比较）：还能再加 1 个
+  const plan: any = syntheticPlan('pl', 1);
+  plan.cardio = Array.from({ length: 19 }, (_, i) => ({ id: `r-pl${i + 1}`, n: `SYNTH-pl cardio ${i + 1}`, note: '' }));
+  plan.cardio.push({ id: 'r-plz', n: SEED_PLAN.cardio[0].n, note: '', archived: true });
+  await app.open({ mode: 'cloud', seed: syntheticState('pl'), plan, login: 0 });
+  await openEditor(page);
+  await openPickerFromEditor(page);
+  let pk = await readPicker(page);
+  expect([pk.limC, pk.dup]).toEqual([pkLimR(1), []]);
+
+  // 勾一个：其余两个真 disabled，说明行经 aria-describedby 读出；取消后恢复
+  await pick(page, 'r:r-bike');
+  pk = await readPicker(page);
+  expect(pk.disabled).toEqual(['r:r-run', 'r:r-walk']);
+  const described = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLInputElement>('dialog#sample input[data-pk^="r:"]:disabled')).map((i) => (i.getAttribute('aria-describedby') ?? '').split(' ')),
+  );
+  expect(described.every((d) => d.includes('pk-lim-r'))).toBe(true);
+  await page.locator('dialog#sample input[data-pk="r:r-bike"]').uncheck();
+  expect((await readPicker(page)).disabled).toEqual([]);
+
+  // 勾满添加后再打开：有氧项已满，三个复选框都 disabled；目标组和力量项的名额不受影响
+  await pick(page, 'r:r-bike');
+  await page.locator('#pkOk').click();
+  await expect(page.locator('dialog#sample')).toHaveJSProperty('open', false);
+  expect((await readEditor(page)).counts.cardio).toBe('20/20');
+  await openPickerFromEditor(page);
+  pk = await readPicker(page);
+  expect(pk.limC).toBe(PK_FULL_R);
+  expect(pk.disabled).toEqual(['r:r-run', 'r:r-bike', 'r:r-walk']);
+  expect([pk.limG, pk.limL]).toEqual([null, null]);
 });

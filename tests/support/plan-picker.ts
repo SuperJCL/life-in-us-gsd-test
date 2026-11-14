@@ -10,7 +10,7 @@ export async function openPicker(page: Page) {
   await expect(page.locator('dialog#sample')).toHaveJSProperty('open', true);
 }
 
-// 勾选一项，key 的格式：g:<示例组 id> 或 l:<示例力量项 id>
+// 勾选一项，key 的格式：g:<示例组 id>、l:<示例力量项 id> 或 r:<示例有氧项 id>
 export async function pick(page: Page, key: string) {
   await page.locator(`dialog#sample input[data-pk="${key}"]`).check();
 }
@@ -30,9 +30,10 @@ export type PickerState = {
   checked: string[];
   disabled: string[];
   dup: string[];
-  // 两个分区的名额提示（.pk-lim）的文字，没有时为 null
+  // 三个分区的名额提示（.pk-lim）的文字，没有时为 null
   limG: string | null;
   limL: string | null;
+  limC: string | null;
   // 获得焦点的复选框的键，或对话框里获得焦点的按钮的 id；焦点不在对话框里为空串
   focusKey: string;
 };
@@ -71,6 +72,7 @@ export async function readPicker(page: Page): Promise<PickerState> {
       dup: boxes.filter((i) => i.hasAttribute('data-dup')).map(keyOf),
       limG: lim('pk-lim-g'),
       limL: lim('pk-lim-l'),
+      limC: lim('pk-lim-r'),
       focusKey,
     };
   });

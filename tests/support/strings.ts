@@ -698,9 +698,9 @@ export const PK_HINT_NONE = '先勾选要加入的项';
 export const BTN_PK_OK_CARD = '添加并保存';
 export const BTN_PK_CANCEL = '先不添加';
 // 勾选后的提示行和保存后的 toast：为 0 的部分省略，两部分用「、」连接
-const pkParts = (g: number, l: number): string => [g ? `${g} 个目标组` : '', l ? `${l} 个力量项` : ''].filter(Boolean).join('、');
-export const pkPicked = (g: number, l: number): string => `已选 ${pkParts(g, l)}`;
-export const pkDone = (g: number, l: number): string => `已加入 ${pkParts(g, l)}，计划已保存`;
+const pkParts = (g: number, l: number, c: number): string => [g ? `${g} 个目标组` : '', l ? `${l} 个力量项` : '', c ? `${c} 个有氧项` : ''].filter(Boolean).join('、');
+export const pkPicked = (g: number, l: number, c = 0): string => `已选 ${pkParts(g, l, c)}`;
+export const pkDone = (g: number, l: number, c = 0): string => `已加入 ${pkParts(g, l, c)}，计划已保存`;
 // Phase 14-02：卡片模式的断网、过期说明（应用里 T_PK_WHY_OFFLINE、T_PK_WHY_EXPIRED，逐字相同）。挑选对话框里的提示行复用上面的 PE_HINT_EXPIRED、PE_HINT_OFFLINE
 export const PK_WHY_OFFLINE = '联网后才能从示例里挑';
 // 14-UI-REVIEW：pkSave 里计划校验失败时提示行的错误文字（应用里 T_PK_INVALID，逐字相同）
@@ -725,8 +725,8 @@ export const PK_TOOLS_NOTE = '需要的目标组和力量项，可以随时从�
 export const PK_TITLE_EDIT = '从示例添加';
 export const PK_DESC_EDIT = '勾选要用的，点「添加所选项」会加到这一页的草稿末尾，点「保存计划」后才生效；没勾的不会加。';
 export const BTN_PK_OK_EDIT = '添加所选项';
-export const pkDrafted = (g: number, l: number): string => `已加到草稿：${pkParts(g, l)}，点「保存计划」后生效`;
-export const pkLive = (g: number, l: number): string => `已添加到草稿：${pkParts(g, l)}`;
+export const pkDrafted = (g: number, l: number, c = 0): string => `已加到草稿：${pkParts(g, l, c)}，点「保存计划」后生效`;
+export const pkLive = (g: number, l: number, c = 0): string => `已添加到草稿：${pkParts(g, l, c)}`;
 
 // Phase 14-03：挑选列表里的同名标记和名额说明（应用里 T_PK_DUP_G、T_PK_DUP_L、T_PK_LIM_G、T_PK_FULL_G、T_PK_LIM_L、T_PK_FULL_L，逐字相同；pkLimG、pkLimL 在这里独立写出）
 export const PK_DUP_G = '计划里已有同名组';
@@ -979,3 +979,11 @@ export const peRemoved = (name: string): string => {
   const a = Array.from(name);
   return TOAST_PE_REMOVED_PREFIX + (a.length > 10 ? `${a.slice(0, 10).join('')}…` : a.join(''));
 };
+
+// ---- Phase 15-06：示例挑选的有氧栏（应用里 T_PK_SEC_CARDIO、T_PK_DUP_R、T_PK_LIM_R、T_PK_FULL_R、T_PK_CTARGET，逐字相同；pkPicked、pkDone、pkDrafted、pkLive 的第三个参数是有氧项数，为 0 的部分省略）----
+export const PK_SEC_CARDIO = '有氧项';
+export const PK_DUP_CARDIO = '计划里已有同名有氧项';
+export const pkLimR = (k: number): string => `有氧项最多 20 个，还能再加 ${k} 个`;
+export const PK_FULL_R = '有氧项已满（20 个），先删掉一个再添加';
+// 每个示例有氧项的说明行：直接是目标说明（「每次 5 公里」等，用 peCardioSum 拼），没有目标时「没有目标」
+export const pkCardioTarget = (s: string): string => s;
