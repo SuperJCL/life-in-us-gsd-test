@@ -6,7 +6,8 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
-import { gotoGoals, readGroups, readLifts } from '../../support/goals';
+import { gotoGoals, readGroups } from '../../support/goals';
+import { gotoFitness, readLiftGoals } from '../../support/fitness';
 import { TIMELINE_EMPTY } from '../../support/strings';
 import { ALL_LIFT_IDS, BUILTIN_GROUP_SIZES } from '../../support/task-ids';
 import { APP_FILE_NAME } from '../../support/constants';
@@ -54,7 +55,7 @@ test('SEC-04 a fresh start without any server shows the sample plan and no recor
     '时间线应当显示空状态文案',
   ).toBe(TIMELINE_EMPTY);
 
-  // 示例计划：7 个目标组，每组 0/总数，进度条为 0；4 张力量卡
+  // 示例计划：7 个目标组，每组 0/总数，进度条为 0；健身页 4 张力量目标卡
   await gotoGoals(page);
   const groups = await readGroups(page);
   const codes = Object.keys(BUILTIN_GROUP_SIZES);
@@ -65,8 +66,11 @@ test('SEC-04 a fresh start without any server shows the sample plan and no recor
     expect(g.cnt, `组 ${g.code} 的计数应当是 0/ 加任务个数`).toContain(`0/${size}`);
     expect(g.barPct, `组 ${g.code} 的进度条应当是 0`).toBe(0);
   }
-  const lifts = await readLifts(page, ALL_LIFT_IDS);
-  expect(lifts.count, '力量卡应当恰好 4 张').toBe(4);
+  // 力量目标卡在健身页（Phase 15 起）：4 张，依次是示例计划的 4 个力量项
+  await gotoFitness(page);
+  const lifts = await readLiftGoals(page, ALL_LIFT_IDS);
+  expect(lifts.length, '力量目标卡应当恰好 4 张').toBe(4);
+  expect(lifts.map((c) => c.lift), '力量目标卡依次是示例计划的力量项').toEqual([...ALL_LIFT_IDS]);
 
   // 打开页面本身不写存储
   expect(await app.persisted()).toBeNull();

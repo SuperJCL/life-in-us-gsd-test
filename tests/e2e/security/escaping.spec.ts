@@ -27,7 +27,6 @@ import {
   CUSTOM_ID_PAYLOAD,
   DATE_ATTR_PAYLOAD,
   GROUP_PAYLOAD,
-  HIST_PAYLOAD,
   ID_PAYLOAD,
   SCRIPT_PAYLOAD,
   DQ_PAYLOAD,
@@ -107,6 +106,13 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
   await expectClean(page, '日历');
   await openTab(page, 'goal');
   await expectClean(page, '目标');
+  // 健身页（Phase 15）：力量目标卡的当前值是手填的载荷，趋势图只画有限数，非数字的手填历史不画
+  await openTab(page, 'fit');
+  await expectClean(page, '健身');
+  const histNotDrawn = await page.evaluate(() => {
+    const fig = document.querySelector('#fc figure.fc[data-lift="bench"]');
+    return !!fig && fig.querySelectorAll('.fc-pt.old').length === 0;
+  });
   await openTab(page, 'tl');
   await expectClean(page, '时间线');
 
@@ -118,23 +124,22 @@ test('SEC-01 with the entry checks bypassed every renderer still escapes ids, da
         weekText: all('#days .ent span').some((e) => e.textContent === p.tag),
         editId: all<HTMLElement>('[data-edit]').some((e) => e.dataset.edit === p.id),
         taskId: all<HTMLElement>('[data-task]').some((e) => e.dataset.task === p.cid),
-        liftCur: document.querySelector('#lf-bench')?.getAttribute('value') === p.cur,
+        liftCur: (document.querySelector('#tab-fit .fw-lift[data-lift="bench"] .fw-lv')?.textContent ?? '').startsWith(p.cur),
         due: all<HTMLElement>('input[data-due]').some((e) => e.dataset.due === 'c-synth-1' && e.getAttribute('value') === p.date),
         // 组 id 不再作为文字进入页面（D-14）：找不到组的待办显示「未知目标组」，载荷不出现在任何标签里
         group: all('#dayPanel .tag').some((e) => e.textContent === p.unknown) && !all('#dayPanel .tag').some((e) => (e.textContent || '').includes(p.group)),
-        hist: all('.hist').some((e) => (e.textContent || '').includes(p.hist)),
       };
     },
-    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, unknown: GROUP_UNKNOWN_LABEL, hist: HIST_PAYLOAD },
+    { tag: TAG_PAYLOAD, id: ID_PAYLOAD, cid: CUSTOM_ID_PAYLOAD, cur: CUR_PAYLOAD, date: DATE_ATTR_PAYLOAD, group: GROUP_PAYLOAD, unknown: GROUP_UNKNOWN_LABEL },
   );
-  expect(roundTrip, '恶意字符串没有原样出现在文字或属性值里').toEqual({
+  expect({ ...roundTrip, histNotDrawn }, '恶意字符串没有原样出现在文字或属性值里，或非数字的手填历史被画了出来').toEqual({
     weekText: true,
     editId: true,
     taskId: true,
     liftCur: true,
     due: true,
     group: true,
-    hist: true,
+    histNotDrawn: true,
   });
 
   // 两个编辑弹窗：日期载荷那条记录、doneDate 载荷那条完成计划，都从时间线打开
@@ -181,8 +186,9 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
   await serveAppVariant(page, [planValueEdit(planValues)]);
   const seed = loadFixture('full-state.json');
   seed.tasks['P1-1'] = { done: true, doneDate: FROZEN_TODAY };
-  // 没有力量历史时才显示力量备注
+  // 力量目标卡在健身页，趋势图只在有手填历史或训练时才画 svg（注入检测器不放行 svg），所以这里不留任何力量历史
   delete seed.lifts.bench;
+  delete seed.lifts.squat;
   seed.logs.push({ id: 'synth-plan-log', date: FROZEN_TODAY, cat: CAT_LANGUAGE, text: 'SYNTH plan value record' });
   await app.open({ mode: 'account', seed });
   await app.expectAccountMode();
@@ -198,8 +204,14 @@ test('SEC-01 malicious text in plan group names, task names, lift fields and bas
 
   await openTab(page, 'goal');
   await expectClean(page, '目标');
-  for (const field of ['groups[0].name', 'groups[1].note', 'groups[0].tasks[0].text', 'lifts[0].n', 'lifts[0].note', 'fitNote']) {
+  for (const field of ['groups[0].name', 'groups[1].note', 'groups[0].tasks[0].text']) {
     expect(await hasLeafText(page, '#goals', val(field)), `目标视图里没有字段 ${field} 的载荷文字`).toBe(true);
+  }
+  // 力量项名称、备注和健身说明现在显示在健身页（Phase 15）
+  await openTab(page, 'fit');
+  await expectClean(page, '健身');
+  for (const field of ['lifts[0].n', 'lifts[0].note', 'fitNote']) {
+    expect(await hasLeafText(page, '#fw', val(field)), `健身页里没有字段 ${field} 的载荷文字`).toBe(true);
   }
 
   await openTab(page, 'tl');

@@ -12,13 +12,13 @@ import {
   taskBuckets,
 } from '../../support/expect-from-fixture';
 import { MALFORMED_IMPORTS, type MalformedKind } from '../../fixtures/malformed-imports';
-import { BUILTIN_TASK_IDS, LIFT_IDS } from '../../support/task-ids';
+import { BUILTIN_TASK_IDS, LIFT_IDS, ALL_LIFT_IDS } from '../../support/task-ids';
+import { gotoFitness, readCharts, readLiftGoals, setRange } from '../../support/fitness';
 import {
   CAT_LANGUAGE,
   CATEGORY_NAMES,
   GOAL_OVERDUE,
   LEGACY_CATEGORY_MAP,
-  LIFT_HISTORY_PREFIX,
   TAB_LABELS,
   TIMELINE_EMPTY,
 } from '../../support/strings';
@@ -160,16 +160,19 @@ test('DATA-01 the full fixture renders logs, task states, custom todos, lift his
     await expect(task(c.id)).toHaveAttribute('aria-label', c.text);
     await expect(page.locator(`#goals [data-deltask="${c.id}"]`), `自定义待办的删除按钮 ${c.id}`).toHaveCount(1);
   }
+  // 力量项目在健身页（Phase 15 起）：fixture 没有训练，当前值回落到手填的 cur；趋势图「全部」范围里空心点的个数等于手填历史里不晚于今天的点数
+  await gotoFitness(page);
+  const goals = await readLiftGoals(page, ALL_LIFT_IDS);
   for (const [id, lift] of Object.entries<any>(fixture.lifts)) {
-    await expect(page.locator(`#lf-${id}`)).toHaveValue(String(lift.cur));
-    // 没有历史时 .hist 里是力量项目自己的备注。用 expect.poll 在 Node 侧做布尔判断，
-    // 失败时只打印 true/false，不把备注带进日志（D-14）
-    const hist = page.locator('#goals .lift').filter({ has: page.locator(`#lf-${id}`) }).locator('.hist');
-    await expect
-      .poll(async () => ((await hist.textContent()) ?? '').startsWith(LIFT_HISTORY_PREFIX), {
-        message: `力量项目 ${id} 的历史行没有以“${LIFT_HISTORY_PREFIX}”开头（内容已隐藏）`,
-      })
-      .toBe(true);
+    const card = goals.find((c) => c.lift === id);
+    expect(card?.value === String(lift.cur), `力量项目 ${id} 的当前值应当等于 fixture 的 cur（内容已隐藏）`).toBe(true);
+  }
+  await setRange(page, 'all');
+  const charts = await readCharts(page);
+  for (const [id, lift] of Object.entries<any>(fixture.lifts)) {
+    const expected = lift.hist.filter((h: any) => h.date <= FROZEN_TODAY).length;
+    const hollow = charts.find((c) => c.lift === id)?.pts.filter((p) => p.old).length;
+    expect(hollow, `力量项目 ${id} 的趋势图空心点个数应当等于手填历史里不晚于今天的点数`).toBe(expected);
   }
 });
 

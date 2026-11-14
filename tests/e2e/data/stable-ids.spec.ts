@@ -5,7 +5,8 @@ import { test, expect } from '../../support/test';
 import { answerNextDialog, chooseImportFile, jsonImportFile } from '../../support/import-file';
 import { loadFixture, withoutSynthetic } from '../../support/fixture-files';
 import { mdLabel } from '../../support/expect-from-fixture';
-import { gotoGoals, readGroups, readLifts, readTaskRow } from '../../support/goals';
+import { gotoGoals, readGroups, readTaskRow } from '../../support/goals';
+import { gotoFitness, readLiftGoals } from '../../support/fitness';
 import { expectToast } from '../../support/toast';
 import { CONFIRM_IMPORT, GOAL_DONE_ON_PREFIX, TOAST_RESTORED } from '../../support/strings';
 import { ALL_LIFT_IDS, BUILTIN_GROUP_SIZES } from '../../support/task-ids';
@@ -33,9 +34,11 @@ test('PLAN-05 the sample plan keeps the frozen positional group and task ids', a
     expect(group?.taskIds, `组 ${code} 的任务 id 应当依次是位置 id`).toEqual(ids);
   }
 
-  const lifts = await readLifts(page, ALL_LIFT_IDS);
-  expect(lifts.count, '力量卡应当恰好 4 张').toBe(4);
-  expect(lifts.cards.map((c) => c.fixtureId)).toEqual([...ALL_LIFT_IDS]);
+  // 力量项的冻结 id 现在体现在健身页的力量目标卡上（Phase 15）
+  await gotoFitness(page);
+  const lifts = await readLiftGoals(page, ALL_LIFT_IDS);
+  expect(lifts.length, '力量目标卡应当恰好 4 张').toBe(4);
+  expect(lifts.map((c) => c.lift)).toEqual([...ALL_LIFT_IDS]);
 });
 
 test('PLAN-05 a legacy positional backup maps every task progress back to the same task', async ({ page, app }) => {

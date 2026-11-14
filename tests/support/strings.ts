@@ -890,3 +890,4 @@ export const fwLast = (d: string): string => `最近一次训练：${d}`;
 export const FW_NO_TRAINING = '还没有训练记录';
 export const fwBodyweight = (n: number): string => `徒手完成，最多 ${n} 次`;
 export const fwBarAria = (n: string): string => `${n}进度`;
+export const FW_NOTE_BTN = '健身说明';

@@ -491,7 +491,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 #flDelete{color:var(--red)}
 
 /* S6: this week + lift cards */
-.fw-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fw-head{display:flex;align-items:center;justify-content:space-between;gap:8px} #fwNoteBtn{margin-left:auto}
 .fw-chev::before{content:"▸";margin-right:4px} #fwNoteBtn[aria-expanded="true"] .fw-chev::before{content:"▾"}
 .fw-note{font-size:14px;color:var(--muted);margin:8px 0 0}
 .fw-note[hidden]{display:none}
@@ -833,8 +833,8 @@ function activeTasks(){return allTasks().filter(t=>!isArchived(t))}
 function activeGroups(){return plan.groups.filter(g=>!g.archived)}
 function activeLifts(){return plan.lifts.filter(L=>!L.archived)}
 function activeCardio(){return planCardio(plan).filter(c=>!c.archived)}
-/* D-16：空计划 = 没有未归档的组，也没有未归档的力量项（可以保存，不会被示例计划顶替）；目标页换成空计划卡片，本周页多一行说明 */
-function planEmpty(){return !activeGroups().length&&!activeLifts().length}
+/* D-16、A12：空计划 = 没有未归档的组，也没有未归档的力量项和有氧项（可以保存，不会被示例计划顶替）；目标页换成空计划卡片，本周页多一行说明 */
+function planEmpty(){return !activeGroups().length&&!activeLifts().length&&!activeCardio().length}
 
 let state={arrival:"",tasks:{},custom:[],logs:[],lifts:{},reviews:{},presets:{}};
 let store=null;
@@ -1484,7 +1484,7 @@ function setGate(mode){
   pkWhy();
 }
 /* safety net for what disabled does not cover (keys, drags, scripted events); without data-gate it does nothing */
-const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],#goals [data-lift],#goals [data-liftsave],[data-addto],[data-addbtn],[data-peact],[data-fl]";
+const GATE_BLOCK="[data-edit],[data-edittask],[data-dellog],[data-deltask],[data-preset],[data-pdel],[data-padd],[data-pedit],[data-ccat],[data-task],[data-due],[data-addto],[data-addbtn],[data-peact],[data-fl]";
 function gateGuard(e){
   if(!document.body.dataset.gate)return;
   const t=e.target;if(!t||!t.closest||!t.closest(".wrap"))return;
@@ -2259,7 +2259,7 @@ const T_REMOTE="其他设备有新的修改，稍后会自动更新。",T_REMOTE
 /* D-06 (owner-confirmed wording): the record open in the editor was deleted on another device and the user saved it anyway */
 const T_LOG_READDED="这条记录在另一台设备上被删除，已按你的修改重新加回";
 /* busy = the user is in the middle of something an update must not disturb: an open dialog or confirm, a draft, an open new-tag input, the cursor in a text field (a checkbox or button does not count),
-   a weekly review not yet committed, an unsaved strength value, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
+   a weekly review not yet committed, a typed to-do. next = the element that is about to get the focus (focusout), when it is known */
 /* 健身页的草稿由 renderFit 自己保护（草稿有内容或记录区有焦点时不重画），不算 busy：远端更新照常应用，不让一直开着的草稿把更新挡在横幅后面（Phase 15） */
 function isBusy(...a){
   if(pe)return true;
@@ -2271,7 +2271,6 @@ function isBusy(...a){
     const tg=f.tagName;
     if(tg==="TEXTAREA"||(tg==="INPUT"&&["text","number","date","search","email","tel","url","password",""].includes(f.getAttribute("type")||"text")))return true;
   }
-  if(document.querySelector("[data-liftsave]:not(.hidden)"))return true;
   for(const e of document.querySelectorAll("[data-addto]"))if(e.value.trim())return true;
   return false;
 }
@@ -2295,18 +2294,16 @@ function applyView(fromCommit){
   const note=()=>{if(!(syncing&&cfShown))toast(T_REMOTE_DONE,null,4000)};
   if(fromCommit)queueMicrotask(note);else note();
 }
-/* a full render that keeps what the user has typed and not yet committed: both composer texts, the new-tag inputs, the to-do inputs, strength values with a visible save button, the focused element and its cursor;
+/* a full render that keeps what the user has typed and not yet committed: both composer texts, the new-tag inputs, the to-do inputs, the focused element and its cursor;
    the composer categories and edit modes are module state and are not touched, like the week, month and filter */
 function renderKeep(){
   const act=document.activeElement,aid=act&&act.id&&act.closest&&act.closest(".wrap")?act.id:null;
   let sa=null,sb=null;if(act&&act.tagName==="TEXTAREA"&&typeof act.selectionStart==="number"){sa=act.selectionStart;sb=act.selectionEnd}
   const vals={};["w-text","c-text","w-padd","c-padd"].forEach(id=>{const e=$(id);if(e)vals[id]=e.value});
   const add={};document.querySelectorAll("[data-addto]").forEach(e=>{if(e.value)add[e.dataset.addto]=e.value});
-  const lf={};document.querySelectorAll("[data-liftsave]:not(.hidden)").forEach(b=>{const i=$("lf-"+b.dataset.liftsave);if(i)lf[b.dataset.liftsave]=i.value});
   renderAll();
   Object.keys(vals).forEach(id=>{const e=$(id);if(!e||e.value===vals[id])return;e.value=vals[id];if(/-text$/.test(id))e.dispatchEvent(new Event("input"))});
   document.querySelectorAll("[data-addto]").forEach(e=>{if(add[e.dataset.addto]!==undefined)e.value=add[e.dataset.addto]});
-  Object.keys(lf).forEach(k=>{const i=$("lf-"+k);if(i)i.value=lf[k];document.querySelectorAll("[data-liftsave]").forEach(b=>{if(b.dataset.liftsave===k)b.classList.remove("hidden")})});
   const e=aid&&$(aid);
   if(e&&e!==document.activeElement&&!e.disabled){e.focus();if(sa!==null&&e.tagName==="TEXTAREA")try{e.setSelectionRange(sa,sb)}catch(x){}}
 }
@@ -2548,16 +2545,8 @@ function renderDay(){
 
 function renderGoals(){
   const t=today();
-  const fit=`<div class="group k-fit"><div class="group-h"><span class="p">健身</span><h3>力量目标</h3></div>
-    <p class="note">${esc(plan.fitNote)}</p>
-    ${activeLifts().length?"":`<p class="empty">${T_GOALS_NO_LIFTS}</p>`}<div class="lifts">${activeLifts().map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
-      const h=s.hist.slice(-3).map(x=>`${md(x.date)} ${esc(x.v)}`).join("，");
-      return `<div class="lift"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
-      <div class="lbar"><i data-w="${pct}"></i></div>
-      <div class="upd"><label for="lf-${esc(L.id)}">当前</label><input type="number" id="lf-${esc(L.id)}" data-lift="${esc(L.id)}" step="${L.unit==="kg"?2.5:1}" min="0" value="${esc(s.cur)}"><span>${esc(L.unit)}</span><button type="button" class="ghost hidden" data-liftsave="${esc(L.id)}">保存</button></div>
-      <div class="hist">${h?"最近："+h:esc(L.note)}</div></div>`}).join("")}</div></div>`;
   if(planEmpty()){$("goals").innerHTML=`<div class="panel pe-empty"><h3>${T_PE_EMPTY_TITLE}</h3><p>${T_PE_EMPTY_BODY}</p>${CLOUD&&me?`<div class="pe-empty-act"><button type="button" class="primary" id="planEditBtn2">${T_PE_BTN2}</button><button type="button" class="ghost" id="planSampleBtn" aria-describedby="planSampleWhy">${T_PE_SAMPLE_BTN}</button><p class="pe-why" id="planSampleWhy" role="status"></p></div>`:""}</div>`+archivedHTML();goalsBars();applyGate();pkWhy();return}
-  $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+fit+activeGroups().map(g=>{
+  $("goals").innerHTML=(CLOUD&&me?`<div class="goals-bar"><button type="button" class="ghost" id="planEditBtn">${T_PE_BTN}</button></div>`:"")+activeGroups().map(g=>{
     const ts=allTasks().filter(x=>x.group===g.id&&!isArchived(x));const dn=ts.filter(x=>tstate(x.id).done).length;
     return `<div class="group k-${kOf(g.cat)}"><div class="group-h"><span class="p">${esc(groupLabel(g.id))}</span><h3>${esc(g.name)}</h3><span class="cnt">${dn}/${ts.length}</span></div>
     ${g.note?`<p class="note">${esc(g.note)}</p>`:""}
@@ -2589,9 +2578,9 @@ function archivedHTML(){
     <div class="bar"><i data-w="${ts.length?dn/ts.length*100:0}"></i></div>
     ${ts.map(x=>row(x,"",x.id)).join("")}</div>`}).join("");
   const alone=solo.length?`<p class="note">${T_ARCH_TASKS}</p>${solo.map(x=>row(x,name.get(x.group)+" · ",x.id)).join("")}`:"";
-  const lifts=ls.map(L=>{const s=lift(L.id),pct=Math.min(100,(s.cur/L.target)*100);
+  const lifts=ls.map(L=>{const s=lift(L.id),v=liftNow(state,L).v,n=Number(v),pct=Math.max(0,Math.min(100,((isFinite(n)?n:0)/L.target)*100));
     const h=s.hist.map(x=>`${esc(md(x.date))} ${esc(x.v)}`).join("，");
-    return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(s.cur)}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
+    return `<div class="lift arch-l" data-arch="l:${esc(L.id)}"><div class="ln">${esc(L.n)}</div><div class="lv">${esc(String(v))}<small> / ${esc(L.target)} ${esc(L.unit)}</small></div>
     <div class="lbar"><i data-w="${pct}"></i></div>
     <div class="hist" data-hist="${s.hist.length}">${h||esc(L.note)}</div></div>`}).join("");
   const orphans=orph.length?`<p class="note">${T_ORPHAN_TASKS}</p>${orph.map(x=>`<div class="task ro" data-arch="o:${esc(x.id)}"><span class="tt">${esc(x.text)}</span><span class="meta">${esc(archStatus(tstate(x.id)))}<button class="x" data-deltask="${esc(x.id)}" aria-label="删除待办" title="删除待办">×</button></span></div>`).join("")}`:"";
@@ -2618,7 +2607,7 @@ const T_FL_TARGET=(t,u)=>"目标 "+t+" "+u,T_FL_COL_W=u=>"重量（"+u+"）",T_F
 const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次训练："+s;
 /* 15-04：本周训练和力量目标面板（#fw）。T_FW_TITLE 只给读屏用（面板标题，sr-only） */
 const T_FW_TITLE="本周训练和力量目标",T_FW_DAYS="本周训练",T_FW_DAY_UNIT="天",T_FW_GOAL=(a,b)=>"目标 "+a+"～"+b+" 天",T_FW_REACHED="已达到目标",T_FW_DAYS_ARIA=(d,ws)=>"本周训练 "+d+" 天："+ws.join("、"),T_FW_DAYS_NONE="本周还没有训练";
-const T_FW_LIFTS="力量目标",T_FW_TARGET=(t,u)=>"目标 "+t+" "+u,T_FW_PCT=n=>n+"%",T_FW_LAST=d=>"最近一次训练："+d,T_FW_NO_TRAINING="还没有训练记录",T_FW_BW=n=>"徒手完成，最多 "+n+" 次",T_FW_BAR_ARIA=n=>n+"进度";
+const T_FW_NOTE_BTN="健身说明",T_FW_LIFTS="力量目标",T_FW_TARGET=(t,u)=>"目标 "+t+" "+u,T_FW_PCT=n=>n+"%",T_FW_LAST=d=>"最近一次训练："+d,T_FW_NO_TRAINING="还没有训练记录",T_FW_BW=n=>"徒手完成，最多 "+n+" 次",T_FW_BAR_ARIA=n=>n+"进度";
 /* fl 是记录区的一次会话 {date,draft,orig,seen,tried}：draft 是输入框里的字符串（形状同 woFromDraft 的参数），orig 是载入时 draft 的 JSON，用来判断有没有未保存的改动；seen 是失去过焦点的字段键，tried 是点过保存；点「保存训练」才写进 state.workouts */
 const T_FL_STATE_SAVED="这一天已经记过训练，改动保存后会更新。",T_FL_DELETE="删除这次训练",T_FL_DELETED=d=>"已删除 "+d+" 的训练",T_FL_UNDO_DEL="撤销删除",T_FL_LIVE_UNDONE="已撤销：",T_FL_COPY="复制上一组";
 const T_FL_HINT_DIRTY="有没保存的内容",T_FL_HINT_EMPTY="先添加动作或有氧项，再保存",T_FL_HINT_SAVED="已保存";
@@ -2795,13 +2784,23 @@ function renderFw(){
       <div class="fw-bar" role="progressbar" aria-label="${esc(T_FW_BAR_ARIA(L.n))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i data-w="${pct}"></i></div>
       <p class="fw-cap">${esc(T_FW_PCT(Math.round(pct)))}${done?"　"+esc(T_FW_REACHED):""}</p>
       <p class="fw-cap">${esc(v.date?T_FW_LAST(md(v.date)):T_FW_NO_TRAINING)}</p>${v.bw?`<p class="fw-cap">${esc(T_FW_BW(v.reps))}</p>`:""}${L.note?`<p class="fw-cap">${esc(L.note)}</p>`:""}</div>`}).join("");
-  $("fw").innerHTML=`<div class="fw-head"><h3 id="fw-title" class="sr-only">${T_FW_TITLE}</h3></div>
+  const note=plan.fitNote,nopen=fwNoteIsOpen(),refocus=document.activeElement&&document.activeElement.id==="fwNoteBtn";
+  $("fw").innerHTML=`<div class="fw-head"><h3 id="fw-title" class="sr-only">${T_FW_TITLE}</h3>${note?`<button type="button" class="ghost" id="fwNoteBtn" data-fit-ro aria-expanded="${nopen}" aria-controls="fw-note"><span class="fw-chev" aria-hidden="true"></span>${T_FW_NOTE_BTN}</button>`:""}</div>${note?`<p id="fw-note" class="fw-note"${nopen?"":" hidden"}>${esc(note)}</p>`:""}
     <div class="fw-days" role="group" aria-labelledby="fw-days-t"><h4 id="fw-days-t" class="fw-sub">${T_FW_DAYS}</h4>
       <p class="fw-line"><span class="fw-n">${d}</span><span>${T_FW_DAY_UNIT}</span><span class="fw-goal">${esc(T_FW_GOAL(goal[0],goal[1]))}</span>${d>=goal[0]?`<span class="fw-ok">${T_FW_REACHED}</span>`:""}</p>
       <ol class="fw-dots" role="img" aria-label="${esc(d?T_FW_DAYS_ARIA(d,names):T_FW_DAYS_NONE)}">${dots}</ol></div>
     <h4 class="fw-sub">${T_FW_LIFTS}</h4>${lifts?`<div class="fw-lifts">${lifts}</div>`:`<p class="empty">${T_GOALS_NO_LIFTS}</p>`}`;
-  fitBars();
+  fitBars();if(refocus){const b=$("fwNoteBtn");if(b)b.focus()}
 }
+/* 健身说明的展开状态（14 D-03、A11）：设备偏好，本机 localStorage 的 usj:fit:note，值只有 closed；没有这个键就是展开（第一次打开默认展开），收起写 closed，再展开删掉键；不进账号数据，也不在退出登录时清理 */
+const FW_NOTE_KEY="usj:fit:note";let fwNoteOpen=null;
+function fwNoteIsOpen(){if(fwNoteOpen===null){try{fwNoteOpen=localStorage.getItem(FW_NOTE_KEY)!=="closed"}catch(e){fwNoteOpen=true}}return fwNoteOpen}
+function fwNoteToggle(){
+  const open=!fwNoteIsOpen();fwNoteOpen=open;
+  try{if(open)localStorage.removeItem(FW_NOTE_KEY);else localStorage.setItem(FW_NOTE_KEY,"closed")}catch(e){}
+  const b=$("fwNoteBtn"),n=$("fw-note");if(b)b.setAttribute("aria-expanded",String(open));if(n)n.hidden=!open;
+}
+$("fw").addEventListener("click",e=>{if(e.target.closest("#fwNoteBtn"))fwNoteToggle()});
 /* 进度条宽度：和 goalsBars 一样只用 CSSOM（style-src-attr 'none'），没有过渡 */
 function fitBars(){$("fw").querySelectorAll("i[data-w]").forEach(i=>{i.style.width=i.getAttribute("data-w")+"%"})}
 /* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
@@ -3220,17 +3219,10 @@ $("goals").addEventListener("change",e=>{
   if(c){const on=e.target.checked,day=today();commit(["task:"+c],st=>{st.tasks[c]=Object.assign({},st.tasks[c]||{},{done:on,doneDate:on?day:""})});renderAll();if(on)toast("完成，已记到今天")}
   if(du){const v=e.target.value;commit(["task:"+du],st=>{st.tasks[du]=Object.assign({},st.tasks[du]||{},{due:v})});renderAll()}
 });
-function saveLift(lf){const inp=$("lf-"+lf);if(!inp)return;const v=parseFloat(inp.value);const L=plan.lifts.find(x=>x.id===lf);const s=lift(lf);
-  if(isNaN(v)||v<0){renderGoals();return}
-  if(v===s.cur){renderGoals();return}
-  const day=today();
-  commit(["lift:"+lf],st=>{const c=Object.assign({cur:L.def,hist:[]},st.lifts[lf]||{});const h=c.hist.slice();if(h.length&&h[h.length-1].date===day)h[h.length-1]={date:day,v};else h.push({date:day,v});st.lifts[lf]=Object.assign(c,{cur:v,hist:h.slice(-30)})});renderGoals();toast(v>=L.target?L.n+"达标了":L.n+"已更新为 "+v+L.unit)}
-$("goals").addEventListener("input",e=>{const lf=e.target.dataset.lift;if(!lf)return;const b=document.querySelector(`[data-liftsave="${lf}"]`);
-  if(b)b.classList.toggle("hidden",parseFloat(e.target.value)===lift(lf).cur)});
 function addTask(g){const inp=document.querySelector(`[data-addto="${g}"]`);const v=inp.value.trim();if(!v)return;const id="c-"+uid();commit(["custom:"+id],s=>{if(!s.custom.some(x=>x.id===id))s.custom.push({id,group:g,text:v})});renderAll()}
-$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){const blk=peBlock();if(blk){toast(net==="expired"?T_PK_WHY_EXPIRED:T_PK_WHY_OFFLINE,null,3000);return}openSamplePicker("card");return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask,ls=e.target.dataset.liftsave;if(ls)saveLift(ls);
+$("goals").addEventListener("click",e=>{if(e.target.closest("#planEditBtn,#planEditBtn2")){goPlan();return}if(e.target.closest("#planSampleBtn")){const blk=peBlock();if(blk){toast(net==="expired"?T_PK_WHY_EXPIRED:T_PK_WHY_OFFLINE,null,3000);return}openSamplePicker("card");return}const a=e.target.dataset.addbtn,d=e.target.dataset.deltask;
   if(a)addTask(a);if(d){commit(["custom:"+d],s=>{s.custom=s.custom.filter(t=>t.id!==d);delete s.tasks[d]});renderAll()}});
-$("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto);if(e.key==="Enter"&&e.target.dataset.lift){e.preventDefault();saveLift(e.target.dataset.lift)}});
+$("goals").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.addto)addTask(e.target.dataset.addto)});
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;filter=b.dataset.filter;renderTimeline()});
 
 /* ---------- plan editor (Phase 12) ----------

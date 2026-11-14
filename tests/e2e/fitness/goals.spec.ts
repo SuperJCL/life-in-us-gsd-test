@@ -4,7 +4,11 @@
 import { test, expect } from '../../support/test';
 import { loadAppPure } from '../../support/app-source';
 import { FROZEN_TODAY, WEEK_START_FROZEN } from '../../support/constants';
+import { serveAppVariant, planValueEdit } from '../../support/app-variant';
+import { loadFixture } from '../../support/fixture-files';
+import { ALL_LIFT_IDS } from '../../support/task-ids';
 import {
+  FW_NOTE_BTN,
   FW_NO_TRAINING,
   FW_REACHED,
   TAB_LABELS,
@@ -16,7 +20,8 @@ import {
   fwTarget,
   weekFitGoalLine,
 } from '../../support/strings';
-import { flAddLift, flFillSet, flSave, gotoFitness, readFitWeek, readLiftGoals } from '../../support/fitness';
+import { flAddLift, flChipIds, flFillSet, flSave, gotoFitness, readCharts, readFitWeek, readLiftGoals, setRange } from '../../support/fitness';
+import { gotoGoals } from '../../support/goals';
 
 const NAMES = ['trainDays', 'liftNow', 'DEFAULT_PLAN'] as const;
 const plain = (v: any): any => (v === null || v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -183,4 +188,144 @@ test('FIT-01 the week block on the fitness tab and the week view count training 
   await expect(card.locator('.goal')).not.toHaveClass(/\bok\b/);
   await gotoFitness(page);
   expect((await readFitWeek(page)).n, 'fitness tab stays on the current week').toBe('2');
+});
+
+test('FIT-01 the fitness note button starts open, remembers being closed on this device and is absent for an empty note (14 D-03)', async ({
+  page,
+  app,
+}) => {
+  const { DEFAULT_PLAN } = loadAppPure(['DEFAULT_PLAN']);
+  await app.open({ seed: { _synthetic: true } });
+  await gotoFitness(page);
+
+  const btn = page.locator('#fwNoteBtn');
+  const note = page.locator('#fw-note');
+  const key = () => page.evaluate(() => localStorage.getItem('usj:fit:note'));
+  const isPlanNote = () => note.evaluate((el, t) => el.textContent === t, DEFAULT_PLAN.fitNote as string);
+
+  // 第一次打开：默认展开，说明是示例计划的 fitNote
+  await expect(btn).toHaveText(FW_NOTE_BTN);
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  await expect(btn).toHaveAttribute('aria-controls', 'fw-note');
+  await expect(note).toBeVisible();
+  expect(await isPlanNote(), 'the note shows the plan note').toBe(true);
+  expect(await key(), 'no device key before the first close').toBeNull();
+
+  // 收起：aria-expanded 为假、说明隐藏、本机记 closed
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-expanded', 'false');
+  await expect(note).toBeHidden();
+  expect(await key(), 'closed is remembered on this device').toBe('closed');
+
+  // 刷新后仍收起
+  await app.reload();
+  await gotoFitness(page);
+  await expect(btn).toHaveAttribute('aria-expanded', 'false');
+  await expect(note).toBeHidden();
+
+  // 再展开：显示说明，键被删掉
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  await expect(note).toBeVisible();
+  expect(await key(), 'the key is removed when the note is opened again').toBeNull();
+});
+
+test('FIT-01 the fitness note and its button are not rendered when the plan note is empty (14 D-03)', async ({ page, app }) => {
+  await serveAppVariant(page, [planValueEdit([{ path: 'fitNote', value: '' }])]);
+  await app.open({ seed: { _synthetic: true } });
+  await gotoFitness(page);
+  await expect(page.locator('#fw .fw-days')).toBeVisible();
+  await expect(page.locator('#fwNoteBtn')).toHaveCount(0);
+  await expect(page.locator('#fw-note')).toHaveCount(0);
+});
+
+test('FIT-01 the goals tab no longer shows lift cards and archived lifts stay read-only in its archived area with the current value from trainings (S10, D-15)', async ({
+  page,
+  app,
+}) => {
+  const { DEFAULT_PLAN } = loadAppPure(['DEFAULT_PLAN']);
+  // 本地版没有编辑计划入口：只在内存里把示例计划的 squat 设成已归档
+  await serveAppVariant(page, [
+    { find: 'function normalizePlan(', replace: 'DEFAULT_PLAN.lifts.find(L=>L.id==="squat").archived=true;\nfunction normalizePlan(' },
+  ]);
+  await app.open({
+    seed: {
+      _synthetic: true,
+      workouts: { '2026-03-12': wo({ squat: [[30, 5], [35, 3]] }), '2026-03-16': wo({ bench: [[25, 5]] }) },
+    },
+  });
+
+  // 目标页：没有力量目标卡、没有手填入口，也没有健身说明
+  await gotoGoals(page);
+  const counts = await page.evaluate(() => ({
+    lifts: document.querySelectorAll('#goals .lifts').length,
+    dataLift: document.querySelectorAll('#goals [data-lift]').length,
+    save: document.querySelectorAll('#goals [data-liftsave]').length,
+    inputs: document.querySelectorAll('#goals [id^="lf-"]').length,
+    inputsAnywhere: document.querySelectorAll('input[data-lift]').length,
+  }));
+  expect(counts, 'no lift card or hand-entry input on the goals tab').toEqual({ lifts: 0, dataLift: 0, save: 0, inputs: 0, inputsAnywhere: 0 });
+  expect(
+    await page.locator('#goals').evaluate((el, t) => (el.textContent ?? '').includes(t), DEFAULT_PLAN.fitNote as string),
+    'the fitness note is not on the goals tab',
+  ).toBe(false);
+
+  // 已归档区：squat 只读，当前值是最近一次训练里最重的一组（35），没有输入和按钮
+  await page.locator('#goalsArch > summary').click();
+  const arch = await page.evaluate(() => {
+    const el = document.querySelector('#goalsArch [data-arch="l:squat"]');
+    return {
+      present: !!el,
+      lv: (el?.querySelector('.lv')?.textContent ?? '').startsWith('35'),
+      controls: el ? el.querySelectorAll('input, button').length : -1,
+    };
+  });
+  expect(arch, 'archived squat shows the value from its training and no controls').toEqual({ present: true, lv: true, controls: 0 });
+
+  // 健身页：squat 没有卡，记录区芯片里也没有 squat，bench 卡照常在
+  await gotoFitness(page);
+  expect((await readLiftGoals(page, ALL_LIFT_IDS)).map((c) => c.lift), 'active lifts only').toEqual(['bench', 'dead', 'pull']);
+  expect(await flChipIds(page), 'no chip for the archived lift').not.toContain('lift:squat');
+});
+
+test('FIT-01 every lift goal card on the fitness tab shows the value, target, progress and caption consistent with the fixture (D-15)', async ({
+  page,
+  app,
+}) => {
+  const fixture = loadFixture('full-state.json');
+  const { DEFAULT_PLAN } = loadAppPure(['DEFAULT_PLAN']);
+  await app.open({ mode: 'account', seed: fixture });
+  await app.expectAccountMode();
+  await gotoFitness(page);
+
+  // 路标：恰好 4 张力量目标卡，顺序同示例计划
+  const cards = await readLiftGoals(page, ALL_LIFT_IDS);
+  expect(cards).toHaveLength(4);
+  expect(cards.map((c) => c.lift)).toEqual([...ALL_LIFT_IDS]);
+
+  // fixture 没有训练：当前值是 fixture 的 cur（没有就是计划起始值），进度按它算（封顶 100），说明是「还没有训练记录」
+  for (const c of cards) {
+    const id = c.lift as (typeof ALL_LIFT_IDS)[number];
+    const L = DEFAULT_PLAN.lifts.find((x: any) => x.id === id);
+    const cur: number = fixture.lifts[id]?.cur ?? L.def;
+    const pct = Math.min(100, (cur / L.target) * 100);
+    expect(c.value === String(cur), `${id} 的当前值应当等于 fixture 的 cur 或计划起始值（内容已隐藏）`).toBe(true);
+    expect(c.dataW, `${id} 的进度条 data-w`).toBeCloseTo(pct, 6);
+    expect(c.dataW !== null && c.dataW >= 0 && c.dataW <= 100, `${id} 的进度条应当在 0 到 100 之间`).toBe(true);
+    expect(c.width?.endsWith('%'), `${id} 的进度条宽度由 CSSOM 设置`).toBe(true);
+    expect(parseFloat(c.width ?? ''), `${id} 的进度条宽度和 data-w 一致`).toBeCloseTo(c.dataW ?? NaN, 3);
+    const caption = fwPct(Math.round(pct)) + (pct >= 100 ? '　' + FW_REACHED : '');
+    expect(c.captions?.slice(0, 2), `${id} 的说明行`).toEqual([caption, FW_NO_TRAINING]);
+  }
+
+  // 手填历史在趋势图「全部」范围里是空心点：bench 图的空心点等于 fixture 里不晚于今天的点，按日期升序
+  await setRange(page, 'all');
+  const bench = (await readCharts(page)).find((c) => c.lift === 'bench');
+  const expectedHist = (fixture.lifts.bench.hist as Array<{ date: string; v: number }>)
+    .filter((h) => h.date <= FROZEN_TODAY)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .slice(-40)
+    .map((h) => [h.date, String(h.v)]);
+  expect(expectedHist.length, 'the fixture has hand-entered history').toBeGreaterThan(0);
+  expect(bench?.pts.filter((p) => p.old).map((p) => [p.date, p.v]), 'hollow points of the bench chart').toEqual(expectedHist);
 });
