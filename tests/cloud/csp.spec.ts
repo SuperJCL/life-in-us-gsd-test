@@ -20,6 +20,7 @@ import { gotoGoals } from '../support/goals';
 import { acknowledgeConsoleErrors } from '../support/guard-ack';
 import { chooseImportFile, jsonImportFile } from '../support/import-file';
 import { expand, field, openEditor, savePlan } from '../support/plan-editor';
+import { fcStyled, flAddCardio, flAddLift, flFillCardio, flFillSet, flSave, gotoFitness, setMetric, setRange } from '../support/fitness';
 import { TAB_LABELS, TOAST_IMPORTED, TOAST_PLAN_SAVED } from '../support/strings';
 import { expectToast } from '../support/toast';
 
@@ -58,7 +59,7 @@ async function serveBuilt(page: Page, built: { html: string }, policy: string) {
 
 const violations = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__cspViolations as string[]);
 
-test('SEC-02 the built site page runs under its Content-Security-Policy without a violation through sign-in, the four views, the plan editor, export and import', async ({
+test('SEC-02 the built site page runs under its Content-Security-Policy without a violation through sign-in, the five views with a training and its charts, the plan editor, export and import', async ({
   app,
   page,
 }, testInfo) => {
@@ -70,12 +71,17 @@ test('SEC-02 the built site page runs under its Content-Security-Policy without 
   await serveBuilt(page, built, built.policy);
 
   const plan: any = syntheticPlan('csp', 2);
-  await app.open({ mode: 'cloud', seed: syntheticState('csp'), plan, login: 0 });
+  // 5 个力量项（电脑上两页）和 1 个有氧项，翻页、两种图和数据表都会出现
+  for (let i = 2; i <= 5; i += 1) plan.lifts.push({ id: `l-csp${i}`, n: `SYNTH-csp lift ${i}`, unit: 'kg', def: 10, target: 20, note: '' });
+  plan.cardio = [{ id: 'r-csp1', n: 'SYNTH-csp cardio', note: '', target: { kind: 'min', v: 30 } }];
+  // 力量目标卡搬到了健身页，目标页的进度条只剩目标组：做完一项，让至少一个条不是 0%
+  const seed = syntheticState('csp', { tasks: { 't-csp1x1': { done: true, doneDate: '2026-03-17' } } });
+  await app.open({ mode: 'cloud', seed, plan, login: 0 });
   // 页面拿到的就是发布版：策略头确实带上了
   expect(await page.evaluate(() => (window as any).USJ_CONFIG?.backend)).toBe('pocketbase');
 
-  // 四个视图（本周在登录后默认显示，其余三个依次切换）
-  for (const k of ['wk', 'cal', 'goal', 'tl'] as const) {
+  // 五个视图（本周在登录后默认显示，其余四个依次切换）
+  for (const k of ['wk', 'cal', 'goal', 'tl', 'fit'] as const) {
     const tab = page.getByRole('tab', { name: TAB_LABELS[k], exact: true });
     await tab.click();
     await expect(tab).toHaveAttribute('aria-selected', 'true');
@@ -96,6 +102,40 @@ test('SEC-02 the built site page runs under its Content-Security-Policy without 
     expect(Math.abs(parseFloat(b.css) - b.w)).toBeLessThan(0.001);
   }
   expect(bars.some((b) => b.css !== '0%')).toBe(true);
+
+  // 健身页：记一次训练（一个力量项加一个有氧项）、切换指标和范围、翻页、展开一条训练历史和一张图的数据表
+  await gotoFitness(page);
+  await flAddLift(page, 'l-csp1');
+  await flFillSet(page, 'l-csp1', 0, '30', '5');
+  await flAddCardio(page, 'r-csp1');
+  await flFillCardio(page, 'r-csp1', '30', '5');
+  await flSave(page);
+  await expect(page.locator('#fh details.fh-item')).toHaveCount(1);
+  await setMetric(page, 'e1rm');
+  await setRange(page, '3m');
+  await expect(page.locator('#fcNext')).toBeEnabled();
+  await page.locator('#fcNext').click();
+  await expect(page.locator('#fc-page')).not.toHaveText('');
+  await page.locator('#fcPrev').click();
+  await page.locator('#fh details.fh-item > summary').first().click();
+  await expect(page.locator('#fh details.fh-item[open]')).toHaveCount(1);
+  await page.locator('#fc details.fc-data > summary').first().click();
+  await expect(page.locator('#fc details.fc-data[open]')).toHaveCount(1);
+  // 健身页里除了进度条 i[data-w]，没有元素带 style 属性；进度条的宽度是经 CSSOM 设上的（不是内联属性）
+  expect(
+    await page.evaluate(() => Array.from(document.querySelectorAll('#tab-fit [style]')).filter((e) => !e.matches('i[data-w]')).length),
+    '#tab-fit 里有进度条以外的元素带 style 属性',
+  ).toBe(0);
+  expect(await fcStyled(page), '趋势图里有元素带 style 属性').toBe(0);
+  const fwBars = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('#fw i[data-w]')).map((i) => ({ w: Number(i.getAttribute('data-w')), css: i.style.width })),
+  );
+  expect(fwBars.length).toBeGreaterThan(0);
+  for (const b of fwBars) {
+    expect(b.css.endsWith('%')).toBe(true);
+    expect(Math.abs(parseFloat(b.css) - b.w)).toBeLessThan(0.001);
+  }
+  expect(await page.locator('#fc svg.fc-svg').count(), '趋势图的 svg 画出来了').toBeGreaterThan(0);
 
   // 编辑计划页：改一个组名并保存
   await openEditor(page);

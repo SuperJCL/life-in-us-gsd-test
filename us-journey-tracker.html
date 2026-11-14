@@ -1887,10 +1887,12 @@ async function syncOnce(){
         }else if(clash)snapPending=keepConflict("state",ssv);
         /* what is uploaded may differ in size from the working state (the waiting server version plus the operations not yet uploaded): the limit applies to the body */
         sizeCheck(body);
+        /* the version this body was built on: the slot of this pass, or one left by an earlier pass whose upload failed (nothing clashed this time, so nothing was rebased) */
+        const heldSlot=pendRemote.state;
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
         /* the slot still holds the version this upload was based on (nobody took it meanwhile): from now on it holds what is on the server, so the local operations that come after are done on that */
-        if(slot&&pendRemote.state===slot){pendRemote.state={data:body,updated:up.updated};gotRemote=true}
+        if(heldSlot&&pendRemote.state===heldSlot){pendRemote.state={data:body,updated:up.updated};gotRemote=true}
         /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
         if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
       }else if(ssv.updated!==docs.state.base&&!docs.state.dirty&&(docs.state.seq||0)===seq){

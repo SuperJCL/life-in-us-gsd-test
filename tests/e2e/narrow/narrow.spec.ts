@@ -11,6 +11,7 @@ import { editor } from '../../support/editor';
 import { gotoCalendar } from '../../support/calendar';
 import { loadFixture } from '../../support/fixture-files';
 import { FROZEN_TODAY, WEEK_START_FROZEN } from '../../support/constants';
+import { TAB_LABELS } from '../../support/strings';
 
 test.use({ viewport: { width: 520, height: 900 } });
 
@@ -237,4 +238,72 @@ test('RESP-01 at phone width picking a day scrolls the composer into view', asyn
     atTop || visible,
     `#wkComp 应贴近视口上沿，或页面已到底且 composer 顶部在视口内（compTop,compBottom,innerHeight,scrollY,scrollHeight=${nums}，atBottom=${end.atBottom}）`,
   ).toBe(true);
+});
+
+// Phase 15：375 px 下五个标签放在一行、整页不横向滚动；健身页的四个面板上下叠、趋势图单列三张、范围芯片够高（UI-SPEC S1、A1）。
+// 视口在页面打开之后才缩到 375 × 800（本文件默认 520 × 900），布局随断点重排。
+test('RESP-01 at 375 px the five tabs fit without horizontal scroll and the fitness tab panels stack in one column', async ({ page, app }) => {
+  await openPhone(app, page);
+  await page.setViewportSize({ width: 375, height: 800 });
+  expect(await page.evaluate(() => ({ w: innerWidth, h: innerHeight })), '视口缩到 375 × 800').toEqual({ w: 375, h: 800 });
+
+  // 五个标签：同一行、不低于 44 px 高，标签栏自己没有横向滚动
+  const tabs = await page.evaluate(() => {
+    const nav = document.querySelector('nav.tabs') as HTMLElement;
+    const btns = Array.from(nav.querySelectorAll<HTMLElement>(':scope > button[role="tab"]'));
+    return {
+      count: btns.length,
+      tops: btns.map((b) => b.offsetTop),
+      heights: btns.map((b) => b.getBoundingClientRect().height),
+      rights: btns.map((b) => b.getBoundingClientRect().right),
+      navScrollable: nav.scrollWidth > nav.clientWidth,
+      pageScrollable: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(tabs.count, '标签个数').toBe(5);
+  expect(new Set(tabs.tops).size, '五个标签在同一行（offsetTop 相同）').toBe(1);
+  expect(Math.min(...tabs.heights), '每个标签至少 44 px 高').toBeGreaterThanOrEqual(44);
+  expect(Math.max(...tabs.rights), '最右一个标签没有超出视口').toBeLessThanOrEqual(375);
+  expect(tabs.navScrollable, '标签栏没有横向滚动').toBe(false);
+  expect(tabs.pageScrollable, '整页没有横向滚动').toBe(false);
+
+  // 健身页：四个面板上下排列（竖直方向不重叠、左边对齐），整页没有横向滚动
+  await page.getByRole('tab', { name: TAB_LABELS.fit, exact: true }).click();
+  await expect(page.locator('#tab-fit')).toBeVisible();
+  const fit = await page.evaluate(() => {
+    const rect = (id: string) => {
+      const r = (document.getElementById(id) as HTMLElement).getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+    };
+    const panels = ['fl', 'fw', 'fc', 'fh'].map(rect);
+    const figs = Array.from(document.querySelectorAll<HTMLElement>('#fc figure.fc[data-lift]'));
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('#fc [data-fc-range]'));
+    const grid = document.querySelector('#fc .fc-grid') as HTMLElement;
+    return {
+      panels,
+      figLefts: figs.map((f) => f.offsetLeft),
+      figCount: figs.length,
+      cols: getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
+      chipCount: chips.length,
+      chipHeights: chips.map((c) => c.getBoundingClientRect().height),
+      chipRight: Math.max(...chips.map((c) => c.getBoundingClientRect().right)),
+      pageScrollable: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  for (let i = 0; i < 4; i += 1) {
+    for (let j = i + 1; j < 4; j += 1) {
+      const a = fit.panels[i];
+      const b = fit.panels[j];
+      expect(a.bottom <= b.top + 1 || b.bottom <= a.top + 1, `面板 ${i} 和 ${j} 上下不重叠`).toBe(true);
+    }
+    expect(fit.panels[i].left, `面板 ${i} 与第一个面板左对齐`).toBe(fit.panels[0].left);
+    expect(fit.panels[i].right, `面板 ${i} 没有超出视口`).toBeLessThanOrEqual(375);
+  }
+  expect(fit.cols, '趋势图单列').toBe(1);
+  expect(fit.figCount, '一页三张图').toBe(3);
+  expect(new Set(fit.figLefts).size, '三张图的 offsetLeft 相同').toBe(1);
+  expect(fit.chipCount, '五个范围芯片').toBe(5);
+  expect(Math.min(...fit.chipHeights), '范围芯片至少 44 px 高').toBeGreaterThanOrEqual(44);
+  expect(fit.chipRight, '范围芯片不横向溢出').toBeLessThanOrEqual(375);
+  expect(fit.pageScrollable, '健身页整页没有横向滚动').toBe(false);
 });
