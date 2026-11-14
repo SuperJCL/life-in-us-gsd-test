@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: executing
-stopped_at: Completed 15-04-PLAN.md
-last_updated: "2026-11-14T03:17:34.084Z"
+stopped_at: Completed 15-05-PLAN.md
+last_updated: "2026-11-14T06:43:03.503Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: 5903b31abae3c6229e3c12f6e19b91b9028129dc
+state_head: 196024c26d47b10bc88de5d55e8acccd879a063a
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 85
+  completed_plans: 86
   percent: 73
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 ## Current Position
 
 Phase: 15 (健身页（Fitness Tab）) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 15 execution started
 
@@ -176,6 +176,7 @@ Progress: [███████░░░] 73%
 | Phase 15 P02 | 28 min | 3 tasks | 7 files |
 | Phase 15 P03 | 30min | 3 tasks | 7 files |
 | Phase 15 P04 | 3h | 3 tasks | 22 files |
+| Phase 15 P05 | 27min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -378,6 +379,8 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 15-04: 本周训练天数用 trainDays 取训练日与健身文字日的并集，健身页和本周页共用，同一天只算一次
 - [Phase 15]: 15-04: 健身说明展开状态是设备偏好（usj:fit:note），不进账号数据
 - [Phase 15]: 15-04: 云端用例的力量项一步改成健身页保存一次训练（键 wo:<日期>）
+- [Phase 15]: 15-05: 历史里删除一次训练后焦点到下一条历史（没有就上一条，再没有就标题），撤销后回到这一条；历史删除不丢记录区草稿
+- [Phase 15]: 15-05: 日历 CSV 训练行每个训练日一行，Subject「[健身] 摘要」，经 csvCell；导入摘要仅在训练天数大于 0 时多一行「训练 n 天」，旧备份摘要逐字不变
 
 ### Pending Todos
 
@@ -454,8 +457,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T03:17:26.298Z
-Stopped at: Completed 15-04-PLAN.md
+Last session: 2026-11-14T06:42:58.222Z
+Stopped at: Completed 15-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
