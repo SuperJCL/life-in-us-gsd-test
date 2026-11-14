@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: executing
-stopped_at: Completed 15-03-PLAN.md
-last_updated: "2026-11-14T00:01:27.798Z"
+stopped_at: Completed 15-04-PLAN.md
+last_updated: "2026-11-14T03:17:34.084Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: 56e752baa3b6279a1882a2d6dd373ec7af3d2824
+state_head: 5903b31abae3c6229e3c12f6e19b91b9028129dc
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 90
-  completed_plans: 84
+  completed_plans: 85
   percent: 73
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
 ## Current Position
 
 Phase: 15 (健身页（Fitness Tab）) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 15 execution started
 
@@ -175,6 +175,7 @@ Progress: [███████░░░] 73%
 | Phase 15 P01 | 35 min | 2 tasks | 9 files |
 | Phase 15 P02 | 28 min | 3 tasks | 7 files |
 | Phase 15 P03 | 30min | 3 tasks | 7 files |
+| Phase 15 P04 | 3h | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -373,6 +374,10 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 草稿清空后在已保存的一天点保存修改，等同删除整次训练（带撤销 toast）
 - [Phase 15]: 15-03: 图宽从 .fc-pl 的 clientWidth 取，viewBox 宽度等于它，1 个单位就是 1 px；renderFc 只画当前页（电脑 4 张、手机 3 张），跨 560 px 页号 = floor(第一张图序号 ÷ 新每页张数)
 - [Phase 15]: 15-03: 门控收窄为 #goals [data-lift],#goals [data-liftsave]，15-04 搬走目标页力量卡时两条一起删；usj:fit:range 是设备偏好，只认五个值，不进退出登录清理列表
+- [Phase 15]: 15-04: 当前值由最近一次训练里最重的一组算，没有训练时回落到手填值再回落到起始值（liftNow）
+- [Phase 15]: 15-04: 本周训练天数用 trainDays 取训练日与健身文字日的并集，健身页和本周页共用，同一天只算一次
+- [Phase 15]: 15-04: 健身说明展开状态是设备偏好（usj:fit:note），不进账号数据
+- [Phase 15]: 15-04: 云端用例的力量项一步改成健身页保存一次训练（键 wo:<日期>）
 
 ### Pending Todos
 
@@ -449,8 +454,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T00:01:21.813Z
-Stopped at: Completed 15-03-PLAN.md
+Last session: 2026-11-14T03:17:26.298Z
+Stopped at: Completed 15-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
