@@ -367,3 +367,36 @@ export async function readFitWeek(page: Page): Promise<FitWeekRead> {
     };
   });
 }
+
+// ---- Phase 15-05：训练历史 ----
+
+export type HistoryItem = {
+  date: string; // data-fh
+  open: boolean; // details 是否展开
+  summary: string; // summary 里 b 的文字加 span 的文字，中间一个空格
+  lines: string[]; // 展开后每个动作一行（.fh-body > p）
+};
+export type HistoryRead = {
+  months: string[]; // #fh 里 .tl-month 的文字，按出现顺序
+  items: HistoryItem[];
+  more: string | null; // #fhMore 的文字，没有按钮是 null
+  empty: string | null; // #fh .empty 的文字，没有是 null
+};
+
+// 读健身页底部的训练历史（只读合成数据；返回文字和布尔，用例自己和期望值比较）
+export async function readHistory(page: Page): Promise<HistoryRead> {
+  return page.evaluate(() => {
+    const items = Array.from(document.querySelectorAll<HTMLDetailsElement>('#fh details.fh-item')).map((d) => ({
+      date: d.dataset.fh ?? '',
+      open: d.open,
+      summary: (d.querySelector('summary b')?.textContent ?? '') + ' ' + (d.querySelector('summary span')?.textContent ?? ''),
+      lines: Array.from(d.querySelectorAll('.fh-body > p')).map((p) => p.textContent ?? ''),
+    }));
+    return {
+      months: Array.from(document.querySelectorAll('#fh .tl-month')).map((m) => m.textContent ?? ''),
+      items,
+      more: document.querySelector('#fhMore')?.textContent ?? null,
+      empty: document.querySelector('#fh .empty')?.textContent ?? null,
+    };
+  });
+}

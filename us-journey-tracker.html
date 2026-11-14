@@ -662,6 +662,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
     <section class="panel" id="fl" aria-labelledby="fl-title"></section>
     <section class="panel" id="fw" aria-labelledby="fw-title"></section>
     <section class="panel" id="fc" aria-labelledby="fc-title"></section>
+    <section class="panel" id="fh" aria-labelledby="fh-title"></section>
     <div id="fl-live" class="sr-only" aria-live="polite"></div>
     <div id="fc-live" class="sr-only" aria-live="polite"></div>
   </section>
@@ -2803,12 +2804,58 @@ function fwNoteToggle(){
 $("fw").addEventListener("click",e=>{if(e.target.closest("#fwNoteBtn"))fwNoteToggle()});
 /* 进度条宽度：和 goalsBars 一样只用 CSSOM（style-src-attr 'none'），没有过渡 */
 function fitBars(){$("fw").querySelectorAll("i[data-w]").forEach(i=>{i.style.width=i.getAttribute("data-w")+"%"})}
+/* S8：训练历史。只列 state.workouts 里的训练（不列手填的力量点），按月分组、日期倒序，一次画 fhN 条（默认 20，「显示更早的记录」每点一次加 20）；每次训练一个 details，展开状态存在 fhOpen（日期键）里，页面打开期间跨重画保留；和趋势图一样，健身页没显示时不画 */
+const T_FH_TITLE="训练历史",T_FH_MONTH=(y,m)=>y+" 年 "+m+" 月",T_FH_DAY=(d,w)=>d+" 周"+w,T_FH_LIFT=(n,s)=>n+"："+s,T_FH_CARDIO=(n,m,d)=>n+"："+m+" 分钟"+(d!=null?"，"+d+" 公里":""),T_FH_EDIT="修改这次训练",T_FH_MORE="显示更早的记录",T_FH_MORE_LIVE=n=>"已显示更早的 "+n+" 次训练",T_FH_EMPTY="还没有训练记录。在上面记下第一次训练吧。";
+const FH_PAGE=20,fhOpen=new Set();let fhN=FH_PAGE;
+function fhBody(day){
+  const lines=[];
+  (Array.isArray(day.lifts)?day.lifts:[]).forEach(x=>{const f=plan.lifts.find(l=>l.id===x.id),sets=(Array.isArray(x.sets)?x.sets:[]).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，");lines.push(T_FH_LIFT(f?f.n:T_FIT_GONE_L,sets))});
+  (Array.isArray(day.cardio)?day.cardio:[]).forEach(x=>{const f=planCardio(plan).find(c=>c.id===x.id);lines.push(T_FH_CARDIO(f?f.n:T_FIT_GONE_C,x.m,x.d))});
+  return lines.map(l=>`<p>${esc(l)}</p>`).join("");
+}
+function renderFh(){
+  const el=$("fh");
+  if($("tab-fit").classList.contains("hidden")){el.textContent="";return}
+  const a=document.activeElement,fk=a&&a!==document.body&&el.contains(a)?(a.id==="fhMore"?"#fhMore":a.matches("summary")?'.fh-item[data-fh="'+a.parentNode.dataset.fh+'"]>summary':null):null;
+  const m=woMap(state),dates=Object.keys(m).sort().reverse(),shown=dates.slice(0,fhN);
+  let html=`<h3 id="fh-title" tabindex="-1">${T_FH_TITLE}</h3>`;
+  if(!dates.length)html+=`<p class="empty">${T_FH_EMPTY}</p>`;
+  else{
+    let mm="";
+    shown.forEach(d=>{
+      if(d.slice(0,7)!==mm){mm=d.slice(0,7);html+=`<div class="tl-month">${esc(T_FH_MONTH(mm.slice(0,4),+mm.slice(5)))}</div>`}
+      const day=m[d];
+      html+=`<details class="fh-item" data-fh="${esc(d)}"${fhOpen.has(d)?" open":""}><summary data-fit-ro><b>${esc(T_FH_DAY(md(d),WD[parse(d).getDay()]))}</b><span>${esc(woSummary(day,plan))}</span></summary><div class="fh-body">${fhBody(day)}<div class="fh-act"><button type="button" class="ghost" data-wo="${esc(d)}">${T_FH_EDIT}</button><button type="button" class="danger" data-fl data-fhdel="${esc(d)}">${T_FL_DELETE}</button></div></div></details>`;
+    });
+    if(dates.length>shown.length)html+=`<button type="button" class="ghost" id="fhMore" data-fit-ro>${T_FH_MORE}</button>`;
+  }
+  el.innerHTML=html;
+  const t=fk&&el.querySelector(fk);if(t)t.focus({preventScroll:true});
+}
+$("fh").addEventListener("toggle",e=>{const d=e.target;if(d&&d.matches&&d.matches("details.fh-item")){if(d.open)fhOpen.add(d.dataset.fh);else fhOpen.delete(d.dataset.fh)}},true);
+$("fh").addEventListener("click",e=>{
+  const x=e.target.closest("[data-fhdel]");
+  if(x){fhDelete(x.dataset.fhdel);return}
+  if(e.target.closest("#fhMore")){
+    const before=Math.min(fhN,Object.keys(woMap(state)).length);fhN+=FH_PAGE;renderFh();
+    const total=Object.keys(woMap(state)).length,b=$("fhMore"),last=$("fh").querySelectorAll(".fh-item");
+    const t=b||last.length&&last[last.length-1].querySelector("summary");if(t)t.focus({preventScroll:true});
+    $("fl-live").textContent=T_FH_MORE_LIVE(Math.min(fhN,total)-before);
+  }
+});
+/* 历史里删一次训练：焦点到下一条（更早的）历史的 summary，没有就上一条，再没有就「训练历史」标题（UI-SPEC 没写，就近原则）；撤销后焦点回到这一条的 summary */
+function fhDelete(date){
+  const items=Array.from($("fh").querySelectorAll(".fh-item")),i=items.findIndex(x=>x.dataset.fh===date),nx=items[i+1]||items[i-1],nk=nx?nx.dataset.fh:null;
+  const sum=k=>$("fh").querySelector('.fh-item[data-fh="'+k+'"]>summary');
+  if(!woDeleteDay(date,false,()=>{const s=sum(date);if(s)s.focus({preventScroll:true})}))return;
+  const t=(nk&&sum(nk))||$("fh-title");if(t)t.focus({preventScroll:true});
+}
 /* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
 function renderFit(force){
   const rs=flTryRestore();
   if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
   else{flRemoteCheck();flHint()}
-  renderFw();renderFc();
+  renderFw();renderFc();renderFh();
   applyGate();
 }
 /* 换一天：草稿有未保存内容先确认，拒绝时日期框恢复原值；切标签不确认，草稿留着 */
@@ -2846,19 +2893,25 @@ function flSave(){
 /* 删除整次训练：不弹确认，toast 带撤销；撤销用同一个键把整天写回（闭包里只有日期和删除前的深拷贝），撤销之后不再弹 toast，只写读屏播报 */
 function flDelete(){
   if(!fl)return;
-  const date=fl.date,cur=woMap(state)[date];if(!cur)return;
+  woDeleteDay(fl.date,true,()=>{const d2=$("fl-date");if(d2)d2.focus({preventScroll:true})});
+  const dd=$("fl-date");if(dd)dd.focus({preventScroll:true});
+}
+/* 删除一整天训练（记录区的「删除这次训练」和历史里的删除共用）：返回 false 表示这天没有训练。discard 为真（记录区里点的）时记录区按 state 重新载入这一天并丢掉草稿；为假（历史里点的）时，记录区正在这一天且没有未保存内容才重新载入，有未保存内容就留着草稿；撤销用同一个键把整天写回（闭包里只有日期和删除前的深拷贝），撤销之后不再弹 toast，只写读屏播报，焦点交给 back */
+function woDeleteDay(date,discard,back){
+  const cur=woMap(state)[date];if(!cur)return false;
   const gone=JSON.parse(JSON.stringify(cur)),msg=T_FL_DELETED(md(date));
   commit(["wo:"+date],s=>woDel(s,date));
-  flKeepClear();flOpen(date);renderAll();renderFit(true);
-  const dd=$("fl-date");if(dd)dd.focus({preventScroll:true});
+  if(fl&&fl.date===date){if(discard||!flDirty()){flKeepClear();flOpen(date)}else fl.base=flSavedJson(date)}
+  renderAll();renderFit(true);
   toast(msg,{label:T_FL_UNDO_DEL,fn:()=>{
     commit(["wo:"+date],s=>woPut(s,date,gone));
     if(fl&&fl.date===date){if(flDirty())fl.base=flSavedJson(date);else flOpen(date)}
     renderAll();renderFit(true);
-    const d2=$("fl-date");if(d2)d2.focus({preventScroll:true});
+    if(back)back();
     $("fl-live").textContent=T_FL_LIVE_UNDONE+msg;
   }},6000);
   $("fl-live").textContent=msg;
+  return true;
 }
 /* 草稿里的删除：删一组（该行有内容才弹撤销 toast）、移除一个动作或有氧项（块里有内容才弹）；撤销只改草稿，闭包里带日期，换了日期就什么都不做；撤销之后不再弹 toast，只写读屏播报 */
 function flDelSet(i,j){

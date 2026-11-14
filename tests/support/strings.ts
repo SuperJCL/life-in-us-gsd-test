@@ -891,3 +891,29 @@ export const FW_NO_TRAINING = '还没有训练记录';
 export const fwBodyweight = (n: number): string => `徒手完成，最多 ${n} 次`;
 export const fwBarAria = (n: string): string => `${n}进度`;
 export const FW_NOTE_BTN = '健身说明';
+
+// ---- Phase 15-05：训练历史（应用里 T_FH_*，逐字相同，来源 15-UI-SPEC 的 Copywriting Contract）----
+// T_FH_TITLE
+export const FH_TITLE = '训练历史';
+// T_FH_MONTH（y 是四位年，m 是不补零的月）
+export const fhMonth = (y: number | string, m: number | string): string => `${y} 年 ${m} 月`;
+// T_FH_DAY（d 是 md() 的结果，w 是「一」「二」这样的星期字）
+export const fhDay = (d: string, w: string): string => `${d} 周${w}`;
+// T_FH_LIFT：力量动作一行，s 是「重量 × 次数」用「，」连起来
+export const fhLiftLine = (n: string, s: string): string => `${n}：${s}`;
+// T_FH_CARDIO：有氧一行，距离没有时不传
+export const fhCardioLine = (n: string, m: number, d?: number): string => `${n}：${m} 分钟` + (d !== undefined ? `，${d} 公里` : '');
+// T_FH_EDIT
+export const BTN_FH_EDIT = '修改这次训练';
+// T_FH_MORE
+export const FH_MORE = '显示更早的记录';
+// T_FH_MORE_LIVE
+export const fhMoreLive = (n: number): string => `已显示更早的 ${n} 次训练`;
+// T_FH_EMPTY
+export const FH_EMPTY = '还没有训练记录。在上面记下第一次训练吧。';
+
+// ---- Phase 15-05：其他视图的训练行、日历 CSV ----
+// T_CAL_WO（UI-SPEC 之外新增的读屏文字：日历格的 aria-label 在这一天有训练时末尾多出这一句）
+export const CAL_WO = '，有训练';
+// 日历 CSV 里训练行的 Subject 前缀（应用里 exportCsv 的 "[健身] "，和文字记录行的 "[类别] " 同一种写法）
+export const CSV_FIT_PREFIX = '[健身] ';
