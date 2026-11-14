@@ -2526,9 +2526,9 @@ function renderCal(){
     const d=new Date(start);d.setDate(start.getDate()+i);
     if(i===35&&d.getMonth()!==view.getMonth())break;
     const s=ymd(d),e=eventsOn(s);
-    const chips=[...e.logs.map(l=>`<span class="chip k-${kOf(l.cat)}">${esc(l.text)}</span>`),...e.due.map(x=>`<span class="chip due">${esc(x.text)}</span>`),...e.done.map(x=>`<span class="chip done">${esc(x.text)}</span>`)];
+    const chips=[...e.logs.map(l=>`<span class="chip k-${kOf(l.cat)}">${esc(l.text)}</span>`),...(e.wo?[`<span class="chip k-fit">${esc(T_FIT_ROW(woSummary(e.wo,plan)))}</span>`]:[]),...e.due.map(x=>`<span class="chip due">${esc(x.text)}</span>`),...e.done.map(x=>`<span class="chip done">${esc(x.text)}</span>`)];
     const cls=["cell",d.getMonth()!==view.getMonth()?"out":"",s===t?"today":"",s===sel?"sel":"",s===state.arrival?"arr":""].join(" ");
-    html+=`<button class="${cls}" data-date="${s}" aria-label="${md(s)}，${e.logs.length} 条记录，${e.due.length} 项到期，${e.done.length} 项完成"><span class="d">${d.getDate()}</span><span class="chips">${chips.slice(0,3).join("")}</span>${chips.length>3?`<span class="more">+${chips.length-3}</span>`:""}</button>`;
+    html+=`<button class="${cls}" data-date="${s}" aria-label="${md(s)}，${e.logs.length} 条记录，${e.due.length} 项到期，${e.done.length} 项完成${e.wo?T_CAL_WO:""}"><span class="d">${d.getDate()}</span><span class="chips">${chips.slice(0,3).join("")}</span>${chips.length>3?`<span class="more">+${chips.length-3}</span>`:""}</button>`;
   }
   $("grid").innerHTML=html;
 }
@@ -2538,7 +2538,7 @@ function renderDay(){
   const box=$("dayPanel");
   box.innerHTML=`<h3>${md(sel)} 周${WD[d.getDay()]}</h3><p class="sub">${dayN}</p>${composer("c",sel)}
     <div class="sect">做过的事</div>
-    ${e.logs.length?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${esc(l.id)}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${esc(l.id)}" aria-label="删除这条记录">×</button></li>`).join("")}</ul>`:'<p class="empty">这天还没有记录。</p>'}
+    ${e.logs.length||e.wo?`<ul class="items">${e.logs.map(l=>`<li class="k-${kOf(l.cat)} editable" data-edit="${esc(l.id)}" tabindex="0" role="button" aria-label="编辑：${esc(l.text)}"><span class="tag">${esc(l.cat)}</span><span class="li-text">${esc(l.text)}</span><button class="x" data-dellog="${esc(l.id)}" aria-label="删除这条记录">×</button></li>`).join("")}${e.wo?`<li class="k-fit wo" data-wo="${esc(sel)}" tabindex="0" role="button" aria-label="${esc(T_FIT_ROW_ARIA(woSummary(e.wo,plan)))}"><span class="tag">健身</span><span class="li-text">${esc(woSummary(e.wo,plan))}</span><span class="wo-go" aria-hidden="true">›</span></li>`:""}</ul>`:'<p class="empty">这天还没有记录。</p>'}
     ${e.done.length?`<div class="sect">完成的计划</div><ul class="items">${e.done.map(t=>`<li class="k-${kOf(planCat[t.group])} editable" data-edittask="${esc(t.id)}" tabindex="0" role="button" aria-label="编辑完成记录：${esc(t.text)}"><span class="tag">${esc(groupLabel(t.group))}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}
     ${e.due.length?`<div class="sect">这天到期</div><ul class="items">${e.due.map(t=>`<li class="k-job"><span class="tag">${esc(groupLabel(t.group))}</span><span class="li-text">${esc(t.text)}</span></li>`).join("")}</ul>`:""}`;
   bindComposer(box,"c",()=>sel);applyGate();
@@ -2594,18 +2594,20 @@ function renderTimeline(){
   let items=[];
   if(filter!=="完成的计划")state.logs.filter(l=>filter==="全部"||l.cat===filter).forEach(l=>items.push({date:l.date,text:l.text,tag:l.cat,k:kOf(l.cat),attr:`data-edit="${esc(l.id)}"`}));
   if(filter==="全部"||filter==="完成的计划")allTasks().forEach(t=>{const s=tstate(t.id);if(s.done&&s.doneDate)items.push({date:s.doneDate,text:"完成："+t.text,tag:groupLabel(t.group),k:kOf(planCat[t.group]),attr:`data-edittask="${esc(t.id)}"`})});
+  /* S9：训练行在「全部」和「健身」筛选下加入，push 在最后，稳定排序让它排在同一天的文字记录之后 */
+  if(filter==="全部"||filter==="健身"){const wm=woMap(state);Object.keys(wm).forEach(d=>{const t=woSummary(wm[d],plan);items.push({date:d,text:t,tag:"健身",k:"fit",attr:`data-wo="${esc(d)}"`,cls:"wo",aria:T_FIT_ROW_ARIA(t)})})}
   items.sort((a,b)=>b.date.localeCompare(a.date));
   if(!items.length){$("timeline").innerHTML='<p class="empty">还没有内容。在“本周”里写下今天做过的事。</p>';return}
   let html="",m="";
   items.forEach(it=>{const mm=it.date.slice(0,7);if(mm!==m){m=mm;html+=`<div class="tl-month">${esc(mm.slice(0,4))} 年 ${+mm.slice(5)} 月</div>`}
-    html+=`<div class="tl-item k-${it.k} editable" ${it.attr} tabindex="0" role="button"><span class="tl-date">${+it.date.slice(5,7)}/${+it.date.slice(8)}</span><span class="tag">${esc(it.tag)}</span><span class="li-text">${esc(it.text)}</span></div>`});
+    html+=`<div class="tl-item k-${it.k} ${it.cls||"editable"}" ${it.attr} tabindex="0" role="button"${it.aria?` aria-label="${esc(it.aria)}"`:""}><span class="tl-date">${+it.date.slice(5,7)}/${+it.date.slice(8)}</span><span class="tag">${esc(it.tag)}</span><span class="li-text">${esc(it.text)}</span>${it.cls==="wo"?'<span class="wo-go" aria-hidden="true">›</span>':""}</div>`});
   $("timeline").innerHTML=html;applyGate();
 }
 
 /* ---------- fitness tab (Phase 15) ---------- */
 const T_FL_TITLE_TODAY="今天的训练",T_FL_TITLE_DAY=d=>d+"的训练",T_FL_DATE="日期",T_FL_SEC_LIFT="力量",T_FL_CAP_LIFT="点一下动作名，加进这次训练",T_FL_ADD_SET="＋ 添加一组",T_FL_SAVE="保存训练",T_FL_SAVE_EDIT="保存修改",T_FL_SAVED="训练已保存";
 const T_FL_TARGET=(t,u)=>"目标 "+t+" "+u,T_FL_COL_W=u=>"重量（"+u+"）",T_FL_COL_R="次数",T_FL_LBL_W=(n,i,u)=>n+"第 "+i+" 组重量（"+u+"）",T_FL_LBL_R=(n,i)=>n+"第 "+i+" 组次数",T_FL_ADD_ARIA=n=>"添加动作："+n,T_FL_LIVE_ADDED=n=>"已添加动作："+n;
-const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次训练："+s;
+const T_FIT_ROW=s=>"健身 · "+s,T_FIT_ROW_ARIA=s=>"打开健身页查看这次训练："+s,T_CAL_WO="，有训练";
 /* 15-04：本周训练和力量目标面板（#fw）。T_FW_TITLE 只给读屏用（面板标题，sr-only） */
 const T_FW_TITLE="本周训练和力量目标",T_FW_DAYS="本周训练",T_FW_DAY_UNIT="天",T_FW_GOAL=(a,b)=>"目标 "+a+"～"+b+" 天",T_FW_REACHED="已达到目标",T_FW_DAYS_ARIA=(d,ws)=>"本周训练 "+d+" 天："+ws.join("、"),T_FW_DAYS_NONE="本周还没有训练";
 const T_FW_NOTE_BTN="健身说明",T_FW_LIFTS="力量目标",T_FW_TARGET=(t,u)=>"目标 "+t+" "+u,T_FW_PCT=n=>n+"%",T_FW_LAST=d=>"最近一次训练："+d,T_FW_NO_TRAINING="还没有训练记录",T_FW_BW=n=>"徒手完成，最多 "+n+" 次",T_FW_BAR_ARIA=n=>n+"进度";
@@ -4088,6 +4090,7 @@ $("exportCsv").onclick=()=>{
   allTasks().forEach(t=>{const s=tstate(t.id);
     if(s.done&&s.doneDate)rows.push(["完成："+t.text,usDate(s.doneDate),"True",groupLabel(t.group)+" 计划"]);
     else if(s.due&&!isArchived(t))rows.push(["截止："+t.text,usDate(s.due),"True",groupLabel(t.group)+" 计划"])});
+  Object.keys(woMap(state)).sort().forEach(d=>{const s=woSummary(woMap(state)[d],plan);rows.push(["[健身] "+s,usDate(d),"True",s])});
   if(rows.length===1){toast("还没有可导出的日期");return}
   saveFile("计划手记-日历.csv",rows.map(r=>r.map(csvCell).join(",")).join("\n"),"text/csv;charset=utf-8");
 };

@@ -4,6 +4,7 @@
 // 只在这个文件里打开下载：playwright.config.ts 的 acceptDownloads 默认值不改。
 import { test, expect } from '../../support/test';
 import { downloadOf } from '../../support/download';
+import { planValueEdit, serveAppVariant } from '../../support/app-variant';
 import { BACKUP_APP, BACKUP_FORMAT, BACKUP_KIND_FULL, FROZEN_NOW } from '../../support/constants';
 import { loadFixture, withoutSynthetic } from '../../support/fixture-files';
 import { builtinTaskIds, csvMismatch, expectedCalendarCsv, expectedNormalize } from '../../support/expect-from-fixture';
@@ -12,6 +13,7 @@ import {
   CATEGORY_NAMES,
   CSV_DONE_PREFIX,
   CSV_GROUP_SUFFIX,
+  CSV_FIT_PREFIX,
   CSV_HEADER,
   FILENAME_BACKUP_FROZEN,
   FILENAME_CSV,
@@ -244,4 +246,48 @@ test('IO-06 calendar cells that start with a formula character get a leading quo
   for (const row of golden) {
     expect(generated.includes(row), `生成器输出缺少金标准行：${row.slice(0, 40)}`).toBe(true);
   }
+});
+
+test('FIT-05 the calendar CSV has one fitness row per training day and masks a formula-like exercise name (A17, B7)', async ({ page, app }) => {
+  // 示例计划的第一个力量项（卧推）在这个页面里改名成以 = 开头的合成名，证明训练行也经过公式转义
+  await serveAppVariant(page, [planValueEdit([{ path: 'lifts[0].n', value: '=SYNTH-cmd' }])]);
+  // 只有训练、没有文字记录和计划日期：也要能导出（不弹「还没有可导出的日期」）
+  await app.open({
+    seed: {
+      _synthetic: true,
+      workouts: {
+        '2026-03-16': {
+          lifts: [{ id: 'bench', sets: [{ w: 40, r: 5 }, { w: 40, r: 5 }] }],
+          cardio: [{ id: 'r-run', m: 30 }],
+        },
+        '2026-03-18': { lifts: [{ id: 'squat', sets: [{ w: 50, r: 5 }] }], cardio: [] },
+      },
+    },
+  });
+
+  const { filename, text } = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(filename).toBe(FILENAME_CSV);
+  // 手写的行：Subject「[健身] 摘要」（以 [ 开头，所以不加前缀），日期 MM/DD/YYYY，All Day Event True，Description 是摘要（以 = 开头的那一行前面多一个英文单引号）
+  expect(text.split('\n'), 'header and one row per training day').toEqual([
+    CSV_HEADER,
+    '[健身] =SYNTH-cmd（共 2 组） · 跑步 30 分钟,03/16/2026,True,\'=SYNTH-cmd（共 2 组） · 跑步 30 分钟',
+    '[健身] 深蹲（共 1 组）,03/18/2026,True,深蹲（共 1 组）',
+  ]);
+  // 下载本身就证明没有走「还没有可导出的日期」那条路径（toast 只显示 1.8 秒，机器慢时来不及断言，所以不查它）
+});
+
+test('FIT-05 the calendar CSV puts the fitness rows after the text rows and does not repeat a day that has both (A17)', async ({ page, app }) => {
+  await app.open({
+    seed: {
+      _synthetic: true,
+      workouts: { '2026-03-16': { lifts: [{ id: 'bench', sets: [{ w: 40, r: 5 }] }], cardio: [] } },
+      logs: [{ id: 'csv-fit-1', date: '2026-03-16', cat: CATEGORY_NAMES[2], text: 'SYNTH-csv-text' }],
+    },
+  });
+  const { text } = await downloadOf(page, () => page.locator('#exportCsv').click());
+  expect(text.split('\n'), 'text row first, then the training row of the same day').toEqual([
+    CSV_HEADER,
+    `[${CATEGORY_NAMES[2]}] SYNTH-csv-text,03/16/2026,True,SYNTH-csv-text`,
+    `${CSV_FIT_PREFIX}卧推（共 1 组）,03/16/2026,True,卧推（共 1 组）`,
+  ]);
 });
