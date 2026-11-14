@@ -71,9 +71,9 @@ test('IO-08 backupCounts and importPreview count records, weeks, done tasks, str
     reviews: { '2026-03-16': 'SYNTH review', '2026-03-09': '   ' },
     presets: {},
   });
-  expect(plain(counted)).toEqual({ logs: 2, from: '2026-02-10', to: '2026-03-17', reviews: 1, done: 2, liftEntries: 3 });
+  expect(plain(counted)).toEqual({ logs: 2, from: '2026-02-10', to: '2026-03-17', reviews: 1, done: 2, liftEntries: 3, workouts: 0 });
   expect(plain(backupCounts({ arrival: '', tasks: {}, custom: [], logs: [], lifts: {}, reviews: {}, presets: {} }))).toEqual({
-    logs: 0, from: '', to: '', reviews: 0, done: 0, liftEntries: 0,
+    logs: 0, from: '', to: '', reviews: 0, done: 0, liftEntries: 0, workouts: 0,
   });
 
   // importPreview：P9-9 对不上示例计划，被丢弃并计数；c-x-1 对应文件里的自定义待办，保留
@@ -87,7 +87,7 @@ test('IO-08 backupCounts and importPreview count records, weeks, done tasks, str
   const pv = plain(importPreview(classifyBackup(file), cur));
   expect(pv.orphans).toBe(1);
   expect(Object.keys(pv.state.tasks).sort()).toEqual(['P2-1', 'c-x-1']);
-  expect(pv.counts).toEqual({ logs: 1, from: '2026-03-17', to: '2026-03-17', reviews: 0, done: 2, liftEntries: 0 });
+  expect(pv.counts).toEqual({ logs: 1, from: '2026-03-17', to: '2026-03-17', reviews: 0, done: 2, liftEntries: 0, workouts: 0 });
   expect(pv.current).toBe(3);
   expect(JSON.stringify(file), '预览不改文件内容').toBe(before);
   expect(cur.logs.length, '预览不改当前 state').toBe(3);
@@ -200,6 +200,34 @@ test('IO-08 backupOf writes the agreed wrapper and classifyBackup reads it back 
   const sample = plain(DEFAULT_PLAN);
   const sampleBack = plain(classifyBackup(JSON.parse(JSON.stringify(backupOf(sample, null, at)))));
   expect(sampleBack.plan).toEqual(sample);
+});
+
+test('FIT-05 backupCounts counts training days and classifyBackup reads back a full backup whose state carries workouts unchanged', async () => {
+  const { classifyBackup, backupOf, importPreview, backupCounts, DEFAULT_PLAN } = loadAppPure([...wrapNames, 'backupCounts'] as const);
+  const workouts = {
+    '2026-03-02': { lifts: [{ id: 'bench', sets: [{ w: 30, r: 5 }] }], cardio: [] },
+    '2026-03-09': { lifts: [{ id: 'squat', sets: [{ w: 0, r: 8 }, { w: 40, r: 5 }] }], cardio: [{ id: 'r-run', m: 30, d: 5 }] },
+    '2026-03-16': { lifts: [], cardio: [{ id: 'r-bike', m: 45 }] },
+  };
+  const state = legacyBackup('w', { workouts });
+
+  // 训练天数：state.workouts 的键数；没有这个键是 0
+  expect(backupCounts(state).workouts, 'three training days').toBe(3);
+  expect(backupCounts(legacyBackup('w')).workouts, 'no workouts key').toBe(0);
+  expect(backupCounts({ ...legacyBackup('w'), workouts: {} }).workouts, 'empty workouts').toBe(0);
+
+  // 完整备份经 JSON 往返读回：种类是 full，state.workouts 与原来深度相等
+  const at = '2026-03-18T12:00:00.000Z';
+  const wrote = JSON.parse(JSON.stringify(backupOf(plain(DEFAULT_PLAN), state, at)));
+  expect(plain(wrote.state.workouts), 'the backup file carries the workouts').toEqual(workouts);
+  const back = plain(classifyBackup(wrote));
+  expect(back.kind).toBe('full');
+  expect(back.state.workouts, 'workouts survive the round trip').toEqual(workouts);
+
+  // 导入预览：state 是 normalize 之后会写入的内容，带同样的训练，计数是 3
+  const pv = plain(importPreview(classifyBackup(wrote), { logs: [] }));
+  expect(pv.state.workouts, 'preview state carries the workouts').toEqual(workouts);
+  expect(pv.counts.workouts, 'preview counts three training days').toBe(3);
 });
 
 test('IO-08 WR-01 importPreview counts custom to-dos whose group is not in the plan that will be in use', async () => {

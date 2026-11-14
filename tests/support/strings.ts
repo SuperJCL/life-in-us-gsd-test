@@ -917,3 +917,6 @@ export const FH_EMPTY = '还没有训练记录。在上面记下第一次训练�
 export const CAL_WO = '，有训练';
 // 日历 CSV 里训练行的 Subject 前缀（应用里 exportCsv 的 "[健身] "，和文字记录行的 "[类别] " 同一种写法）
 export const CSV_FIT_PREFIX = '[健身] ';
+
+// ---- Phase 15-05：导入摘要的训练天数（UI-SPEC 之外新增，应用里 T_IMP_WO，训练天数大于 0 时才多这一行）----
+export const importWoLine = (n: number): string => `训练 ${n} 天`;
