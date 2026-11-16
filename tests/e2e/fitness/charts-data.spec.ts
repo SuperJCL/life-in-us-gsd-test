@@ -178,4 +178,10 @@ test('FIT-03 niceMax and cardioWeeks give clean axis tops and one slot per week 
   expect(all[all.length - 1], 'this week').toEqual({ wk: '2026-03-16', m: 15, k: 1 });
   expect(plain(cardioWeeks({ workouts: { '2026-03-10': day([{ id: 'bench', sets: [[20, 5]] }]) } }, 'all', T)), 'no cardio at all').toEqual([]);
   expect(plain(cardioWeeks({}, 'all', T)), 'empty state').toEqual([]);
+  // all 最多往前 520 周（WR-03）：很早的日期不会生成十万级的槽位，更早的那一天不计入，近的有氧照常
+  const ancient = plain(cardioWeeks({ workouts: { '1000-01-01': cd([['r-run', 10]]), '2026-03-17': cd([['r-run', 15]]) } }, 'all', T));
+  expect(ancient.length, 'at most 520 weekly slots').toBe(520);
+  expect(ancient[0].wk, 'the first slot is 519 weeks before this Monday').toBe('2016-04-04');
+  expect(ancient[0].k, 'the ancient day is not counted').toBe(0);
+  expect(ancient[ancient.length - 1], 'this week').toEqual({ wk: '2026-03-16', m: 15, k: 1 });
 });

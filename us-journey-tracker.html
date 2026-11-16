@@ -968,7 +968,7 @@ function niceMax(v){
   for(const f of [1,2,4,5,10]){if(f*n>=t-1e-9)return f*n}
   return 10*n;
 }
-/* 每周有氧总时长（D-12）：[{wk,m,k}]，起点是范围起点所在的周一（"all" 是最早有氧那一天所在的周一，没有有氧返回 []），终点是 t 所在的周一，每 7 天一个槽位；
+/* 每周有氧总时长（D-12）：[{wk,m,k}]，起点是范围起点所在的周一（"all" 是最早有氧那一天所在的周一，最多往前 520 周：更早的日期不再生成槽位，也不计入，导入数据里的 1000-01-01 之类不会撑出十万根柱子；没有有氧返回 []），终点是 t 所在的周一，每 7 天一个槽位；
    m 是这一周（周一到周日、不晚于 t）所有有氧条目的分钟数之和（不分项目），k 是这一周有有氧条目的天数；没有有氧的周 m、k 都是 0，槽位保留 */
 function cardioWeeks(s,range,t){
   const wm=woMap(s),days=[];
@@ -977,7 +977,7 @@ function cardioWeeks(s,range,t){
     const C=wm[d].cardio.filter(x=>isObj(x)&&typeof x.m==="number"&&isFinite(x.m));
     if(C.length)days.push({date:d,m:C.reduce((a,x)=>a+x.m,0)});
   });
-  const first=days.reduce((a,x)=>a===null||x.date<a?x.date:a,null),from=range==="all"?first:rangeStart(range,t);
+  const first=days.reduce((a,x)=>a===null||x.date<a?x.date:a,null),lo=addDays(monday(t),-7*519),from=range==="all"?(first!==null&&first<lo?lo:first):rangeStart(range,t);
   if(from===null)return [];
   const out=[],end=monday(t);
   for(let w=monday(from);w<=end;w=addDays(w,7))out.push({wk:w,m:0,k:0});
