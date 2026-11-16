@@ -2848,7 +2848,7 @@ function fhBody(day){
 function renderFh(){
   const el=$("fh");
   if($("tab-fit").classList.contains("hidden")){el.textContent="";return}
-  const a=document.activeElement,fk=a&&a!==document.body&&el.contains(a)?(a.id==="fhMore"?"#fhMore":a.matches("summary")?'.fh-item[data-fh="'+a.parentNode.dataset.fh+'"]>summary':null):null;
+  const a=document.activeElement,fk=a&&a!==document.body&&el.contains(a)?(a.id==="fhMore"?"#fhMore":a.matches("summary")?'.fh-item[data-fh="'+CSS.escape(a.parentNode.dataset.fh)+'"]>summary':null):null;
   const m=woMap(state),dates=Object.keys(m).sort().reverse(),shown=dates.slice(0,fhN);
   let html=`<h3 id="fh-title" tabindex="-1">${T_FH_TITLE}</h3>`;
   if(!dates.length)html+=`<p class="empty">${T_FH_EMPTY}</p>`;
@@ -2879,7 +2879,7 @@ $("fh").addEventListener("click",e=>{
 /* 历史里删一次训练：焦点到下一条（更早的）历史的 summary，没有就上一条，再没有就「训练历史」标题（UI-SPEC 没写，就近原则）；撤销后焦点回到这一条的 summary */
 function fhDelete(date){
   const items=Array.from($("fh").querySelectorAll(".fh-item")),i=items.findIndex(x=>x.dataset.fh===date),nx=items[i+1]||items[i-1],nk=nx?nx.dataset.fh:null;
-  const sum=k=>$("fh").querySelector('.fh-item[data-fh="'+k+'"]>summary');
+  const sum=k=>$("fh").querySelector('.fh-item[data-fh="'+CSS.escape(k)+'"]>summary');
   if(!woDeleteDay(date,false,()=>{const s=sum(date);if(s)s.focus({preventScroll:true})}))return;
   const t=(nk&&sum(nk))||$("fh-title");if(t)t.focus({preventScroll:true});
 }
