@@ -2,7 +2,7 @@
 // 本周页当天出现一行「健身」行（不可拖动、不是文字记录），刷新后仍在，点这一行回到健身页那一天。
 // 只用合成数据和示例计划里的动作 id（bench）；动作名只在期望值里出现，不进失败消息。
 import { test, expect } from '../../support/test';
-import { FROZEN_TODAY, WEEK_START_FROZEN } from '../../support/constants';
+import { FROZEN_NOW, FROZEN_TODAY, WEEK_START_FROZEN } from '../../support/constants';
 import {
   TAB_LABELS,
   FL_TITLE_TODAY,
@@ -164,9 +164,6 @@ test('FIT-02 recording again on a day that already has a training merges into it
   expect(await flError(page, 'squat', 1, FL_ERR_RNONE)).toBe(true);
   await expect(page.locator('#fl-r-squat-1')).toBeFocused();
   await expect(page.locator('#fl-hint')).toHaveText(peHintErrors(1));
-  await page.waitForTimeout(700); // 保存有防抖：等一个周期，确认确实没有保存
-  const unsaved = await app.saved();
-  expect(unsaved === null || JSON.stringify(savedWorkouts(unsaved)) === JSON.stringify(seed.workouts), '半填的训练没有保存').toBe(true);
 
   // 改好后错误立刻消失，保存：这一天在 state 里是合并后的完整一天，只有一个日期键
   await page.locator('#fl-r-squat-1').fill('5');
@@ -479,4 +476,41 @@ test('FIT-02 an exercise block with no filled set shows its own error under the 
   await expect(err).toBeVisible();
   await expect(err).toHaveText(FL_ERR_EXNONE);
   await expect(page.locator('#fl-e-squat')).toHaveCount(0);
+});
+
+// 证明“没有保存”要用 manual 时钟：推过 600 ms 防抖窗口之后再比较，并用随后的真保存证明这个窗口确实推进了防抖（IN-06）；同一个用例里不混用 setFixedTime
+test.describe('FIT-02 manual clock', () => {
+  test.use({ clockMode: 'manual' });
+
+  test('FIT-02 a half-filled set is not saved after the debounce window has passed, and the corrected training is saved after it (A5)', async ({
+    page,
+    app,
+  }) => {
+    const bench = [
+      { w: 20, r: 8 },
+      { w: 22.5, r: 6 },
+    ];
+    const seed = { _synthetic: true, workouts: { [FROZEN_TODAY]: { lifts: [{ id: 'bench', sets: bench }], cardio: [] } } };
+    await page.clock.install({ time: FROZEN_NOW });
+    await app.open({ seed });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    await gotoFitness(page);
+    await flAddLift(page, 'squat');
+    await flFillSet(page, 'squat', 0, '40', '5');
+    await flCopySet(page, 'squat');
+    await page.locator('#fl-r-squat-1').fill('');
+    await flSave(page);
+    await expect(page.locator('#fl-r-squat-1')).toHaveAttribute('aria-invalid', 'true');
+    await page.clock.runFor(1_000);
+    const unsaved = await app.saved();
+    // 种子只是读进来的，不算一次保存：窗口过去之后什么都没写（app.saved() 里没有任何训练），而不是写了别的东西
+    expect(savedWorkouts(unsaved), 'nothing was written after the debounce window').toEqual({});
+
+    await page.locator('#fl-r-squat-1').fill('5');
+    await flSave(page);
+    await page.clock.runFor(1_000);
+    await expect
+      .poll(async () => ((savedWorkouts(await app.saved()) as any)[FROZEN_TODAY]?.lifts ?? []).length, { message: '等待修正后的训练保存' })
+      .toBe(2);
+  });
 });
