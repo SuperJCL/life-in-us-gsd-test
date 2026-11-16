@@ -273,6 +273,9 @@ test('FIT-02 workoutProblems reports each rule at its limit and one step past it
   expect(one('-0.5', '8'), 'weight just below zero').toEqual(['fl:0:0:w=wrange']);
   expect(one('1000.01', '8'), 'weight just above the limit').toEqual(['fl:0:0:w=wrange']);
   expect(one('', '8'), 'weight left empty').toEqual(['fl:0:0:w=wnone']);
+  // 保存时取两位小数：非 0 的输入舍入成 0 不能悄悄变成「徒手」，0.005 舍入成 0.01 合格（WR-02）
+  expect(one('0.004', '8'), 'weight that rounds to zero').toEqual(['fl:0:0:w=wrange']);
+  expect(one('0.005', '8'), 'weight that rounds to 0.01').toEqual([]);
   // 次数：1 和 999 合格，0、1000、2.5 报 rint，空串（重量有）报 rnone
   expect(one('20', '1'), 'reps at the lower limit').toEqual([]);
   expect(one('20', '999'), 'reps at the upper limit').toEqual([]);
@@ -327,5 +330,7 @@ test('FIT-02 workoutProblems reports each rule at its limit and one step past it
   expect(card('30', '0.01'), 'distance just above zero').toEqual([]);
   expect(card('30', '1000'), 'distance at the upper limit').toEqual([]);
   expect(card('30', '0'), 'distance zero').toEqual(['fc:0:d=drange']);
+  expect(card('30', '0.004'), 'distance that rounds to zero').toEqual(['fc:0:d=drange']);
+  expect(card('30', '0.005'), 'distance that rounds to 0.01').toEqual([]);
   expect(card('30', '1000.5'), 'distance just above the limit').toEqual(['fc:0:d=drange']);
 });

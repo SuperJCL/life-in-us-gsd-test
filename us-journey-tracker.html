@@ -879,7 +879,7 @@ function woFromDraft(d){
   (d.cardio||[]).forEach(x=>{const o={id:x.id,m:Number(x.m)};if(!woBlank(x.d))o.d=woR2(x.d);cardio.push(o)});
   return {lifts,cardio};
 }
-/* 记录区校验：返回 [{key,code}]，按页面顺序；整行空不报；key 是 fl:<动作下标>:<组下标>:w|r、fl:<动作下标>:ex、fc:<有氧下标>:m|d；错误文字由渲染层按 code 映射 */
+/* 记录区校验（距离和重量按保存时的两位小数判断：舍入后变成 0 的距离、或非 0 输入舍入成 0 的重量都报错，不会悄悄存成 0）：返回 [{key,code}]，按页面顺序；整行空不报；key 是 fl:<动作下标>:<组下标>:w|r、fl:<动作下标>:ex、fc:<有氧下标>:m|d；错误文字由渲染层按 code 映射 */
 function workoutProblems(d){
   const out=[],P=(key,code)=>out.push({key,code});
   (d.lifts||[]).forEach((x,i)=>{
@@ -889,14 +889,14 @@ function workoutProblems(d){
       if(j>=WO_MAX.sets){if(j===WO_MAX.sets)P(k+"w","slimit");return}
       if(woBlank(z.w)&&woBlank(z.r))return;
       used++;
-      if(woBlank(z.w))P(k+"w","wnone");else{const w=Number(z.w);if(!isFinite(w)||w<0||w>WO_MAX.w)P(k+"w","wrange")}
+      if(woBlank(z.w))P(k+"w","wnone");else{const w=Number(z.w);if(!isFinite(w)||w<0||w>WO_MAX.w||(w!==0&&woR2(w)===0))P(k+"w","wrange")}
       if(woBlank(z.r))P(k+"r","rnone");else{const r=Number(z.r);if(!Number.isInteger(r)||r<1||r>WO_MAX.r)P(k+"r","rint")}
     });
     if(!used)P("fl:"+i+":ex","exnone");
   });
   (d.cardio||[]).forEach((x,k)=>{
     if(woBlank(x.m))P("fc:"+k+":m","mnone");else{const m=Number(x.m);if(!Number.isInteger(m)||m<1||m>WO_MAX.m)P("fc:"+k+":m","mint")}
-    if(!woBlank(x.d)){const v=Number(x.d);if(!isFinite(v)||v<=0||v>WO_MAX.d)P("fc:"+k+":d","drange")}
+    if(!woBlank(x.d)){const v=Number(x.d);if(!isFinite(v)||woR2(v)<=0||v>WO_MAX.d)P("fc:"+k+":d","drange")}
   });
   return out;
 }
