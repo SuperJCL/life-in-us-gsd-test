@@ -3099,7 +3099,7 @@ function fcGo(d){
   const per=fcPer(),all=activeLifts(),pages=Math.max(1,Math.ceil(all.length/per)),np=Math.min(pages-1,Math.max(0,fc.page+d));
   if(np===fc.page)return;
   fc.page=np;renderFc();
-  const me=$(d<0?"fcPrev":"fcNext"),other=$(d<0?"fcNext":"fcPrev"),f=me&&!me.disabled?me:other;
+  const btn=$(d<0?"fcPrev":"fcNext"),other=$(d<0?"fcNext":"fcPrev"),f=btn&&!btn.disabled?btn:other;
   if(f)f.focus({preventScroll:true});
   $("fc-live").textContent=T_FC_LIVE_PAGE(np+1,pages,all.slice(np*per,np*per+per).map(L=>L.n).join("、"));
 }
