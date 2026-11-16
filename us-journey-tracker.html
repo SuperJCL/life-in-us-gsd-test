@@ -1868,8 +1868,9 @@ async function syncOnce(){
       const cb=JSON.parse(JSON.stringify(docAfter()));
       sizeCheck(cb);
       sentOps=ops.length;
+      const held=pendRemote.state;
       const m=await make("state",cb);
-      ssv=m.d;if(m.made)up=ssv;
+      ssv=m.d;if(m.made){up=ssv;if(swapSlot(held,cb,up))gotRemote=true}
     }
     docs.state.id=ssv.id;
     if(!up){
@@ -1892,7 +1893,7 @@ async function syncOnce(){
         up=await coll.update(ssv.id,{data:body,writer:WRITER},sg);
         if(ep!==sessionEpoch)return;
         /* the slot still holds the version this upload was based on (nobody took it meanwhile): from now on it holds what is on the server, so the local operations that come after are done on that */
-        if(heldSlot&&pendRemote.state===heldSlot){pendRemote.state={data:body,updated:up.updated};gotRemote=true}
+        if(swapSlot(heldSlot,body,up))gotRemote=true;
         /* the first successful upload after a kept copy announces it, once: a failed upload keeps the copy without a notice, and an upload whose answer was lost left it with the server already overwritten */
         if(snapPending!==null){const kept=snapPending;snapPending=null;if(!kept||snapGet())conflictNotice(kept)}
       }else if(ssv.updated!==docs.state.base&&!docs.state.dirty&&(docs.state.seq||0)===seq){
@@ -2261,6 +2262,12 @@ function docAfter(){
   const s=normUnder(pendRemote.plan,ss.data);
   ops.forEach(o=>o.fn(s));
   return s;
+}
+/* an upload built on the waiting slot succeeded (update or create): if nobody took or replaced the slot meanwhile it now holds what is on the server, so the local operations made after the snapshot are done on that (a taken slot is left alone) */
+function swapSlot(held,body,u){
+  if(!held||pendRemote.state!==held)return false;
+  pendRemote.state={data:body,updated:u.updated};
+  return true;
 }
 /* the only way a waiting remote version enters the working data: plan first, then state; the same synchronous code goes on to applyView, so "banner shown, working data already new" never spans a render or an await */
 function takeRemote(){

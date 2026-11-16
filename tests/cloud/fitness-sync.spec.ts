@@ -263,6 +263,70 @@ test.describe('manual clock', () => {
       await second.context.close();
     }
   });
+
+  test('FIT-05 a state document created after a failed upload that held the waiting slot keeps the local trainings in the working view (WR-01)', async ({
+    app,
+    page,
+    context,
+    browser,
+    guard,
+  }) => {
+    await page.clock.install({ time: FROZEN_NOW });
+    app.fake.refuseRealtime(true);
+    await app.open({ mode: 'cloud', seed: syntheticState('fm'), plan: syntheticPlan('fm', 1), login: 0, realtime: false });
+    await page.clock.pauseAt(FROZEN_NOW + 60_000);
+    const second = await openDevice({ browser, guard, fake: app.fake, clock: 'none' });
+    try {
+      const sp = second.page;
+      await sp.clock.install({ time: FROZEN_NOW });
+      await second.app.open({ mode: 'cloud', login: 0, realtime: false });
+      await sp.clock.pauseAt(FROZEN_NOW + 60_000);
+      const day = (w: number, r: number) => ({ lifts: [{ id: 'l-fm1', sets: [{ w, r }] }], cardio: [] });
+      const serverWorkouts = () => JSON.parse(JSON.stringify(app.fake.lastState(0)?.workouts ?? {}));
+
+      // B 先上传 03-17：服务器上的版本比 A 的基线新、写入者不同
+      await gotoFitness(sp);
+      await flGoDay(sp, '2026-03-17');
+      await flAddLift(sp, 'l-fm1');
+      await flFillSet(sp, 'l-fm1', 0, '20', '8');
+      await flSave(sp);
+      await sp.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await sp.clock.runFor(1_000);
+      await expect.poll(serverWorkouts, { message: '等待设备 B 的训练上传' }).toEqual({ '2026-03-17': day(20, 8) });
+
+      // A 在 03-16 记一次，上传被 503 挡住：本趟把 B 的版本放进等待槽、本机操作在它上面重放，上传失败，槽留着
+      const patchFault = app.fake.fault({ method: 'PATCH', path: ITEM_PATH, mode: 'status', status: 503, context });
+      await gotoFitness(page);
+      await flGoDay(page, '2026-03-16');
+      await flAddLift(page, 'l-fm1');
+      await flFillSet(page, 'l-fm1', 0, '30', '5');
+      await flSave(page);
+      await page.clock.runFor(1_000);
+      await expect(page.locator('#status')).toHaveAttribute('data-state', 'retrying');
+
+      // 后台删掉 state 文档：下一趟走创建分支，创建的内容是等待槽加上 A 的操作
+      app.fake.dropDocs(0, 'state');
+      patchFault.remove();
+      await page.locator('#status button').click();
+      await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+      await expect
+        .poll(serverWorkouts, { message: '等待创建出来的 state 文档' })
+        .toEqual({ '2026-03-16': day(30, 5), '2026-03-17': day(20, 8) });
+
+      // A 再记一天：工作视图以创建时的内容为底，不能丢掉刚创建上去的 03-16
+      await flGoDay(page, FROZEN_TODAY);
+      await flAddLift(page, 'l-fm1');
+      await flFillSet(page, 'l-fm1', 0, '50', '3');
+      await flSave(page);
+      await page.clock.runFor(1_000);
+      await expect
+        .poll(serverWorkouts, { message: '等待 A 的第三天上传' })
+        .toEqual({ '2026-03-16': day(30, 5), '2026-03-17': day(20, 8), [FROZEN_TODAY]: day(50, 3) });
+      await acknowledgeConsoleErrors(guard, { 'status of 503 ': patchFault.hits });
+    } finally {
+      await second.context.close();
+    }
+  });
 });
 
 test("FIT-05 a training saved on one device appears on the other device's fitness tab, history and charts without a reload", async ({
