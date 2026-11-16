@@ -2906,6 +2906,12 @@ async function goWo(date){
   if(!(await flSwitch(date)))return;
   window.scrollTo(0,0);const t=$("fl-title");if(t)t.focus();
 }
+/* 保存前去掉草稿里计划已经没有的项（别的设备永久删了它，或留底恢复出来的）：这一天已经存着的条目原样保留，只拦住新写出指向不存在项目的记录；归档的项还在计划里，所以保留 */
+function flLive(d,date){
+  const sv=woMap(state)[date],ids=k=>new Set(isObj(sv)&&Array.isArray(sv[k])?sv[k].filter(isObj).map(x=>x.id):[]),hl=ids("lifts"),hc=ids("cardio");
+  const pl=new Set(plan.lifts.map(l=>l.id)),pc=new Set(planCardio(plan).map(c=>c.id));
+  return {lifts:d.lifts.filter(x=>pl.has(x.id)||hl.has(x.id)),cardio:d.cardio.filter(x=>pc.has(x.id)||hc.has(x.id))};
+}
 function flSave(){
   if(!fl)return;
   fl.tried=true;
@@ -2915,8 +2921,8 @@ function flSave(){
     const el=flFirstBad(pr);if(el){el.focus();el.scrollIntoView({block:"center",behavior:"auto"})}
     return;
   }
-  const day=woFromDraft(fl.draft),date=fl.date;
-  if(!day.lifts.length&&!day.cardio.length){flDelete();return}
+  const date=fl.date,day=woFromDraft(flLive(fl.draft,date));
+  if(!day.lifts.length&&!day.cardio.length){if(!woMap(state)[date]){flOpen(date);renderFit(true)}else flDelete();return}
   commit(["wo:"+date],s=>woPut(s,date,day));
   flKeepClear();flOpen(date);renderAll();renderFit(true);
   toast(T_FL_SAVED,null,3000);$("fl-live").textContent=T_FL_SAVED;

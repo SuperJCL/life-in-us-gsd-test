@@ -278,3 +278,30 @@ test('FIT-02 clicking the training row of another day on the week view while the
   await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
   await expect(page.locator('#fl-save')).toHaveJSProperty('disabled', false);
 });
+
+test('FIT-02 saving a draft whose lift another device removed from the plan leaves that lift out and keeps the rest (IN-08)', async ({ app, page }) => {
+  const plan: any = syntheticPlan('fx', 1);
+  plan.lifts.push({ id: 'l-fx2', n: 'SYNTH-fx lift 2', unit: 'kg', def: 10, target: 20, note: '' });
+  await app.open({ mode: 'cloud', seed: syntheticState('fx'), plan, login: 0 });
+  await gotoFitness(page);
+  await flAddLift(page, 'l-fx1');
+  await flFillSet(page, 'l-fx1', 0, '30', '5');
+  await flAddLift(page, 'l-fx2');
+  await flFillSet(page, 'l-fx2', 0, '40', '6');
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect.poll(() => hasWoDraft(page), { message: '等待本机留底写入' }).toEqual({ has: true, date: FROZEN_TODAY });
+
+  // 另一台设备把 l-fx2 从计划里永久删掉；重新打开后留底带着这一项恢复出来
+  const trimmed = { ...app.fake.lastPlan(0), lifts: plan.lifts.filter((l: any) => l.id !== 'l-fx2') };
+  await app.fake.request(0, 'PATCH', `/api/collections/journey_docs/records/${app.fake.docId(0, 'plan')}`, { data: trimmed, writer: 'device-b' });
+  await app.reload();
+  await gotoFitness(page);
+  await expect(page.locator('#fl-state')).toHaveText(FL_STATE_RESTORED);
+  expect((await readFl(page)).map((x) => x.id), 'the restored draft still shows both lifts').toEqual(['l-fx1', 'l-fx2']);
+
+  // 保存：只写计划里还有的项
+  await flSave(page);
+  await expect
+    .poll(() => JSON.stringify(app.fake.lastState(0)?.workouts?.[FROZEN_TODAY] ?? null), { message: '等待训练上传' })
+    .toBe(JSON.stringify({ lifts: [{ id: 'l-fx1', sets: [{ w: 30, r: 5 }] }], cardio: [] }));
+});
