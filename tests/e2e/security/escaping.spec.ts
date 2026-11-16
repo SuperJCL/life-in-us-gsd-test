@@ -413,7 +413,8 @@ test('SEC-01 malicious text in every field renders as plain text in the four vie
     '目标视图：坏的待办 id 还在页面上',
   ).toBe(false);
 
-  // 健身：入口检查修掉了坏的 id、日期和数值，训练历史只剩今天那一条，bench 的手填历史载荷不画
+  // 健身：入口检查修掉了坏的 id、日期和数值，bench 的手填历史载荷不画；训练历史剩今天和 3 月 17 日两条
+  //（17 日里不合格的条目不占 id，后面合格的 bench 42 × 5 和 r-run 20 分钟留下，15-REVIEW IN-03）
   await openTab(page, 'fit');
   await expectClean(page, '健身');
   await page.evaluate(() => {
@@ -421,7 +422,10 @@ test('SEC-01 malicious text in every field renders as plain text in the four vie
   });
   await setRange(page, 'all');
   await expectClean(page, '健身（历史展开、范围全部）');
-  expect(await page.locator('#fh details.fh-item').count(), '训练历史里只应有一条合格的训练').toBe(1);
+  expect(
+    await page.locator('#fh details.fh-item').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.fh)),
+    '训练历史里只应有今天和 3 月 17 日两条合格的训练',
+  ).toEqual([FROZEN_TODAY, '2026-03-17']);
 
   // 时间线
   await openTab(page, 'tl');
@@ -491,9 +495,11 @@ test('SEC-01 malicious text in every field renders as plain text in the four vie
     '保存的待办里还有不以 c- 开头的 id',
   ).toBe(true);
   expect(saved.custom.length, '保存的待办条数').toBe(bad.custom.length);
-  // 训练：坏日期键、坏 id、非数字的重量和次数、形状不对的天都被入口检查修掉，今天那天只剩合格的 bench 一组
+  // 训练：坏日期键、坏 id、非数字的重量和次数、形状不对的天都被入口检查修掉：今天那天只剩合格的 bench 一组；
+  // 3 月 17 日里不合格的条目不占 id，后面合格的 bench 42 × 5 和 r-run 20 分钟留下，载荷距离被删掉（15-REVIEW IN-03）
   expect(saved.workouts, '保存的训练里还有不合格的部分，或合格的部分丢了').toEqual({
     [FROZEN_TODAY]: { lifts: [{ id: 'bench', sets: [{ w: 40, r: 5 }] }], cardio: [] },
+    '2026-03-17': { lifts: [{ id: 'bench', sets: [{ w: 42, r: 5 }] }], cardio: [{ id: 'r-run', m: 20 }] },
   });
   await expectClean(page, '保存之后');
 });
