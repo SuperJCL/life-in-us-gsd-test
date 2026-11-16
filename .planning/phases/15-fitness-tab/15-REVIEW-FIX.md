@@ -23,7 +23,7 @@ status: all_fixed
 
 **工作方式：** `workflow.use_worktrees` 为 false，直接在主工作区改、提交（没有临时 worktree，没有恢复标记文件）。每条发现一个提交（`fix(15): <id> …`），改了 `us-journey-tracker.html` 的提交都同时重新记录了 `APP_SHA256`（应用文件是 LF，无 CR，`style="` 计数 0，纯函数段的两个标记各一次）。所有验证都在主工作区跑，可以从当前树复现；每次只跑相关的几个文件，通过低优先级、单 worker 的包装，每次运行后用 `check-report.mjs` 检查了报告。完整套件没有跑，留给调用方。
 
-## 已修的问题
+## Fixed Issues
 
 ### WR-01: 15-07 的 slot 替换只修了更新分支，创建分支留着同一个丢操作的缺口
 
@@ -63,7 +63,7 @@ status: all_fixed
 **新用例：** `tests/cloud/fitness-log.spec.ts`，`FIT-02 clicking the training row of another day on the week view while the edit gate is on opens that day with the logging controls still disabled (WR-04)`：对账被拖住时点本周页另一天的训练行，断言日期框、保存按钮、所有 `[data-fl]` 输入框和加项芯片都是真 disabled，松开后恢复可用。
 **运行：** 新用例通过；换回修复前的应用后这条用例失败（日期框是 enabled），之后恢复。`fitness-log.spec.ts` 共 5 条通过；`tests/e2e/fitness/log.spec.ts` 7 条通过（本地版没有门控，确认没有副作用）。
 
-### IN-01: `renderFh` 用原始 `dataset.fh` 拼选择器
+### IN-01: `renderFh` 用原始 `dataset.fh` 拼选择器（审计提到的问题：确认存在，不可触发）
 
 **状态：** 已修
 **提交：** `0df6492`
@@ -136,7 +136,7 @@ status: all_fixed
 **新用例：** `fitness-log.spec.ts`，`FIT-02 saving a draft whose lift another device removed from the plan leaves that lift out and keeps the rest (IN-08)`：草稿里有两个力量项，服务器上的计划永久删掉第二个，重开后留底恢复出两项，保存后服务器上只有第一项。
 **运行：** 新用例通过；换回修复前的应用后失败（服务器上带着孤儿项）；`fitness-log.spec.ts` + `plan-editor-archive.spec.ts` 共 10 条通过，`tests/e2e/fitness/log.spec.ts` 9 条通过。
 
-## 跳过的问题
+## Skipped Issues
 
 无。12 条都已修。
 
