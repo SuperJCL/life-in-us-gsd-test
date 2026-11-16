@@ -2848,7 +2848,7 @@ function fhBody(day){
 function renderFh(){
   const el=$("fh");
   if($("tab-fit").classList.contains("hidden")){el.textContent="";return}
-  const a=document.activeElement,fk=a&&a!==document.body&&el.contains(a)?(a.id==="fhMore"?"#fhMore":a.matches("summary")?'.fh-item[data-fh="'+CSS.escape(a.parentNode.dataset.fh)+'"]>summary':null):null;
+  const a=document.activeElement,fk=a&&a!==document.body&&el.contains(a)?(a.id==="fhMore"?"#fhMore":a.matches("summary,[data-wo],[data-fhdel]")?'.fh-item[data-fh="'+CSS.escape(a.closest(".fh-item").dataset.fh)+'"] '+(a.matches("summary")?">summary":a.matches("[data-wo]")?"[data-wo]":"[data-fhdel]"):null):null;
   const m=woMap(state),dates=Object.keys(m).sort().reverse(),shown=dates.slice(0,fhN);
   let html=`<h3 id="fh-title" tabindex="-1">${T_FH_TITLE}</h3>`;
   if(!dates.length)html+=`<p class="empty">${T_FH_EMPTY}</p>`;

@@ -368,3 +368,44 @@ test("FIT-05 a training saved on one device appears on the other device's fitnes
     await second.context.close();
   }
 });
+
+test('FIT-05 a remote redraw of the training history keeps the focus on the edit and delete buttons of an opened training (IN-05)', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  const old = { lifts: [{ id: 'l-fk1', sets: [{ w: 20, r: 5 }] }], cardio: [] };
+  await app.open({ mode: 'cloud', seed: syntheticState('fk', { workouts: { '2026-03-10': old } }), plan: syntheticPlan('fk', 1), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    const sp = second.page;
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await gotoFitness(page);
+    await gotoFitness(sp);
+    await expect.poll(() => app.fake.connectionCount(), { message: '两台设备都订阅了实时事件' }).toBe(2);
+    const item = sp.locator('#fh .fh-item[data-fh="2026-03-10"]');
+    await item.locator('summary').click();
+    const focusedKey = () =>
+      sp.evaluate(() => {
+        const a = document.activeElement as HTMLElement | null;
+        return a && a.closest('#fh') ? `${a.closest('.fh-item')?.getAttribute('data-fh')}:${a.hasAttribute('data-wo') ? 'wo' : a.hasAttribute('data-fhdel') ? 'del' : a.tagName}` : null;
+      });
+    let n = 0;
+    for (const [sel, key] of [['[data-wo]', '2026-03-10:wo'], ['[data-fhdel]', '2026-03-10:del']] as const) {
+      await item.locator(sel).focus();
+      expect(await focusedKey()).toBe(key);
+      // A 记一天新的训练：B 的训练历史在没有刷新的情况下重画，焦点留在原来的按钮上
+      n += 1;
+      const date = `2026-03-0${n}`;
+      await flGoDay(page, date);
+      await flAddLift(page, 'l-fk1');
+      await flFillSet(page, 'l-fk1', 0, `3${n}`, '5');
+      await flSave(page);
+      await expect(sp.locator(`#fh .fh-item[data-fh="${date}"]`), 'the history of device B was redrawn').toHaveCount(1);
+      expect(await focusedKey(), 'the focus stays on the same button after the redraw').toBe(key);
+    }
+  } finally {
+    await second.context.close();
+  }
+});
