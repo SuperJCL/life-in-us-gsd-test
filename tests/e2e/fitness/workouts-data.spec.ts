@@ -51,6 +51,12 @@ test('FIT-05 normalize keeps well-formed workouts unchanged, repairs bad values 
     cardio: [{ id: 'r-run', m: 10 }, { id: 'r-run', m: 99 }],
   });
   expect(dup, 'duplicate ids').toEqual({ lifts: [{ id: 'bench', sets: [{ w: 10, r: 5 }] }], cardio: [{ id: 'r-run', m: 10 }] });
+  // 第一条不合格的不占这个 id：后面同 id 的合格条目保留（IN-03）
+  const dupBad = one({
+    lifts: [{ id: 'bench', sets: [{ w: -1, r: 5 }] }, { id: 'bench', sets: [{ w: 99, r: 9 }] }],
+    cardio: [{ id: 'r-run', m: 0 }, { id: 'r-run', m: 99 }],
+  });
+  expect(dupBad, 'a bad first entry does not hide the good one after it').toEqual({ lifts: [{ id: 'bench', sets: [{ w: 99, r: 9 }] }], cardio: [{ id: 'r-run', m: 99 }] });
 
   // 有氧：时长不合格整条丢掉，距离不合格只删距离；一边坏了另一边和这一天都保留
   const cardio = (items: unknown[]) => ({ lifts: [{ id: 'bench', sets: [{ w: 10, r: 5 }] }], cardio: items });

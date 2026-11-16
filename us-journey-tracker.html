@@ -1080,20 +1080,19 @@ function normalize(s){
     for(const f of ["add","hide"])if(r[f]!==undefined){if(Array.isArray(r[f]))r[f]=r[f].filter(x=>typeof x==="string");else delete r[f]}
     return [k,r];
   }));
-  /* Phase 15：训练按天修正，不合格的组、条目、天各自丢掉（不合格的 d 只删 d），不因一组坏数据丢掉整天；同一天里重复的动作 id 或有氧 id 只留第一条；两个数组都空的天丢掉 */
+  /* Phase 15：训练按天修正，不合格的组、条目、天各自丢掉（不合格的 d 只删 d），不因一组坏数据丢掉整天；同一天里重复的动作 id 或有氧 id 只留第一条合格的（不合格的不占这个 id）；两个数组都空的天丢掉 */
   const wo={},woIn=isObj(s.workouts)?s.workouts:{};
   Object.keys(woIn).filter(k=>okDate(k)&&isObj(woIn[k])).forEach(k=>{
     const v=woIn[k],ls=[],cs=[],ls0=new Set(),cs0=new Set();
     (Array.isArray(v.lifts)?v.lifts:[]).forEach(x=>{
       if(!isObj(x)||typeof x.id!=="string"||!LIFT_ID_RE.test(x.id)||ls0.has(x.id))return;
-      ls0.add(x.id);
       const sets=(Array.isArray(x.sets)?x.sets:[]).filter(z=>isObj(z)&&fin(z.w)&&z.w>=0&&z.w<=WO_MAX.w&&Number.isInteger(z.r)&&z.r>=1&&z.r<=WO_MAX.r).slice(0,WO_MAX.sets).map(z=>({w:z.w,r:z.r}));
-      if(sets.length)ls.push({id:x.id,sets});
+      if(sets.length){ls0.add(x.id);ls.push({id:x.id,sets})}
     });
     (Array.isArray(v.cardio)?v.cardio:[]).forEach(x=>{
       if(!isObj(x)||typeof x.id!=="string"||!CARDIO_ID_RE.test(x.id)||cs0.has(x.id))return;
-      cs0.add(x.id);
       if(!Number.isInteger(x.m)||x.m<1||x.m>WO_MAX.m)return;
+      cs0.add(x.id);
       const o={id:x.id,m:x.m};if(fin(x.d)&&x.d>0&&x.d<=WO_MAX.d)o.d=x.d;cs.push(o);
     });
     if(ls.length||cs.length)wo[k]={lifts:ls,cardio:cs};
