@@ -2787,7 +2787,7 @@ function renderFl(){
   const title=`<h3 id="fl-title" tabindex="-1">${esc(date===today()?T_FL_TITLE_TODAY:T_FL_TITLE_DAY(md(date)))}</h3>`;
   const aL=activeLifts(),aC=activeCardio();
   /* 计划里没有未归档的力量项也没有有氧项，草稿也是空的：整个记录区只剩一行说明和入口，不渲染日期和保存栏 */
-  if(!aL.length&&!aC.length&&flEmpty()){$("fl").innerHTML=`<div class="fl-head">${title}</div><p class="empty">${T_FL_EMPTY_ALL}</p>${flGoBtn(true)}`;return}
+  if(!aL.length&&!aC.length&&flEmpty()){$("fl").innerHTML=`<div class="fl-head">${title}</div><p class="empty">${T_FL_EMPTY_ALL}</p>${flGoBtn(true)}`;applyGate();return}
   let first=true;const go=()=>{const r=flGoBtn(first);if(r)first=false;return r};
   const haveL=new Set(dr.lifts.map(x=>x.id)),haveC=new Set(dr.cardio.map(x=>x.id));
   const chip=(kind,id,n)=>`<button type="button" class="ghost fl-chip" data-fl data-fl-add="${kind}:${esc(id)}" aria-label="${esc(T_FL_ADD_ARIA(n))}">＋ ${esc(n)}</button>`;
@@ -2801,6 +2801,7 @@ function renderFl(){
     <div class="fl-bar"><p id="fl-hint" role="status"></p>${saved?`<button type="button" class="danger" id="flDelete" data-fl>${T_FL_DELETE}</button>`:""}<button type="button" class="primary" id="fl-save" data-fl aria-describedby="fl-hint">${saved?T_FL_SAVE_EDIT:T_FL_SAVE}</button></div>`;
   $("fl-state").textContent=fl.restored?T_FL_STATE_RESTORED:saved?T_FL_STATE_SAVED:"";
   flErrs();flHint();if(flDirty())flKeep();
+  applyGate();
 }
 /* 本周训练和力量目标（S6、D-07、D-15）：只由 state 和计划算出，没有输入，所以不看草稿，每次都整块重画。本周永远是今天所在的周（不跟着本周页翻到的那一周走）；
    天数用 trainDays，和本周页健身卡同一个函数；当前值用 liftNow；进度条宽度只写 data-w，由 fitBars 用 CSSOM 赋值 */
@@ -2862,6 +2863,7 @@ function renderFh(){
   }
   el.innerHTML=html;
   const t=fk&&el.querySelector(fk);if(t)t.focus({preventScroll:true});
+  applyGate();
 }
 $("fh").addEventListener("toggle",e=>{const d=e.target;if(d&&d.matches&&d.matches("details.fh-item")){if(d.open)fhOpen.add(d.dataset.fh);else fhOpen.delete(d.dataset.fh)}},true);
 $("fh").addEventListener("click",e=>{
@@ -3082,6 +3084,7 @@ function renderFc(){
   el.innerHTML=`<div class="fc-head"><h3 id="fc-title">${T_FC_TITLE}</h3>${pager}</div>${ctl}<div class="fc-grid">${figs.join("")}</div>${fcCdHTML(open.has("cd"))}`;
   el.querySelectorAll("figure.fc").forEach(fcDrawAny);
   const t=key&&el.querySelector(key);if(t&&!t.disabled)t.focus({preventScroll:true});
+  applyGate();
 }
 /* 重画前记下焦点在哪个控件上（翻页按钮、指标 / 范围芯片、某张图的「查看数据」），重画后放回去 */
 function fcFocusKey(){

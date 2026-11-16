@@ -251,3 +251,30 @@ test('FIT-03 while the edit gate is on the chart controls, paging and data table
     await dev.context.close();
   }
 });
+
+test('FIT-02 clicking the training row of another day on the week view while the edit gate is on opens that day with the logging controls still disabled (WR-04)', async ({
+  app,
+  page,
+}) => {
+  const plan: any = syntheticPlan('fw', 1);
+  plan.lifts.push({ id: 'l-fw2', n: 'SYNTH-fw lift 2', unit: 'kg', def: 10, target: 20, note: '' });
+  const day = { lifts: [{ id: 'l-fw1', sets: [{ w: 30, r: 5 }] }], cardio: [] };
+  const state = syntheticState('fw', { workouts: { [FROZEN_TODAY]: day, '2026-03-16': day } });
+  await app.open({ mode: 'cloud', seed: state, plan, login: 0 });
+  const hold = app.fake.fault({ method: 'GET', path: LIST_PATH, mode: 'hold' });
+  await page.reload();
+  await expect(page.locator('body')).toHaveAttribute('data-gate', 'reconciling');
+  await page.getByRole('tab', { name: TAB_LABELS.wk, exact: true }).click();
+  await page.locator('#days .ent.wo[data-wo="2026-03-16"]').click();
+  await expect(page.locator('#tab-fit')).toBeVisible();
+  await expect(page.locator('#fl-date')).toHaveValue('2026-03-16');
+  // 换了一天之后记录区重画：新画出来的输入框和按钮同样是真 disabled
+  await expect(page.locator('#fl-save')).toBeDisabled();
+  await expect(page.locator('#fl-date')).toBeDisabled();
+  await expect(page.locator('#fl input[data-fl]:not(:disabled)')).toHaveCount(0);
+  expect(await page.locator('#fl [data-fl-add]').count()).toBeGreaterThan(0);
+  await expect(page.locator('#fl [data-fl-add]:not(:disabled)')).toHaveCount(0);
+  await hold.release();
+  await expect(page.locator('#status')).toHaveAttribute('data-state', 'synced');
+  await expect(page.locator('#fl-save')).toHaveJSProperty('disabled', false);
+});
