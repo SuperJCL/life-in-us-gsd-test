@@ -432,9 +432,9 @@ export function importOrphanLegacyLine(n: number): string {
 // Phase 11-03：新格式完整备份的摘要行（应用里 T_IMP_KIND_FULL、T_IMP_REPLACE_FULL、T_IMP_PLAN、T_IMP_ORPHAN_FILE 的逐字复制）
 export const IMPORT_KIND_FULL = '文件类型：新格式备份（计划和记录）';
 export const IMPORT_REPLACE_FULL = '将替换：当前账号的计划和记录';
-// 文件里计划的规模：目标组数、任务数（含归档的任务）、力量项数
-export function importPlanLine(groups: number, tasks: number, lifts: number): string {
-  return `计划：目标组 ${groups} 个，任务 ${tasks} 项，力量项 ${lifts} 个`;
+// 文件里计划的规模：目标组数、任务数（含归档的任务）、力量项数；有氧项数大于 0 时多一段（Phase 15 评审 IN-07）
+export function importPlanLine(groups: number, tasks: number, lifts: number, cardio = 0): string {
+  return `计划：目标组 ${groups} 个，任务 ${tasks} 项，力量项 ${lifts} 个${cardio > 0 ? `，有氧项 ${cardio} 个` : ''}`;
 }
 // D-07：文件里的任务进度对不上文件里的计划的条数（醒目行）
 export function importOrphanFileLine(n: number): string {

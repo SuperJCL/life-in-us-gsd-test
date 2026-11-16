@@ -284,7 +284,7 @@ test('IO-08 importPreview counts the progress a new plan would drop for full bac
   expect(Object.keys(pvFull.state.tasks).sort()).toEqual(['c-f-1', 't-f1x1']);
   expect(pvFull.state.logs.length, '完整备份的记录条数').toBe(2);
   expect(pvFull.plan, '完整备份返回文件的计划').toEqual(planLike(filePlan));
-  expect(pvFull.planCounts).toEqual({ groups: 1, tasks: 2, lifts: 1 });
+  expect(pvFull.planCounts).toEqual({ groups: 1, tasks: 2, lifts: 1, cardio: 0 });
   expect(pvFull.current, '账号现有记录条数').toBe(2);
 
   // 只含计划：按账号现有的进度算。新计划只有 t-x1，P2-1 对不上，丢弃并计数；自定义待办 c-k1 的进度保留
@@ -296,7 +296,7 @@ test('IO-08 importPreview counts the progress a new plan would drop for full bac
   expect(Object.keys(pvPlan.state.tasks).sort()).toEqual(['c-k1', 't-x1']);
   expect(pvPlan.state.logs.map((l: any) => l.id), '只含计划不动记录').toEqual(['k1', 'k2']);
   expect(pvPlan.plan).toEqual(planLike(newPlan));
-  expect(pvPlan.planCounts).toEqual({ groups: 2, tasks: 3, lifts: 1 });
+  expect(pvPlan.planCounts).toEqual({ groups: 2, tasks: 3, lifts: 1, cardio: 0 });
   expect(pvPlan.current).toBe(2);
   // 新计划保留了现有的全部进度时没有孤儿
   const sameB = classifyBackup(planOnlyFile(syntheticPlan('s', 1)));
@@ -308,7 +308,9 @@ test('IO-08 importPreview counts the progress a new plan would drop for full bac
   // planCounts 的任务数含 archived 的任务
   const archived = syntheticPlan('a', 2);
   archived.groups[0].tasks[0] = { ...archived.groups[0].tasks[0], archived: true } as any;
-  expect(plain(planCounts(archived))).toEqual({ groups: 2, tasks: 4, lifts: 1 });
+  expect(plain(planCounts(archived))).toEqual({ groups: 2, tasks: 4, lifts: 1, cardio: 0 });
+  // 有氧项数（IN-07）：计划里有几个有氧项就是几个（含归档的），没有 cardio 数组是 0
+  expect(plain(planCounts({ ...archived, cardio: [{ id: 'r-a1' }, { id: 'r-a2', archived: true }] })).cardio, 'cardio items of the file plan').toBe(2);
 
   // 计算不改变页面正在用的计划：调用后读到的活绑定与调用前是同一个对象
   const after = readLive();

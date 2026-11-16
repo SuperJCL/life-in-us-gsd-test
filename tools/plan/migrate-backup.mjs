@@ -438,7 +438,7 @@ function runSelfTest() {
   // composePlanOnly
   const po = composePlanOnly(html, seedText, SELF_NOW);
   expect('composePlanOnly：只含计划的文件，没有记录', po.ok === true && json(Object.keys(po.file)) === json(['app', 'format', 'kind', 'exportedAt', 'plan']) && po.file.kind === 'plan' && !('state' in po.file));
-  expect('composePlanOnly：经应用读回是只含计划的文件，计数是计划的规模', evalApp(html, JSON.parse(json(po.file)), 'classifyBackup(__in).kind') === 'plan' && json(po.counts) === json({ groups: 2, tasks: 4, lifts: 1 }));
+  expect('composePlanOnly：经应用读回是只含计划的文件，计数是计划的规模', evalApp(html, JSON.parse(json(po.file)), 'classifyBackup(__in).kind') === 'plan' && json(po.counts) === json({ groups: 2, tasks: 4, lifts: 1, cardio: 0 }));
   expect('composePlanOnly：计划与合成文件里的计划相同', json(po.file.plan) === json(file.plan));
   expect('composePlanOnly：种子形状和计划不合格被拒绝', rejected(composePlanOnly(html, '{}', SELF_NOW), 'seed-shape') && rejected(composePlanOnly(html, json({ plan: { groups: [] } }), SELF_NOW), 'seed-plan'));
 

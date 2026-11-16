@@ -8,8 +8,10 @@ import {
   CONFIRM_IMPORT_TITLE,
   IMPORT_KIND_FULL,
   IMPORT_KIND_LEGACY,
+  IMPORT_KIND_PLAN,
   IMPORT_REPLACE_FULL,
   IMPORT_REPLACE_LEGACY,
+  IMPORT_REPLACE_PLAN,
   IMPORT_UNDO_NOTE,
   TAB_LABELS,
   TOAST_IMPORTED,
@@ -22,7 +24,7 @@ import {
   importWoLine,
 } from '../support/strings';
 import { downloadOf } from '../support/download';
-import { fullBackup, legacyBackup } from '../support/backup-files';
+import { fullBackup, legacyBackup, planOnlyFile } from '../support/backup-files';
 import { confirmCancel, confirmOk, readConfirm } from '../support/confirm';
 import { chooseImportFile, jsonImportFile } from '../support/import-file';
 import { expectToast } from '../support/toast';
@@ -154,6 +156,33 @@ test('FIT-05 a JSON backup carries the trainings, and importing a full backup wi
   ]);
   await confirmCancel(page);
   expect(JSON.stringify(app.fake.lastState(0).workouts), 'cancelling keeps the trainings').toBe(JSON.stringify(own));
+});
+
+test('FIT-05 the import summary of a plan with cardio items names how many cardio items it replaces, and a plan without them has no such part (IN-07)', async ({
+  app,
+  page,
+}) => {
+  const seed = syntheticState('fp');
+  await app.open({ mode: 'cloud', seed, plan: syntheticPlan('fp', 1), login: 0 });
+  const plan: any = syntheticPlan('fq', 2);
+  plan.cardio = [
+    { id: 'r-fq1', n: 'SYNTH-fq run', note: '', target: { kind: 'min', v: 30 } },
+    { id: 'r-fq2', n: 'SYNTH-fq walk', note: '' },
+  ];
+  await chooseImportFile(page, jsonImportFile('synth-with-cardio.json', planOnlyFile(plan)));
+  const first = await readConfirm(page);
+  expect(first.lines, 'the plan line carries the cardio count').toEqual([
+    IMPORT_KIND_PLAN,
+    IMPORT_REPLACE_PLAN,
+    importPlanLine(2, 4, 1, 2),
+    importCurrentLine(seed.logs.length),
+    IMPORT_UNDO_NOTE,
+  ]);
+  await confirmCancel(page);
+  await chooseImportFile(page, jsonImportFile('synth-without-cardio.json', planOnlyFile(syntheticPlan('fr', 2))));
+  const second = await readConfirm(page);
+  expect(second.lines[2], 'no cardio part when the plan has none').toBe(importPlanLine(2, 4, 1));
+  await confirmCancel(page);
 });
 
 const LIST_PATH = '/api/collections/journey_docs/records';
