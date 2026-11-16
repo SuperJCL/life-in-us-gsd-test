@@ -6,10 +6,10 @@ current_phase: 15
 current_phase_name: 健身页（Fitness Tab）
 status: verifying
 stopped_at: Completed 15-07-PLAN.md
-last_updated: "2026-11-14T08:00:29.317Z"
+last_updated: "2026-11-16T19:16:39.203Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 15 execution started
-state_head: 52c217ce95e987dd1fd38ce66b0b0a57ca82dab5
+state_head: 427395e751df1e554565d495850ef885efda8c65
 progress:
   total_phases: 11
   completed_phases: 8
@@ -447,6 +447,7 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 | 6 | 修 11-UI-REVIEW 的 4 处：恢复改为键盘可用的按钮、门控时导出可用、旧路径 5 MB 提示加宽延长、CSV 提示改为中性说法 | 2026-11-11 | abba25d | — |
 | 7 | 修 12-UI-REVIEW 的 3 处：编辑页选中的类别按钮改浅底加正文色文字、禁用按钮显示禁用外观、「已归档」区的 × 放大点击区域 | 2026-11-11 | 56a6dea | — |
 | 8 | 修 14-UI-REVIEW 的 3 处：桌面宽度下空计划卡片和编辑页「从示例添加」按钮至少 36px 高；pkSave 计划校验失败时提示行显示错误；被断网或过期挡住时刷新提示行 | 2026-11-12 | 85fb682 | — |
+| 9 | 修 15-UI-REVIEW 的 3 处：训练历史的展开指示、窄屏保存栏顺序、375px 力量目标卡两列（427395e） | 2026-11-16 | 427395e | — |
 
 ### Roadmap Evolution
 
