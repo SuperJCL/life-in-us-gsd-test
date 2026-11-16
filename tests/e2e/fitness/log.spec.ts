@@ -9,6 +9,7 @@ import {
   FL_SAVE_EDIT,
   FL_SAVED,
   FL_STATE_SAVED,
+  FL_ERR_EXNONE,
   FL_ERR_RNONE,
   FL_LIVE_UNDONE,
   BTN_UNDO_DELETE,
@@ -462,4 +463,20 @@ test('FIT-02 picking another date with unsaved content asks first and keeps the 
   await expect(page.locator('#fl-title')).toHaveText(flTitleDay('3月16日'));
   await expect(page.locator('#fl-title')).toBeFocused();
   expect(await readFl(page)).toEqual([{ id: 'bench', sets: [{ w: '25', r: '5' }] }]);
+});
+
+test('FIT-02 an exercise block with no filled set shows its own error under the block with an id that no set error can share (IN-02)', async ({
+  page,
+  app,
+}) => {
+  await app.open({ seed: SET_SEED });
+  await gotoFitness(page);
+  await flAddLift(page, 'bench');
+  await flFillSet(page, 'bench', 0, '20', '8');
+  await flAddLift(page, 'squat');
+  await flSave(page);
+  const err = page.locator('#fl-ex-e-squat');
+  await expect(err).toBeVisible();
+  await expect(err).toHaveText(FL_ERR_EXNONE);
+  await expect(page.locator('#fl-e-squat')).toHaveCount(0);
 });
