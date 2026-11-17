@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16 after Phase 15)
 
 Phase: 13 (部署与加固（Deploy & Hardening）) — EXECUTING
 Plan: 14 of 14
-Status: Ready to execute
+Status: All 14 plans executed; Phase 13 verification next
 Last activity: 2026-11-16 — Phase 13 execution started
 
 Progress: [████████░░] 82%
@@ -479,14 +479,16 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-17T02:55:51.393Z
-Stopped at: 13-13 restore drill complete, next 13-14 upgrade drill
+Stopped at: 13-14 upgrade drill complete, next Phase 13 verification
 Resume file: None
 
 ## Operator Next Steps
 
 - Phase 15 已完成并转场（2026-11-16）：自动检查全部通过，人工检查 8 项推迟到 Phase 16 总体验收
 - 13-13 恢复演练已完成（2026-11-17 19:23 UTC，`DRILL_RESULT=PASS`，R2 里 5 份自动备份，所有者确认没有告警邮件；见 13-13-SUMMARY.md）；OPS-01 等 13-14 之后再标完成
-- 接下来：13-14 升级演练（每一步改服务器的操作当场确认），然后 Phase 13 验证收尾，再到 Phase 16
+- 13-14 升级演练已完成（2026-11-17）：所有者选择直接部署含 Phase 14、15 的新版本（「部署现在的新版本」），线上 a1159ad93165 → 0ba1339903f1，06 输出 CSP_CONF=installed，线上全量检查 VERIFY OK (19 checks)；旧版本目录保留可回滚；见 13-14-SUMMARY.md
+- 给 Phase 16：新版本已上线，Phase 16 不必为 Phase 14/15 再部署一次（除非之后有修复）；设备上的「点此更新」留到总体验收 E 项；真实数据迁移要等所有设备都换成新版本
+- 接下来：Phase 13 验证收尾（verifier，之后决定 OPS-01/02/03、SEC-02 是否标完成），再到 Phase 16
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
 - 下一阶段：`/gsd-plan-phase --research-phase 13`（路线图要求先做专项调研），再讨论和规划部署、加固与验收
