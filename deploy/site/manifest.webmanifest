@@ -1,6 +1,7 @@
 {
   "name": "计划手记",
   "short_name": "计划手记",
+  "description": "计划手记",
   "lang": "zh-CN",
   "id": "/",
   "start_url": "/",
