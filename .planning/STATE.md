@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 15
-current_phase_name: 健身页（Fitness Tab）
-status: verifying
-stopped_at: Completed 15-07-PLAN.md
-last_updated: "2026-11-16T19:16:39.203Z"
-last_activity: 2026-11-13
-last_activity_desc: Phase 15 execution started
-state_head: 427395e751df1e554565d495850ef885efda8c65
+current_phase: 13
+current_phase_name: 部署与加固（Deploy & Hardening）
+status: executing
+stopped_at: Phase 15 complete, ready to execute Phase 13
+last_updated: "2026-11-17T02:53:23.400Z"
+last_activity: 2026-11-16
+last_activity_desc: Phase 15 complete, transitioned to Phase 13
+state_head: e562aeded2a300094d293e9c8b14c13da882164a
 progress:
   total_phases: 11
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 90
   completed_plans: 88
-  percent: 73
+  percent: 82
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-13 after Phase 14)
+See: .planning/PROJECT.md (updated 2026-11-16 after Phase 15)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 15 — 健身页（Fitness Tab）
+**Current focus:** Phase 13 — 部署与加固（剩 13-13 恢复演练和 13-14 升级演练），之后 Phase 16 新版本上线与总体验收
 
 ## Current Position
 
-Phase: 15 (健身页（Fitness Tab）) — EXECUTING
-Plan: 7 of 7
-Status: Phase complete — ready for verification
-Last activity: 2026-11-13 — Phase 15 execution started
+Phase: 13 — 部署与加固（Deploy & Hardening）
+Plan: 13
+Status: Ready to execute
+Last activity: 2026-11-16 — Phase 15 complete, transitioned to Phase 13
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 89
+- Total plans completed: 96
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -61,6 +61,7 @@ Progress: [███████░░░] 73%
 | 11 | 11 | - | - |
 | 12 | 8 | - | - |
 | 14 | 3 | - | - |
+| 15 | 7 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -366,6 +367,13 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - 收尾：安全 15/15 关闭；界面审计 19/24（实际偏差 3 处已修，85fb682）；代码审查 1 严重 1 警告 1 提示全部修好（CR-01 挑选对话框保存后按钮卡住）；回归在 85fb682 上 cloud 266、默认 199 全过（编排者亲自跑）。
 - 应用文件的工作区副本曾有 CRLF，APP_SHA256 记的是工作区字节；修复时统一成 LF（与 .gitattributes 的 eol=lf 和干净克隆一致），之后记录的都是 LF 字节的哈希。
 - 人工检查 4 项推迟到 Phase 16 总体验收（14-UAT.md Deferred Follow-Ups），路线图 Phase 16 成功标准 2 已写入。
+
+Phase 15 要点（完整记录在 PROJECT.md Key Decisions）：
+- 健身页完成（FIT-01..05）：第五个标签，按组记录力量、记录有氧，按动作的趋势图和每周有氧柱形图，力量当前值由训练算出，和本周、日历、时间线衔接，编辑页加有氧项，训练按天同步（`wo:<日期>`）。
+- 执行：7 份计划。15-03、15-04、15-05 的执行器各停顿一次（流超时），都由接续代理收尾，没有返工；之后的提示加了防停顿规则（单次写入不超过约 120 行、SUMMARY 分段写、全量用例分片跑）。
+- 收尾：安全 29/29 关闭；界面审计 17/24（3 处已修，427395e）；代码审查 12 条全部修好（WR-01：服务器文档删后重建时会丢本机修改，加 `swapSlot`）；15-07 还修了 Phase 10 就有的同步重试丢本机操作。回归在 HEAD 上 cloud 286、默认 238 全过（cloud 分 3 片、默认分 2 片）。
+- 人工检查 8 项推迟到 Phase 16 总体验收（15-UAT.md Deferred Follow-Ups）。
+- 给 Phase 16：上线时先让所有设备和标签页换成新版本，再记第一条训练、迁移真实数据；Phase 10 D-03 的离线整份上传现在也影响训练。
 - [Phase 15]: 15-01: state.workouts 按日期为键、一天一条，同步键 wo:<日期>，写入整天覆盖（woPut/woDel） — 两台设备在不同日子记的训练互不覆盖，重放幂等
 - [Phase 15]: 15-01: normalize / normalizePlan 对 workouts 和 cardio 只在非空时输出键 — 旧用例的深度相等比较和 v1 的 154 条一行不改；读一律经 woMap / planCardio
 - [Phase 15]: 15-01: 有氧 id 用 r- 前缀，示例有氧项冻结为 r-run、r-bike、r-walk — 不和 P、g-、t-、l-、c- 和裸字母力量 id 同形
@@ -397,7 +405,8 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
 - Phase 10：确认 10-REVIEW-FIX 的 WR-01（退出登录时中止进行中的同步）和 WR-03（同步超时随文档大小放宽）的写法，以及 10-SECURITY 的低风险 AR-02、AR-03；判断三处体验问题（点击可能要再点一次、改开始日期清草稿、结果不明的上传之后重做会盖掉别处对同一条目的修改）；决定 IN-01 的死代码删不删。
 - Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
-- Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）。
+- Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）、Phase 14 的 4 项（见 14-UAT.md）、Phase 15 的 8 项（见 15-UAT.md）；总体验收现在是 Phase 16。
+- Phase 15：决定要不要提前做「两台设备的离线修改都保留」（Phase 10 D-03 现在也影响训练数据）。
 - Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，用真实设备验收。
 
@@ -415,7 +424,7 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
 - [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
 - ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条、Phase 12 补到 239 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条、Phase 12 补到 239 条、Phase 15 后为 286 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
 - ~~[Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造~~ 已解决（Phase 10，10-02）：假服务器新增 dropRealtime、refuseRealtime、按上下文的故障。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
 - [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
@@ -431,6 +440,9 @@ Phase 14 要点（完整记录在 PROJECT.md Key Decisions）：
 - ~~[Phase 12，来自 Phase 7 审查]: WR-02、IN-05~~ 已解决（Phase 12，12-01、12-02）：找不到组的待办在「已归档」区能看到、能删；`archived` 在组、任务、力量项上都有行为。
 - [Phase 12 安全]: `12-SECURITY.md` verified，28 条威胁全部关闭；审计建议 S-2（SEC-01 源码门槛覆盖不到编辑页新函数）记录未处理。
 - [Phase 12 审查]: 7 条发现全部修完（`12-REVIEW-FIX.md` all_fixed，`12-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，首要 3 处已修。
+- [Phase 15 安全]: `15-SECURITY.md` verified，29 条威胁全部关闭；旧页面丢 `workouts` 的风险（T-15-04）按接受登记，靠 Phase 16 的上线顺序。
+- [Phase 15 审查]: 12 条发现全部修完（`15-REVIEW-FIX.md`、`15-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，3 处已修。
+- [Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。
 - [Phase 13，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
@@ -466,12 +478,14 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T08:00:23.721Z
-Stopped at: Completed 15-07-PLAN.md
+Last session: 2026-11-17T02:55:51.393Z
+Stopped at: Phase 15 complete, ready to execute Phase 13
 Resume file: None
 
 ## Operator Next Steps
 
+- Phase 15 已完成并转场（2026-11-16）：自动检查全部通过，人工检查 8 项推迟到 Phase 16 总体验收
+- 接下来：13-13 恢复演练（每一步改服务器的操作当场确认，避开 18:40–19:20 UTC）、13-14 升级演练，然后 Phase 16
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
 - 下一阶段：`/gsd-plan-phase --research-phase 13`（路线图要求先做专项调研），再讨论和规划部署、加固与验收
