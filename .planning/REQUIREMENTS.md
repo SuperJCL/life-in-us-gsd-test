@@ -59,15 +59,15 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 ### 安全与隐私（SEC）
 
 - [x] **SEC-01**：用户输入的文字在页面上显示时都经过转义；导入文件里或同步过来的恶意脚本不会执行。
-- [ ] **SEC-02**：网站发出 CSP 和安全响应头；后台管理入口启用强密码、两步验证和登录限流。
+- [x] **SEC-02**：网站发出 CSP 和安全响应头；后台管理入口启用强密码、两步验证和登录限流。
 - [x] **SEC-03**：公开仓库里不出现服务器地址、域名、密钥、后台密码、个人计划文字或真实数据；隐私检查为此新增对应规则。
 - [x] **SEC-04**：去掉个人计划后的应用程序放进公开仓库。克隆后不配服务器也能跑测试和本地体验，看到的是示例计划和空记录。
 
 ### 运维（OPS）
 
-- [ ] **OPS-01**：服务器每天自动备份数据库，并复制一份到服务器以外（Cloudflare R2）；做过一次恢复演练。
-- [ ] **OPS-02**：服务器重启后，PocketBase 和 HTTPS 自动恢复，不需要手动操作。
-- [ ] **OPS-03**：部署和升级有写好的步骤和脚本；PocketBase 固定版本，安装前核对校验和。
+- [x] **OPS-01**：服务器每天自动备份数据库，并复制一份到服务器以外（Cloudflare R2）；做过一次恢复演练。
+- [x] **OPS-02**：服务器重启后，PocketBase 和 HTTPS 自动恢复，不需要手动操作。
+- [x] **OPS-03**：部署和升级有写好的步骤和脚本；PocketBase 固定版本，安装前核对校验和。
 - [ ] **OPS-04**：页面打开过一次后，断网时也能打开（冷启动离线），也可以添加到手机主屏幕。
 
 ### 测试（TEST）
@@ -141,12 +141,12 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | IO-09 | Phase 11 | Complete |
 | IO-10 | Phase 11 | Complete |
 | SEC-01 | Phase 7 | Complete |
-| SEC-02 | Phase 13 | Pending |
+| SEC-02 | Phase 13 | Complete |
 | SEC-03 | Phase 6 | Complete |
 | SEC-04 | Phase 7 | Complete |
-| OPS-01 | Phase 13 | Pending |
-| OPS-02 | Phase 13 | Pending |
-| OPS-03 | Phase 13 | Pending |
+| OPS-01 | Phase 13 | Complete |
+| OPS-02 | Phase 13 | Complete |
+| OPS-03 | Phase 13 | Complete |
 | OPS-04 | Phase 16 | Pending |
 | TEST-01 | Phase 7 | Complete |
 | TEST-02 | Phase 8 | Pending |
@@ -160,4 +160,4 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ---
 *Requirements defined: 2026-11-06*
-*Last updated: 2026-11-13 — FIT-01..FIT-05 complete (Phase 15)*
+*Last updated: 2026-11-17 — OPS-01..OPS-03 and SEC-02 complete (Phase 13); OPS-04 stays Pending until the Phase 16 real-device check*

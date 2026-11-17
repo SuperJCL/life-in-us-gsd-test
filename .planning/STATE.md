@@ -2,45 +2,45 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
-current_phase: 13
-current_phase_name: 部署与加固（Deploy & Hardening）
-status: executing
-stopped_at: Phase 15 complete, ready to execute Phase 13
-last_updated: "2026-11-17T19:25:42.736Z"
-last_activity: 2026-11-16
-last_activity_desc: Phase 13 execution started
-state_head: 090c83bbe454f95fee951355efdac2f678949323
+current_phase: 16
+current_phase_name: 新版本上线与总体验收（Release & Acceptance）
+status: planning
+stopped_at: Phase 13 complete, ready to plan Phase 16
+last_updated: "2026-11-17T23:37:37.140Z"
+last_activity: 2026-11-17
+last_activity_desc: Phase 13 complete, transitioned to Phase 16
+state_head: 4a1fb0851d1871239b09d7c6881a6b7f6306e2f5
 progress:
   total_phases: 11
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 90
-  completed_plans: 89
-  percent: 82
+  completed_plans: 90
+  percent: 91
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-16 after Phase 15)
+See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 13 — 部署与加固（Deploy & Hardening）
+**Current focus:** Phase 16 — 新版本上线与总体验收（先请所有者决定 13-REVIEW 的 19 条发现怎么处理）
 
 ## Current Position
 
-Phase: 13 (部署与加固（Deploy & Hardening）) — EXECUTING
-Plan: 14 of 14
-Status: All 14 plans executed; Phase 13 verification next
-Last activity: 2026-11-16 — Phase 13 execution started
+Phase: 16 — 新版本上线与总体验收（Release & Acceptance）
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-17 — Phase 13 complete, transitioned to Phase 16
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 91%
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 96
+- Total plans completed: 110
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -62,6 +62,7 @@ Progress: [████████░░] 82%
 | 12 | 8 | - | - |
 | 14 | 3 | - | - |
 | 15 | 7 | - | - |
+| 13 | 14 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: -
@@ -398,17 +399,25 @@ Phase 15 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15]: 15-07: cross-device offline cases use 503 (retry state), not refused connections; a refused connection takes the Phase 10 D-03 path (whole upload, other device's version kept as a snapshot) - handed to Phase 16
 - [Phase 15]: 15-07: syncOnce takes heldSlot=pendRemote.state before uploading and swaps it for the uploaded body on success, fixing lost local operations after a retried upload
 
+Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
+- 部署与加固完成（OPS-01、OPS-02、OPS-03、SEC-02）：Service Worker 断网冷启动、主屏幕清单和图标、「点此更新」提示；build-site 产出严格 CSP 的发布包，verify-site 离线 9 项、线上 19 项；服务器脚本在 deploy/server/；两批部署、真重启自恢复、恢复演练 PASS、升级演练换成 `0ba1339903f1`（含 Phase 14、15）。
+- 执行：14 份计划；13-09 起每一步改服务器的操作都经所有者当场确认，服务器输出一律经 redact.mjs；13-14 计划写的是只改 3 个路径，实际 5 个，所有者选「部署现在的新版本」。
+- 收尾：安全 52/52 关闭（AR-13-01 记 IP 30 天、AR-13-02 不装包的计划，均按接受登记）；代码审查 19 条（0 严重、8 警告、11 提示）全部 open；回归在 57718a1 上 cloud 286、默认 238 全过（输出放在会话临时目录，test-results/ 每次运行会被清空）。
+- 人工检查 6 项推迟到 Phase 16 总体验收（13-UAT.md Deferred Follow-Ups）；OPS-04 的真机部分仍是 Pending。
+- 给 Phase 16：线上已是新版本，不用为 Phase 14、15 再部署；真实数据导入后恢复演练会被守卫拦住（IN-01），导入前要定以后怎么演练。
+
 ### Pending Todos
 
 所有者操作（Claude 不代办）：
-- Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 13 要用国内三网和美国的真实设备做完整验收。
+- Phase 6：服务器和域名已买好（阿里云轻量应用服务器香港 + Porkbun 域名，DNS 和 HTTPS 已通，证书自动续期已验证；IP 和域名只记在被 git 忽略的 `private/denylist.txt`）。晚高峰实测已按 D-10 修订缩减并完成（06-10，见 06-PROBE-RESULTS.md）；Phase 16 用大陆和美国的真实设备做验收。
 - Phase 9：确认 AR-02（T-09-36，先读后写之间一次往返的空窗，空窗里另一台设备的写入会被覆盖且不留底）；安全报告已把它记为接受的风险，只差所有者签字。
 - Phase 10：确认 10-REVIEW-FIX 的 WR-01（退出登录时中止进行中的同步）和 WR-03（同步超时随文档大小放宽）的写法，以及 10-SECURITY 的低风险 AR-02、AR-03；判断三处体验问题（点击可能要再点一次、改开始日期清草稿、结果不明的上传之后重做会盖掉别处对同一条目的修改）；决定 IN-01 的死代码删不删。
 - Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
-- Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）、Phase 14 的 4 项（见 14-UAT.md）、Phase 15 的 8 项（见 15-UAT.md）；总体验收现在是 Phase 16。
+- Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）、Phase 14 的 4 项（见 14-UAT.md）、Phase 15 的 8 项（见 15-UAT.md）、Phase 13 的 6 项（见 13-UAT.md）；总体验收现在是 Phase 16。
 - Phase 15：决定要不要提前做「两台设备的离线修改都保留」（Phase 10 D-03 现在也影响训练数据）。
-- Phase 6、13：批准每个在服务器上执行的脚本，在服务器上输入凭据。
-- Phase 13：开 Cloudflare R2 存储桶和密钥，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，用真实设备验收。
+- Phase 13：决定 13-REVIEW 的 19 条发现怎么处理（`13-REVIEW-DISPOSITION.md` 全部 open）；验证建议 Phase 16 之前处理或接受 WR-04、IN-01，下次升级之前处理 WR-01、WR-02、WR-05..WR-08。
+- Phase 6、13、16：批准每个在服务器上执行的脚本，在服务器上输入凭据。
+- Phase 16（R2 存储桶和密钥已在 Phase 13 开好）：所有设备换成新版本、总体验收通过后，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，再删测试账号。
 
 ### Blockers/Concerns
 
@@ -420,11 +429,11 @@ Phase 15 要点（完整记录在 PROJECT.md Key Decisions）：
   - 已定：新约束写进 PROJECT.md 的 Constraints，v2.0 需求和路线图都按它来。
 - [部署，调研中]: 用户希望中国和美国都能访问。查到的情况：Vercel 的 `*.vercel.app` 在中国大陆可能被屏蔽或限速，Vercel 官方建议用自定义域名；Firebase 在中国不可用；`supabase.co` 没查到 2026 年在中国被屏蔽的报告，需要实测；香港或东京的云服务器不需要 ICP 备案。
   - 已定（2026-11-07 更新，Phase 6 D-01 已落实）：所有者实际买的是阿里云轻量应用服务器香港（不是调研推荐的那家），服务器上已有 nginx 和 Let's Encrypt 证书，所有者选择继续用 nginx。规划文档里的服务商和 Web 服务器写法已在 Phase 6 改掉（D-01）。自托管 PocketBase 不变；不论实测结果都继续用阿里云香港（D-08）。
-- [Phase 6 审查]: 24 条发现中 23 条未处理，WR-06 已在 dcfc987 修复（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好，Phase 13 验收前处理。
+- [Phase 6 审查]: 24 条发现中 23 条未处理，WR-06 已在 dcfc987 修复（`06-REVIEW-DISPOSITION.md`）；探针页 CR-01（`tz_offset_min` 被截成不小于 0）和 CR-02（登录失败的运行不能上传）必须在任何重测前修好；探针已在 Phase 13 退役，只有将来重新用探针测速时才需要先修。
 - [Phase 6 安全]: `/gsd-secure-phase 6` 已完成（022f523）：35 条威胁全部关闭，2 条已接受风险（AR-01 后台 `/_/` 公开、AR-02 推送例外清单）；残余缺陷见 `06-SECURITY.md`，其中 WR-06 已修（dcfc987）。
-- [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 13 用真机验收。
+- [Phase 6 实测]: 国内三网只有非高峰测速站基线，没有浏览器数据；电信、联通到香港 Ping 约 300–400 毫秒，晚高峰可能更差，Phase 16 用真机验收。
 - ~~[Phase 9，来自 Phase 7]: 孤儿进度键的修正要等账号的计划加载完~~ 已解决（Phase 9，09-01）：先 `usePlan` 再 `normalize`。
-- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条、Phase 12 补到 239 条、Phase 15 后为 286 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 13 全量收口。
+- [Phase 8，TEST-02 剩余]: 假服务器、cloud 模式和护栏已就绪，Phase 9 补到 114 条、Phase 10 补到 158 条、Phase 11 补到 196 条、Phase 12 补到 239 条、Phase 15 后为 286 条 cloud 用例，TEST-02 仍是 Pending；编辑计划的 cloud 用例在 Phase 12 随功能补齐，Phase 16 全量收口。
 - ~~[Phase 10，来自 Phase 8]: 网络失败、5xx 和 SSE 断开要用假服务器开关制造~~ 已解决（Phase 10，10-02）：假服务器新增 dropRealtime、refuseRealtime、按上下文的故障。
 - [Phase 8 审查]: WR-01 到 WR-04 已修；`kind+` 在本人账号内改创建时的类型，所有者已接受为无害；IN-01 到 IN-08 只记录、未修（`08-REVIEW-DISPOSITION.md`）。
 - [Phase 8 安全]: 已完成（`08-SECURITY.md` verified，未解决威胁 0）。
@@ -435,15 +444,18 @@ Phase 15 要点（完整记录在 PROJECT.md Key Decisions）：
 - ~~[Phase 11，来自 Phase 10 审查]: IN-05 导入路径绕过 `commit`；IN-06 迁移写入侧要保证 id 合法~~ 已解决（Phase 11，11-01 和 11-04）：云端导入经挂起槽和 `commit`，导入写入的 id 都合法。IN-06 的根因（服务器文档里已有的非法 id 每次加载都换新 id）仍在，不在本里程碑范围。
 - [Phase 11 安全]: `11-SECURITY.md` verified，30 条威胁全部关闭；AR-01、AR-02（计划阶段登记的低风险）待所有者确认。
 - [Phase 11 审查]: 9 条发现全部修完（`11-REVIEW-FIX.md`、`11-REVIEW-DISPOSITION.md` 无未处理项）；IN-03（登录过期后换账号不提示上一个账号的撤销副本）只写进 11-CONTEXT 的规划备注。
-- [Phase 13，来自 Phase 11 验收]: 部署后在真实手机上再查一次下载备份、日历 CSV 和导入时选文件（11-CONTEXT 把真机检查留到部署之后）。
-- [Phase 13，来自 Phase 10 验收]: 两台真实设备上的“几秒内”同步和断网记录（10-UAT 第 1 项推迟到这里，对应 Phase 13 成功标准 5）。
+- [Phase 16，来自 Phase 11 验收]: 部署后在真实手机上再查一次下载备份、日历 CSV 和导入时选文件（11-CONTEXT 把真机检查留到部署之后）。
+- [Phase 16，来自 Phase 10 验收]: 两台真实设备上的“几秒内”同步和断网记录（10-UAT 第 1 项推迟到这里，对应 Phase 16 成功标准 2）。
 - ~~[Phase 12，来自 Phase 7 审查]: WR-02、IN-05~~ 已解决（Phase 12，12-01、12-02）：找不到组的待办在「已归档」区能看到、能删；`archived` 在组、任务、力量项上都有行为。
 - [Phase 12 安全]: `12-SECURITY.md` verified，28 条威胁全部关闭；审计建议 S-2（SEC-01 源码门槛覆盖不到编辑页新函数）记录未处理。
 - [Phase 12 审查]: 7 条发现全部修完（`12-REVIEW-FIX.md` all_fixed，`12-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，首要 3 处已修。
 - [Phase 15 安全]: `15-SECURITY.md` verified，29 条威胁全部关闭；旧页面丢 `workouts` 的风险（T-15-04）按接受登记，靠 Phase 16 的上线顺序。
 - [Phase 15 审查]: 12 条发现全部修完（`15-REVIEW-FIX.md`、`15-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，3 处已修。
 - [Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。
-- [Phase 13，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
+- [Phase 16，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
+- [Phase 13 安全]: `13-SECURITY.md` verified，52 条威胁全部关闭；AR-13-01（服务器日志记 IP 30 天，D-03）和 AR-13-02（不装包的计划）按接受登记。
+- [Phase 13 审查]: 19 条发现（0 严重、8 警告、11 提示）全部 open（`13-REVIEW-DISPOSITION.md`），等所有者决定；WR-04（迁移文件名 6 处写死）和 IN-01（真实数据导入后恢复演练被守卫永久拦住）建议在 Phase 16 之前处理或明确接受；WR-05（README 的 PocketBase 本体升级步骤走不通）要在下次升级 PocketBase 之前补。
+- [Phase 16，来自 Phase 13 验收]: 6 项真机和所有者本人检查（13-UAT.md Deferred Follow-Ups）：设备甲的更新提示、手机冷启动离线、添加到主屏幕、R2 次日回看和演练残留、后台口令和重新登录、接近上限的文件在真实线路上保存。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
 
@@ -478,17 +490,17 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T02:55:51.393Z
-Stopped at: 13-14 upgrade drill complete, next Phase 13 verification
+Last session: 2026-11-17T23:40:18.046Z
+Stopped at: Phase 13 complete, ready to plan Phase 16
 Resume file: None
 
 ## Operator Next Steps
 
+- Phase 13 已完成并转场（2026-11-17）：验证 9/9，回归 cloud 286、默认 238 全过，安全 52/52 关闭；人工检查 6 项推迟到 Phase 16 总体验收；OPS-01、OPS-02、OPS-03、SEC-02 已标完成，OPS-04 等 Phase 16 真机
 - Phase 15 已完成并转场（2026-11-16）：自动检查全部通过，人工检查 8 项推迟到 Phase 16 总体验收
-- 13-13 恢复演练已完成（2026-11-17 19:23 UTC，`DRILL_RESULT=PASS`，R2 里 5 份自动备份，所有者确认没有告警邮件；见 13-13-SUMMARY.md）；OPS-01 等 13-14 之后再标完成
+- 13-13 恢复演练已完成（2026-11-17 19:23 UTC，`DRILL_RESULT=PASS`，R2 里 5 份自动备份，所有者确认没有告警邮件；见 13-13-SUMMARY.md）
 - 13-14 升级演练已完成（2026-11-17）：所有者选择直接部署含 Phase 14、15 的新版本（「部署现在的新版本」），线上 a1159ad93165 → 0ba1339903f1，06 输出 CSP_CONF=installed，线上全量检查 VERIFY OK (19 checks)；旧版本目录保留可回滚；见 13-14-SUMMARY.md
 - 给 Phase 16：新版本已上线，Phase 16 不必为 Phase 14/15 再部署一次（除非之后有修复）；设备上的「点此更新」留到总体验收 E 项；真实数据迁移要等所有设备都换成新版本
-- 接下来：Phase 13 验证收尾（verifier，之后决定 OPS-01/02/03、SEC-02 是否标完成），再到 Phase 16
+- 接下来：所有者决定 13-REVIEW 的 19 条发现怎么处理，然后 `/gsd-discuss-phase 16`
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
-- 下一阶段：`/gsd-plan-phase --research-phase 13`（路线图要求先做专项调研），再讨论和规划部署、加固与验收
