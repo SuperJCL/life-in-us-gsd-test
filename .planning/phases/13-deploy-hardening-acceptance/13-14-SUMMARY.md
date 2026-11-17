@@ -114,9 +114,31 @@ b799f1c9c9fb20e77f9ffe693a05ed17cbf2123dc6315bdeb8f9106dc363311a  site/vendor/SH
 
 `SITE_VERSION=a1159ad93165`（仍是旧版本）、`PB_SERVICE_ACTIVE=active`、`PB_HEALTH=ok`、`NGINX_TEST=ok`、`UPLOAD_DIRS=0`、`STATUS_DONE=1`。
 
+## 升级批准清单
+
+所有者在聊天里看过旧/新 BUILD_VERSION、5 个变化路径、CSP 变化、只读状态、下面 13 行清单原文和六条命令之后，回复：**「批准」**。更早在范围问题上，所有者的选择是：**「部署现在的新版本」**。
+
+批准的新 BUILD_VERSION：`0ba1339903f1`（旧：`a1159ad93165`）。批准的清单（13 行，与 `test-results/13-14-upgrade-cmd.txt` 逐字节相同）：
+
+```text
+d9bfcc20f1b13e5a932b33d505bff031074402c7daf6b3b2604b8e652fc36884  SHA256SUMS
+20c12aada92706df468ec40425df883b2892bc97b90634c124384b0e26b93755  BUILD_VERSION
+bea80fb81885a18d8809f9923a56dd291872fc7efa9b27a7c5f955a53cae2fb1  server/06-install-site.sh
+204d0316e34ce29f107679605f48d8b810d66d90394957ec59339fafbe760fa3  server/nginx/usj-csp.conf
+8f9cb81cceaa04c738186b0c72b954d3b88fe24ec54dd7d999ba053e8d0bc9ce  site/icons/apple-touch-icon-180.png
+5e9f9659c244fe29e9d39b5abc26405e6fca17b90cef01694cb784b1b0e30adc  site/icons/icon-192.png
+06b1d903c463d6904cbbc1c7938634494e430ef5ca6265ba32031c9869bf9c1a  site/icons/icon-512.png
+a5898b8f7b920e14bc7c13d3d8ee6f1bd0e4433d7197c9f91d3e1470c811ac91  site/icons/icon-maskable-512.png
+da611cc3fc6d7aed9dcc175a6acbf3ed3b7b42209ee7d6f783d5c2783db4b79b  site/index.html
+7556bbf423d07a55d08c90a7ee994cc1d649cccad921ac327ed09dd4e7f6968e  site/manifest.webmanifest
+56521687841b4e03dfaf27c7082405227c5b2e1ecea70e44afaa1bfcb3ef9b78  site/sw.js
+b799f1c9c9fb20e77f9ffe693a05ed17cbf2123dc6315bdeb8f9106dc363311a  site/vendor/SHA256SUMS
+94c1e032b783952f6989ff74256ec97440d0ecf0c24edb9575f8c8716cb04a9f  site/vendor/pocketbase.iife.js
+```
+
 ## 接下来
 
-Task 2 等待所有者回复「批准」（或要求修改）；批准后由接手的执行者在本文件加 `## 升级批准清单`（上面那 13 行原文、新 BUILD_VERSION、所有者的原话），再执行 Task 3。
+批准已记录；接手的执行者随后执行 Task 3（只用命令文件里的六条命令，各跑一次）。
 
 ## 未决事项
 
