@@ -528,12 +528,12 @@ Plans:
   3. 新功能真机验收：用新建的合成测试账号走一遍空计划起步和从示例里挑；在手机和电脑上记训练、看趋势图，跨设备同步。
   4. 所有者把自己从原 Artifact 导出的旧备份和种子计划导入自己的账号，数据对应正确（以前的力量历史出现在趋势图里）；之后删除测试账号。
   5. 最后 `npm test` 和 `npm run test:cloud` 全量通过。
-**Plans:** 1/8 plans executed
+**Plans:** 2/8 plans executed
 
 Plans:
 **Wave 1**
 - [x] 16-01-PLAN.md — 服务器脚本的四条修复：06 的 CSP 原子切换（WR-01）、03 只装工具不停服务（WR-03）、恢复演练不空转（WR-07）、04 的 unit 备份（WR-08），server-check 同步
-- [ ] 16-03-PLAN.md — 应用、Service Worker 和测试设施的修复：更新兜底刷新（IN-02）、SW 缓存（IN-06）、版本开关要带头（IN-07）、清单（IN-08）、测试和隐私文档（IN-11）
+- [x] 16-03-PLAN.md — 应用、Service Worker 和测试设施的修复：更新兜底刷新（IN-02）、SW 缓存（IN-06）、版本开关要带头（IN-07）、清单（IN-08）、测试和隐私文档（IN-11）
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 16-02-PLAN.md — 部署工具和文档的修复：HSTS 常量（WR-06）、版本号含 CSP（WR-02）、F-11 不建账号（IN-09）、IN-04/05/10/11、README 第 8、15 节（WR-05、D-04）
@@ -581,4 +581,4 @@ Plans:
 | 13. 部署与加固 | v2.0 | 14/14 | Complete    | 2026-11-17 |
 | 14. 新账号的计划起步 | v2.0 | 3/3 | Complete    | 2026-11-13 |
 | 15. 健身页 | v2.0 | 7/7 | Complete    | 2026-11-16 |
-| 16. 新版本上线与总体验收 | v2.0 | 1/8 | In Progress | - |
+| 16. 新版本上线与总体验收 | v2.0 | 2/8 | In Progress | - |
