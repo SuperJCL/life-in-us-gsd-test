@@ -803,6 +803,34 @@ export function c22(ctx) {
   if (code.split(emailRe).length - 1 < 2) problems.push('restore-drill 里测试账号的邮箱正则不是出现在守卫和恢复后核对两处');
   if (!code.includes('DRILL_RESTORED_TEST_ONLY')) problems.push('restore-drill 没有恢复后的 DRILL_RESTORED_TEST_ONLY 检查');
 
+  // 参数：只接受可选的 --with-real-data，其余在时间窗、守卫和任何复制之前拒绝（DRILL_ARGS=refused，非 0 退出）
+  const iArgs = idx(/DRILL_ARGS=refused/);
+  if (iArgs < 0) problems.push('restore-drill 没有 DRILL_ARGS=refused 分支');
+  else {
+    const cond = iArgs > 0 ? lines[iArgs - 1] : '';
+    if (!cond.includes('"$#" -gt 1') || !cond.includes('"$1" != "--with-real-data"')) problems.push('DRILL_ARGS=refused 的条件不是“多于一个参数，或唯一的参数不是 --with-real-data”');
+    const ab = lines.slice(iArgs, iArgs + 5).join('\n');
+    if (!ab.includes('DRILL_RESULT=FAIL') || !/^\s*exit [1-9]\s*$/m.test(ab)) problems.push('参数拒绝分支没有输出 DRILL_RESULT=FAIL 并以非 0 退出');
+    if (/^\s*exit 0\s*$/m.test(ab)) problems.push('参数拒绝分支以 0 退出');
+    const iHhmm = idx(/^\s*HHMM=/);
+    if (iHhmm >= 0 && iArgs > iHhmm) problems.push('参数检查在时间窗之后');
+    if (iGuardRead >= 0 && iArgs > iGuardRead) problems.push('参数检查在守卫的只读检查之后');
+    if (iFirstMut >= 0 && iArgs > iFirstMut) problems.push('参数检查在第一个 install、mkdir、复制或 systemd-run 之后');
+  }
+  if (lines.some((l) => /"\$#"\s+-ne\s+0/.test(l))) problems.push('restore-drill 还留着拒绝一切参数的旧写法');
+  const iMode = idx(/^\s*echo "DRILL_MODE=\$MODE"\s*$/);
+  if (iMode < 0) problems.push('restore-drill 没有输出 DRILL_MODE=$MODE');
+  else if (iGuardRead >= 0 && iMode > iGuardRead) problems.push('DRILL_MODE 在守卫的只读检查之后才输出');
+  if (!/^\s*MODE=test-only\s*$/m.test(code) || !/\bMODE=real-data\b/.test(code)) problems.push('restore-drill 没有 MODE=test-only 和 MODE=real-data 的赋值');
+  // 导入后模式：只有守卫读出两个计数才继续（读不出来的 ERR 仍然拒绝）
+  const iRd = idx(/GUARD_STATE=real-data-present/);
+  if (iRd < 0) problems.push('restore-drill 没有 GUARD_STATE=real-data-present');
+  else {
+    const el = iRd > 0 ? lines[iRd - 1] : '';
+    if (!el.includes('"$MODE" = "real-data"') || !el.includes('=~ ^[0-9]+')) problems.push('real-data-present 的条件不是“导入后模式且守卫读出两个计数”（读不出线上库必须仍然拒绝）');
+  }
+  if (!lines.some((l) => l.includes('DRILL_RESTORED_TEST_ONLY') && l.includes('skipped'))) problems.push('导入后模式没有 DRILL_RESTORED_TEST_ONLY=skipped');
+
   // 所有输出键都以 DRILL_ 开头
   for (const l of lines) {
     const me = /^\s*echo\s+"([A-Z][A-Z0-9_]*)=/.exec(l);
@@ -922,7 +950,7 @@ export const CHECKS = [
   { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
   { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t', run: c20 },
   { id: 'C-21', title: 'logrotate：/var/log/usj/*.log 按天、rotate 30、压缩、create 0640 www-data adm、USR1', run: c21 },
-  { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_', run: c22 },
+  { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_、只接受 --with-real-data（未知参数在一切读写之前拒绝）、DRILL_MODE、导入后模式读不出线上库仍拒绝', run: c22 },
   { id: 'C-23', title: '两个迁移目录的 .js = 上传包、03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数；build-site、verify-site 不写死迁移名；server-config-check 只引用存在的迁移', run: c23 },
 ];
 
@@ -1255,11 +1283,23 @@ const GOOD_LOGROTATE = [
 ].join('\n');
 
 const DRILL_EMAIL_RE = '^test-[a-z0-9-]+@example\\.com$';
+const DRILL_ARGS_BLOCK = [
+  'if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--with-real-data" ]; }; then',
+  '  echo "DRILL_ARGS=refused"',
+  '  echo "DRILL_RESULT=FAIL"',
+  '  exit 1',
+  'fi',
+  '',
+].join('\n');
 const GOOD_DRILL =
   GOOD_HEADER +
   [
     'UNIT=usj-drill',
     'fail_early() { echo "x" >&2; exit 1; }',
+    'MODE=test-only',
+    DRILL_ARGS_BLOCK.trimEnd(),
+    'if [ "$#" -eq 1 ]; then MODE=real-data; fi',
+    'echo "DRILL_MODE=$MODE"',
     'HHMM=$((10#$(date -u +%H%M)))',
     'if [ "$HHMM" -ge 1840 ] && [ "$HHMM" -le 1920 ]; then',
     '  echo "DRILL_WINDOW_OK=no"',
@@ -1271,11 +1311,18 @@ const GOOD_DRILL =
     'con = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True, timeout=10)',
     'PY',
     ')"',
-    'if [ "$GUARD" != "0 0" ]; then',
+    'GUARD_STATE=refused',
+    'if [ "$GUARD" = "0 0" ]; then',
+    '  GUARD_STATE=ok',
+    'elif [ "$MODE" = "real-data" ] && [[ "$GUARD" =~ ^[0-9]+\\ [0-9]+$ ]]; then',
+    '  GUARD_STATE=real-data-present',
+    'fi',
+    'if [ "$GUARD_STATE" = "refused" ]; then',
     '  echo "DRILL_GUARD=refused"',
     '  echo "x" >&2',
     '  exit 1',
     'fi',
+    'echo "DRILL_GUARD=$GUARD_STATE"',
     'cleanup() {',
     '  systemctl stop "$UNIT" </dev/null >/dev/null 2>&1',
     '  rm -rf "$DRILL_DIR"',
@@ -1299,6 +1346,8 @@ const GOOD_DRILL =
     'rest = sqlite3.connect("file:/var/lib/pocketbase-drill/pb_data/data.db?mode=ro", uri=True, timeout=10)',
     `TEST = re.compile(r"${DRILL_EMAIL_RE}")`,
     'out["DRILL_RESTORED_TEST_ONLY"] = "yes"',
+    'if os.environ["DRILL_MODE"] == "real-data":',
+    '    out["DRILL_RESTORED_TEST_ONLY"] = "skipped"',
     'PY',
     ')"',
     'echo "DRILL_RESULT=PASS"',
@@ -1641,7 +1690,12 @@ function selfTest() {
   expect('C-21 坏：缺少文件', () => fails(c21, { ...good, logrotate: null }));
 
   // C-22
-  const gd = (fn) => mutate(good, 'restore-drill.sh', fn);
+  const gd = (fn) =>
+    mutate(good, 'restore-drill.sh', (t) => {
+      const u = fn(t);
+      if (u === t) throw new Error('锚点失效，改动没有生效');
+      return u;
+    });
   expect('C-22 好：演练脚本满足', () => passes(c22, good));
   expect('C-22 坏：没有时间窗', () => fails(c22, gd((t) => t.replace('DRILL_WINDOW_OK=no', 'DRILL_WINDOW_OK=maybe').replace('1840', '1000'))));
   expect('C-22 坏：端口不对', () => fails(c22, gd((t) => t.replace('127.0.0.1:8091', '127.0.0.1:8092'))));
@@ -1664,14 +1718,29 @@ function selfTest() {
       const inst = 'install -d -o pocketbase -g pocketbase -m 0700 /var/lib/pocketbase-drill\n';
       return t.replace(inst, '').replace('GUARD="$(runuser', `${inst}GUARD="$(runuser`);
     })));
-  expect('C-22 坏：refused 分支以 0 退出', () => fails(c22, gd((t) => t.replace('  echo "x" >&2\n  exit 1\nfi\ncleanup', '  echo "x" >&2\n  exit 0\nfi\ncleanup'))));
+  expect('C-22 坏：refused 分支以 0 退出', () => fails(c22, gd((t) => t.replace('  echo "x" >&2\n  exit 1\nfi\necho "DRILL_GUARD=$GUARD_STATE"', '  echo "x" >&2\n  exit 0\nfi\necho "DRILL_GUARD=$GUARD_STATE"'))));
   expect('C-22 坏：没有守卫的 refused 分支', () => fails(c22, gd((t) => t.replace('DRILL_GUARD=refused', 'DRILL_GUARD=no'))));
-  expect('C-22 坏：没有恢复后的测试账号检查', () => fails(c22, gd((t) => t.replace('DRILL_RESTORED_TEST_ONLY', 'DRILL_OTHER'))));
+  expect('C-22 坏：没有恢复后的测试账号检查', () => fails(c22, gd((t) => t.replaceAll('DRILL_RESTORED_TEST_ONLY', 'DRILL_OTHER'))));
   expect('C-22 坏：恢复后核对没有账号正则', () => fails(c22, gd((t) => t.replace(`TEST = re.compile(r"${DRILL_EMAIL_RE}")\nout[`, 'out['))));
   expect('C-22 坏：输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => `${t}echo "RESULT=PASS"\n`)));
   expect('C-22 坏：python 输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => t.replace('out["DRILL_RESTORED_TEST_ONLY"]', 'out["RESTORED"]'))));
-  expect('C-22 坏：没有 DRILL_RESULT', () => fails(c22, gd((t) => t.replace('DRILL_RESULT', 'DRILL_END'))));
+  expect('C-22 坏：没有 DRILL_RESULT', () => fails(c22, gd((t) => t.replaceAll('DRILL_RESULT', 'DRILL_END'))));
   expect('C-22 坏：缺少脚本', () => fails(c22, { ...good, sh: { 'x.sh': '' } }));
+  const ARGS = DRILL_ARGS_BLOCK.trimEnd();
+  const MODE_ECHO = 'echo "DRILL_MODE=$MODE"\n';
+  const GUARD_ECHO = 'echo "DRILL_GUARD=$GUARD_STATE"\n';
+  expect('C-22 坏：DRILL_ARGS=refused 改了名', () => fails(c22, gd((t) => t.replace('DRILL_ARGS=refused', 'DRILL_ARGS=no'))));
+  expect('C-22 坏：参数拒绝分支以 0 退出', () => fails(c22, gd((t) => t.replace(ARGS, ARGS.replace('  exit 1', '  exit 0')))));
+  expect('C-22 坏：参数拒绝分支没有 DRILL_RESULT=FAIL', () => fails(c22, gd((t) => t.replace(ARGS, ARGS.replace('  echo "DRILL_RESULT=FAIL"\n', '')))));
+  expect('C-22 坏：参数检查挪到 trap cleanup EXIT 之后', () => fails(c22, gd((t) => t.replace(`${ARGS}\n`, '').replace('trap cleanup EXIT\n', `trap cleanup EXIT\n${ARGS}\n`))));
+  expect('C-22 坏：参数条件没有“多于一个参数”', () => fails(c22, gd((t) => t.replace('[ "$#" -gt 1 ] || ', ''))));
+  expect('C-22 坏：参数条件里的 --with-real-data 换成了别的词', () => fails(c22, gd((t) => t.replace('"$1" != "--with-real-data"', '"$1" != "--other"'))));
+  expect('C-22 坏：又加了拒绝一切参数的旧写法', () => fails(c22, gd((t) => `${t}if [ "$#" -ne 0 ]; then exit 2; fi\n`)));
+  expect('C-22 坏：没有输出 DRILL_MODE', () => fails(c22, gd((t) => t.replace(MODE_ECHO, ''))));
+  expect('C-22 坏：DRILL_MODE 挪到 DRILL_GUARD 之后', () => fails(c22, gd((t) => t.replace(MODE_ECHO, '').replace(GUARD_ECHO, `${GUARD_ECHO}${MODE_ECHO}`))));
+  expect('C-22 坏：real-data-present 改了名', () => fails(c22, gd((t) => t.replaceAll('real-data-present', 'x-present'))));
+  expect('C-22 坏：real-data-present 的条件没有两个计数的数字判断', () => fails(c22, gd((t) => t.replace(' && [[ "$GUARD" =~ ^[0-9]+\\ [0-9]+$ ]]', ''))));
+  expect('C-22 坏：导入后模式没有 skipped', () => fails(c22, gd((t) => t.replace('= "skipped"', '= "yes"'))));
 
   // C-23：每个改动都必须真的改了文本，锚点失效时抛错（expect 把抛错记成失败的用例，不会悄悄通过）
   const stale = () => {

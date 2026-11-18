@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # restore-drill.sh —— 服务器上的备份恢复演练（Phase 13，13-07，D-05（所有者 2026-11-12 修订）、OPS-01、T-13-21、T-13-23、T-13-40）
 #
-# 装成 /usr/local/sbin/usj-restore-drill（03-configure-pocketbase.sh 负责），以 root 运行：sudo usj-restore-drill。不接受任何参数。
+# 装成 /usr/local/sbin/usj-restore-drill（03-configure-pocketbase.sh 负责），以 root 运行，有两种模式：
+#   sudo usj-restore-drill                  只测模式（test-only，缺省）：线上库里只有测试账号的数据才许演练。
+#   sudo usj-restore-drill --with-real-data 导入后模式（real-data，所有者 2026-11-17 决定）：线上库有真实数据也继续演练。
+# 只接受这一个可选参数；任何别的参数，或多于一个参数，输出 DRILL_ARGS=refused 和 DRILL_RESULT=FAIL 并以 1 退出，
+# 此前不读、不复制、不启动任何东西。
 # 线上实例只读、从不停止：线上库只以只读方式打开（SQLite mode=ro），从不对线上的 pocketbase 单元执行 stop、start、restart、disable。
 #
 # 做什么：在服务器上另起一个临时实例（127.0.0.1:8091、/var/lib/pocketbase-drill、systemd-run 的临时单元 usj-drill，
@@ -13,8 +17,13 @@
 #   1. 18:40–19:20 UTC 之间拒绝运行（输出 DRILL_WINDOW_OK=no，退出 1）：自动备份在 19:00 UTC，避免临时实例和线上同时碰 R2。
 #   2. 前置（只读）：线上 http://127.0.0.1:8090/api/health 是 200；演练目录不存在；usj-drill 单元不在运行；8091 空闲；环境文件在。
 #   2.5 守卫（在复制任何东西、建任何目录、systemd-run 之前）：以 pocketbase 用户只读打开线上库，数 users 里邮箱不符合测试账号约定
-#       （^test-[a-z0-9-]+@example\.com$）的行，和 owner 不是测试账号的 journey_docs 行。任一大于 0（或读不出来）就输出
-#       DRILL_GUARD=refused，以 1 退出，什么都没有复制；都为 0 输出 DRILL_GUARD=ok。真实账号和真实数据因此永远进不了演练。
+#       （^test-[a-z0-9-]+@example\.com$）的行，和 owner 不是测试账号的 journey_docs 行。
+#       只测模式：任一大于 0（或读不出来）就输出 DRILL_GUARD=refused，以 1 退出，什么都没有复制；都为 0 输出 DRILL_GUARD=ok；
+#       真实账号和真实数据因此进不了只测模式的演练。
+#       导入后模式：守卫照样只读运行，线上库读不出来仍然拒绝（DRILL_GUARD=refused，以 1 退出）；读出两个计数且有测试账号以外的数据时
+#       输出 DRILL_GUARD=real-data-present 并继续（只有测试数据时输出 DRILL_GUARD=ok）。这时只读副本里有真实数据，
+#       只留在 0700 的演练目录里，由 EXIT trap 删除；第 10 步写进 R2 的短命 drill_ 备份是这份副本的备份，所以同样含真实数据
+#       （R2 里本来就有含真实数据的自动备份），写完立即删除。
 #   3. trap cleanup EXIT：无论成败，都停掉 usj-drill、reset-failed、删除演练目录（输出 DRILL_CLEANUP=done）。
 #   4. 建演练目录（pocketbase 所有，0700）；用 SQLite 备份接口从线上库的只读连接复制一份一致的 data.db；
 #      只在这份副本里把 _superusers 的 mfa、otp、authAlert 置为假（临时超级用户才能用口令登录，也不发登录提醒邮件）。
@@ -30,14 +39,16 @@
 #       再 DELETE，等它消失（DRILL_R2_DELETE=ok；删不掉就失败，说明 R2 令牌没有删除权限；失败时请在后台手动删掉 drill_ 开头的备份）。
 #   11. POST /api/backups/<URL 编码的最新自动备份 key>/restore（key 里的 @ 编码成 %40），最多等 60 秒健康检查恢复
 #       （DRILL_RESTORE=ok），随即停掉 usj-drill。
-#   12. 只读核对（python3 -I，两边都用 mode=ro）：恢复库 PRAGMA integrity_check 是 ok；恢复库只含测试账号；
+#   12. 只读核对（python3 -I，两边都用 mode=ro）：恢复库 PRAGMA integrity_check 是 ok；恢复库只含测试账号（只测模式；
+#       导入后模式输出 DRILL_RESTORED_TEST_ONLY=skipped，不做这一项）；
 #       线上库里创建时间不晚于备份时间的用户 id 集合等于恢复库的用户 id 集合；恢复库的每份 journey_docs 在线上都有同 id 的记录，
 #       线上 updated 不晚于备份时间的逐份比较 data 的 sha256；至少 1 个用户同时有 state 和 plan 两份文档。
 #   13. 由 EXIT trap 清理；最后一行 DRILL_RESULT=PASS 或 DRILL_RESULT=FAIL（任何一步失败都是 FAIL 并以 1 退出）。
 #
-# 输出：只输出 DRILL_ 开头的 KEY=VALUE：DRILL_WINDOW_OK、DRILL_GUARD、DRILL_TEMP_ISOLATED、DRILL_AUTO_BACKUPS、DRILL_NEWEST_AGE_H、
-#   DRILL_R2_WRITE、DRILL_R2_DELETE、DRILL_RESTORE、DRILL_INTEGRITY、DRILL_RESTORED_TEST_ONLY、DRILL_USERS_MATCH、DRILL_DOCS、
-#   DRILL_DOCS_COMPARED、DRILL_DOCS_MISMATCH、DRILL_DOCS_CHANGED_SINCE、DRILL_USERS_WITH_BOTH_DOCS、DRILL_CLEANUP、DRILL_RESULT。
+# 输出：只输出 DRILL_ 开头的 KEY=VALUE：DRILL_ARGS（只会是 refused）、DRILL_MODE（test-only 或 real-data）、DRILL_WINDOW_OK、
+#   DRILL_GUARD（ok、refused 或 real-data-present）、DRILL_TEMP_ISOLATED、DRILL_AUTO_BACKUPS、DRILL_NEWEST_AGE_H、
+#   DRILL_R2_WRITE、DRILL_R2_DELETE、DRILL_RESTORE、DRILL_INTEGRITY、DRILL_RESTORED_TEST_ONLY（yes、no 或 skipped）、DRILL_USERS_MATCH、
+#   DRILL_DOCS、DRILL_DOCS_COMPARED、DRILL_DOCS_MISMATCH、DRILL_DOCS_CHANGED_SINCE、DRILL_USERS_WITH_BOTH_DOCS、DRILL_CLEANUP、DRILL_RESULT。
 #   不输出邮箱、令牌、口令，也不输出备份名里的时间以外的任何内容；错误说明（中文）走标准错误。
 # 失败策略：set -euo pipefail；没有 set -x；不回显口令和令牌；可能读标准输入的命令都带 </dev/null（python 用 heredoc）。
 # 回滚：线上没有被改动，不需要回滚。临时实例和副本由 EXIT trap 删除；万一脚本被强行杀掉，手工执行：
@@ -70,10 +81,15 @@ if [ "$(id -u)" != "0" ]; then
   echo "错误：必须以 root 运行（sudo usj-restore-drill）。" >&2
   exit 2
 fi
-if [ "$#" -ne 0 ]; then
-  echo "错误：不接受参数。" >&2
-  exit 2
+MODE=test-only
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--with-real-data" ]; }; then
+  echo "DRILL_ARGS=refused"
+  echo "错误：只接受一个可选参数 --with-real-data（导入后模式）。" >&2
+  echo "DRILL_RESULT=FAIL"
+  exit 1
 fi
+if [ "$#" -eq 1 ]; then MODE=real-data; fi
+echo "DRILL_MODE=$MODE"
 
 # ---------- 1. 时间窗：18:40–19:20 UTC 之间不运行 ----------
 HHMM=$((10#$(date -u +%H%M)))
@@ -116,13 +132,19 @@ bad_docs = sum(1 for (o,) in con.execute("select owner from journey_docs") if no
 print(bad_users, bad_docs)
 PY
 )"
-if [ "$GUARD" != "0 0" ]; then
+GUARD_STATE=refused
+if [ "$GUARD" = "0 0" ]; then
+  GUARD_STATE=ok
+elif [ "$MODE" = "real-data" ] && [[ "$GUARD" =~ ^[0-9]+\ [0-9]+$ ]]; then
+  GUARD_STATE=real-data-present
+fi
+if [ "$GUARD_STATE" = "refused" ]; then
   echo "DRILL_GUARD=refused"
-  echo "线上库里已有测试账号以外的数据（或读不出来），恢复演练拒绝运行，什么都没有复制。" >&2
+  echo "线上库读不出来，或只测模式下已有测试账号以外的数据，恢复演练拒绝运行，什么都没有复制（导入真实数据之后请用 --with-real-data）。" >&2
   echo "DRILL_RESULT=FAIL"
   exit 1
 fi
-echo "DRILL_GUARD=ok"
+echo "DRILL_GUARD=$GUARD_STATE"
 
 # ---------- 3. 清理（无论成败） ----------
 cleanup() {
@@ -283,7 +305,7 @@ echo "DRILL_RESTORE=ok"
 systemctl stop "$UNIT" </dev/null || die "停不掉临时实例。"
 
 # ---------- 12. 只读核对 ----------
-VERIFY="$(runuser -u pocketbase -- env BACKUP_TS="$BACKUP_TS" python3 -I - <<'PY' 2>/dev/null || echo "DRILL_VERIFY_ERROR=1"
+VERIFY="$(runuser -u pocketbase -- env BACKUP_TS="$BACKUP_TS" DRILL_MODE="$MODE" python3 -I - <<'PY' 2>/dev/null || echo "DRILL_VERIFY_ERROR=1"
 import hashlib
 import os
 import re
@@ -300,7 +322,10 @@ out["DRILL_INTEGRITY"] = "ok" if rest.execute("PRAGMA integrity_check").fetchone
 ru = {r[0]: (r[1] or "") for r in rest.execute("select id, email from users")}
 rdocs = rest.execute("select id, owner, kind, data from journey_docs").fetchall()
 only_test = all(TEST.match(e) for e in ru.values()) and all(TEST.match(ru.get(o, "")) for (_, o, _, _) in rdocs)
-out["DRILL_RESTORED_TEST_ONLY"] = "yes" if only_test else "no"
+if os.environ["DRILL_MODE"] == "real-data":
+    out["DRILL_RESTORED_TEST_ONLY"] = "skipped"
+else:
+    out["DRILL_RESTORED_TEST_ONLY"] = "yes" if only_test else "no"
 
 cols = [r[1] for r in live.execute("PRAGMA table_info(users)")]
 if "created" in cols:
@@ -354,8 +379,10 @@ case "$VERIFY" in
   *DRILL_INTEGRITY=ok*) ;;
   *) OK_ALL=no ;;
 esac
+EXPECT_TEST_ONLY=yes
+if [ "$MODE" = "real-data" ]; then EXPECT_TEST_ONLY=skipped; fi
 case "$VERIFY" in
-  *DRILL_RESTORED_TEST_ONLY=yes*) ;;
+  *"DRILL_RESTORED_TEST_ONLY=$EXPECT_TEST_ONLY"*) ;;
   *) OK_ALL=no ;;
 esac
 case "$VERIFY" in
