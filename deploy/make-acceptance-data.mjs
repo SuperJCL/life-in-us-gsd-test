@@ -6,7 +6,7 @@
 // 所有者在电脑上用应用的“导入”选这个文件，保存成功、另一台设备能看到就算通过。
 //
 // 用法：
-//   node deploy/make-acceptance-data.mjs --out private/acceptance   写 private/acceptance/synth-large.json
+//   node deploy/make-acceptance-data.mjs --out private/acceptance   写 private/acceptance/synth-large.json 和 synth-backstop.json
 //   node deploy/make-acceptance-data.mjs --out test-results/<目录>   同上，写到被忽略的 test-results/ 下
 //   node deploy/make-acceptance-data.mjs --self-test                 内存里自检，不写磁盘，最后一行 SELF-TEST OK (N cases)
 //
@@ -14,6 +14,10 @@
 //   类别取应用 CATS 的显示名，日期在 2026 年里均匀分布；条数按目标大小自动调整，使文件落在 3.0–3.6 MB 之间。
 //   文件写成紧凑 JSON（不缩进）：缩进的写法会超过导入的 5 MB 文件上限，而且云端文档按紧凑 JSON 的字节数算大小。
 //   记录、复盘、进度都不含任何真实内容；生成的文件必须被应用的 classifyBackup 认成完整备份。
+//
+// 第二个文件 synth-backstop.json（Phase 16，16-04，D-05 的 G-2）：编辑计划页的 UI-SPEC backstop 用——20 个组、每组 50 项任务
+//   （正是编辑页的上限 PLAN_MAX），外加三条记录（删两条就叠出两条带「撤销」按钮的 toast）。组名、任务和记录文字全部以 “SYNTH-1316 ” 开头；
+//   同样是被 classifyBackup 认成完整备份的紧凑 JSON。验收时导入第二个测试账号（会替换这个账号的数据）。
 //
 // 输出：只打印计数和大小（字节），不打印任何记录的文字。
 //
@@ -30,12 +34,17 @@ import { evalApp } from '../tools/plan/migrate-backup.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const APP_PATH = 'us-journey-tracker.html';
 const OUT_NAME = 'synth-large.json';
+export const BACKSTOP_NAME = 'synth-backstop.json';
 const NOW = '2026-11-12T00:00:00.000Z';
 const TARGET_BYTES = 3300000;
 const MIN_BYTES = 3000000;
 const MAX_BYTES = 3600000;
 const CLOUD_MAX = 4194304;
 const PREFIX = 'SYNTH-1307';
+const BACKSTOP_PREFIX = 'SYNTH-1316';
+const BACKSTOP_GROUPS = 20;
+const BACKSTOP_TASKS = 50;
+const BACKSTOP_LOGS = 3;
 const CAT_NAMES = ['语言', '专业', '健身', '求职', '其他'];
 
 export class UsageError extends Error {}
@@ -90,6 +99,44 @@ export function buildFile(html, n) {
 }
 
 const sizeOfFile = (file) => Buffer.byteLength(JSON.stringify(file), 'utf8');
+
+// backstop 的 20 个组、每组 50 项任务：id 用应用自己的 g-、t- 前缀，名字和文字都以 SYNTH-1316 开头。纯函数，同一输入永远同一结果
+export function makeBackstopGroups(nGroups = BACKSTOP_GROUPS, nTasks = BACKSTOP_TASKS) {
+  const two = (n) => String(n).padStart(2, '0');
+  const groups = [];
+  for (let g = 1; g <= nGroups; g += 1) {
+    const tasks = [];
+    for (let t = 1; t <= nTasks; t += 1) tasks.push({ id: `t-s${two(g)}-${two(t)}`, text: `${BACKSTOP_PREFIX} task ${two(g)}-${two(t)}` });
+    groups.push({ id: `g-s${two(g)}`, cat: CAT_NAMES[(g - 1) % CAT_NAMES.length], name: `${BACKSTOP_PREFIX} group ${two(g)}`, tasks });
+  }
+  return groups;
+}
+
+// 三条合成记录（英文）：给 375 px 下“两条带按钮的 toast”用，删两条就会叠出两条「撤销」
+export function makeBackstopLogs(n = BACKSTOP_LOGS) {
+  const logs = [];
+  for (let i = 0; i < n; i += 1) logs.push({ id: `synth-b-${String(i).padStart(3, '0')}`, date: dateOf(300 + i), cat: CAT_NAMES[i % CAT_NAMES.length], text: `${BACKSTOP_PREFIX} log ${i + 1} sample entry` });
+  return logs;
+}
+
+// 在应用纯函数段里组装 backstop 备份：示例计划的预设、力量项、健身目标不动，只把组换成 20x50；
+// same 表示 normalizePlan 对这份计划原样接受（再规范化一次，输出与输入逐字相同）
+const BACKSTOP_EXPR = `(() => {
+  const base = normalizePlan(DEFAULT_PLAN);
+  const p = base && normalizePlan({ ...base, groups: __in.groups });
+  if (!p || !usePlan(p)) return { ok: false };
+  const same = JSON.stringify(normalizePlan(JSON.parse(JSON.stringify(p)))) === JSON.stringify(p);
+  const st = normalize({ arrival: '2026-01-05', logs: __in.logs, reviews: {}, tasks: {}, custom: [], lifts: {}, presets: {} });
+  const file = backupOf(p, st, __in.now);
+  const back = classifyBackup(JSON.parse(JSON.stringify(file)));
+  return { ok: true, same, file, kind: back === null ? null : back.kind, counts: planCounts(p) };
+})()`;
+
+export function buildBackstop(html) {
+  const r = evalApp(html, { groups: makeBackstopGroups(), logs: makeBackstopLogs(), now: NOW }, BACKSTOP_EXPR);
+  if (!r || r.ok !== true) throw new GenError('backstop 计划没有通过应用的计划校验');
+  return { file: r.file, kind: r.kind, same: r.same === true, counts: r.counts, logs: r.file.state.logs.length, bytes: sizeOfFile(r.file) };
+}
 
 // 按目标大小调整条数：先用两个小样本估出“每条多少字节、固定部分多少字节”，再算 n，必要时再修正一次
 export function generate(html, target = TARGET_BYTES) {
@@ -158,6 +205,11 @@ export function selfTest() {
   expect('确定性：同一个条数两次生成逐字节相同', () => JSON.stringify(makeLogs(50)) === JSON.stringify(makeLogs(50)));
   expect('确定性：dateOf 只在 2026 年内循环', () => dateOf(0) === '2026-01-01' && dateOf(364) === '2026-12-31' && dateOf(365) === '2026-01-01');
   expect('复盘、进度、自定义待办都是空的（没有任何真实内容）', () => Object.keys(g.file.state.reviews || {}).length === 0 && Object.keys(g.file.state.tasks || {}).length === 0 && (g.file.state.custom || []).length === 0);
+  const bs = buildBackstop(html);
+  const bsGroups = bs.file.plan.groups;
+  expect('backstop：20 个组、每组 50 项，normalizePlan 原样接受', () => bs.same && bs.counts.groups === BACKSTOP_GROUPS && bs.counts.tasks === BACKSTOP_GROUPS * BACKSTOP_TASKS && bsGroups.length === BACKSTOP_GROUPS && bsGroups.every((g) => g.tasks.length === BACKSTOP_TASKS));
+  expect('backstop：被 classifyBackup 认成完整备份', () => bs.kind === 'full' && bs.file.kind === 'full' && bs.file.format === 2 && bs.logs === BACKSTOP_LOGS);
+  expect('backstop：所有组名、任务和记录都以 SYNTH- 开头', () => bsGroups.every((g) => g.name.startsWith('SYNTH-') && g.tasks.every((t) => t.text.startsWith('SYNTH-'))) && bs.file.state.logs.every((l) => l.text.startsWith('SYNTH-')));
   const root = resolve(sep, 'synth-repo');
   const ok = (d) => outDirAllowed(d, root);
   expect('输出目录：private/acceptance 和 test-results/ 下的目录接受', () => ok('private/acceptance') && ok('private/acceptance/x') && ok('test-results/13-08-acc') && ok(join(root, 'test-results', 'a', 'b')));
@@ -182,19 +234,25 @@ export function selfTest() {
 function run(opts) {
   if (!outDirAllowed(opts.out)) throw new UsageError('输出目录只能是 private/acceptance 或 test-results/ 下的目录');
   const rel = relative(ROOT, resolve(opts.out)).split(sep).join('/');
-  if (rel.startsWith('private/')) {
+  // 两个输出文件都先用 git check-ignore 确认会被忽略（private/acceptance 和 test-results/ 都应当被忽略），否则拒绝写入
+  for (const name of [OUT_NAME, BACKSTOP_NAME]) {
     try {
-      execFileSync('git', ['check-ignore', '-q', rel], { cwd: ROOT, stdio: 'ignore' });
+      execFileSync('git', ['check-ignore', '-q', `${rel}/${name}`], { cwd: ROOT, stdio: 'ignore' });
     } catch {
       throw new UsageError('输出目录没有被 git 忽略，拒绝写入');
     }
   }
-  const g = generate(readFileSync(join(ROOT, APP_PATH), 'utf8'));
+  const html = readFileSync(join(ROOT, APP_PATH), 'utf8');
+  const g = generate(html);
   if (g.kind !== 'full' || g.bytes < MIN_BYTES || g.bytes > MAX_BYTES) throw new GenError('生成的文件没有通过读回或大小校验');
+  const bs = buildBackstop(html);
+  if (bs.kind !== 'full' || !bs.same || bs.counts.groups !== BACKSTOP_GROUPS || bs.counts.tasks !== BACKSTOP_GROUPS * BACKSTOP_TASKS) throw new GenError('backstop 文件没有通过读回或规模校验');
   const dir = resolve(ROOT, rel);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, OUT_NAME), JSON.stringify(g.file), 'utf8');
+  writeFileSync(join(dir, BACKSTOP_NAME), JSON.stringify(bs.file), 'utf8');
   process.stdout.write(`ACCEPTANCE DATA OK logs=${g.logs} bytes=${g.bytes}\n`);
+  process.stdout.write(`BACKSTOP OK groups=${bs.counts.groups} tasks=${bs.counts.tasks} logs=${bs.logs} bytes=${bs.bytes}\n`);
   return 0;
 }
 
