@@ -13,11 +13,14 @@
 #   - 装到 /var/www/usj/releases/<版本>/（目录 root 0755，文件 root 0644）；同版本目录已存在且内容逐字节一致就跳过复制；
 #   - 备份当前 site 符号链接指向和 /etc/nginx/snippets/usj-csp.conf，然后挂 trap rollback ERR；
 #   - ln -sfn 建 /var/www/usj/site.new，再 mv -T 原子地换成 /var/www/usj/site（页面从旧版本一步切到新版本）；
-#   - 装同一次构建的 usj-csp.conf（页面里内联脚本和样式的哈希写在里面，所以页面和 CSP 必须一起换）；
+#   - 装同一次构建的 usj-csp.conf（页面里内联脚本和样式的哈希写在里面，所以页面和 CSP 必须一起换）。
+#     已经有旧 CSP、应用 include 也在、新旧 CSP 又不同时分两步 reload（13-REVIEW WR-01）：先把“旧哈希 ∪ 新哈希”的过渡 CSP
+#     装进去并 nginx -t 加 reload，等 2 秒让旧 worker 处理完手上的请求，再换符号链接，再装只含新哈希的最终 CSP 并 reload；
+#     这样任何时刻 / 返回的页面都能在当时的 CSP 下运行，Service Worker 不会缓存到“新页面加旧 CSP”。首次部署和 CSP 不变时不做过渡；
 #   - 站点文件里已经有应用 include（05 跑过）时 nginx -t 再 reload；还没有（第一次部署）就不动 nginx；
 #   - 成功后解除 trap，只保留最近 3 个版本目录（当前的和切换前的一定保留，便于回滚）。
 #   不删上传目录：批次的最后一步单独删（13-11）。
-# 输出：KEY=VALUE。SITE_VERSION=<版本>、SITE_FILES=N、SITE_SWAP=done|already、CSP_CONF=installed|same、NGINX_RELOAD=done|skipped。
+# 输出：KEY=VALUE。SITE_VERSION=<版本>、SITE_FILES=N、SITE_SWAP=done|already、CSP_CONF=installed|same、CSP_TRANSITION=done|skipped、NGINX_RELOAD=done|skipped。
 # 失败策略：set -euo pipefail；没有 set -x；可能读标准输入的命令都带 </dev/null；出错就恢复符号链接和 CSP 头，nginx -t 通过才 reload。
 # 回滚：sudo ln -sfn releases/<旧版本> /var/www/usj/site.new && sudo mv -T /var/www/usj/site.new /var/www/usj/site，
 #   把旧的 usj-csp.conf 放回 /etc/nginx/snippets/，nginx -t 通过后 systemctl reload nginx。旧版本目录一直留着（最近 3 个）。
@@ -67,6 +70,54 @@ verify_uploads() {
       exit 1
     fi
   done
+}
+
+csp_union() {
+  # 参数 1：旧的 usj-csp.conf；参数 2：新的。向标准输出写过渡 conf：新策略，script-src 和 style-src 再追加旧文件独有的 sha256 源
+  # （按旧文件里的顺序）；style-src 有 sha256 源就不带 none。任一文件的 add_header 行不是恰好一行、或新策略没有 script-src，
+  # 以非 0 退出且什么都不输出。
+  awk '
+    BEGIN { q = "\047"; pre = "add_header Content-Security-Policy \""; suf = "\" always;" }
+    {
+      isold = (FILENAME == ARGV[1])
+      if (!isold && FNR == 1) first = $0
+      if (index($0, pre) == 1) {
+        if (isold) no++; else nn++
+        p = substr($0, length(pre) + 1)
+        if (length(p) < length(suf) || substr(p, length(p) - length(suf) + 1) != suf) { bad = 1; next }
+        p = substr(p, 1, length(p) - length(suf))
+        if (isold) oldp = p; else newp = p
+      }
+    }
+    END {
+      if (bad || no != 1 || nn != 1) exit 1
+      nd = split(oldp, od, "; ")
+      for (i = 1; i <= nd; i++) {
+        nt = split(od[i], tk, " ")
+        if (tk[1] != "script-src" && tk[1] != "style-src") continue
+        for (j = 2; j <= nt; j++) if (substr(tk[j], 1, 8) == q "sha256-") { oc[tk[1]]++; ol[tk[1], oc[tk[1]]] = tk[j] }
+      }
+      nd = split(newp, nw, "; ")
+      out = ""; hasscript = 0
+      for (i = 1; i <= nd; i++) {
+        nt = split(nw[i], tk, " ")
+        d = tk[1]
+        line = nw[i]
+        if (d == "script-src" || d == "style-src") {
+          split("", have)
+          line = d
+          for (j = 2; j <= nt; j++) { if (tk[j] == q "none" q) continue; line = line " " tk[j]; have[tk[j]] = 1 }
+          for (k = 1; k <= +oc[d]; k++) { s = ol[d, k]; if (!(s in have)) { line = line " " s; have[s] = 1 } }
+          if (line == d) line = nw[i]
+          if (d == "script-src") hasscript = 1
+        }
+        out = out (i > 1 ? "; " : "") line
+      }
+      if (!hasscript) exit 1
+      print first
+      print pre out suf
+    }
+  ' "$1" "$2"
 }
 
 # SHA256SUMS 里所有 site/ 开头的文件（路径只允许安全字符，不许 ..）
@@ -202,10 +253,27 @@ fail() {
   exit 1
 }
 
-# ---------- 切换：先装 CSP 头，再原子换符号链接，最后 reload ----------
-if [ "$CSP_SAME" = "yes" ]; then
-  CSP_STATE=same
-else
+# ---------- 切换：先装 CSP 头（需要时分过渡和最终两步），再原子换符号链接，最后 reload ----------
+CSP_TRANS=no
+CSP_TRANSITION=skipped
+if [ "$CSP_SAME" = "no" ] && [ "$CSP_ABSENT" = "no" ] && app_included; then
+  CSP_TRANS=yes
+fi
+
+CSP_STATE=same
+if [ "$CSP_TRANS" = "yes" ]; then
+  # 过渡：新旧哈希都放行并 reload，旧页面和新页面此刻都能运行
+  csp_union "$CSP_OLD" "$CSP_SRC" > "$LOCAL_TMP/csp.trans" || fail "合并新旧 CSP 失败。"
+  sudo -n install -o root -g root -m 0644 "$LOCAL_TMP/csp.trans" "$CSP_DST" </dev/null
+  if ! sudo -n nginx -t </dev/null >/dev/null 2>&1; then
+    fail "nginx -t 没有通过（过渡 CSP）。"
+  fi
+  if ! sudo -n systemctl reload nginx </dev/null; then
+    fail "systemctl reload nginx 失败（过渡 CSP）。"
+  fi
+  sleep 2
+  CSP_TRANSITION=done
+elif [ "$CSP_SAME" = "no" ]; then
   sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null
   CSP_STATE=installed
 fi
@@ -216,6 +284,12 @@ if [ "$OLD_LINK" = "releases/$VER" ] && [ "$REL_SAME" = "yes" ]; then
 else
   sudo -n ln -sfn "releases/$VER" "$SITE_NEW" </dev/null
   sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null
+fi
+
+if [ "$CSP_TRANS" = "yes" ]; then
+  # 最终：只含新哈希的 CSP，下面的 nginx -t 加 reload 让它生效
+  sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null
+  CSP_STATE=installed
 fi
 
 RELOAD_STATE=skipped
@@ -246,4 +320,5 @@ echo "SITE_VERSION=$VER"
 echo "SITE_FILES=${#SITE_LIST[@]}"
 echo "SITE_SWAP=$SWAP_STATE"
 echo "CSP_CONF=$CSP_STATE"
+echo "CSP_TRANSITION=$CSP_TRANSITION"
 echo "NGINX_RELOAD=$RELOAD_STATE"

@@ -123,7 +123,7 @@ sudo -u pocketbase bash -c 'IFS= read -r -p "超级用户邮箱: " EM; IFS= read
 
 ## 8. 升级
 
-- **应用（页面）：** 改仓库 → 本机 `npm test` → 构建（`node deploy/build-site.mjs`）→ `--check-bundle` → 只批准变了的文件和 06（从 `SHA256SUMS` 对比上次）→ 运行 06：页面和 CSP 一起换，原子切换 → `verify-site --stage full`。已经打开的应用下一次回到前台会出现「有新版本」横幅。同一个构建部署两次，版本号不变，不会出现更新提示。
+- **应用（页面）：** 改仓库 → 本机 `npm test` → 构建（`node deploy/build-site.mjs`）→ `--check-bundle` → 只批准变了的文件和 06（从 `SHA256SUMS` 对比上次）→ 运行 06：先装过渡 CSP（新旧页面的内联块哈希都放行）并 reload，再原子换页面，再装只含新哈希的最终 CSP 并 reload；两次 reload 夹住切换，任何时刻 `/` 返回的页面都能在当时的 CSP 下运行，Service Worker 不会缓存到「新页面加旧 CSP」（13-REVIEW WR-01）。首次部署（还没有旧 CSP 或还没挂应用 include）和 CSP 不变时不做过渡，06 输出 `CSP_TRANSITION=skipped`；做了过渡输出 `CSP_TRANSITION=done`；过渡中任何一步失败，06 都回滚到旧链接和旧 CSP。部署后立刻跑 `verify-site --stage full`（它会让本机 IP 的后台登录等 60 秒，不要排在马上要登录后台之前），并在两台设备上各打开一次页面。已经打开的应用下一次回到前台会出现「有新版本」横幅。同一个构建部署两次，版本号不变，不会出现更新提示。
 - **nginx 结构变化**（位置块、响应头）：只批准变了的 nginx 文件和 05；05 自带备份、`nginx -t`、`certbot renew --dry-run`、`logrotate -d`，失败自动恢复。
 - **PocketBase 版本：** 改 `02-install-pocketbase.sh` 里钉死的下载地址和 sha256、改版本号，**所有者批准下载**（D-17）；先在本机一次性实例上用新版本重跑 `npm run pb:isolation` 和 `node deploy/server-config-check.mjs --local`。
 - HSTS 现在是一天（`max-age=86400`）：验收通过、见过一次真实的证书续期之后，再改 `usj-headers-common.conf` 和 `usj-headers-proxy.conf` 里的值提高（走批准），不要一开始就设很长。

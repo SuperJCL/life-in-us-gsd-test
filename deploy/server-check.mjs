@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BUNDLE_COUNT, BUNDLE_SOURCES } from './build-site.mjs';
+import { BUNDLE_COUNT, BUNDLE_SOURCES, buildCsp, cspConf } from './build-site.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -699,6 +699,66 @@ export function c20(ctx) {
     if (!/trap - ERR/.test(rb)) problems.push('06 的 rollback 没有先解除 ERR trap');
   }
   if (!lines.some((l) => /\binstall\b.*"\$CSP_SRC"\s+"\$CSP_DST"/.test(l))) problems.push('06 没有装同一次构建的 usj-csp.conf');
+  // WR-01：过渡 CSP（新旧哈希都放行）先装并 reload，再换链接，最后才装只含新哈希的 CSP
+  const iUnion = idx(/^\s*csp_union "\$CSP_OLD" "\$CSP_SRC"/);
+  if (iUnion < 0) problems.push('06 没有 csp_union "$CSP_OLD" "$CSP_SRC" 这一行（过渡 CSP）');
+  else if (iTrap >= 0 && iUnion < iTrap) problems.push('06 的 csp_union 在挂 ERR trap 之前');
+  else if (iSwap >= 0 && iUnion > iSwap) problems.push('06 的 csp_union 在切换之后');
+  const iTransInst = idx(/\binstall\b.*"\$LOCAL_TMP\/csp\.trans"\s+"\$CSP_DST"/);
+  if (iTransInst < 0) problems.push('06 没有把过渡 CSP（$LOCAL_TMP/csp.trans）装到 $CSP_DST');
+  else {
+    const iTransReload = lines.findIndex((l, i) => i > iTransInst && /systemctl reload nginx/.test(l));
+    if (iSwap >= 0 && iTransInst > iSwap) problems.push('06 的过渡 CSP 在切换之后才装');
+    if (iTransReload < 0 || (iSwap >= 0 && iTransReload > iSwap)) problems.push('06 装过渡 CSP 之后的第一次 reload 不在切换之前');
+  }
+  const iFinal = lastIndex(lines, /\binstall\b.*"\$CSP_SRC"\s+"\$CSP_DST"/);
+  if (iSwap >= 0 && iFinal < iSwap) problems.push('06 切换之后没有装最终 CSP（只含新哈希的那份）');
+  if (!lines.some((l) => /^\s*echo "CSP_TRANSITION=/.test(l))) problems.push('06 没有输出 CSP_TRANSITION=');
+  return problems;
+}
+
+// C-24 06 的 csp_union：取出函数体，在 bash 里对合成的新旧 usj-csp.conf 运行，结果必须与 build-site 的格式逐字节相同（WR-01）
+const CSP_H = (c) => `'sha256-${c.repeat(43)}='`;
+const CSP_CASES = (() => {
+  const [A, B, C, S1, S2] = ['A', 'B', 'C', 'D', 'E'].map(CSP_H);
+  const mk = (scripts, styles) => cspConf(buildCsp({ scripts, styles }));
+  return [
+    { id: 1, old: mk([A, B], [S1]), now: mk([C, A], [S2]), want: mk([C, A, B], [S2, S1]) },
+    { id: 2, old: mk([A], []), now: mk([B], [S1]), want: mk([B, A], [S1]) },
+    { id: 3, old: mk([A], [S1, S2]), now: mk([A], []), want: mk([A], [S1, S2]) },
+    { id: 4, old: mk([A, B], [S1]), now: mk([A, B], [S1]), want: mk([A, B], [S1]) },
+    { id: 5, old: '# 没有 add_header 行\n', now: mk([A], [S1]), want: null },
+  ];
+})();
+
+export function runCspUnion(bash, body, oldText, newText) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'usj-csp-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'old.conf'), oldText);
+    fs.writeFileSync(path.join(dir, 'new.conf'), newText);
+    fs.writeFileSync(path.join(dir, 'run.sh'), `csp_union() {\n${body}\n}\ncsp_union old.conf new.conf\n`);
+    const r = spawnSync(bash, ['run.sh'], { cwd: dir, encoding: 'utf8' });
+    return { status: r.status, out: r.stdout || '' };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function c24(ctx) {
+  const text = ctx.sh['06-install-site.sh'];
+  if (text === undefined) return ['缺少 06-install-site.sh'];
+  if (!ctx.bash) return ['找不到 bash，无法运行 06 的 csp_union'];
+  const body = funcBody(text, 'csp_union');
+  if (body === null) return ['06 里没有 csp_union 函数（单独一行 csp_union() { 开头、单独一行 } 结尾）'];
+  const problems = [];
+  for (const c of CSP_CASES) {
+    const r = runCspUnion(ctx.bash, body, c.old, c.now);
+    if (c.want === null) {
+      if (r.status === 0 || r.out !== '') problems.push(`csp_union 第 ${c.id} 组：旧文件没有 add_header 行时必须非 0 退出且什么都不输出`);
+    } else if (r.status !== 0 || r.out !== c.want) {
+      problems.push(`csp_union 第 ${c.id} 组：结果与 build-site 生成的过渡策略不是逐字节相同`);
+    }
+  }
   return problems;
 }
 
@@ -948,10 +1008,11 @@ export const CHECKS = [
   { id: 'C-17', title: 'HSTS 是 max-age=86400，没有 includeSubDomains、preload', run: c17 },
   { id: 'C-18', title: 'anchor-block.awk 与 Phase 6 的逐字节相同，合成的 443 ssl 块输出 ANCHOR_BLOCK=443ssl、80 块不输出', run: c18 },
   { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
-  { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t', run: c20 },
+  { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t，CSP 先过渡后最终、两次 reload 夹住切换', run: c20 },
   { id: 'C-21', title: 'logrotate：/var/log/usj/*.log 按天、rotate 30、压缩、create 0640 www-data adm、USR1', run: c21 },
   { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_、只接受 --with-real-data（未知参数在一切读写之前拒绝）、DRILL_MODE、导入后模式读不出线上库仍拒绝', run: c22 },
   { id: 'C-23', title: '两个迁移目录的 .js = 上传包、03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数；build-site、verify-site 不写死迁移名；server-config-check 只引用存在的迁移', run: c23 },
+  { id: 'C-24', title: '06 的 csp_union 把新旧 CSP 的哈希合并成过渡策略，结果与 build-site 的格式逐字节相同', run: c24 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -1234,6 +1295,55 @@ const GOOD_AWK = [
 
 // ---------- 13-07 Task 2 的合成好文件：06、logrotate、restore-drill ----------
 
+// 与 06 里的 csp_union 逐字相同的合成副本（C-24 对好的上下文运行它；自检的坏用例从这里改）
+const CSP_UNION_FN = String.raw`csp_union() {
+  # 参数 1：旧的 usj-csp.conf；参数 2：新的。向标准输出写过渡 conf：新策略，script-src 和 style-src 再追加旧文件独有的 sha256 源
+  # （按旧文件里的顺序）；style-src 有 sha256 源就不带 none。任一文件的 add_header 行不是恰好一行、或新策略没有 script-src，
+  # 以非 0 退出且什么都不输出。
+  awk '
+    BEGIN { q = "\047"; pre = "add_header Content-Security-Policy \""; suf = "\" always;" }
+    {
+      isold = (FILENAME == ARGV[1])
+      if (!isold && FNR == 1) first = $0
+      if (index($0, pre) == 1) {
+        if (isold) no++; else nn++
+        p = substr($0, length(pre) + 1)
+        if (length(p) < length(suf) || substr(p, length(p) - length(suf) + 1) != suf) { bad = 1; next }
+        p = substr(p, 1, length(p) - length(suf))
+        if (isold) oldp = p; else newp = p
+      }
+    }
+    END {
+      if (bad || no != 1 || nn != 1) exit 1
+      nd = split(oldp, od, "; ")
+      for (i = 1; i <= nd; i++) {
+        nt = split(od[i], tk, " ")
+        if (tk[1] != "script-src" && tk[1] != "style-src") continue
+        for (j = 2; j <= nt; j++) if (substr(tk[j], 1, 8) == q "sha256-") { oc[tk[1]]++; ol[tk[1], oc[tk[1]]] = tk[j] }
+      }
+      nd = split(newp, nw, "; ")
+      out = ""; hasscript = 0
+      for (i = 1; i <= nd; i++) {
+        nt = split(nw[i], tk, " ")
+        d = tk[1]
+        line = nw[i]
+        if (d == "script-src" || d == "style-src") {
+          split("", have)
+          line = d
+          for (j = 2; j <= nt; j++) { if (tk[j] == q "none" q) continue; line = line " " tk[j]; have[tk[j]] = 1 }
+          for (k = 1; k <= +oc[d]; k++) { s = ol[d, k]; if (!(s in have)) { line = line " " s; have[s] = 1 } }
+          if (line == d) line = nw[i]
+          if (d == "script-src") hasscript = 1
+        }
+        out = out (i > 1 ? "; " : "") line
+      }
+      if (!hasscript) exit 1
+      print first
+      print pre out suf
+    }
+  ' "$1" "$2"
+}`;
+
 const GOOD_06 =
   GOOD_HEADER +
   GOOD_UPLOAD +
@@ -1241,6 +1351,7 @@ const GOOD_06 =
     'verify_uploads() {',
     '  echo x',
     '}',
+    CSP_UNION_FN,
     'verify_uploads site/index.html server/nginx/usj-csp.conf BUILD_VERSION',
     '(cd "$UP/site/vendor" && sha256sum -c --strict --status SHA256SUMS </dev/null)',
     'VER=0123456789ab',
@@ -1255,12 +1366,18 @@ const GOOD_06 =
     '}',
     'sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null',
     'trap rollback ERR',
-    'sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null',
+    'csp_union "$CSP_OLD" "$CSP_SRC" > "$LOCAL_TMP/csp.trans" || fail "x"',
+    'sudo -n install -o root -g root -m 0644 "$LOCAL_TMP/csp.trans" "$CSP_DST" </dev/null',
+    'sudo -n nginx -t </dev/null',
+    'sudo -n systemctl reload nginx </dev/null',
+    'sleep 2',
     'sudo -n ln -sfn "releases/$VER" "$SITE_NEW" </dev/null',
     'sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null',
+    'sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null',
     'sudo -n nginx -t </dev/null',
     'sudo -n systemctl reload nginx </dev/null',
     'trap - ERR',
+    'echo "CSP_TRANSITION=$CSP_TRANSITION"',
     '',
   ].join('\n');
 
@@ -1444,7 +1561,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-23 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-24 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -1668,16 +1785,47 @@ function selfTest() {
   expect('C-20 坏：没有调用 verify_uploads', () => fails(c20, g06((t) => t.replace('verify_uploads site/index.html server/nginx/usj-csp.conf BUILD_VERSION\n', ''))));
   expect('C-20 坏：没有 SDK 自己的哈希核对', () => fails(c20, g06((t) => t.replace(/\(cd "\$UP\/site\/vendor".*\n/, ''))));
   expect('C-20 坏：ln 在 SDK 核对之前', () => fails(c20, g06((t) => t.replace('(cd "$UP/site/vendor"', 'sudo -n ln -sfn a b </dev/null\n(cd "$UP/site/vendor"'))));
-  expect('C-20 坏：切换没有用 mv -T', () => fails(c20, g06((t) => t.replace('sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n nginx', 'sudo -n mv "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n nginx'))));
+  expect('C-20 坏：切换没有用 mv -T', () => fails(c20, g06((t) => t.replace('sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n install', 'sudo -n mv "$SITE_NEW" "$SITE_LINK" </dev/null\nsudo -n install'))));
   expect('C-20 坏：没有 ERR trap', () => fails(c20, g06((t) => t.replace('trap rollback ERR\n', ''))));
-  expect('C-20 坏：没有 trap - ERR', () => fails(c20, g06((t) => t.replace(/\ntrap - ERR\n$/, '\n'))));
+  expect('C-20 坏：没有 trap - ERR', () => fails(c20, g06((t) => t.replace('\ntrap - ERR\necho', '\necho'))));
   expect('C-20 坏：切换之后没有 nginx -t', () => fails(c20, g06((t) => t.replace('sudo -n nginx -t </dev/null\nsudo -n systemctl reload nginx </dev/null\ntrap - ERR', 'trap - ERR'))));
   expect('C-20 坏：rollback 不核对 nginx -t', () => fails(c20, g06((t) => t.replace('  sudo -n nginx -t </dev/null\n  sudo -n systemctl reload nginx </dev/null\n}', '  sudo -n systemctl reload nginx </dev/null\n}'))));
   expect('C-20 坏：rollback 不恢复 CSP', () => fails(c20, g06((t) => t.replace('  sudo -n cp -p "$CSP_OLD" "$CSP_DST" </dev/null || true\n', ''))));
   expect('C-20 坏：版本号不核对格式', () => fails(c20, g06((t) => t.replace('^[0-9a-f]{12}$', '^.+$'))));
-  expect('C-20 坏：没有装 CSP 头', () => fails(c20, g06((t) => t.replace('"$CSP_SRC" "$CSP_DST"', '"$X" "$Y"'))));
+  expect('C-20 坏：没有装 CSP 头', () => fails(c20, g06((t) => t.replaceAll('"$CSP_SRC" "$CSP_DST"', '"$X" "$Y"'))));
   expect('C-20 坏：在 ERR trap 之前切换', () => fails(c20, g06((t) => t.replace('trap rollback ERR\n', '').replace('sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null\n', 'sudo -n install -d -o root -g root -m 0755 "$REL" </dev/null\n') + 'trap rollback ERR\n')));
   expect('C-20 坏：缺少 06', () => fails(c20, { ...good, sh: { 'x.sh': '' } }));
+
+  // C-20 的 WR-01 条款和 C-24：每个改动都必须真的改了文本（锚点失效就抛错）
+  const g06s = (fn) =>
+    g06((t) => {
+      const u = fn(t);
+      if (u === t) throw new Error('锚点失效，改动没有生效');
+      return u;
+    });
+  const TRANS_INST = 'sudo -n install -o root -g root -m 0644 "$LOCAL_TMP/csp.trans" "$CSP_DST" </dev/null\n';
+  const UNION_LINE = 'csp_union "$CSP_OLD" "$CSP_SRC" > "$LOCAL_TMP/csp.trans" || fail "x"\n';
+  const SWAP_LINE = 'sudo -n mv -T "$SITE_NEW" "$SITE_LINK" </dev/null\n';
+  const FINAL_INST = 'sudo -n install -o root -g root -m 0644 "$CSP_SRC" "$CSP_DST" </dev/null\n';
+  const LN_LINE = 'sudo -n ln -sfn "releases/$VER" "$SITE_NEW" </dev/null\n';
+  expect('C-20 坏：过渡 CSP 在切换之后', () => fails(c20, g06s((t) => t.replace(TRANS_INST, '').replace(SWAP_LINE, SWAP_LINE + TRANS_INST))));
+  expect('C-20 坏：过渡 CSP 之后的 reload 在切换之后', () => fails(c20, g06s((t) => t.replace('sudo -n nginx -t </dev/null\nsudo -n systemctl reload nginx </dev/null\nsleep 2', 'sleep 2'))));
+  expect('C-20 坏：没有 CSP_TRANSITION 输出', () => fails(c20, g06s((t) => t.replace('echo "CSP_TRANSITION=$CSP_TRANSITION"\n', ''))));
+  expect('C-20 坏：最终 CSP 排在切换之前', () => fails(c20, g06s((t) => t.replace(SWAP_LINE + FINAL_INST, SWAP_LINE).replace(LN_LINE, FINAL_INST + LN_LINE))));
+  expect('C-20 坏：csp_union 在切换之后', () => fails(c20, g06s((t) => t.replace(UNION_LINE, '').replace(SWAP_LINE, SWAP_LINE + UNION_LINE))));
+  expect('C-20 坏：没有 csp_union 这一行', () => fails(c20, g06s((t) => t.replace(UNION_LINE, ''))));
+  expect('C-20 坏：没有装过渡 CSP', () => fails(c20, g06s((t) => t.replace(TRANS_INST, ''))));
+  expect('C-24 好：好的上下文里的 csp_union 合并正确', () => passes(c24, good));
+  expect('C-24 坏：06 里没有 csp_union 函数', () => fails(c24, g06s((t) => t.replace('csp_union() {', 'csp_merge() {'))));
+  expect('C-24 坏：找不到 bash', () => fails(c24, { ...good, bash: null }));
+  expect('C-24 坏：缺少 06', () => fails(c24, { ...good, sh: { 'x.sh': '' } }));
+  if (bash) {
+    expect('C-24 坏：合并丢了旧哈希', () => fails(c24, g06s((t) => t.replace('for (k = 1; k <= +oc[d]; k++)', 'for (k = 1; k <= 0; k++)'))));
+    expect("C-24 坏：style 的 'none' 没去掉", () => fails(c24, g06s((t) => t.replace('if (tk[j] == q "none" q) continue; ', ''))));
+    expect('C-24 坏：缺 add_header 行时退出 0', () => fails(c24, g06s((t) => t.replace('if (bad || no != 1 || nn != 1) exit 1', 'if (bad || nn != 1) exit 1'))));
+    expect('C-24 坏：旧的独有哈希排在新的之前', () => fails(c24, g06s((t) => t.replace('for (j = 2; j <= nt; j++) { if (tk[j] == q "none" q) continue;', 'for (j = nt; j >= 2; j--) { if (tk[j] == q "none" q) continue;'))));
+    expect('C-24 坏：输出里多了一个换行', () => fails(c24, g06s((t) => t.replace('print pre out suf', 'print pre out suf; print ""'))));
+  }
 
   // C-21
   expect('C-21 好：logrotate 满足', () => passes(c21, good));
