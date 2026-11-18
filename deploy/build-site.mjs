@@ -46,6 +46,9 @@ const PLACEHOLDER = '__BUILD_VERSION__';
 // 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
 export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
 
+// HSTS 的期望秒数：verify-site 和 server-check 都用它；改 HSTS 时改这个常量和两个 nginx 头文件，同一次批准
+export const HSTS_MAX_AGE = 86400;
+
 // 迁移文件所在的两个目录（仓库相对路径）：里面每个 .js 都进上传包的 pb_migrations/，原名原字节
 export const MIGRATION_DIRS = ['pb/pb_migrations', 'deploy/pb_migrations'];
 

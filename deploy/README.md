@@ -126,7 +126,7 @@ sudo -u pocketbase bash -c 'IFS= read -r -p "超级用户邮箱: " EM; IFS= read
 - **应用（页面）：** 改仓库 → 本机 `npm test` → 构建（`node deploy/build-site.mjs`）→ `--check-bundle` → 只批准变了的文件和 06（从 `SHA256SUMS` 对比上次）→ 运行 06：先装过渡 CSP（新旧页面的内联块哈希都放行）并 reload，再原子换页面，再装只含新哈希的最终 CSP 并 reload；两次 reload 夹住切换，任何时刻 `/` 返回的页面都能在当时的 CSP 下运行，Service Worker 不会缓存到「新页面加旧 CSP」（13-REVIEW WR-01）。首次部署（还没有旧 CSP 或还没挂应用 include）和 CSP 不变时不做过渡，06 输出 `CSP_TRANSITION=skipped`；做了过渡输出 `CSP_TRANSITION=done`；过渡中任何一步失败，06 都回滚到旧链接和旧 CSP。部署后立刻跑 `verify-site --stage full`（它会让本机 IP 的后台登录等 60 秒，不要排在马上要登录后台之前），并在两台设备上各打开一次页面。已经打开的应用下一次回到前台会出现「有新版本」横幅。同一个构建部署两次，版本号不变，不会出现更新提示。
 - **nginx 结构变化**（位置块、响应头）：只批准变了的 nginx 文件和 05；05 自带备份、`nginx -t`、`certbot renew --dry-run`、`logrotate -d`，失败自动恢复。
 - **PocketBase 版本：** 改 `02-install-pocketbase.sh` 里钉死的下载地址和 sha256、改版本号，**所有者批准下载**（D-17）；先在本机一次性实例上用新版本重跑 `npm run pb:isolation` 和 `node deploy/server-config-check.mjs --local`。
-- HSTS 现在是一天（`max-age=86400`）：验收通过、见过一次真实的证书续期之后，再改 `usj-headers-common.conf` 和 `usj-headers-proxy.conf` 里的值提高（走批准），不要一开始就设很长。
+- HSTS 现在是一天。期望值在 `deploy/build-site.mjs` 的 `HSTS_MAX_AGE`，`verify-site` 和 `server-check` 都用它。验收通过、见过一次真实的证书续期之后再提高：改 `HSTS_MAX_AGE` 和 `usj-headers-common.conf`、`usj-headers-proxy.conf` 两个头文件，同一次批准，不要只改一处。
 
 ## 9. 回滚
 
@@ -170,7 +170,7 @@ sudo -u pocketbase /usr/local/sbin/pb-admin.sh superuser otp "$EM"
 
 - **服务器出事（D-02）：** 邮箱授权码、R2 令牌和加密钥匙都存在这台服务器上（授权码和令牌由 PocketBase 用钥匙加密保存，钥匙在 `/etc/usj/pocketbase.env`）。服务器被入侵或怀疑泄露时，三样都要换：邮箱的授权码（在邮箱设置里重新生成）、R2 令牌（作废并新建）、`PB_ENCRYPTION_KEY`（第 13 节）。
 - **钥匙丢失：** 没有钥匙、钥匙不对、长度不是 32 个字符，PocketBase 一启动就退出，`systemd` 会反复重启（`systemctl status` 里是 `activating (auto-restart)`）。恢复演练和恢复备份也必须用同一把钥匙。所以第一次部署后要把 `PB_ENCRYPTION_KEY` 存进密码管理器。
-- **HSTS：** 现在是 `max-age=86400`（一天），不加 includeSubDomains 和 preload。验收通过并见过一次真实续期后再提高。
+- **HSTS：** 现在是一天（`max-age=86400`），不加 includeSubDomains 和 preload。验收通过并见过一次真实续期后再提高；提高时同样要同时改 `deploy/build-site.mjs` 的 `HSTS_MAX_AGE` 和两个头文件，同一次批准。
 - **iPhone：** 在 Safari 里直接用（没有添加到主屏幕）的网站，7 天不用，Safari 会清掉这个网站在本机的所有数据，包括还没上传的修改。请添加到主屏幕使用；离线时间长时要尽快联网。
 - **微信内置浏览器：** 不保证离线和主屏安装可用；请用系统浏览器（Safari、Edge、Chrome）。
 - **只用裸域名：** 请只用裸域名访问。DNS 和证书都包含 `www.` 时，`www.` 会 301 跳转到裸域名；不包含时不跳转，`www.` 地址不要用。两个地址的本机缓存和待上传的修改互不相通。

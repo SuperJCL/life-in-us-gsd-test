@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BUNDLE_COUNT, BUNDLE_SOURCES, buildCsp, cspConf } from './build-site.mjs';
+import { BUNDLE_COUNT, BUNDLE_SOURCES, HSTS_MAX_AGE, buildCsp, cspConf } from './build-site.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -546,9 +546,11 @@ export function c16(ctx) {
   return problems;
 }
 
-// C-17 HSTS 是 max-age=86400，没有 includeSubDomains、preload
+// C-17 HSTS 是 max-age=<HSTS_MAX_AGE>，没有 includeSubDomains、preload
 export function c17(ctx) {
   const problems = [];
+  const age = ctx.hstsMaxAge ?? HSTS_MAX_AGE;
+  const want = `add_header Strict-Transport-Security "max-age=${age}" always;`;
   for (const name of ['usj-headers-common.conf', 'usj-headers-proxy.conf']) {
     const lines = nginxCodeLines(ctx, name);
     if (!lines) {
@@ -557,7 +559,7 @@ export function c17(ctx) {
     }
     const hsts = lines.filter((l) => /Strict-Transport-Security/i.test(l));
     if (hsts.length !== 1) problems.push(`${name} 的 HSTS 不是恰好一条（是 ${hsts.length}）`);
-    for (const l of hsts) if (l.trim() !== 'add_header Strict-Transport-Security "max-age=86400" always;') problems.push(`${name} 的 HSTS 不是 max-age=86400`);
+    for (const l of hsts) if (l.trim() !== want) problems.push(`${name} 的 HSTS 不是 max-age=${age}`);
   }
   for (const name of NGINX_NAMES) {
     const lines = nginxCodeLines(ctx, name);
@@ -1096,7 +1098,7 @@ export const CHECKS = [
   { id: 'C-14', title: '三个反代位置都有 X-Real-IP $remote_addr 和 HTTP/1.1；实时位置有关缓冲、3600s、1m；/api/ 是 5m', run: c14 },
   { id: 'C-15', title: '日志格式用 $uri、不含查询串；server 层有 access_log，没有位置关闭访问日志', run: c15 },
   { id: 'C-16', title: 'nginx 文件里每条 add_header 都以 always; 结尾', run: c16 },
-  { id: 'C-17', title: 'HSTS 是 max-age=86400，没有 includeSubDomains、preload', run: c17 },
+  { id: 'C-17', title: `HSTS 是 max-age=${HSTS_MAX_AGE}，没有 includeSubDomains、preload`, run: c17 },
   { id: 'C-18', title: 'anchor-block.awk 与 Phase 6 的逐字节相同，合成的 443 ssl 块输出 ANCHOR_BLOCK=443ssl、80 块不输出', run: c18 },
   { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
   { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t，CSP 先过渡后最终、两次 reload 夹住切换', run: c20 },
@@ -1141,7 +1143,7 @@ export function loadContext(bash) {
     configCheck: readOpt(path.join(HERE, 'server-config-check.mjs')),
     readme: readOpt(path.join(HERE, 'README.md')),
   };
-  return { bash, sh, unit, probe02, retire, nginx, awk, awk6, logrotate, mig };
+  return { bash, sh, unit, probe02, retire, nginx, awk, awk6, logrotate, mig, hstsMaxAge: HSTS_MAX_AGE };
 }
 
 export function runChecks(ctx) {
@@ -1317,7 +1319,7 @@ const GOOD_COMMON = [
   'add_header Referrer-Policy "no-referrer" always;',
   `add_header Permissions-Policy "${PERMISSIONS}" always;`,
   'add_header X-Robots-Tag "noindex, nofollow" always;',
-  'add_header Strict-Transport-Security "max-age=86400" always;',
+  `add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}" always;`,
   'add_header Cross-Origin-Opener-Policy "same-origin" always;',
   'add_header X-Frame-Options "DENY" always;',
   '',
@@ -1327,7 +1329,7 @@ const GOOD_PROXYH = [
   'add_header X-Robots-Tag "noindex, nofollow" always;',
   'add_header Referrer-Policy "no-referrer" always;',
   `add_header Permissions-Policy "${PERMISSIONS}" always;`,
-  'add_header Strict-Transport-Security "max-age=86400" always;',
+  `add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}" always;`,
   '',
 ].join('\n');
 
@@ -1682,6 +1684,7 @@ export function goodContext(bash) {
     },
     awk: GOOD_AWK,
     awk6: GOOD_AWK,
+    hstsMaxAge: HSTS_MAX_AGE,
   };
 }
 
@@ -1922,12 +1925,17 @@ function selfTest() {
   expect('C-16 坏：proxy 头文件里有一条没有 always', () => fails(c16, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('"no-referrer" always;', '"no-referrer";'))));
 
   // C-17
-  expect('C-17 好：HSTS 一天', () => passes(c17, good));
-  expect('C-17 坏：HSTS 一年', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('max-age=86400', 'max-age=31536000'))));
-  expect('C-17 坏：HSTS 带 includeSubDomains', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('max-age=86400', 'max-age=86400; includeSubDomains'))));
-  expect('C-17 坏：HSTS 带 preload', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace('max-age=86400', 'max-age=86400; preload'))));
-  expect('C-17 坏：HSTS 缺失', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace('add_header Strict-Transport-Security "max-age=86400" always;\n', ''))));
-  expect('C-17 坏：应用片段里直接写 HSTS', () => fails(c17, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/icons\/ \{\n)/, '$1    add_header Strict-Transport-Security "max-age=86400" always;\n'))));
+  expect('C-17 好：HSTS 取常量的值', () => passes(c17, good));
+  expect('C-17 坏：HSTS 一年', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace(`max-age=${HSTS_MAX_AGE}`, 'max-age=31536000'))));
+  expect('C-17 坏：HSTS 带 includeSubDomains', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace(`max-age=${HSTS_MAX_AGE}`, `max-age=${HSTS_MAX_AGE}; includeSubDomains`))));
+  expect('C-17 坏：HSTS 带 preload', () => fails(c17, mutate(good, 'nginx/usj-headers-common.conf', (t) => t.replace(`max-age=${HSTS_MAX_AGE}`, `max-age=${HSTS_MAX_AGE}; preload`))));
+  expect('C-17 坏：HSTS 缺失', () => fails(c17, mutate(good, 'nginx/usj-headers-proxy.conf', (t) => t.replace(`add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}" always;\n`, ''))));
+  expect('C-17 坏：应用片段里直接写 HSTS', () => fails(c17, mutate(good, 'nginx/usj-app.conf', (t) => t.replace(/(location \^~ \/icons\/ \{\n)/, `$1    add_header Strict-Transport-Security "max-age=${HSTS_MAX_AGE}" always;\n`))));
+  const yearOf = (t) => t.replace(`max-age=${HSTS_MAX_AGE}`, 'max-age=31536000');
+  const yearFiles = mutate(mutate(good, 'nginx/usj-headers-common.conf', yearOf), 'nginx/usj-headers-proxy.conf', yearOf);
+  expect('C-17 好：常量和两个头文件一起改成一年时通过', () => passes(c17, { ...yearFiles, hstsMaxAge: 31536000 }));
+  expect('C-17 坏：只改常量不改头文件', () => fails(c17, { ...good, hstsMaxAge: 31536000 }));
+  expect('C-17 坏：只改头文件不改常量', () => fails(c17, yearFiles));
 
   // C-18（需要 bash 里的 awk）
   expect('C-18 好：awk 相同，合成块判定对', () => passes(c18, good));

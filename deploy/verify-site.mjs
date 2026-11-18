@@ -37,7 +37,7 @@ import net from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import tls from 'node:tls';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BUNDLE_COUNT, BUNDLE_SOURCES, CONFIG_LINE, ICON_NAMES, buildSite, cspHash, inlineBlocks, normalizeNl, sdkPinnedHash } from './build-site.mjs';
+import { BUNDLE_COUNT, BUNDLE_SOURCES, CONFIG_LINE, HSTS_MAX_AGE, ICON_NAMES, buildSite, cspHash, inlineBlocks, normalizeNl, sdkPinnedHash } from './build-site.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_FILE = 'private/server.env';
@@ -96,7 +96,8 @@ export function parseSums(text) {
 }
 
 // 页面必须带的响应头；get(name) 返回头的值或 null。返回缺失或不对的头名列表
-export function checkPageHeaders(get) {
+// HSTS 的 max-age 必须恰好等于 hstsMaxAge（默认取 build-site 导出的 HSTS_MAX_AGE），更大的数也不算通过
+export function checkPageHeaders(get, hstsMaxAge = HSTS_MAX_AGE) {
   const bad = [];
   const has = (name, test) => {
     const v = get(name);
@@ -106,7 +107,10 @@ export function checkPageHeaders(get) {
   has('x-content-type-options', (v) => v.trim() === 'nosniff');
   has('referrer-policy', (v) => v.trim() === 'no-referrer');
   has('permissions-policy', (v) => v.trim().length > 0);
-  has('strict-transport-security', (v) => v.includes('max-age=86400'));
+  has('strict-transport-security', (v) => {
+    const m = /(?:^|;)\s*max-age=(\d+)\s*(?:;|$)/.exec(v);
+    return m !== null && Number(m[1]) === hstsMaxAge;
+  });
   has('x-robots-tag', (v) => v.includes('noindex'));
   has('x-frame-options', (v) => v.trim() === 'deny');
   has('cache-control', (v) => v.includes('no-cache'));
@@ -787,7 +791,7 @@ function selfTest() {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
     'permissions-policy': 'camera=()',
-    'strict-transport-security': 'max-age=86400',
+    'strict-transport-security': `max-age=${HSTS_MAX_AGE}`,
     'x-robots-tag': 'noindex, nofollow',
     'x-frame-options': 'DENY',
     'cache-control': 'no-cache',
@@ -797,6 +801,8 @@ function selfTest() {
   delete lacking['permissions-policy'];
   expect('缺一个头能发现', checkPageHeaders((n) => lacking[n] ?? null).join() === 'permissions-policy');
   expect('HSTS 不是一天能发现', checkPageHeaders((n) => (n === 'strict-transport-security' ? 'max-age=31536000' : full[n])).join() === 'strict-transport-security');
+  expect('HSTS 只是以期望值开头的更大数也能发现', checkPageHeaders((n) => (n === 'strict-transport-security' ? `max-age=${HSTS_MAX_AGE}0` : full[n])).join() === 'strict-transport-security');
+  expect('HSTS 期望值跟着 HSTS_MAX_AGE 变', checkPageHeaders((n) => (n === 'strict-transport-security' ? 'max-age=31536000' : full[n]), 31536000).length === 0 && checkPageHeaders((n) => (n === 'strict-transport-security' ? `max-age=${HSTS_MAX_AGE}` : full[n]), 31536000).join() === 'strict-transport-security');
   expect('X-Frame-Options 不是 DENY 能发现', checkPageHeaders((n) => (n === 'x-frame-options' ? 'SAMEORIGIN' : full[n])).join() === 'x-frame-options');
   expect('Cache-Control 不是 no-cache 能发现', checkPageHeaders((n) => (n === 'cache-control' ? 'public, max-age=3600' : full[n])).join() === 'cache-control');
 
