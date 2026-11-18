@@ -4,16 +4,16 @@ milestone: v2.0
 milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
-status: planning
-stopped_at: Phase 16 context gathered
-last_updated: "2026-11-18T03:02:13.119Z"
+status: executing
+stopped_at: Phase 16 planned (8 plans)
+last_updated: "2026-11-18T05:00:30.064Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 13 complete, transitioned to Phase 16
-state_head: 221a7fc579326cbb01905011a2b826daafd99275
+state_head: e07bf40a92ec1ca574ee4297166734200b61148e
 progress:
   total_phases: 11
   completed_phases: 10
-  total_plans: 90
+  total_plans: 98
   completed_plans: 90
   percent: 91
 ---
@@ -25,13 +25,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 16 — 新版本上线与总体验收（上下文已定，下一步规划）
+**Current focus:** Phase 16 — 新版本上线与总体验收（8 个计划已定，下一步执行）
 
 ## Current Position
 
-Phase: 16 — 新版本上线与总体验收（Release & Acceptance）
+Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — READY TO EXECUTE
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-11-17 - Completed quick task 261117-lwq: 修 13-REVIEW 的 WR-04 和 IN-01
 
 Progress: [█████████░] 91%
@@ -452,6 +452,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 15 安全]: `15-SECURITY.md` verified，29 条威胁全部关闭；旧页面丢 `workouts` 的风险（T-15-04）按接受登记，靠 Phase 16 的上线顺序。
 - [Phase 15 审查]: 12 条发现全部修完（`15-REVIEW-FIX.md`、`15-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，3 处已修。
 - [Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。
+- [Phase 16 规划，所有者 2026-11-17 选择按现计划执行]: 计划核查第 3 轮（上限）还剩 2 个阻塞、1 个警告，所有者选「按现在的计划执行」，执行时要处理：(1) 16-01 Task 3 把恢复演练的文档查询改成 5 列（加 `updated`），但 `restore-drill.sh` 里另外 3 处仍按 4 个字段拆分 `rdocs`（约第 324、346、362 行），必须一起改成 5 个字段；本机没有检查会实际运行这段 Python（本机有 `python` 3.12，可以用合成 sqlite 跑一遍），不改会到 16-08 的服务器演练时才暴露。(2) 16-06 Task 1 只跑 `tests/cloud/migration.spec.ts`，但 check-report 还要求 `IO-09 importing the plan first and then the legacy backup keeps every task progress (D-07)`，这条在 `tests/cloud/import.spec.ts`，要把它一起跑进去或从核对标题里去掉（migration.spec 里是 2 条 IO-09，不是 3 条）。(3) 警告：16-01 和 16-06 各有一条在 HEAD 上已经成立的 grep，只是保留性检查。
 - [Phase 16，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
 - [Phase 13 安全]: `13-SECURITY.md` verified，52 条威胁全部关闭；AR-13-01（服务器日志记 IP 30 天，D-03）和 AR-13-02（不装包的计划）按接受登记。
 - [Phase 13 审查]: 19 条发现（0 严重、8 警告、11 提示）；WR-04（迁移清单）和 IN-01（导入后的恢复演练）已由 quick 261117-lwq 修好（8e7e92a、d6dc94e），其余 17 条 open（`13-REVIEW-DISPOSITION.md`），等所有者决定；WR-05（README 的 PocketBase 本体升级步骤走不通）要在下次升级 PocketBase 之前补。
@@ -492,7 +493,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-18T03:02:06.720Z
-Stopped at: Phase 16 context gathered
+Stopped at: Phase 16 planned (8 plans), ready to execute
 Resume file: .planning/phases/16-release-acceptance/16-CONTEXT.md
 
 ## Operator Next Steps
@@ -504,6 +505,7 @@ Resume file: .planning/phases/16-release-acceptance/16-CONTEXT.md
 - 给 Phase 16：新版本已上线，Phase 16 不必为 Phase 14/15 再部署一次（除非之后有修复）；设备上的「点此更新」留到总体验收 E 项；真实数据迁移要等所有设备都换成新版本
 - quick 261117-lwq（2026-11-17）：WR-04、IN-01 已修。新的 `restore-drill.sh`（导入后模式 `--with-real-data`）只在本机，Phase 16 部署时随上传包经 03 装到服务器；经 03 重装会停 PocketBase（WR-03），部署方案要考虑
 - Phase 16 上下文已定（2026-11-17，16-CONTEXT.md D-01..D-18，所有者未选讨论、按推荐定）：先修 13-REVIEW 剩下 17 条并发一次修复版本（顺带装新演练脚本、给 E 项当新版本），再按新清单 16-ACCEPTANCE.md 总体验收；只有丢数据类问题挡迁移；空计划起步用第二个测试账号；导入后次日跑 `--with-real-data` 演练
-- 接下来：`/gsd-plan-phase 16`
+- Phase 16 已规划（2026-11-17）：8 个计划、7 个波次。16-01..16-03 本机修 13-REVIEW 的 17 条，16-04 写 16-ACCEPTANCE.md 并跑发布前全量，16-05 发布修复版本（要所有者批准清单、当场确认命令），16-06..16-08 是所有者的总体验收、J/K 和次日演练。核查 3 轮后所有者选择按现计划执行，剩两个已知问题见 Blockers/Concerns
+- 接下来：`/gsd-execute-phase 16`
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02

@@ -531,13 +531,26 @@ Plans:
 **Plans:** 8 plans
 
 Plans:
+**Wave 1**
 - [ ] 16-01-PLAN.md — 服务器脚本的四条修复：06 的 CSP 原子切换（WR-01）、03 只装工具不停服务（WR-03）、恢复演练不空转（WR-07）、04 的 unit 备份（WR-08），server-check 同步
-- [ ] 16-02-PLAN.md — 部署工具和文档的修复：HSTS 常量（WR-06）、版本号含 CSP（WR-02）、F-11 不建账号（IN-09）、IN-04/05/10/11、README 第 8、15 节（WR-05、D-04）
 - [ ] 16-03-PLAN.md — 应用、Service Worker 和测试设施的修复：更新兜底刷新（IN-02）、SW 缓存（IN-06）、版本开关要带头（IN-07）、清单（IN-08）、测试和隐私文档（IN-11）
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 16-02-PLAN.md — 部署工具和文档的修复：HSTS 常量（WR-06）、版本号含 CSP（WR-02）、F-11 不建账号（IN-09）、IN-04/05/10/11、README 第 8、15 节（WR-05、D-04）
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 16-04-PLAN.md — 总体验收清单 16-ACCEPTANCE.md、G-2 合成数据、13-REVIEW 台账收口、发布前两条全量套件
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 16-05-PLAN.md — 发布修复版本：构建、与线上批准清单比较、所有者批准和当场确认、03、06、线上全量检查
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 16-06-PLAN.md — 总体验收（J 之前）：先换版（E），两台真机做 A–I、空计划起步、健身页，问题分类，J 之前重跑合成迁移用例
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 16-07-PLAN.md — 迁移真实数据（J）和删除测试账号（K），只记录结论
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 16-08-PLAN.md — 次日回看和导入后恢复演练，填完清单，两条全量套件收口（OPS-04、TEST-02）
 **UI hint**: no
 **Notes:**
