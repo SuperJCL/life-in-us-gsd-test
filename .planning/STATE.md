@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: executing
-stopped_at: Completed 16-03-PLAN.md
-last_updated: "2026-11-18T05:34:41.288Z"
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-11-18T05:52:10.502Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 execution started
-state_head: a8831e5c6518513c9a4f63eb331b8dcf9958acfa
+state_head: 9f5cf0faf249e8c9465f518b9bc212f11c01b982
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 98
-  completed_plans: 92
+  completed_plans: 93
   percent: 91
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 ## Current Position
 
 Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 16 execution started
 
@@ -183,6 +183,7 @@ Progress: [█████████░] 91%
 | Phase 15 P07 | 29min | 3 tasks | 12 files |
 | Phase 16 P01 | 15 min | 3 tasks | 6 files |
 | Phase 16 P03 | 5 min | 3 tasks | 10 files |
+| Phase 16 P02 | 10 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -411,6 +412,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 16]: Phase 16 Plan 01：恢复演练的比对边界取恢复库里最晚的写入时间 snap，线上已删除的文档单独计入 DRILL_DOCS_MISSING_LIVE，通过条件加备份不超过 40 小时和至少比对 1 份
 - [Phase 16]: Phase 16 Plan 01：C-22 新增条款要求 rdocs 的每一处拆分都是 5 个字段，嵌入的核对 Python 只在本机用合成 sqlite 库验证过，建议后续加永久检查（见 16-01-SUMMARY 的 Recommendation）
 - [Phase 16]: 16-03: IN-02 兜底刷新只在 swGo 置位后 4 秒触发，复用 swReloaded；APP_SHA256 重新记录为 efa9038d…；版本开关要 x-usj-test: 1 头；清单删 description
+- [Phase 16]: 16-02: F-11 改用缺字段注册请求（本机 PocketBase 0.41.1 实测锁住 403、放开 400），HSTS 期望值收成 HSTS_MAX_AGE 单一来源，数值仍是一天
 
 ### Pending Todos
 
@@ -498,8 +500,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T05:34:37.858Z
-Stopped at: Completed 16-03-PLAN.md
+Last session: 2026-11-18T05:52:06.655Z
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
