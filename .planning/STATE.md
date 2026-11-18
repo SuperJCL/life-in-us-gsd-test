@@ -6,10 +6,10 @@ current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: planning
 stopped_at: Phase 13 complete, ready to plan Phase 16
-last_updated: "2026-11-17T23:37:37.140Z"
+last_updated: "2026-11-18T00:15:21.464Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 13 complete, transitioned to Phase 16
-state_head: 4a1fb0851d1871239b09d7c6881a6b7f6306e2f5
+state_head: d6dc94e8c1c7612009bb2dd0ebbc16a589f5f1cc
 progress:
   total_phases: 11
   completed_phases: 10
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 Phase: 16 — 新版本上线与总体验收（Release & Acceptance）
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-11-17 — Phase 13 complete, transitioned to Phase 16
+Last activity: 2026-11-17 - Completed quick task 261117-lwq: 修 13-REVIEW 的 WR-04 和 IN-01
 
 Progress: [█████████░] 91%
 
@@ -415,7 +415,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
 - Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）、Phase 14 的 4 项（见 14-UAT.md）、Phase 15 的 8 项（见 15-UAT.md）、Phase 13 的 6 项（见 13-UAT.md）；总体验收现在是 Phase 16。
 - Phase 15：决定要不要提前做「两台设备的离线修改都保留」（Phase 10 D-03 现在也影响训练数据）。
-- Phase 13：决定 13-REVIEW 的 19 条发现怎么处理（`13-REVIEW-DISPOSITION.md` 全部 open）；验证建议 Phase 16 之前处理或接受 WR-04、IN-01，下次升级之前处理 WR-01、WR-02、WR-05..WR-08。
+- Phase 13：决定 13-REVIEW 剩下 17 条发现怎么处理（WR-04、IN-01 已由 quick 261117-lwq 修好）；建议下次升级之前处理 WR-01、WR-02、WR-03、WR-05..WR-08。
 - Phase 6、13、16：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 16（R2 存储桶和密钥已在 Phase 13 开好）：所有设备换成新版本、总体验收通过后，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，再删测试账号。
 
@@ -454,7 +454,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。
 - [Phase 16，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
 - [Phase 13 安全]: `13-SECURITY.md` verified，52 条威胁全部关闭；AR-13-01（服务器日志记 IP 30 天，D-03）和 AR-13-02（不装包的计划）按接受登记。
-- [Phase 13 审查]: 19 条发现（0 严重、8 警告、11 提示）全部 open（`13-REVIEW-DISPOSITION.md`），等所有者决定；WR-04（迁移文件名 6 处写死）和 IN-01（真实数据导入后恢复演练被守卫永久拦住）建议在 Phase 16 之前处理或明确接受；WR-05（README 的 PocketBase 本体升级步骤走不通）要在下次升级 PocketBase 之前补。
+- [Phase 13 审查]: 19 条发现（0 严重、8 警告、11 提示）；WR-04（迁移清单）和 IN-01（导入后的恢复演练）已由 quick 261117-lwq 修好（8e7e92a、d6dc94e），其余 17 条 open（`13-REVIEW-DISPOSITION.md`），等所有者决定；WR-05（README 的 PocketBase 本体升级步骤走不通）要在下次升级 PocketBase 之前补。
 - [Phase 16，来自 Phase 13 验收]: 6 项真机和所有者本人检查（13-UAT.md Deferred Follow-Ups）：设备甲的更新提示、手机冷启动离线、添加到主屏幕、R2 次日回看和演练残留、后台口令和重新登录、接近上限的文件在真实线路上保存。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
 - ~~waiting on 06-10 Task 3~~ 已解决（2026-11-08）：所有者按 D-10 修订做了一次 boce.com 拨测基线，06-10 完成；导出批准的两次已用完，再导出需另行批准
@@ -472,6 +472,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 | 7 | 修 12-UI-REVIEW 的 3 处：编辑页选中的类别按钮改浅底加正文色文字、禁用按钮显示禁用外观、「已归档」区的 × 放大点击区域 | 2026-11-11 | 56a6dea | — |
 | 8 | 修 14-UI-REVIEW 的 3 处：桌面宽度下空计划卡片和编辑页「从示例添加」按钮至少 36px 高；pkSave 计划校验失败时提示行显示错误；被断网或过期挡住时刷新提示行 | 2026-11-12 | 85fb682 | — |
 | 9 | 修 15-UI-REVIEW 的 3 处：训练历史的展开指示、窄屏保存栏顺序、375px 力量目标卡两列（427395e） | 2026-11-16 | 427395e | — |
+| 261117-lwq | 修 13-REVIEW 的 WR-04（迁移清单自动收集，server-check C-23）和 IN-01（恢复演练导入后模式 --with-real-data） | 2026-11-17 | d6dc94e | [261117-lwq-13-review-wr-04-in-01](./quick/261117-lwq-13-review-wr-04-in-01/) |
 
 ### Roadmap Evolution
 
@@ -501,6 +502,7 @@ Resume file: None
 - 13-13 恢复演练已完成（2026-11-17 19:23 UTC，`DRILL_RESULT=PASS`，R2 里 5 份自动备份，所有者确认没有告警邮件；见 13-13-SUMMARY.md）
 - 13-14 升级演练已完成（2026-11-17）：所有者选择直接部署含 Phase 14、15 的新版本（「部署现在的新版本」），线上 a1159ad93165 → 0ba1339903f1，06 输出 CSP_CONF=installed，线上全量检查 VERIFY OK (19 checks)；旧版本目录保留可回滚；见 13-14-SUMMARY.md
 - 给 Phase 16：新版本已上线，Phase 16 不必为 Phase 14/15 再部署一次（除非之后有修复）；设备上的「点此更新」留到总体验收 E 项；真实数据迁移要等所有设备都换成新版本
-- 接下来：所有者决定 13-REVIEW 的 19 条发现怎么处理，然后 `/gsd-discuss-phase 16`
+- quick 261117-lwq（2026-11-17）：WR-04、IN-01 已修。新的 `restore-drill.sh`（导入后模式 `--with-real-data`）只在本机，Phase 16 部署时随上传包经 03 装到服务器；经 03 重装会停 PocketBase（WR-03），部署方案要考虑
+- 接下来：所有者决定 13-REVIEW 剩下 17 条怎么处理（或留到下次升级前），然后 `/gsd-discuss-phase 16`
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02

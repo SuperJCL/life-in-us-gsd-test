@@ -17,7 +17,7 @@ findings:
     title: "03 只要有工具文件变化就要求停掉线上 PocketBase"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "迁移清单在 6 处硬编码，新增迁移会被静默漏装，而本机检查却会测到它"
   - id: WR-05
     severity: warning
@@ -37,7 +37,7 @@ findings:
     title: "04 覆盖旧 unit 时不留备份，README 的回滚步骤「恢复旧 unit 文件」无处可恢复"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "导入真实数据之后恢复演练永久被守卫挡住，Phase 16 之后没有任何办法再证明「备份能恢复」"
   - id: IN-02
     severity: info
@@ -91,12 +91,12 @@ recorded: 2026-11-17T20:06:48.636Z
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
+| WR-04 | warning | fixed | quick 261117-lwq (8e7e92a): build-site 自动收集迁移，server-check C-23 守住 03、04、00-status 和 README 的清单 |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
-| IN-01 | info | open | - |
+| IN-01 | info | fixed | quick 261117-lwq (d6dc94e): 恢复演练加导入后模式 --with-real-data（所有者 2026-11-17 选择），Phase 16 部署时装到服务器 |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
