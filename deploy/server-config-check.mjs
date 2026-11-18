@@ -110,6 +110,14 @@ export function makeMigrationsDir(opts) {
 
 export const SCENARIO_NAMES = ['settings', 'watchdog', 'retire', 'rotate'];
 
+// 恢复环境变量：原来没有的键要删掉，不能写成字符串 "undefined"
+export function restoreEnv(old) {
+  for (const k of ['TEMP', 'TMP']) {
+    if (old[k] === undefined) delete process.env[k];
+    else process.env[k] = old[k];
+  }
+}
+
 // 参数解析：返回 { mode: 'self-test' } 或 { mode: 'local', scenarios: [...] } 或 { error }
 export function parseArgs(argv, implemented) {
   const known = implemented || SCENARIO_NAMES;
@@ -829,6 +837,14 @@ async function selfTest() {
     await sink.close();
   }
 
+  const envBefore = { TEMP: process.env.TEMP, TMP: process.env.TMP };
+  try {
+    restoreEnv({ TEMP: undefined, TMP: envBefore.TMP ?? 'x' });
+    t('恢复环境变量：原来没有的键被删掉而不是写成 undefined', 'TEMP' in process.env === false && process.env.TMP === (envBefore.TMP ?? 'x'));
+  } finally {
+    restoreEnv(envBefore);
+  }
+
   const all = out.every(Boolean);
   console.log(all ? `SELF-TEST OK (${out.length} cases)` : `SELF-TEST FAIL (${out.filter((x) => !x).length} of ${out.length})`);
   return all;
@@ -862,8 +878,7 @@ async function runLocal(names) {
       for (const id of sc.ids) if (!results.some((r) => r.id === id)) check(id, '没有运行到这一项', false);
     }
   } finally {
-    process.env.TEMP = oldTemp.TEMP;
-    process.env.TMP = oldTemp.TMP;
+    restoreEnv(oldTemp);
     fs.rmSync(SCRATCH, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   }
   const bad = results.filter((r) => !r.ok).length;

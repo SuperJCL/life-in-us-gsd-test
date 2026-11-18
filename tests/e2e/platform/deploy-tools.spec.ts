@@ -2,6 +2,7 @@
 // 线上阶段（verify-site 的 --stage baseline|full）只在批准的步骤里对真实站点运行，这里不碰。
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test, expect } from '../../support/test';
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -15,8 +16,9 @@ test('OPS-03 the deploy tools pass their self-tests (build-site, server-check, s
   }
 });
 
-test('OPS-03 a fresh build is a complete upload bundle whose CSP matches its page and whose server files match the repository', ({}, testInfo) => {
+test('OPS-03 a fresh build is a complete upload bundle whose CSP matches its page and whose server files match the repository', async ({}, testInfo) => {
+  const { BUNDLE_COUNT } = await import(pathToFileURL(script('build-site.mjs')).href);
   const bundle = testInfo.outputPath('bundle');
-  expect(lastLine(run([script('build-site.mjs'), '--out', bundle]))).toMatch(/^BUILD OK [0-9a-f]{12} \(33 files\)$/);
+  expect(lastLine(run([script('build-site.mjs'), '--out', bundle]))).toMatch(new RegExp(`^BUILD OK [0-9a-f]{12} \\(${BUNDLE_COUNT + 1} files\\)$`));
   expect(lastLine(run([script('verify-site.mjs'), '--check-bundle', bundle]))).toBe('BUNDLE OK (9 checks)');
 });

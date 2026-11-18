@@ -122,9 +122,9 @@ export const normalizeNl = (t) => t.replace(/\r\n?/g, '\n');
 // 返回可以直接放进 CSP 的哈希源：'sha256-<base64>'（带单引号）
 export const cspHash = (text) => `'sha256-${createHash('sha256').update(normalizeNl(text), 'utf8').digest('base64')}'`;
 
-// 所有不带 src 属性的 <script>/<style> 的内容（标签之间的原文，含首尾换行）
+// 所有不带 src 属性的 <script>/<style> 的内容（标签之间的原文，含首尾换行）；src 前必须是空白，所以 data-src 不算外部脚本
 export function inlineBlocks(html, tag) {
-  const re = new RegExp(`<${tag}(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)</${tag}>`, 'g');
+  const re = new RegExp(`<${tag}(?![^>]*\\ssrc\\s*=)[^>]*>([\\s\\S]*?)</${tag}>`, 'g');
   return [...normalizeNl(html).matchAll(re)].map((m) => m[1]);
 }
 
@@ -161,11 +161,12 @@ export function cspConf(policy) {
   return `# 由 deploy/build-site.mjs 生成，勿手改；页面的内联脚本和样式改了就必须重新构建\nadd_header Content-Security-Policy "${policy}" always;\n`;
 }
 
-// 外壳版本号：页面、SDK、清单、4 个图标按固定顺序喂给同一个 sha256，取十六进制前 12 位。
+// 外壳版本号：页面、CSP 头文本、SDK、清单、4 个图标按固定顺序喂给同一个 sha256，取十六进制前 12 位。
 // 外壳变了版本就变（旧页面不会配新缓存）；同一个构建部署两次版本不变（不会出现更新提示）。
-export function shellVersion({ indexHtml, sdk, manifest, icons }) {
+export function shellVersion({ indexHtml, sdk, manifest, icons, cspConfText }) {
   const h = createHash('sha256');
   h.update(Buffer.from(indexHtml, 'utf8'));
+  h.update(Buffer.from(cspConfText, 'utf8'));
   h.update(sdk);
   h.update(Buffer.from(manifest, 'utf8'));
   for (const name of ICON_NAMES) h.update(icons[name]);
@@ -207,7 +208,7 @@ export function buildSite({ html, sw, manifest, icons, sdk, sdkSums, extras }) {
   const slots = swText.split(PLACEHOLDER).length - 1;
   if (slots !== 1) throw new BuildError(`sw.js 里的版本占位出现了 ${slots} 次，应当恰好 1 次`);
   const manifestText = normalizeNl(manifest);
-  const version = shellVersion({ indexHtml, sdk, manifest: manifestText, icons });
+  const version = shellVersion({ indexHtml, sdk, manifest: manifestText, icons, cspConfText });
 
   const files = {
     'site/index.html': indexHtml,
@@ -311,6 +312,7 @@ export function selfTest() {
     return hashes(crlf, 'script') === hashes(SYN_HTML, 'script') && hashes(crlf, 'style') === hashes(SYN_HTML, 'style');
   });
   expect('inlineBlocks：带 src 的 script 不算内联块', () => inlineBlocks(SYN_HTML, 'script').length === 1 && inlineBlocks(SYN_HTML, 'style').length === 1);
+  expect('内联块：data-src 属性不算外部脚本', () => inlineBlocks('<script data-src="x">a</script>', 'script').length === 1 && inlineBlocks('<script src="y"></script>', 'script').length === 0 && inlineBlocks('<script  src = "y"></script>', 'script').length === 0);
   expect('injectConfig：锚点缺失时抛错', () => throws(() => injectConfig('<html><script src="/x.js"></script></html>\n')));
   expect('injectConfig：锚点重复时抛错', () => throws(() => injectConfig('<script>\na\n</script>\n<script>\nb\n</script>\n')));
   expect('buildSite：构建后的页面恰好一处配置脚本', () => a().indexHtml.split(CONFIG_LINE).length === 2);
@@ -345,6 +347,13 @@ export function selfTest() {
     inputs.icons['icon-512.png'] = Buffer.from('synth-icon-X');
     const b = buildSite(inputs);
     return b.version !== a().version && b.cspHeader === a().cspHeader;
+  });
+  expect('只改 buildCsp 的一个指令，版本号就变', () => {
+    const i = synthInputs();
+    const b = a();
+    const base = { indexHtml: b.indexHtml, sdk: i.sdk, manifest: i.manifest, icons: i.icons, cspConfText: b.cspConfText };
+    const edited = b.cspConfText.replace("connect-src 'self'", "connect-src 'self' x");
+    return edited !== b.cspConfText && shellVersion(base) === b.version && shellVersion({ ...base, cspConfText: edited }) !== shellVersion(base);
   });
   expect('sw 模板：没有占位时抛错', () => throws(() => buildSite(synthInputs({ sw: "const V = 'x';\n" }))));
   expect('sw 模板：有两个占位时抛错', () => throws(() => buildSite(synthInputs({ sw: '__BUILD_VERSION__ __BUILD_VERSION__\n' }))));
