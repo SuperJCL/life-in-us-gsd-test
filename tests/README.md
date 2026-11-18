@@ -83,7 +83,7 @@
   - 代理层已证明：`.invalid` 地址和 WebSocket 都只到达代理，页面请求以 `ERR_PROXY_CONNECTION_FAILED` 失败。
   - 应用不再有 `preconnect`：PROBE-2c 断言应用打开后录制代理里没有任何字体主机连接（INFRA-03 的回归检查）；route 看不到的其他 socket 连接由已证明的两层（解析规则加死代理）挡住。
   - 探针里观察到 Edge 自己的后台流量（`bing.com`、`edge.microsoft.com`）也只到达了本机的录制代理，没有到达任何真实主机。
-- **两档策略**（`tests/support/test.ts` 的 `classifyRequest`、`guardPolicy`、`attachGuard`）：v1 策略（默认 `npm test`）在应用来源下只放行 `/` 和 `/us-journey-tracker.html`，其他路径（例如 `/package.json`）记为违规；cloud 策略（`npm run test:cloud`）在应用来源下只放行 `/`、`/us-journey-tracker.html` 和 `/vendor/pocketbase.iife.js`。两档都有故意违规的自检（v1 在 `guardrails.spec.ts`，cloud 在 `tests/cloud/guard-cloud.spec.ts`）。第二台“设备”（第二个 context）用 `attachGuard` 复用同一套策略（由 `openDevice` 完成，见 § 13）。
+- **两档策略**（`tests/support/test.ts` 的 `classifyRequest`、`guardPolicy`、`attachGuard`）：v1 策略（默认 `npm test`）在应用来源下只放行 `/`、`/us-journey-tracker.html`、`/manifest.webmanifest` 和 4 个主屏图标（`/icons/` 下的 `icon-192.png`、`icon-512.png`、`icon-maskable-512.png`、`apple-touch-icon-180.png`），其他路径（例如 `/package.json`）记为违规；cloud 策略（`npm run test:cloud`）在应用来源下只放行 `/`、`/us-journey-tracker.html`、`/vendor/pocketbase.iife.js`、`/sw.js`、`/manifest.webmanifest` 和同样的 4 个主屏图标。两档都有故意违规的自检（v1 在 `guardrails.spec.ts`，cloud 在 `tests/cloud/guard-cloud.spec.ts`）。第二台“设备”（第二个 context）用 `attachGuard` 复用同一套策略（由 `openDevice` 完成，见 § 13）。
 - **guard 能报警的范围**（`tests/support/test.ts`）：route 看得到的 HTTP 请求、页面发起的 WebSocket、同一 context 里任何 page（包括用例后开的）的未捕获异常和 `console.error`，都会让用例失败。route 看不到的 socket 连接（例如 WebSocket）这类不产生 Playwright 事件的连接，guard 无法报警，只能由解析层和死代理挡住（PROBE-2 证明）。
 - **固定时钟**（`tests/e2e/platform/environment.spec.ts`）：页面时间固定在 2026-03-18 中午（UTC），时区 `America/New_York`，语言 `zh-CN`，结果与机器设置无关。
 - **页面错误**（`tests/e2e/platform/guardrails.spec.ts`）：页面里未捕获的异常和 `console.error` 会让用例失败，不会被悄悄吞掉；已预期拦截的字体请求产生的噪音会被过滤。
@@ -279,8 +279,8 @@ Phase 13（部署、加固与验收）的用例：Service Worker 和 CSP 的三�
 - **`tests/cloud/sw-offline.spec.ts`、`tests/cloud/sw-update.spec.ts`：** 全仓库只有这两个文件放开 Service Worker（`test.use({ serviceWorkers: 'allow' })`，作用于默认的 context fixture；`playwright.config.ts` 和 `playwright.cloud.config.ts` 的默认值不变，其余 spec 仍然屏蔽）。
   - 断网只证明**外壳来自缓存**（页面、SDK、清单和图标）；`/api` 不经过 Service Worker，也不会缓存。
   - “连不上服务器”一律用假服务器的 refuse 开关（`app.fake.fault({ …, mode: 'refuse' })`），因为 `context.setOffline` 管不到 `context.route` 应答的请求（PROBE-9）。
-  - 更新用例靠静态服务器的 `GET /__test/sw-version/<版本>` 换版本（用例经 `request` fixture 调它，再在页面里 `registration.update()` 让浏览器取一次）。静态服务器在整个运行里共用，所以**每条用例的 `finally` 里都要把版本调回** `test`（`SW_TEST_VERSION`），否则后面的用例缓存名对不上。
-- **`tests/cloud/csp.spec.ts`：** 用 `node deploy/build-site.mjs` 的真实产物——发布版页面和构建生成的 `usj-csp.conf` 里的同一条头——再用页面级 route 把 `/` 换成这份页面、给它挂上这条头，页面和策略就是线上 nginx 发的那一对。正向用例走完登录、四个视图、编辑计划、导出和导入，零 CSP 违规；反向对照用例故意去掉一个样式哈希，证明违规事件和 console.error 都会出现（零违规的断言不是空转）。不手抄策略。
+  - 更新用例靠静态服务器的版本开关换版本：带 `x-usj-test: 1` 头的 `GET /__test/sw-version/<版本>`（不带头回 403）（用例经 `request` fixture 调它，再在页面里 `registration.update()` 让浏览器取一次）。静态服务器在整个运行里共用，所以**每条用例的 `finally` 里都要把版本调回** `test`（`SW_TEST_VERSION`），否则后面的用例缓存名对不上。
+- **`tests/cloud/csp.spec.ts`：** 用 `node deploy/build-site.mjs` 的真实产物——发布版页面和构建生成的 `usj-csp.conf` 里的同一条头——再用页面级 route 把 `/` 换成这份页面、给它挂上这条头，页面和策略就是线上 nginx 发的那一对。正向用例走完登录、五个视图（含一次训练和它的趋势图）、编辑计划、导出和导入，零 CSP 违规；反向对照用例故意去掉一个样式哈希，证明违规事件和 console.error 都会出现（零违规的断言不是空转）。不手抄策略。
 - **`tests/e2e/platform/site-assets.spec.ts`：** 清单和主屏图标的文件级检查（名称、图标尺寸和用途、页面里的 link 和 noindex、Service Worker 预缓存恰好是外壳）。
 - **`tests/e2e/platform/deploy-tools.spec.ts`：** 两条 OPS-03 用例：五个部署工具（`build-site`、`server-check`、`server-config-check`、`verify-site`、`make-acceptance-data`）的 `--self-test` 都通过；新构建的上传包用 `verify-site.mjs --check-bundle` 离线核对（不联网，输出写在 `testInfo.outputPath('bundle')`）。线上阶段 `--stage baseline|full` 不在测试里，只在批准的步骤里对真实站点运行。
 

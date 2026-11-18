@@ -1,5 +1,5 @@
 // OPS-04 / D-09：网页应用清单和主屏图标的文件级检查。只读仓库里的文件，不开浏览器，不联网，
-// 在默认套件里运行；真机上的“添加到主屏幕”在 13-15 总体验收里核对。
+// 在默认套件里运行；真机上的“添加到主屏幕”在 Phase 16 总体验收（`.planning/phases/16-release-acceptance/16-ACCEPTANCE.md`）里核对。
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
