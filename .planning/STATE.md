@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: executing
-stopped_at: "Phase 16 plan 16-06 Task 2 checkpoint: owner acceptance before J pending (owner chose to do it another day)"
-last_updated: "2026-11-18T07:08:01.154Z"
+stopped_at: Completed 16-06-PLAN.md
+last_updated: "2026-11-18T07:37:34.012Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 execution started
-state_head: 64e394ca470aea5c642230fd7477121876882874
+state_head: 73f474f27c87c1fad8efb595115f25b321b1fa89
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 98
-  completed_plans: 95
+  completed_plans: 96
   percent: 91
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 ## Current Position
 
 Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 16 execution started
 
@@ -186,6 +186,7 @@ Progress: [█████████░] 91%
 | Phase 16 P02 | 10 min | 3 tasks | 8 files |
 | Phase 16 P04 | 55 min | 3 tasks | 3 files |
 | Phase 16 P05 | 约 1 小时 | 3 tasks | 0 files |
+| Phase 16 P06 | 约 40 分钟 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -416,6 +417,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 16]: 16-03: IN-02 兜底刷新只在 swGo 置位后 4 秒触发，复用 swReloaded；APP_SHA256 重新记录为 efa9038d…；版本开关要 x-usj-test: 1 头；清单删 description
 - [Phase 16]: 16-02: F-11 改用缺字段注册请求（本机 PocketBase 0.41.1 实测锁住 403、放开 400），HSTS 期望值收成 HSTS_MAX_AGE 单一来源，数值仍是一天
 - [Phase 16]: 16-04: backstop 的 20x50 正好是编辑页上限 PLAN_MAX，synth-backstop.json 由 make-acceptance-data 一并生成；16-ACCEPTANCE 共 73 项、可选恰好四项；13-REVIEW 台账 18 fixed、IN-03 skipped、open 0；发布前 cloud 287、默认 239、server-check 25 项全部通过
+- [Phase 16]: D-19：所有者决定不做总体验收，16-ACCEPTANCE.md 中 J 之前的检查记为不适用；E-5 是 J 的前提，J、K、次日演练、全量套件照常
 
 ### Pending Todos
 
@@ -503,9 +505,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T07:07:57.902Z
-Stopped at: Phase 16 plan 16-06 Task 2 checkpoint: owner acceptance before J pending (owner chose to do it another day)
-Resume file: .planning/phases/16-release-acceptance/16-ACCEPTANCE.md
+Last session: 2026-11-18T07:37:30.705Z
+Stopped at: Completed 16-06-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
