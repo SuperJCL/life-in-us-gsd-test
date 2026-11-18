@@ -2414,7 +2414,8 @@ $("logoutBtn").addEventListener("click",onLogoutClick);
 /* ---------- offline shell (OPS-04, Phase 13) ---------- */
 /* D-08: a new sw.js waits (it never skips waiting on its own); the page offers "有新版本 / 点此更新" in #syncbar and reloads only after the click.
    swGo: the click has been taken, so controllerchange reloads exactly once; the first install (no controller yet) offers nothing.
-   A controllerchange nobody here asked for (another tab activated the new version) only shows the banner: this tab never reloads by itself */
+   A controllerchange nobody here asked for (another tab activated the new version) only shows the banner: this tab never reloads by itself.
+   If the new version has not taken control 4 seconds after SKIP_WAITING was sent, the page reloads once by itself (swReloaded keeps it to one) */
 const T_SW_UPDATE="有新版本",T_SW_BTN="点此更新",T_SW_BUSY="正在更新…";
 const T_SW_CF_TITLE="现在更新？",T_SW_CF_LINE1="有没保存的修改，更新会刷新页面，这些修改会丢失。",T_SW_CF_LINE2="已经记下、还没上传的修改不受影响，刷新后会照常上传。",T_SW_CF_CANCEL="先不更新",T_SW_CF_OK="仍然更新";
 let swReg=null,swGo=false,swAsk=false,swReloaded=false;
@@ -2436,7 +2437,7 @@ async function swUpdate(){
   }
   swAsk=false;swGo=true;
   const w=swReg&&swReg.waiting;
-  if(w)w.postMessage({type:"SKIP_WAITING"});else location.reload();
+  if(w){w.postMessage({type:"SKIP_WAITING"});setTimeout(()=>{if(!swReloaded){swReloaded=true;location.reload()}},4000)}else location.reload();
 }
 function swInit(){
   if(!("serviceWorker" in navigator)||!window.isSecureContext)return;

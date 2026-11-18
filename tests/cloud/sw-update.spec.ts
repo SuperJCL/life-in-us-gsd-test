@@ -289,3 +289,42 @@ test('OPS-04 clicking the update button twice reloads the page once (D-08)', asy
     await setVersion(request, SW_TEST_VERSION);
   }
 });
+
+test('OPS-04 if the new version never takes control after the update click, the page still reloads once on its own after about four seconds and offers the update again (IN-02)', async ({
+  app,
+  page,
+  request,
+}) => {
+  try {
+    await openControlled(app, page);
+    const bar = page.locator('#syncbar');
+    await deliver(request, page, 'v3');
+    // 让等待中的 worker 收不到 SKIP_WAITING（其余消息照传）；刷新之后这层包装就没了
+    await page.evaluate(() => {
+      const original = ServiceWorker.prototype.postMessage;
+      ServiceWorker.prototype.postMessage = function (this: ServiceWorker, message: unknown, ...rest: unknown[]) {
+        if (message && (message as { type?: string }).type === 'SKIP_WAITING') return;
+        return (original as (...args: unknown[]) => void).call(this, message, ...rest);
+      } as typeof original;
+    });
+    const navigations: string[] = [];
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url());
+    });
+    const clickedAt = Date.now();
+    const reloaded = page.waitForEvent('load', { timeout: 15_000 });
+    await bar.locator('button').click();
+    await reloaded;
+    // 没人接管，所以是兜底刷新：从点击到刷新至少约 4 秒（留一点余量）
+    expect(Date.now() - clickedAt).toBeGreaterThanOrEqual(3_500);
+    expect(navigations).toHaveLength(1);
+    // 等待中的新版本还在，刷新之后横幅再次出现
+    await expect(bar.locator('.sb-msg')).toHaveText(BANNER_SW_UPDATE);
+    await expect(bar.locator('button')).toHaveText(BTN_SW_UPDATE);
+    // 只刷新一次
+    await page.waitForTimeout(500);
+    expect(navigations).toHaveLength(1);
+  } finally {
+    await setVersion(request, SW_TEST_VERSION);
+  }
+});
