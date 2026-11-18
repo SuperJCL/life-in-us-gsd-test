@@ -82,7 +82,7 @@ ssh -o BatchMode=yes usj "cd $UP && sha256sum -c --strict SHA256SUMS && find . -
 1. `00-status.sh`（只读，看现状）。
 2. `01-swap.sh`、`02-install-pocketbase.sh`（都可重跑，已经做过就输出 already）。
 3. `07-retire-probe.sh --wipe` 或 `--keep`：**所有者在 13-09 单独选**，执行前再确认一次。`--wipe` 清空库（探针数据和 Phase 6 建的超级用户都没了，不可回滚；守卫挡住任何非探针数据）；`--keep` 保留库和里面的超级用户，探针集合和探针账号由清理迁移 `1794096150_retire_probe.js` 在下次启动时删掉，所以 `--keep` 依赖 03 把那个迁移一起装上。
-4. `03-configure-pocketbase.sh <上传目录>`：在服务器上用 `openssl rand -hex 16` 生成钥匙写进 `/etc/usj/pocketbase.env`（不打印），装迁移、钩子、`pb-admin.sh` 和恢复演练脚本。
+4. `03-configure-pocketbase.sh <上传目录>`：在服务器上用 `openssl rand -hex 16` 生成钥匙写进 `/etc/usj/pocketbase.env`（不打印），装迁移、钩子、`pb-admin.sh` 和恢复演练脚本。只更新工具文件（`pb-admin.sh`、恢复演练脚本）时不用停服务；只有迁移、钩子或环境文件要变时才要求先停 PocketBase。
 5. **所有者存钥匙：** 在网页终端运行 `sudo cat /etc/usj/pocketbase.env`，只抄 `PB_ENCRYPTION_KEY` 那一行进密码管理器。Claude 不看这行。
 6. （选了 `--wipe` 时）**所有者建超级用户**，见第 7 节。
 7. `04-start-pocketbase.sh <上传目录>`：装 unit、启动、30 秒健康检查。
@@ -132,7 +132,7 @@ sudo -u pocketbase bash -c 'IFS= read -r -p "超级用户邮箱: " EM; IFS= read
 
 - **站点：** `/var/www/usj/site` 是指向 `/var/www/usj/releases/<版本>` 的符号链接，保留最近 3 个版本。把链接指回上一个版本（`ln -sfn` 加 `mv -T` 的原子写法，同 06）；页面的 CSP 从 `/etc/nginx/usj-backup/` 里最近的备份恢复；`nginx -t` 通过后 reload。页面和 CSP 必须一起回退，否则浏览器会拦下内联脚本（白屏）。
 - **nginx：** 05 每次改动前备份到 `/etc/nginx/usj-backup/<UTC 时间戳>/`，失败自动恢复；手动回滚就是把那里的文件放回原处、`nginx -t`、reload。
-- **PocketBase：** `systemctl disable --now pocketbase`，恢复旧 unit 文件，`systemctl daemon-reload`。`/var/lib/pocketbase` 里的数据不删。
+- **PocketBase：** 04 覆盖 unit 之前把旧文件存成 `/etc/systemd/system/pocketbase.service.usj-backup.<UTC 时间戳>`，04 失败时已经自动放回并 disable（不用旧 unit 重启）；手动回滚就是把最近的备份复制回 `pocketbase.service`、`systemctl daemon-reload`，查明原因后 `systemctl enable --now pocketbase`；`/var/lib/pocketbase` 里的数据不删。首次安装（没有旧 unit、也就没有备份）失败时只 disable，删掉 unit 再 `daemon-reload`。
 - **探针清空（`--wipe`）不可回滚**，所以它由所有者单独决定，守卫只放行探针数据。
 
 ## 10. 备份与恢复
@@ -151,7 +151,7 @@ sudo /usr/local/sbin/usj-restore-drill --with-real-data # 导入后模式：导�
 - **时间窗：** 18:40–19:20 UTC 之间脚本拒绝运行（避开 19:00 的自动备份，不让临时实例和线上同时碰 R2）。
 - **只测模式（无参数，所有者 2026-11-12 的决定）：** 用在真实数据出现之前。脚本在复制任何东西之前，先只读检查线上库：有任何测试账号以外的账号或文档，就输出 `DRILL_GUARD=refused`、非 0 退出、什么都不复制；读不出线上库也一样拒绝。所以真实数据导入之后，不带参数的演练会拒绝，这是预期的。
 - **导入后模式（`--with-real-data`，所有者 2026-11-17 的决定）：** 用在真实数据导入之后，手动运行（例如升级 PocketBase 之前，或隔一段时间做一次）。和其他会动服务器的步骤一样，**每次运行都由所有者当场确认**（见第 5 节第 8 条），而且不在 18:40–19:20 UTC 运行（脚本本来也会拒绝）。这个模式里守卫仍然只读检查线上库，读不出来仍然拒绝（`DRILL_GUARD=refused`）；读出有测试账号以外的数据时输出 `DRILL_GUARD=real-data-present` 并继续；`DRILL_RESTORED_TEST_ONLY=skipped`（不再要求恢复库只含测试账号）；其余核对都不变：完整性检查、创建不晚于备份的用户 id 一致、自备份以来没改过的文档 sha256 一致、至少 1 个用户同时有两份文档。带真实数据的副本只留在 0700 的演练目录里，退出时删除；写进 R2 的短命 `drill_` 备份是这份副本的备份，所以也含真实数据（R2 里本来就有含真实数据的自动备份），脚本随即删除它，删不掉时请在后台手动删。输出仍然只有 `DRILL_` 开头的键，值是计数或 ok 之类，从不含邮箱、令牌或文档内容；粘贴之前照样经 `node tools/privacy/redact.mjs` 过滤。
-- **安装：** 服务器上现在装的还是上一个无参数的版本。更新后的脚本只在 Phase 16 的部署里随上传包经 03 安装（所有者批准的 `SHA256SUMS` 清单），现在不装。注意：现在经 03 重装会停掉 PocketBase，哪怕只是脚本之类的工具文件变了（13-REVIEW 的 WR-03），Phase 16 的部署方案要把这一点考虑进去。
+- **安装：** 经 03 安装或更新 `pb-admin.sh`、恢复演练脚本时不停 PocketBase（13-REVIEW WR-03 已修）；只有迁移、钩子或环境文件要变时，03 才要求先停服务。更新后的演练脚本在 Phase 16 的修复版本里经 03 安装（所有者批准的 `SHA256SUMS` 清单），服务器上现在装的还是上一个版本。
 - **真正需要恢复线上库时：** 先在后台手动建一份当前备份，再用后台「备份」页的恢复（会覆盖线上库）。恢复用的钥匙必须是同一把 `PB_ENCRYPTION_KEY`（见第 12 节）。
 - **次日回看：** 备份出了问题不一定有邮件（整台服务器不在时没有任何东西能发信）。验收后第二天去 R2 看一眼，里面应出现新的 `@auto_pb_backup_…`。
 

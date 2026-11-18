@@ -230,6 +230,28 @@ export function c07(ctx) {
   if (!/systemctl restart pocketbase/.test(code)) problems.push('04 没有 systemctl restart pocketbase');
   if (!/systemctl disable --now pocketbase/.test(code)) problems.push('04 的失败路径没有 systemctl disable --now pocketbase');
   if (/systemctl enable --now/.test(code)) problems.push('04 还在用 enable --now（已运行的服务不会重启）');
+  // WR-08：覆盖 unit 之前留备份，失败路径先放回旧 unit 再 disable
+  const lines = codeLines(text);
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  const iInit = idx(/^UNIT_BAK=""\s*$/);
+  const iFn = idx(/^fail_and_disable\(\) \{/);
+  const iBak = idx(/\bcp -p "\$UNIT_DST" "\$UNIT_BAK"/);
+  const iInst = idx(/\binstall\b.*"\$UNIT_SRC"\s+"\$UNIT_DST"/);
+  if (iInit < 0) problems.push('04 没有 UNIT_BAK="" 的初始化（set -u 下失败路径要用到）');
+  else if (iFn >= 0 && iInit > iFn) problems.push('04 的 UNIT_BAK="" 在 fail_and_disable 定义之后');
+  if (iBak < 0) problems.push('04 覆盖 unit 之前没有 cp -p "$UNIT_DST" "$UNIT_BAK" 备份');
+  else if (iInst >= 0 && iBak > iInst) problems.push('04 的备份在安装新 unit 之后');
+  const fb = funcBody(text, 'fail_and_disable');
+  if (fb === null) problems.push('04 没有 fail_and_disable 函数');
+  else {
+    const iPut = fb.indexOf('cp -p "$UNIT_BAK" "$UNIT_DST"');
+    const iReload = fb.indexOf('daemon-reload');
+    const iDis = fb.search(/sudo -n systemctl disable --now pocketbase/);
+    if (iPut < 0) problems.push('04 的 fail_and_disable 没有把备份放回 unit');
+    if (iReload < 0) problems.push('04 的 fail_and_disable 放回 unit 之后没有 daemon-reload');
+    if (iDis < 0) problems.push('04 的 fail_and_disable 里没有 sudo -n systemctl disable --now pocketbase');
+    else if ((iPut >= 0 && iPut > iDis) || (iReload >= 0 && iReload > iDis)) problems.push('04 的放回旧 unit 和 daemon-reload 排在 disable --now 之后');
+  }
   return problems;
 }
 
@@ -717,6 +739,33 @@ export function c20(ctx) {
   return problems;
 }
 
+// C-25 03：只有迁移、钩子、环境文件要变时才要求先停 PocketBase；pb-admin.sh 和恢复演练脚本的安装不受服务状态影响（WR-03）
+export function c25(ctx) {
+  const text = ctx.sh['03-configure-pocketbase.sh'];
+  if (text === undefined) return ['缺少 03-configure-pocketbase.sh'];
+  const problems = [];
+  const lines = codeLines(text);
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  if (lines.some((l) => /\bNEED_CHANGE\b/.test(l))) problems.push('03 还在用旧变量名 NEED_CHANGE');
+  const sets = lines.filter((l) => /\bNEED_STOPPED=yes\b/.test(l));
+  if (sets.length === 0) problems.push('03 没有任何给 NEED_STOPPED=yes 赋值的地方');
+  for (const l of sets) if (/\b(ADMIN_STATE|DRILL_STATE)\b/.test(l)) problems.push('03 的 NEED_STOPPED=yes 由工具文件的状态（ADMIN_STATE 或 DRILL_STATE）决定');
+  const act = lines.filter((l) => /systemctl is-active --quiet pocketbase/.test(l));
+  if (act.length !== 1) problems.push(`03 里含 systemctl is-active --quiet pocketbase 的行有 ${act.length} 条，应当恰好 1 条`);
+  else if (!act[0].includes('"$NEED_STOPPED" = yes')) problems.push('03 的停服务检查没有用 "$NEED_STOPPED" = yes');
+  if (!lines.some((l) => /new\) NEED_STOPPED=yes/.test(l))) problems.push('03 的迁移循环里新迁移没有置 NEED_STOPPED=yes');
+  const iAct = idx(/systemctl is-active --quiet pocketbase/);
+  for (const [re, what] of [
+    [/\binstall\b.*"\$UP\/server\/pb-admin\.sh"/, 'pb-admin.sh'],
+    [/\binstall\b.*"\$UP\/server\/restore-drill\.sh"/, 'restore-drill.sh'],
+  ]) {
+    const i = idx(re);
+    if (i < 0) problems.push(`03 没有安装 ${what}`);
+    else if (iAct >= 0 && i < iAct) problems.push(`03 安装 ${what} 的位置在停服务检查之前`);
+  }
+  return problems;
+}
+
 // C-24 06 的 csp_union：取出函数体，在 bash 里对合成的新旧 usj-csp.conf 运行，结果必须与 build-site 的格式逐字节相同（WR-01）
 const CSP_H = (c) => `'sha256-${c.repeat(43)}='`;
 const CSP_CASES = (() => {
@@ -995,7 +1044,7 @@ export const CHECKS = [
   { id: 'C-04', title: '读上传文件的脚本从 $1 取 usj-deploy. 目录并对 SHA256SUMS 跑 sha256sum -c，没有写死的 Phase 6 上传目录', run: c04 },
   { id: 'C-05', title: 'unit 与 pb-admin.sh 的 --dir、--migrationsDir、--hooksDir、--automigrate=false、--encryptionEnv 逐项相同，环境文件路径一致', run: c05 },
   { id: 'C-06', title: 'unit 有 Restart=always、User=pocketbase、MemoryMax=，除 GOMEMLIMIT 外没有别的 Environment= 行', run: c06 },
-  { id: 'C-07', title: '04 有 systemctl restart，失败路径有 disable --now', run: c07 },
+  { id: 'C-07', title: '04 有 systemctl restart，失败路径有 disable --now，覆盖 unit 前留备份，失败时先放回再 disable', run: c07 },
   { id: 'C-08', title: '03 用 openssl rand -hex 16 生成钥匙、核对长度 32，钥匙不进 echo 和别的命令参数', run: c08 },
   { id: 'C-09', title: '01 补写 fstab 的位置在 SWAP=already 之前（WR-07）', run: c09 },
   { id: 'C-10', title: '02 在 install 之前对解压出的程序跑 --version（IN-11），两个钉死的 sha256 与 Phase 6 的相同', run: c10 },
@@ -1013,6 +1062,7 @@ export const CHECKS = [
   { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_、只接受 --with-real-data（未知参数在一切读写之前拒绝）、DRILL_MODE、导入后模式读不出线上库仍拒绝', run: c22 },
   { id: 'C-23', title: '两个迁移目录的 .js = 上传包、03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数；build-site、verify-site 不写死迁移名；server-config-check 只引用存在的迁移', run: c23 },
   { id: 'C-24', title: '06 的 csp_union 把新旧 CSP 的哈希合并成过渡策略，结果与 build-site 的格式逐字节相同', run: c24 },
+  { id: 'C-25', title: '03 只在迁移、钩子、环境文件要变时要求先停 PocketBase，pb-admin.sh 和恢复演练脚本的安装不受服务状态影响（WR-03）', run: c25 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -1091,6 +1141,22 @@ const GOOD_03 =
     'printf \'A=%s\\n\' "$KEY" | sudo -n tee "$ENV_FILE.new" >/dev/null',
     'unset KEY',
     'MIGRATIONS="1000000001_a.js 1000000002_b.js"',
+    'NEED_STOPPED=no',
+    'for m in $MIGRATIONS; do',
+    '  case "$(file_state "$UP/pb_migrations/$m" "$MIG_DIR/$m")" in',
+    '    new) NEED_STOPPED=yes ;;',
+    '  esac',
+    'done',
+    'if ! sudo -n test -d "$ENV_DIR" </dev/null; then NEED_STOPPED=yes; fi',
+    'if [ "$NEED_STOPPED" = yes ] && systemctl is-active --quiet pocketbase </dev/null 2>/dev/null; then',
+    '  exit 1',
+    'fi',
+    'if [ "$ADMIN_STATE" != same ]; then',
+    '  sudo -n install -o root -g root -m 0755 "$UP/server/pb-admin.sh" "$ADMIN_DST" </dev/null',
+    'fi',
+    'if [ "$DRILL_STATE" != same ]; then',
+    '  sudo -n install -o root -g root -m 0755 "$UP/server/restore-drill.sh" "$DRILL_DST" </dev/null',
+    'fi',
     'echo "PB_MIGRATIONS_APP=2"',
     '',
   ].join('\n');
@@ -1100,7 +1166,20 @@ const GOOD_04 =
   GOOD_UPLOAD +
   [
     'ENV_FILE=/etc/usj/pocketbase.env',
-    'fail_and_disable() { sudo -n systemctl disable --now pocketbase </dev/null || true; exit 1; }',
+    'UNIT_BAK=""',
+    'fail_and_disable() {',
+    '  if [ -n "$UNIT_BAK" ]; then',
+    '    sudo -n cp -p "$UNIT_BAK" "$UNIT_DST" </dev/null || true',
+    '    sudo -n systemctl daemon-reload </dev/null || true',
+    '  fi',
+    '  sudo -n systemctl disable --now pocketbase </dev/null || true',
+    '  exit 1',
+    '}',
+    'if [ "$NEW_SUM" != "$OLD_SUM" ]; then',
+    '  UNIT_BAK="$UNIT_DST.usj-backup.x"',
+    '  sudo -n cp -p "$UNIT_DST" "$UNIT_BAK" </dev/null',
+    '  sudo -n install -o root -g root -m 0644 "$UNIT_SRC" "$UNIT_DST" </dev/null',
+    'fi',
     'sudo -n systemctl restart pocketbase </dev/null',
     'for m in 1000000001_a.js 1000000002_b.js; do',
     '  if ! sudo -n test -f "$MIG_DIR/$m" </dev/null; then',
@@ -1561,7 +1640,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-24 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-25 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -1623,6 +1702,46 @@ function selfTest() {
   expect('C-07 好：有 restart 和 disable --now', () => passes(c07, good));
   expect('C-07 坏：只有 enable --now', () => fails(c07, mutate(good, '04-start-pocketbase.sh', (t) => t.replace('systemctl restart pocketbase', 'systemctl enable --now pocketbase'))));
   expect('C-07 坏：失败路径只 stop', () => fails(c07, mutate(good, '04-start-pocketbase.sh', (t) => t.replace('disable --now pocketbase', 'stop pocketbase'))));
+  // C-07 的 WR-08 条款：每个改动都必须真的改了文本（锚点失效就抛错）
+  const g04s = (fn) =>
+    mutate(good, '04-start-pocketbase.sh', (t) => {
+      const u = fn(t);
+      if (u === t) throw new Error('锚点失效，改动没有生效');
+      return u;
+    });
+  const BAK_LINE = '  sudo -n cp -p "$UNIT_DST" "$UNIT_BAK" </dev/null\n';
+  const PUT_BLOCK = '  if [ -n "$UNIT_BAK" ]; then\n    sudo -n cp -p "$UNIT_BAK" "$UNIT_DST" </dev/null || true\n    sudo -n systemctl daemon-reload </dev/null || true\n  fi\n';
+  const DIS_LINE = '  sudo -n systemctl disable --now pocketbase </dev/null || true\n';
+  expect('C-07 坏：覆盖 unit 前没有备份', () => fails(c07, g04s((t) => t.replace(BAK_LINE, ''))));
+  expect('C-07 坏：备份在安装新 unit 之后', () => fails(c07, g04s((t) => t.replace(BAK_LINE, '').replace('  sudo -n install -o root -g root -m 0644 "$UNIT_SRC" "$UNIT_DST" </dev/null\n', '  sudo -n install -o root -g root -m 0644 "$UNIT_SRC" "$UNIT_DST" </dev/null\n' + BAK_LINE))));
+  expect('C-07 坏：失败路径没有放回旧 unit', () => fails(c07, g04s((t) => t.replace('    sudo -n cp -p "$UNIT_BAK" "$UNIT_DST" </dev/null || true\n', ''))));
+  expect('C-07 坏：放回旧 unit 之后没有 daemon-reload', () => fails(c07, g04s((t) => t.replace('    sudo -n systemctl daemon-reload </dev/null || true\n', ''))));
+  expect('C-07 坏：放回在 disable 之后', () => fails(c07, g04s((t) => t.replace(PUT_BLOCK, '').replace(DIS_LINE, DIS_LINE + PUT_BLOCK))));
+  expect('C-07 坏：UNIT_BAK 没有初始化', () => fails(c07, g04s((t) => t.replace('UNIT_BAK=""\n', ''))));
+  expect('C-07 坏：UNIT_BAK 的初始化在 fail_and_disable 之后', () => fails(c07, g04s((t) => t.replace('UNIT_BAK=""\n', '').replace('  exit 1\n}\n', '  exit 1\n}\nUNIT_BAK=""\n'))));
+  expect('C-07 坏：失败路径里没有 disable --now', () => fails(c07, g04s((t) => t.replace(DIS_LINE, ''))));
+
+  // C-25
+  const g03s = (fn) =>
+    mutate(good, '03-configure-pocketbase.sh', (t) => {
+      const u = fn(t);
+      if (u === t) throw new Error('锚点失效，改动没有生效');
+      return u;
+    });
+  const STOP_IF = 'if [ "$NEED_STOPPED" = yes ] && systemctl is-active --quiet pocketbase </dev/null 2>/dev/null; then\n  exit 1\nfi\n';
+  const ADMIN_INST = '  sudo -n install -o root -g root -m 0755 "$UP/server/pb-admin.sh" "$ADMIN_DST" </dev/null\n';
+  const DRILL_INST = '  sudo -n install -o root -g root -m 0755 "$UP/server/restore-drill.sh" "$DRILL_DST" </dev/null\n';
+  expect('C-25 好：停服务只由迁移、钩子、环境文件决定', () => passes(c25, good));
+  expect('C-25 坏：工具文件变化也要求停服务', () => fails(c25, g03s((t) => t.replace(STOP_IF, 'if [ "$ADMIN_STATE" != same ] || [ "$DRILL_STATE" != same ]; then NEED_STOPPED=yes; fi\n' + STOP_IF))));
+  expect('C-25 坏：停服务检查没用 NEED_STOPPED', () => fails(c25, g03s((t) => t.replace('"$NEED_STOPPED" = yes ] && systemctl is-active', '"$OTHER" = yes ] && systemctl is-active'))));
+  expect('C-25 坏：没有安装恢复演练脚本', () => fails(c25, g03s((t) => t.replace(DRILL_INST, '  :\n'))));
+  expect('C-25 坏：没有安装 pb-admin.sh', () => fails(c25, g03s((t) => t.replace(ADMIN_INST, '  :\n'))));
+  expect('C-25 坏：新迁移不再要求停服务', () => fails(c25, g03s((t) => t.replace('new) NEED_STOPPED=yes ;;', 'new) : ;;'))));
+  expect('C-25 坏：还在用旧变量名 NEED_CHANGE', () => fails(c25, g03s((t) => t.replaceAll('NEED_STOPPED', 'NEED_CHANGE'))));
+  expect('C-25 坏：工具安装在停服务检查之前', () => fails(c25, g03s((t) => t.replace(STOP_IF, '').replace('echo "PB_MIGRATIONS_APP=2"', STOP_IF + 'echo "PB_MIGRATIONS_APP=2"'))));
+  expect('C-25 坏：没有停服务检查', () => fails(c25, g03s((t) => t.replace(STOP_IF, ''))));
+  expect('C-25 坏：停服务检查不止一处', () => fails(c25, g03s((t) => t.replace(STOP_IF, STOP_IF + STOP_IF))));
+  expect('C-25 坏：缺少 03', () => fails(c25, { ...good, sh: { 'x.sh': '' } }));
 
   // C-08
   expect('C-08 好：钥匙只在赋值、长度检查、printf 到 tee、unset', () => passes(c08, good));

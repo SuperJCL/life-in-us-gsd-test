@@ -12,6 +12,7 @@
 #   - 4 个应用和服务器迁移文件、pb_hooks/backup-watch.pb.js 都在。
 # 会改什么（需要所有者批准）：
 #   - 新旧 unit 的 sha256 不同才安装到 /etc/systemd/system/pocketbase.service（root 0644）并 daemon-reload（PB_UNIT=updated|same）；
+#     覆盖之前先把旧文件备份成 pocketbase.service.usj-backup.<UTC 时间戳>（WR-08）；
 #   - systemctl enable pocketbase，再 systemctl restart pocketbase。必须 restart：新迁移和钩子只在启动时生效，
 #     已经在运行的服务用 enable --now 不会重启（WR-08）；
 #   - restart 之后：30 秒健康检查；ss 确认 8090 只绑 127.0.0.1。任何一项失败：打印最近 20 行日志
@@ -20,7 +21,9 @@
 # 输出：KEY=VALUE。PB_UNIT=updated|same、PB_START=done、PB_SERVICE_ENABLED=enabled、PB_LISTEN_LOOPBACK_ONLY=yes、
 #   PB_SETTINGS_ENCRYPTED=yes|no、PB_RSS_MB=、MEM_AVAILABLE_MB=。
 # 失败策略：set -euo pipefail；没有 set -x；不回显钥匙或口令；可能读标准输入的命令都带 </dev/null（python 用 heredoc）。
-# 回滚：sudo systemctl disable --now pocketbase，然后删除 /etc/systemd/system/pocketbase.service 并 systemctl daemon-reload。
+# 回滚：失败路径已经先把旧 unit 放回、daemon-reload、打印备份文件名，再 disable --now（不用旧 unit 重启）；
+#   手动回滚就是把最近的 pocketbase.service.usj-backup.<UTC 时间戳> 复制回 pocketbase.service、systemctl daemon-reload，
+#   查明原因后 systemctl enable --now pocketbase。首次安装（没有旧 unit）则 disable --now 后删除 unit 并 daemon-reload。
 #   /var/lib/pocketbase 和 /etc/usj 保留（里面有数据和钥匙）。
 
 set -euo pipefail
@@ -126,7 +129,13 @@ if ! sudo -n test -f "$HOOK_FILE" </dev/null; then
 fi
 
 # ---------- 失败路径：不让它反复重启，也不让它开机自己起来 ----------
+UNIT_BAK=""
 fail_and_disable() {
+  if [ -n "$UNIT_BAK" ]; then
+    sudo -n cp -p "$UNIT_BAK" "$UNIT_DST" </dev/null || true
+    sudo -n systemctl daemon-reload </dev/null || true
+    echo "已放回旧 unit（备份是 $UNIT_BAK）。" >&2
+  fi
   echo "错误：$1 已执行 systemctl disable --now pocketbase。最近日志（令牌形状、安装链接和主机名已替换）：" >&2
   sudo -n journalctl -u pocketbase -n 20 --no-pager </dev/null 2>&1 \
     | sed -E 's#[^[:space:]]*pbinstal[^[:space:]]*#<install-link>#g; s#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*#<token>#g; s#https?://[^[:space:]/]+#<origin>#g' >&2 || true
@@ -139,6 +148,10 @@ NEW_SUM="$(sha256sum "$UNIT_SRC" </dev/null | awk '{print $1}')"
 OLD_SUM="$(sudo -n sha256sum "$UNIT_DST" </dev/null 2>/dev/null | awk '{print $1}' || true)"
 PB_UNIT=same
 if [ "$NEW_SUM" != "$OLD_SUM" ]; then
+  if sudo -n test -f "$UNIT_DST" </dev/null; then
+    UNIT_BAK="$UNIT_DST.usj-backup.$(date -u +%Y%m%dT%H%M%SZ)"
+    sudo -n cp -p "$UNIT_DST" "$UNIT_BAK" </dev/null
+  fi
   sudo -n install -o root -g root -m 0644 "$UNIT_SRC" "$UNIT_DST" </dev/null
   sudo -n systemctl daemon-reload </dev/null
   PB_UNIT=updated

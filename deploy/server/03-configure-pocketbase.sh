@@ -5,8 +5,8 @@
 #   第一个参数是上传目录（mktemp -d 建的 0700 目录，属于当前用户，里面有 SHA256SUMS）。
 # 前提：02-install-pocketbase.sh 已跑完（/var/lib/pocketbase/pb_migrations 存在）；已上传的文件在 SHA256SUMS 里各有一行；
 #   服务器上有 certbot 管理的 nginx 站点文件（站点地址从那里读，不从仓库或命令行传入）。
-#   会改什么的时候 PocketBase 服务必须没在运行（13-10 先跑 07-retire-probe.sh，那时已经停了）；
-#   什么都不用改（重跑）时服务在不在运行都可以。
+#   只有迁移、钩子或环境文件要变时 PocketBase 服务必须没在运行（13-10 先跑 07-retire-probe.sh，那时已经停了）；
+#   只更新 pb-admin.sh 或恢复演练脚本时服务可以在运行（13-REVIEW WR-03）；什么都不用改（重跑）时服务在不在运行都可以。
 # 入口检查（任何改动之前）：上传目录格式、属主、权限；要读的每个文件在 SHA256SUMS 里恰好一行并通过 sha256sum -c；
 #   同名的迁移或钩子已经存在但内容不同就退出 1（已经应用过的迁移不能被覆盖）；站点地址取不到就退出 1；
 #   环境文件已存在时只核对，不符就退出 1，从不覆盖钥匙。
@@ -106,10 +106,10 @@ file_state() {
   fi
 }
 
-NEED_CHANGE=no
+NEED_STOPPED=no
 for m in $MIGRATIONS; do
   case "$(file_state "$UP/pb_migrations/$m" "$MIG_DIR/$m")" in
-    new) NEED_CHANGE=yes ;;
+    new) NEED_STOPPED=yes ;;
     same) ;;
     *)
       echo "错误：服务器上已有同名迁移 $m 但内容不同，不覆盖已经应用过的迁移，什么都没有改。" >&2
@@ -118,7 +118,7 @@ for m in $MIGRATIONS; do
   esac
 done
 case "$(file_state "$UP/pb_hooks/$HOOK" "$HOOK_DIR/$HOOK")" in
-  new) NEED_CHANGE=yes ;;
+  new) NEED_STOPPED=yes ;;
   same) ;;
   *)
     echo "错误：服务器上已有同名钩子 $HOOK 但内容不同，什么都没有改。" >&2
@@ -127,8 +127,7 @@ case "$(file_state "$UP/pb_hooks/$HOOK" "$HOOK_DIR/$HOOK")" in
 esac
 ADMIN_STATE="$(file_state "$UP/server/pb-admin.sh" "$ADMIN_DST")"
 DRILL_STATE="$(file_state "$UP/server/restore-drill.sh" "$DRILL_DST")"
-if [ "$ADMIN_STATE" != same ] || [ "$DRILL_STATE" != same ]; then NEED_CHANGE=yes; fi
-if ! sudo -n test -d "$ENV_DIR" </dev/null || ! sudo -n test -d "$HOOK_DIR" </dev/null; then NEED_CHANGE=yes; fi
+if ! sudo -n test -d "$ENV_DIR" </dev/null || ! sudo -n test -d "$HOOK_DIR" </dev/null; then NEED_STOPPED=yes; fi
 
 # 站点地址：从 certbot 管理的那一行里取不带 www. 的名字（不打印）
 SITE_PATH="$(readlink -f /etc/nginx/sites-enabled/default </dev/null 2>/dev/null || true)"
@@ -165,12 +164,12 @@ if sudo -n test -f "$ENV_FILE" </dev/null; then
   fi
   unset STORED_ORIGIN
 else
-  NEED_CHANGE=yes
+  NEED_STOPPED=yes
 fi
 
-# 会改东西的时候服务不能在运行
-if [ "$NEED_CHANGE" = yes ] && systemctl is-active --quiet pocketbase </dev/null 2>/dev/null; then
-  echo "错误：PocketBase 服务正在运行，而这次要改东西。请先停掉服务（07-retire-probe.sh 会停），什么都没有改。" >&2
+# 要装迁移、钩子或环境文件的时候服务不能在运行（只更新两个工具文件不受这条限制）
+if [ "$NEED_STOPPED" = yes ] && systemctl is-active --quiet pocketbase </dev/null 2>/dev/null; then
+  echo "错误：PocketBase 服务正在运行，而这次要装迁移、钩子或环境文件。请先停掉服务，什么都没有改。" >&2
   exit 1
 fi
 
