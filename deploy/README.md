@@ -25,13 +25,13 @@
 | `deploy/build-site.mjs` | 构建脚本：从仓库页面生成发布版页面、nginx 的 CSP 头文件、带版本号的 `sw.js`，并把服务器文件和迁移收进上传包，写 `SHA256SUMS` |
 | `deploy/verify-site.mjs` | `--check-bundle`（离线核对上传包）、`--stage baseline`、`--stage full`（线上检查）、`--self-test` |
 | `deploy/server/` | 服务器上执行的脚本（00 到 07、`pb-admin.sh`、`restore-drill.sh`）、`pocketbase.service`、`nginx/`、`logrotate/` |
-| `deploy/pb_migrations/`、`deploy/pb_hooks/` | 服务器设置迁移、探针清理迁移、备份看门狗钩子（应用的两个迁移在 `pb/pb_migrations/`） |
+| `deploy/pb_migrations/`、`deploy/pb_hooks/` | 服务器设置迁移、探针清理迁移、备份看门狗钩子（应用的迁移在 `pb/pb_migrations/`） |
 | `deploy/site/` | `sw.js` 模板、`manifest.webmanifest`、4 个主屏图标 |
 | `deploy/server-check.mjs`、`deploy/server-config-check.mjs` | 服务器模板的静态检查，和在本机一次性 PocketBase 实例上的设置检查（都带 `--self-test`） |
 | `deploy/make-acceptance-data.mjs` | 生成验收用的合成大备份（约 3.3 MB，全是 `SYNTH-` 开头的英文） |
 | `private/deploy-out/` | 构建输出（上传包，32 个文件加 `SHA256SUMS`，被忽略） |
 
-上传包的 32 个文件：站点 9 个（页面、`sw.js`、清单、4 个图标、SDK 和它的校验文件）、`server/` 17 个（10 个脚本和 unit、6 个 nginx 文件含生成的 `usj-csp.conf`、1 个 logrotate）、`pb_migrations/` 4 个、`pb_hooks/` 1 个、`BUILD_VERSION`。`00-status.sh` 不进包，只经标准输入运行。
+上传包的 32 个文件：站点 9 个（页面、`sw.js`、清单、4 个图标、SDK 和它的校验文件）、`server/` 17 个（10 个脚本和 unit、6 个 nginx 文件含生成的 `usj-csp.conf`、1 个 logrotate）、`pb_migrations/` 4 个、`pb_hooks/` 1 个、`BUILD_VERSION`。`00-status.sh` 不进包，只经标准输入运行。`pb_migrations/` 由 build-site 自动从 `pb/pb_migrations` 和 `deploy/pb_migrations` 收集；新增一个迁移时，03 的 `MIGRATIONS` 清单和 `PB_MIGRATIONS_APP`、04 和 00-status 的循环、本节的文件数要一起改（`server-check` 的 C-23 在它们对齐之前一直失败），改 03、04、00-status 要经所有者批准。
 
 ## 4. 本机准备
 

@@ -6,16 +6,18 @@
 //   node deploy/build-site.mjs [--out <目录>]   构建；缺省输出到 private/deploy-out
 //   node deploy/build-site.mjs --self-test      内存里的合成输入自检，不读 private/，不写磁盘
 //
-// 输出（目录先清空再重建）= 完整上传包，共 32 个文件加覆盖它们的 SHA256SUMS：
+// 输出（目录先清空再重建）= 完整上传包，文件总数是 BUNDLE_COUNT，另加覆盖它们的 SHA256SUMS：
 //   site/index.html                发布版页面：仓库页面加一个单独的内联小脚本，只放云端开关
 //   site/（另 8 个）               sw.js（带版本号）、清单、4 个图标、SDK 和它的校验文件
 //   server/nginx/usj-csp.conf      一行 add_header Content-Security-Policy ...（哈希就是上面这个页面里的内联块算出来的）
 //   server/（另 16 个）            deploy/server/ 下的 10 个脚本和 unit、5 个 nginx 文件、1 个 logrotate，原相对路径、原字节；
 //                                  00-status.sh 不进包（只经标准输入运行，不上传）
-//   pb_migrations/                 pb/pb_migrations/ 的 2 个加 deploy/pb_migrations/ 的 2 个，原名原字节
+//   pb_migrations/                 pb/pb_migrations/ 和 deploy/pb_migrations/ 里的每个 *.js，自动收集、按名字排序、原名原字节
 //   pb_hooks/                      deploy/pb_hooks/ 的 1 个
 //   BUILD_VERSION                  外壳版本号
-//   必需的来源文件写成固定清单（BUNDLE_SOURCES），缺任何一个就失败（退出 1，只说缺哪个相对路径）。
+//   server/ 和 pb_hooks/ 的来源文件写成固定清单（BUNDLE_SOURCES），迁移文件由 MIGRATION_DIRS 枚举；缺任何一个来源就失败
+//   （退出 1，只说缺哪个相对路径）。server-check 的 C-23 把 03、04、00-status 里的迁移清单和 README 的文件数
+//   同这两个目录对照，新增迁移而没有同步改它们时 C-23 会失败。
 //
 // 为什么页面和 CSP 头要出自同一次构建：策略里放行内联脚本和样式靠 sha256 哈希，页面里的内联块只要差一个字节，
 // 浏览器就会拦下它（白屏）。构建时从最终页面的内联块算哈希并写进头文件，部署时两者一起换。
@@ -28,7 +30,7 @@
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -44,7 +46,31 @@ const PLACEHOLDER = '__BUILD_VERSION__';
 // 外壳里 4 个主屏图标的文件名，同时是计入版本号的顺序
 export const ICON_NAMES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon-180.png'];
 
-// 上传包里“原样复制”的文件：[包内路径, 仓库来源路径]。固定清单，缺一个就失败；00-status.sh 不在其中。
+// 迁移文件所在的两个目录（仓库相对路径）：里面每个 .js 都进上传包的 pb_migrations/，原名原字节
+export const MIGRATION_DIRS = ['pb/pb_migrations', 'deploy/pb_migrations'];
+
+// 纯函数：listDir(目录) 返回文件名数组；每个 .js 变成 [包内路径 pb_migrations/<名字>, 来源路径 <目录>/<名字>]，
+// 按包内路径排序（和 sumsOf 同一个按码元比较的规则，同名时按来源路径排，重复因此看得见）
+export function migrationSources(listDir) {
+  const pairs = [];
+  for (const dir of MIGRATION_DIRS) {
+    for (const name of listDir(dir)) if (name.endsWith('.js')) pairs.push([`pb_migrations/${name}`, `${dir}/${name}`]);
+  }
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  return pairs.sort((p, q) => cmp(p[0], q[0]) || cmp(p[1], q[1]));
+}
+
+// 真实目录的列表函数：只要普通文件；目录缺失或读不了就返回空数组，模块加载时绝不抛错
+function realListDir(dir) {
+  try {
+    return readdirSync(join(ROOT, dir), { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+// 上传包里“原样复制”的文件：[包内路径, 仓库来源路径]。server/ 和 pb_hooks/ 的是固定清单，缺一个就失败；
+// pb_migrations/ 的由 MIGRATION_DIRS 枚举得到，放在原来的位置；00-status.sh 不在其中。
 // usj-csp.conf、site/ 下的文件和 BUILD_VERSION 由构建生成，不在这里。
 export const BUNDLE_SOURCES = [
   ['server/01-swap.sh', 'deploy/server/01-swap.sh'],
@@ -63,14 +89,23 @@ export const BUNDLE_SOURCES = [
   ['server/nginx/usj-headers-proxy.conf', 'deploy/server/nginx/usj-headers-proxy.conf'],
   ['server/nginx/usj-log-format.conf', 'deploy/server/nginx/usj-log-format.conf'],
   ['server/logrotate/usj-nginx', 'deploy/server/logrotate/usj-nginx'],
-  ['pb_migrations/1794096000_users_lockdown.js', 'pb/pb_migrations/1794096000_users_lockdown.js'],
-  ['pb_migrations/1794096100_journey_docs.js', 'pb/pb_migrations/1794096100_journey_docs.js'],
-  ['pb_migrations/1794096150_retire_probe.js', 'deploy/pb_migrations/1794096150_retire_probe.js'],
-  ['pb_migrations/1794096200_server_settings.js', 'deploy/pb_migrations/1794096200_server_settings.js'],
+  ...migrationSources(realListDir),
   ['pb_hooks/backup-watch.pb.js', 'deploy/pb_hooks/backup-watch.pb.js'],
 ];
-// 上传包的文件总数（不含 SHA256SUMS 自己）：站点 9 + usj-csp.conf + BUILD_VERSION + 原样复制的 21 个
-export const BUNDLE_COUNT = 32;
+// 上传包的文件总数（不含 SHA256SUMS 自己）：构建生成的 7 个（site/index.html、site/sw.js、清单、SDK 和它的校验文件、
+// usj-csp.conf、BUILD_VERSION）加 4 个图标，再加 BUNDLE_SOURCES 里原样复制的文件
+export const BUNDLE_COUNT = 7 + ICON_NAMES.length + BUNDLE_SOURCES.length;
+
+// 清单要有迁移文件且包内路径不重复；返回 null 或一句固定文案
+export function sourcesProblem(sources) {
+  const seen = new Set();
+  for (const [dest] of sources) {
+    if (seen.has(dest)) return `上传包里 ${dest} 出现了不止一次（两个迁移目录里有同名文件）`;
+    seen.add(dest);
+  }
+  if (!sources.some(([dest]) => dest.startsWith('pb_migrations/'))) return `${MIGRATION_DIRS.join(' 和 ')} 里没有任何迁移文件`;
+  return null;
+}
 
 // 脚本自己写的固定文案才会被打印；其他错误顶层只打印固定文字
 export class BuildError extends Error {}
@@ -182,6 +217,8 @@ export function buildSite({ html, sw, manifest, icons, sdk, sdkSums, extras }) {
   };
   for (const name of ICON_NAMES) files[`site/icons/${name}`] = icons[name];
   if (extras !== undefined) {
+    const problem = sourcesProblem(BUNDLE_SOURCES);
+    if (problem !== null) throw new BuildError(problem);
     for (const [dest] of BUNDLE_SOURCES) {
       if (!Buffer.isBuffer(extras[dest])) throw new BuildError(`缺少来源文件 ${dest}`);
       if (dest in files) throw new BuildError(`来源文件和生成文件重名 ${dest}`);
@@ -329,12 +366,26 @@ export function selfTest() {
   });
   const synthExtras = () => Object.fromEntries(BUNDLE_SOURCES.map(([dest], i) => [dest, Buffer.from(`synth-extra-${i}`)]));
   const full = () => buildSite(synthInputs({ extras: synthExtras() }));
-  expect('上传包：清单固定 21 个来源，00-status.sh 不在其中', () => BUNDLE_SOURCES.length === 21 && !BUNDLE_SOURCES.some(([d, s]) => d.includes('00-status') || s.includes('00-status')));
-  expect('上传包：文件恰好 32 个加 SHA256SUMS，00-status.sh 不在其中', () => {
+  expect('上传包：17 个非迁移来源加至少一个迁移来源，00-status.sh 不在其中', () => {
+    const nonMig = BUNDLE_SOURCES.filter(([d]) => !d.startsWith('pb_migrations/'));
+    return nonMig.length === 17 && nonMig.length < BUNDLE_SOURCES.length && !BUNDLE_SOURCES.some(([d, s]) => d.includes('00-status') || s.includes('00-status'));
+  });
+  const synthLister = (m) => (dir) => m[dir] ?? [];
+  const synthDirs = { 'pb/pb_migrations': ['2_b.js', '1_a.js', 'notes.md'], 'deploy/pb_migrations': ['3_c.js'] };
+  expect('migrationSources：两个目录的 .js 按包内路径排序，非 .js 忽略', () => {
+    const got = migrationSources(synthLister(synthDirs));
+    const want = [['pb_migrations/1_a.js', 'pb/pb_migrations/1_a.js'], ['pb_migrations/2_b.js', 'pb/pb_migrations/2_b.js'], ['pb_migrations/3_c.js', 'deploy/pb_migrations/3_c.js']];
+    return JSON.stringify(got) === JSON.stringify(want);
+  });
+  expect('sourcesProblem：两个目录里有同名文件时报问题', () => sourcesProblem(migrationSources(synthLister({ 'pb/pb_migrations': ['1_a.js'], 'deploy/pb_migrations': ['1_a.js'] }))) !== null);
+  expect('sourcesProblem：没有任何 pb_migrations/ 条目时报问题', () => sourcesProblem([['server/01-swap.sh', 'deploy/server/01-swap.sh']]) !== null);
+  expect('sourcesProblem：真实清单没有问题', () => sourcesProblem(BUNDLE_SOURCES) === null);
+  expect('BUNDLE_COUNT：等于 7 加图标数加清单长度', () => BUNDLE_COUNT === 7 + ICON_NAMES.length + BUNDLE_SOURCES.length);
+  expect(`上传包：文件恰好 ${BUNDLE_COUNT} 个加 SHA256SUMS，00-status.sh 不在其中`, () => {
     const names = Object.keys(full().files);
     return names.length === BUNDLE_COUNT + 1 && names.includes('SHA256SUMS') && !names.some((n) => n.includes('00-status')) && names.includes('server/nginx/usj-csp.conf') && names.includes('pb_hooks/backup-watch.pb.js');
   });
-  expect('上传包：SHA256SUMS 恰好 32 行，每行都对得上文件字节', () => {
+  expect(`上传包：SHA256SUMS 恰好 ${BUNDLE_COUNT} 行，每行都对得上文件字节`, () => {
     const b = full();
     const lines = b.files.SHA256SUMS.trimEnd().split('\n');
     return lines.length === BUNDLE_COUNT && lines.every((l) => sha256Hex(bytes(b.files[l.slice(66)])) === l.slice(0, 64));

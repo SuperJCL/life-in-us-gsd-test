@@ -48,7 +48,7 @@ const SSE_TIMEOUT_MS = 10000;
 const MANIFEST_NAME = '计划手记';
 const LOCAL_VERSION_FILE = 'private/deploy-out/BUILD_VERSION';
 
-// 包内必须出现的全部路径（不含 SHA256SUMS）：生成的 11 个加原样复制的 21 个
+// 包内必须出现的全部路径（不含 SHA256SUMS）：下面生成的路径加 BUNDLE_SOURCES 原样复制的路径（个数由 build-site.mjs 决定）
 const GENERATED_PATHS = [
   'BUILD_VERSION',
   'server/nginx/usj-csp.conf',
@@ -861,7 +861,7 @@ function selfTest() {
   expect('BD-08：SDK 与钉死值不符', failIds(mutated(syn, 'site/vendor/pocketbase.iife.js', (t) => `${t}x`)) === 'BD-08');
   expect('BD-09：文本里有公网地址', failIds(mutated(syn, 'server/nginx/usj-app.conf', (t) => `${t}# ${pub}\n`)).split(',').includes('BD-09'));
   expect('BD-09：文本里有外部邮箱', failIds(mutated(syn, 'server/nginx/usj-app.conf', (t) => `${t}# ${outside}\n`)).split(',').includes('BD-09'));
-  expect('固定清单：32 个路径、无重复、不含 00-status.sh', EXPECTED_PATHS.length === BUNDLE_COUNT && new Set(EXPECTED_PATHS).size === BUNDLE_COUNT && !EXPECTED_PATHS.some((p) => p.includes('00-status')));
+  expect(`固定清单：${BUNDLE_COUNT} 个路径、无重复、不含 00-status.sh`, EXPECTED_PATHS.length === BUNDLE_COUNT && new Set(EXPECTED_PATHS).size === BUNDLE_COUNT && !EXPECTED_PATHS.some((p) => p.includes('00-status')));
 
   // SSE 解析
   const p1 = new SseParser();

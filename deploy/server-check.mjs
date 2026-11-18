@@ -4,6 +4,8 @@
 // 用途：服务器上的脚本和 unit 经所有者批准后才会执行（13-10、13-11），在那之前先在本机核对它们彼此一致：
 // 语法、安全写法、unit 与 pb-admin.sh 与 03/04 的路径和参数相同、Phase 6 遗留缺陷（WR-07、WR-08、IN-09、IN-11）的修法在位。
 // 本脚本只读文件，不连接任何服务器、域名或外部主机，也不读 private/。
+// C-23 另外读 pb/pb_migrations 和 deploy/pb_migrations 两个目录、deploy/README.md、verify-site.mjs、
+// server-config-check.mjs、build-site.mjs，以及 build-site 导出的上传包清单（静态导入）；同样没有 private/，没有网络。
 //
 // 用法：
 //   node deploy/server-check.mjs               检查 deploy/server/ 下的真实文件
@@ -22,10 +24,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BUNDLE_COUNT, BUNDLE_SOURCES } from './build-site.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
 const SERVER_DIR = path.join(HERE, 'server');
+
+// server-config-check 的清理场景写进它自己临时目录的两个迁移名；它们不是仓库里的迁移，C-23 允许它们出现在那份脚本里
+const SCENARIO_MIGRATIONS = ['1794200000_probe_schema.js', '1794200001_probe_user.js'];
 
 // 本脚本自身用低于正常的优先级运行（用户的电脑容易卡）
 try {
@@ -808,6 +814,90 @@ export function c22(ctx) {
   return problems;
 }
 
+// C-23 迁移清单一致（13-REVIEW WR-04）：两个迁移目录里的 .js 就是真相；上传包清单由 build-site 自动枚举，
+// 其余写死清单的地方（03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数）必须与它相同，
+// 并且 build-site、verify-site 不写死迁移名，server-config-check 只引用存在的迁移。问题文字只会写迁移文件名。
+const MIG_NAME_RE = /\b\d{10}_[A-Za-z0-9_]+\.js\b/;
+export function c23(ctx) {
+  const m = ctx.mig;
+  if (!m) return ['缺少迁移目录的内容'];
+  const problems = [];
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  if (m.names.length === 0) return ['pb/pb_migrations 和 deploy/pb_migrations 里没有任何 .js 迁移文件'];
+  for (const d of new Set(m.names.filter((n, i) => m.names.indexOf(n) !== i))) problems.push(`迁移文件名 ${d} 在两个目录里重复`);
+  const want = [...m.names].sort(cmp);
+  const diff = (label, got) => {
+    const g = [...got].sort(cmp);
+    if (g.join('\n') === want.join('\n')) return;
+    const missing = want.filter((n) => !g.includes(n));
+    const extra = g.filter((n) => !want.includes(n));
+    problems.push(`${label} 与迁移目录不一致：缺 ${missing.join(' ') || '无'}；多 ${extra.join(' ') || '无'}${g.length !== new Set(g).size ? '；有重复' : ''}`);
+  };
+  diff('上传包清单', m.bundle);
+
+  const t03 = ctx.sh['03-configure-pocketbase.sh'];
+  if (t03 === undefined) problems.push('缺少 03-configure-pocketbase.sh');
+  else {
+    const migLines = codeLines(t03).filter((l) => /^\s*MIGRATIONS="[^"]*"\s*$/.test(l));
+    if (migLines.length !== 1) problems.push(`03 里 MIGRATIONS="…" 行有 ${migLines.length} 行，应当恰好 1 行`);
+    else diff('03 的 MIGRATIONS', /"([^"]*)"/.exec(migLines[0])[1].split(/\s+/).filter(Boolean));
+    for (const x of t03.matchAll(/PB_MIGRATIONS_APP=(\d+)/g)) if (Number(x[1]) !== want.length) problems.push(`03 里 PB_MIGRATIONS_APP=${x[1]}，应当是 ${want.length}`);
+    if (!codeLines(t03).some((l) => /^\s*echo "PB_MIGRATIONS_APP=\d+"\s*$/.test(l))) problems.push('03 没有输出 PB_MIGRATIONS_APP 的 echo 行');
+    for (const x of t03.matchAll(/应用迁移 (\d+) 个文件/g)) if (Number(x[1]) !== want.length) problems.push(`03 里写着应用迁移 ${x[1]} 个文件，应当是 ${want.length}`);
+  }
+  for (const f of ['04-start-pocketbase.sh', '00-status.sh']) {
+    const t = ctx.sh[f];
+    if (t === undefined) {
+      problems.push(`缺少 ${f}`);
+      continue;
+    }
+    const loops = codeLines(t)
+      .map((l) => /^\s*for m in ([^;]+);\s*do\s*$/.exec(l))
+      .filter((x) => x && x[1].trim().split(/\s+/).every((tk) => tk.endsWith('.js')));
+    if (loops.length !== 1) problems.push(`${f} 里按迁移文件名循环的 for 行有 ${loops.length} 行，应当恰好 1 行`);
+    else diff(`${f} 的循环`, loops[0][1].trim().split(/\s+/));
+  }
+
+  const bs = m.buildSite;
+  if (typeof bs !== 'string') problems.push('缺少 build-site.mjs');
+  else {
+    if (MIG_NAME_RE.test(bs)) problems.push('build-site.mjs 里写死了迁移文件名');
+    for (const d of ["'pb/pb_migrations'", "'deploy/pb_migrations'"]) if (!bs.includes(d)) problems.push(`build-site.mjs 里没有目录 ${d}`);
+  }
+  const vs = m.verifySite;
+  if (typeof vs !== 'string') problems.push('缺少 verify-site.mjs');
+  else {
+    if (MIG_NAME_RE.test(vs)) problems.push('verify-site.mjs 里写死了迁移文件名');
+    if (!vs.split('\n').some((l) => l.includes('EXPECTED_PATHS') && l.includes('BUNDLE_SOURCES.map('))) problems.push('verify-site.mjs 的 EXPECTED_PATHS 不是由 BUNDLE_SOURCES 推出的');
+    if (!vs.includes('entries.length !== BUNDLE_COUNT')) problems.push('verify-site.mjs 没有用 BUNDLE_COUNT 核对文件数');
+  }
+  const cc = m.configCheck;
+  if (typeof cc !== 'string') problems.push('缺少 server-config-check.mjs');
+  else {
+    for (const s of ["path.join(REPO, 'pb', 'pb_migrations')", "path.join(HERE, 'pb_migrations')", 'readdirSync(src)']) if (!cc.includes(s)) problems.push(`server-config-check.mjs 里没有 ${s}`);
+    for (const x of cc.matchAll(/'(\d{10}_[A-Za-z0-9_]+\.js)'/g)) if (!want.includes(x[1]) && !SCENARIO_MIGRATIONS.includes(x[1])) problems.push(`server-config-check.mjs 引用了不存在的迁移 ${x[1]}`);
+  }
+  const rd = m.readme;
+  if (typeof rd !== 'string') problems.push('缺少 deploy/README.md');
+  else {
+    const migCounts = [...rd.matchAll(/`pb_migrations\/` (\d+) 个/g)];
+    if (migCounts.length === 0) problems.push('README 里没有“`pb_migrations/` N 个”');
+    for (const x of migCounts) if (Number(x[1]) !== want.length) problems.push(`README 里 pb_migrations/ 写着 ${x[1]} 个，应当是 ${want.length}`);
+    const phrases = [
+      [/(\d+) 个文件加 `SHA256SUMS`/g, 'N 个文件加 SHA256SUMS'],
+      [/上传包的 (\d+) 个文件/g, '上传包的 N 个文件'],
+      [/恰好 (\d+) 行/g, '恰好 N 行'],
+      [/(\d+) 个加 `SHA256SUMS`/g, 'N 个加 SHA256SUMS'],
+    ];
+    for (const [re, label] of phrases) {
+      const hits = [...rd.matchAll(re)];
+      if (hits.length === 0) problems.push(`README 里没有“${label}”`);
+      for (const x of hits) if (Number(x[1]) !== m.bundleCount) problems.push(`README 的“${label}”写着 ${x[1]}，应当是 ${m.bundleCount}`);
+    }
+  }
+  return problems;
+}
+
 // ---------- 检查清单 ----------
 
 export const CHECKS = [
@@ -833,6 +923,7 @@ export const CHECKS = [
   { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t', run: c20 },
   { id: 'C-21', title: 'logrotate：/var/log/usj/*.log 按天、rotate 30、压缩、create 0640 www-data adm、USR1', run: c21 },
   { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_', run: c22 },
+  { id: 'C-23', title: '两个迁移目录的 .js = 上传包、03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数；build-site、verify-site 不写死迁移名；server-config-check 只引用存在的迁移', run: c23 },
 ];
 
 // ---------- 读取真实文件 ----------
@@ -855,7 +946,21 @@ export function loadContext(bash) {
   const logrotate = readOpt(path.join(SERVER_DIR, 'logrotate', 'usj-nginx'));
   const awk = readOpt(path.join(nginxDir, 'anchor-block.awk'));
   const awk6 = readOpt(path.join(REPO, 'tools', 'probe', 'server', 'nginx', 'anchor-block.awk'));
-  return { bash, sh, unit, probe02, retire, nginx, awk, awk6, logrotate };
+  const names = [];
+  for (const dir of [path.join(REPO, 'pb', 'pb_migrations'), path.join(HERE, 'pb_migrations')]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isFile() && e.name.endsWith('.js')) names.push(e.name);
+  }
+  const mig = {
+    names,
+    bundle: BUNDLE_SOURCES.filter(([dest]) => dest.startsWith('pb_migrations/')).map(([dest]) => dest.slice('pb_migrations/'.length)),
+    bundleCount: BUNDLE_COUNT,
+    buildSite: readOpt(path.join(HERE, 'build-site.mjs')),
+    verifySite: readOpt(path.join(HERE, 'verify-site.mjs')),
+    configCheck: readOpt(path.join(HERE, 'server-config-check.mjs')),
+    readme: readOpt(path.join(HERE, 'README.md')),
+  };
+  return { bash, sh, unit, probe02, retire, nginx, awk, awk6, logrotate, mig };
 }
 
 export function runChecks(ctx) {
@@ -896,6 +1001,8 @@ const GOOD_03 =
     'fi',
     'printf \'A=%s\\n\' "$KEY" | sudo -n tee "$ENV_FILE.new" >/dev/null',
     'unset KEY',
+    'MIGRATIONS="1000000001_a.js 1000000002_b.js"',
+    'echo "PB_MIGRATIONS_APP=2"',
     '',
   ].join('\n');
 
@@ -906,6 +1013,11 @@ const GOOD_04 =
     'ENV_FILE=/etc/usj/pocketbase.env',
     'fail_and_disable() { sudo -n systemctl disable --now pocketbase </dev/null || true; exit 1; }',
     'sudo -n systemctl restart pocketbase </dev/null',
+    'for m in 1000000001_a.js 1000000002_b.js; do',
+    '  if ! sudo -n test -f "$MIG_DIR/$m" </dev/null; then',
+    '    exit 1',
+    '  fi',
+    'done',
     '',
   ].join('\n');
 
@@ -981,6 +1093,9 @@ const GOOD_00 =
     "sudo -n python3 -I - <<'PY' 2>/dev/null || kv DB unreadable",
     'con = sqlite3.connect("file:x?mode=ro", uri=True)',
     'PY',
+    '  for m in 1000000001_a.js 1000000002_b.js; do',
+    '    if root_run test -f "/var/lib/pocketbase/pb_migrations/$m" 2>/dev/null; then APP_MIG=$((APP_MIG + 1)); fi',
+    '  done',
     'kv STATUS_DONE 1',
     '',
   ].join('\n');
@@ -1190,8 +1305,37 @@ const GOOD_DRILL =
     '',
   ].join('\n');
 
+// C-23 的合成好上下文：两个迁移、上传包共 30 个文件
+const GOOD_MIG = {
+  names: ['1000000001_a.js', '1000000002_b.js'],
+  bundle: ['1000000001_a.js', '1000000002_b.js'],
+  bundleCount: 30,
+  buildSite: "export const MIGRATION_DIRS = ['pb/pb_migrations', 'deploy/pb_migrations'];\n",
+  verifySite: [
+    "export const EXPECTED_PATHS = [...GENERATED_PATHS, ...BUNDLE_SOURCES.map(([dest]) => dest)].sort();",
+    '  if (entries.length !== BUNDLE_COUNT) bad();',
+    '',
+  ].join('\n'),
+  configCheck: [
+    "const APP_MIGRATIONS = path.join(REPO, 'pb', 'pb_migrations');",
+    "const DEPLOY_MIGRATIONS = path.join(HERE, 'pb_migrations');",
+    '    for (const f of fs.readdirSync(src).sort()) copy(f);',
+    "const KEEP = '1000000002_b.js';",
+    "const SCENARIO = '1794200000_probe_schema.js';",
+    '',
+  ].join('\n'),
+  readme: [
+    '上传包，30 个文件加 `SHA256SUMS`。',
+    '上传包的 30 个文件：`pb_migrations/` 2 个。',
+    '校验和全部通过且恰好 30 行。',
+    '等于清单行数，30 个加 `SHA256SUMS`。',
+    '',
+  ].join('\n'),
+};
+
 export function goodContext(bash) {
   return {
+    mig: GOOD_MIG,
     bash,
     logrotate: GOOD_LOGROTATE,
     sh: {
@@ -1251,7 +1395,7 @@ function selfTest() {
   const passes = (fn, ctx) => fn(ctx).length === 0;
   const fails = (fn, ctx) => fn(ctx).length > 0;
 
-  expect('好的合成上下文在 C-02 到 C-22 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22].every((f) => passes(f, good)));
+  expect('好的合成上下文在 C-02 到 C-23 全部通过', () => [c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23].every((f) => passes(f, good)));
 
   // 纯函数
   expect('codeLines 丢掉整行注释和空行', () => codeLines('# a\n\nb\n  # c\nd # e').join('|') === 'b|d # e');
@@ -1528,6 +1672,47 @@ function selfTest() {
   expect('C-22 坏：python 输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => t.replace('out["DRILL_RESTORED_TEST_ONLY"]', 'out["RESTORED"]'))));
   expect('C-22 坏：没有 DRILL_RESULT', () => fails(c22, gd((t) => t.replace('DRILL_RESULT', 'DRILL_END'))));
   expect('C-22 坏：缺少脚本', () => fails(c22, { ...good, sh: { 'x.sh': '' } }));
+
+  // C-23：每个改动都必须真的改了文本，锚点失效时抛错（expect 把抛错记成失败的用例，不会悄悄通过）
+  const stale = () => {
+    throw new Error('锚点失效，改动没有生效');
+  };
+  const cs = (name, fn) =>
+    mutate(good, name, (t) => {
+      const u = fn(t);
+      return u === t ? stale() : u;
+    });
+  const cm = (key, fn) => {
+    const u = fn(good.mig[key]);
+    return JSON.stringify(u) === JSON.stringify(good.mig[key]) ? stale() : { ...good, mig: { ...good.mig, [key]: u } };
+  };
+  const SH03 = '03-configure-pocketbase.sh';
+  const SH04 = '04-start-pocketbase.sh';
+  const LOOP = 'for m in 1000000001_a.js 1000000002_b.js; do';
+  expect('C-23 好：迁移清单一致', () => passes(c23, good));
+  expect('C-23 坏：上传包清单少一个迁移', () => fails(c23, cm('bundle', () => ['1000000001_a.js'])));
+  expect('C-23 坏：03 的 MIGRATIONS 少一个迁移', () => fails(c23, cs(SH03, (t) => t.replace('MIGRATIONS="1000000001_a.js 1000000002_b.js"', 'MIGRATIONS="1000000001_a.js"'))));
+  expect('C-23 坏：03 的 PB_MIGRATIONS_APP 是 3', () => fails(c23, cs(SH03, (t) => t.replace('PB_MIGRATIONS_APP=2', 'PB_MIGRATIONS_APP=3'))));
+  expect('C-23 坏：03 没有 MIGRATIONS 行', () => fails(c23, cs(SH03, (t) => t.replace('MIGRATIONS="', 'MIGS="'))));
+  expect('C-23 坏：04 的循环少一个迁移', () => fails(c23, cs(SH04, (t) => t.replace(LOOP, 'for m in 1000000001_a.js; do'))));
+  expect('C-23 坏：04 没有迁移循环', () => fails(c23, cs(SH04, (t) => t.replace('for m in', 'for x in'))));
+  expect('C-23 坏：00-status 的循环多一个迁移', () => fails(c23, cs('00-status.sh', (t) => t.replace(LOOP, 'for m in 1000000001_a.js 1000000002_b.js 1000000003_c.js; do'))));
+  expect('C-23 坏：build-site 写死了迁移名', () => fails(c23, cm('buildSite', (t) => `${t}const X = '1000000001_a.js';\n`)));
+  expect('C-23 坏：build-site 没有 deploy/pb_migrations 目录', () => fails(c23, cm('buildSite', (t) => t.replace("'deploy/pb_migrations'", "'deploy/other'"))));
+  expect('C-23 坏：verify-site 写死了迁移名', () => fails(c23, cm('verifySite', (t) => `${t}// 1000000001_a.js\n`)));
+  expect('C-23 坏：verify-site 的 EXPECTED_PATHS 是写死的数组', () => fails(c23, cm('verifySite', (t) => t.replace('BUNDLE_SOURCES.map(([dest]) => dest)', "'a', 'b'"))));
+  expect('C-23 坏：server-config-check 引用了不存在的迁移', () => fails(c23, cm('configCheck', (t) => `${t}const Z = '1000000009_zz.js';\n`)));
+  expect('C-23 坏：server-config-check 不再枚举目录', () => fails(c23, cm('configCheck', (t) => t.replace('readdirSync(src)', 'readdirSync(dir)'))));
+  expect('C-23 坏：README 的 pb_migrations/ 个数不对', () => fails(c23, cm('readme', (t) => t.replace('`pb_migrations/` 2 个', '`pb_migrations/` 3 个'))));
+  expect('C-23 坏：README 的“恰好 N 行”不对', () => fails(c23, cm('readme', (t) => t.replace('恰好 30 行', '恰好 31 行'))));
+  expect('C-23 坏：README 没有“N 个加 SHA256SUMS”', () => fails(c23, cm('readme', (t) => t.replace('个加 `SHA256SUMS`', '个另加 `SHA256SUMS`'))));
+  expect('C-23 坏：迁移文件名重复', () => fails(c23, cm('names', (n) => [...n, n[0]])));
+  expect('C-23 坏：没有任何迁移文件', () => fails(c23, cm('names', () => [])));
+  expect('C-23 坏：缺少迁移目录的内容', () => fails(c23, { ...good, mig: undefined }));
+  expect('C-23 坏：新增迁移而 03、04、00-status、README 没有跟着改（WR-04）', () => {
+    const add = (a) => [...a, '1000000003_c.js'];
+    return fails(c23, { ...good, mig: { ...good.mig, names: add(good.mig.names), bundle: add(good.mig.bundle) } });
+  });
 
   console.log(bad === 0 ? `SELF-TEST OK (${n} cases)` : `SELF-TEST FAIL (${bad} of ${n})`);
   return bad === 0 ? 0 : 1;
