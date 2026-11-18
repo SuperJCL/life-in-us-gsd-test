@@ -5,11 +5,11 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: executing
-stopped_at: Completed 16-05-PLAN.md
-last_updated: "2026-11-18T06:58:58.070Z"
+stopped_at: "Phase 16 plan 16-06 Task 2 checkpoint: owner acceptance before J pending (owner chose to do it another day)"
+last_updated: "2026-11-18T07:08:01.154Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 execution started
-state_head: 17ee26fa6425cf43c1bd4a97f7342855f30ec010
+state_head: 64e394ca470aea5c642230fd7477121876882874
 progress:
   total_phases: 11
   completed_phases: 10
@@ -503,9 +503,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T06:58:54.777Z
-Stopped at: Completed 16-05-PLAN.md
-Resume file: None
+Last session: 2026-11-18T07:07:57.902Z
+Stopped at: Phase 16 plan 16-06 Task 2 checkpoint: owner acceptance before J pending (owner chose to do it another day)
+Resume file: .planning/phases/16-release-acceptance/16-ACCEPTANCE.md
 
 ## Operator Next Steps
 
@@ -517,6 +517,7 @@ Resume file: None
 - quick 261117-lwq（2026-11-17）：WR-04、IN-01 已修。新的 `restore-drill.sh`（导入后模式 `--with-real-data`）只在本机，Phase 16 部署时随上传包经 03 装到服务器；经 03 重装会停 PocketBase（WR-03），部署方案要考虑
 - Phase 16 上下文已定（2026-11-17，16-CONTEXT.md D-01..D-18，所有者未选讨论、按推荐定）：先修 13-REVIEW 剩下 17 条并发一次修复版本（顺带装新演练脚本、给 E 项当新版本），再按新清单 16-ACCEPTANCE.md 总体验收；只有丢数据类问题挡迁移；空计划起步用第二个测试账号；导入后次日跑 `--with-real-data` 演练
 - Phase 16 已规划（2026-11-17）：8 个计划、7 个波次。16-01..16-03 本机修 13-REVIEW 的 17 条，16-04 写 16-ACCEPTANCE.md 并跑发布前全量，16-05 发布修复版本（要所有者批准清单、当场确认命令），16-06..16-08 是所有者的总体验收、J/K 和次日演练。核查 3 轮后所有者选择按现计划执行，剩两个已知问题见 Blockers/Concerns
-- 接下来：`/gsd-execute-phase 16`
+- Phase 16 执行进度（2026-11-18）：16-01..16-05 完成；修复版本 84d1fc754072 已上线（06:54 UTC 所有者批准，VERIFY OK (19 checks)，新演练脚本已装未运行）。16-06 停在 Task 2：所有者按 16-ACCEPTANCE.md 做 J 之前的验收，所有者选择改天再做；准备工作已完成（只读状态 DB_USERS_NONTEST=0、合成文件在 private/acceptance/、D-12 迁移用例 3 条通过）
+- 接下来：所有者按 `.planning/phases/16-release-acceptance/16-ACCEPTANCE.md` 先做 E 再做 A–I，按节回报；回报齐了以后续跑 `/gsd-execute-phase 16`（从 16-06 Task 3 接着做）
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
