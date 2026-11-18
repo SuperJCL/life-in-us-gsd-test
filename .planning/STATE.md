@@ -5,16 +5,16 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: executing
-stopped_at: Phase 16 planned (8 plans)
-last_updated: "2026-11-18T05:10:54.667Z"
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-11-18T05:27:41.555Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 execution started
-state_head: d4b56858a1b44069d99c3f99a19a0563ab6128b1
+state_head: 50d342cd5181b8ee3b9f673c4ed34796f974c690
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 98
-  completed_plans: 90
+  completed_plans: 91
   percent: 91
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 ## Current Position
 
 Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — EXECUTING
-Plan: 1 of 8
-Status: Executing Phase 16
+Plan: 2 of 8
+Status: Ready to execute
 Last activity: 2026-11-17 — Phase 16 execution started
 
 Progress: [█████████░] 91%
@@ -181,6 +181,7 @@ Progress: [█████████░] 91%
 | Phase 15 P05 | 27min | 3 tasks | 9 files |
 | Phase 15 P06 | 17min | 3 tasks | 10 files |
 | Phase 15 P07 | 29min | 3 tasks | 12 files |
+| Phase 16 P01 | 15 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -405,6 +406,9 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - 收尾：安全 52/52 关闭（AR-13-01 记 IP 30 天、AR-13-02 不装包的计划，均按接受登记）；代码审查 19 条（0 严重、8 警告、11 提示）全部 open；回归在 57718a1 上 cloud 286、默认 238 全过（输出放在会话临时目录，test-results/ 每次运行会被清空）。
 - 人工检查 6 项推迟到 Phase 16 总体验收（13-UAT.md Deferred Follow-Ups）；OPS-04 的真机部分仍是 Pending。
 - 给 Phase 16：线上已是新版本，不用为 Phase 14、15 再部署；真实数据导入后恢复演练会被守卫拦住（IN-01），导入前要定以后怎么演练。
+- [Phase 16]: Phase 16 Plan 01：06 的 CSP 切换选两步 reload（过渡 CSP 并 reload、换链接、最终 CSP 并 reload），上传包文件数和 sw.js 不变
+- [Phase 16]: Phase 16 Plan 01：恢复演练的比对边界取恢复库里最晚的写入时间 snap，线上已删除的文档单独计入 DRILL_DOCS_MISSING_LIVE，通过条件加备份不超过 40 小时和至少比对 1 份
+- [Phase 16]: Phase 16 Plan 01：C-22 新增条款要求 rdocs 的每一处拆分都是 5 个字段，嵌入的核对 Python 只在本机用合成 sqlite 库验证过，建议后续加永久检查（见 16-01-SUMMARY 的 Recommendation）
 
 ### Pending Todos
 
@@ -492,9 +496,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T03:02:06.720Z
-Stopped at: Phase 16 planned (8 plans), ready to execute
-Resume file: .planning/phases/16-release-acceptance/16-CONTEXT.md
+Last session: 2026-11-18T05:27:38.505Z
+Stopped at: Completed 16-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
