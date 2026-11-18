@@ -5,11 +5,11 @@ milestone_name: 多账号云端版（Multi-account Cloud）
 current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: planning
-stopped_at: Phase 13 complete, ready to plan Phase 16
-last_updated: "2026-11-18T00:15:21.464Z"
+stopped_at: Phase 16 context gathered
+last_updated: "2026-11-18T03:02:13.119Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 13 complete, transitioned to Phase 16
-state_head: d6dc94e8c1c7612009bb2dd0ebbc16a589f5f1cc
+state_head: 221a7fc579326cbb01905011a2b826daafd99275
 progress:
   total_phases: 11
   completed_phases: 10
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 16 — 新版本上线与总体验收（先请所有者决定 13-REVIEW 的 19 条发现怎么处理）
+**Current focus:** Phase 16 — 新版本上线与总体验收（上下文已定，下一步规划）
 
 ## Current Position
 
@@ -415,7 +415,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 11：确认 11-SECURITY 的低风险 AR-01（本机撤销副本被篡改后写回）和 AR-02（迁移脚本用 `node:vm` 求值仓库里的应用文件）。
 - Phase 13（总体验收，所有者 2026-11-12 决定）：各阶段不再单独验收；部署后一次做总体验收，包括 Phase 10 的真机同步与断网、Phase 11 的真机下载和选文件、Phase 12 推迟的 5 项（见 12-UAT.md）、Phase 14 的 4 项（见 14-UAT.md）、Phase 15 的 8 项（见 15-UAT.md）、Phase 13 的 6 项（见 13-UAT.md）；总体验收现在是 Phase 16。
 - Phase 15：决定要不要提前做「两台设备的离线修改都保留」（Phase 10 D-03 现在也影响训练数据）。
-- Phase 13：决定 13-REVIEW 剩下 17 条发现怎么处理（WR-04、IN-01 已由 quick 261117-lwq 修好）；建议下次升级之前处理 WR-01、WR-02、WR-03、WR-05..WR-08。
+- Phase 13：13-REVIEW 剩下 17 条按 16-CONTEXT D-01 在 Phase 16 发布前一次修完（所有者 2026-11-17 未选讨论，按推荐定，可以再改）。
 - Phase 6、13、16：批准每个在服务器上执行的脚本，在服务器上输入凭据。
 - Phase 16（R2 存储桶和密钥已在 Phase 13 开好）：所有设备换成新版本、总体验收通过后，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，再删测试账号。
 
@@ -491,9 +491,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T23:40:18.046Z
-Stopped at: Phase 13 complete, ready to plan Phase 16
-Resume file: None
+Last session: 2026-11-18T03:02:06.720Z
+Stopped at: Phase 16 context gathered
+Resume file: .planning/phases/16-release-acceptance/16-CONTEXT.md
 
 ## Operator Next Steps
 
@@ -503,6 +503,7 @@ Resume file: None
 - 13-14 升级演练已完成（2026-11-17）：所有者选择直接部署含 Phase 14、15 的新版本（「部署现在的新版本」），线上 a1159ad93165 → 0ba1339903f1，06 输出 CSP_CONF=installed，线上全量检查 VERIFY OK (19 checks)；旧版本目录保留可回滚；见 13-14-SUMMARY.md
 - 给 Phase 16：新版本已上线，Phase 16 不必为 Phase 14/15 再部署一次（除非之后有修复）；设备上的「点此更新」留到总体验收 E 项；真实数据迁移要等所有设备都换成新版本
 - quick 261117-lwq（2026-11-17）：WR-04、IN-01 已修。新的 `restore-drill.sh`（导入后模式 `--with-real-data`）只在本机，Phase 16 部署时随上传包经 03 装到服务器；经 03 重装会停 PocketBase（WR-03），部署方案要考虑
-- 接下来：所有者决定 13-REVIEW 剩下 17 条怎么处理（或留到下次升级前），然后 `/gsd-discuss-phase 16`
+- Phase 16 上下文已定（2026-11-17，16-CONTEXT.md D-01..D-18，所有者未选讨论、按推荐定）：先修 13-REVIEW 剩下 17 条并发一次修复版本（顺带装新演练脚本、给 E 项当新版本），再按新清单 16-ACCEPTANCE.md 总体验收；只有丢数据类问题挡迁移；空计划起步用第二个测试账号；导入后次日跑 `--with-real-data` 演练
+- 接下来：`/gsd-plan-phase 16`
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
