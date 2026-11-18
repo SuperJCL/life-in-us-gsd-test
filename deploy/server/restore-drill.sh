@@ -41,14 +41,21 @@
 #       （DRILL_RESTORE=ok），随即停掉 usj-drill。
 #   12. 只读核对（python3 -I，两边都用 mode=ro）：恢复库 PRAGMA integrity_check 是 ok；恢复库只含测试账号（只测模式；
 #       导入后模式输出 DRILL_RESTORED_TEST_ONLY=skipped，不做这一项）；
-#       线上库里创建时间不晚于备份时间的用户 id 集合等于恢复库的用户 id 集合；恢复库的每份 journey_docs 在线上都有同 id 的记录，
-#       线上 updated 不晚于备份时间的逐份比较 data 的 sha256；至少 1 个用户同时有 state 和 plan 两份文档。
+#       快照时刻 snap = 恢复库里最晚的写入时间（users 的 created、updated 和 journey_docs 的 updated 里最大的；恢复库是空的才退回备份时间），
+#       不用备份文件的上传完成时间（13-REVIEW WR-07）：线上创建时间不晚于 snap 的用户 id 集合等于恢复库的用户 id 集合；
+#       恢复库的每份 journey_docs：线上没有同 id 的记录算 DRILL_DOCS_MISSING_LIVE（备份之后被删掉的，不算不一致）；
+#       线上 updated 等于恢复副本里的 updated（快照之后没改过）才算 compared 并比 data 的 sha256，不同算 mismatch；
+#       线上 updated 更新（快照之后改过）算 DRILL_DOCS_CHANGED_SINCE；线上比恢复副本还旧算 mismatch；
+#       至少 1 个用户同时有 state 和 plan 两份文档；compared 不小于 1（没比对过任何文档不算通过）。
 #   13. 由 EXIT trap 清理；最后一行 DRILL_RESULT=PASS 或 DRILL_RESULT=FAIL（任何一步失败都是 FAIL 并以 1 退出）。
 #
 # 输出：只输出 DRILL_ 开头的 KEY=VALUE：DRILL_ARGS（只会是 refused）、DRILL_MODE（test-only 或 real-data）、DRILL_WINDOW_OK、
 #   DRILL_GUARD（ok、refused 或 real-data-present）、DRILL_TEMP_ISOLATED、DRILL_AUTO_BACKUPS、DRILL_NEWEST_AGE_H、
 #   DRILL_R2_WRITE、DRILL_R2_DELETE、DRILL_RESTORE、DRILL_INTEGRITY、DRILL_RESTORED_TEST_ONLY（yes、no 或 skipped）、DRILL_USERS_MATCH、
-#   DRILL_DOCS、DRILL_DOCS_COMPARED、DRILL_DOCS_MISMATCH、DRILL_DOCS_CHANGED_SINCE、DRILL_USERS_WITH_BOTH_DOCS、DRILL_CLEANUP、DRILL_RESULT。
+#   DRILL_DOCS、DRILL_DOCS_COMPARED、DRILL_DOCS_MISMATCH、DRILL_DOCS_CHANGED_SINCE、DRILL_DOCS_MISSING_LIVE、DRILL_USERS_WITH_BOTH_DOCS、
+#   DRILL_CLEANUP、DRILL_RESULT。
+#   通过条件（任一不满足都是 DRILL_RESULT=FAIL）：最新的自动备份不超过 40 小时（超过就在写演练备份之前失败）、至少比对过 1 份文档
+#   （DRILL_DOCS_COMPARED 不小于 1）、没有不一致，两种模式都适用。
 #   不输出邮箱、令牌、口令，也不输出备份名里的时间以外的任何内容；错误说明（中文）走标准错误。
 # 失败策略：set -euo pipefail；没有 set -x；不回显口令和令牌；可能读标准输入的命令都带 </dev/null（python 用 heredoc）。
 # 回滚：线上没有被改动，不需要回滚。临时实例和副本由 EXIT trap 删除；万一脚本被强行杀掉，手工执行：
@@ -263,6 +270,9 @@ echo "DRILL_NEWEST_AGE_H=$AGE_H"
 if [ "$N_AUTO" -lt 1 ] || [ -z "$NEWEST_KEY" ]; then
   die "R2 里没有自动备份。"
 fi
+if ! [[ "$AGE_H" =~ ^-?[0-9]+$ ]] || [ "$AGE_H" -gt 40 ]; then
+  die "演练用的最新自动备份超过 40 小时（或读不出备份时间）。"
+fi
 
 # ---------- 10. 写入并删除一个演练备份（证明 R2 令牌能写能删） ----------
 DNAME="drill_$(date -u +%Y%m%d%H%M%S).zip"
@@ -320,16 +330,24 @@ out = {}
 out["DRILL_INTEGRITY"] = "ok" if rest.execute("PRAGMA integrity_check").fetchone()[0] == "ok" else "fail"
 
 ru = {r[0]: (r[1] or "") for r in rest.execute("select id, email from users")}
-rdocs = rest.execute("select id, owner, kind, data from journey_docs").fetchall()
-only_test = all(TEST.match(e) for e in ru.values()) and all(TEST.match(ru.get(o, "")) for (_, o, _, _) in rdocs)
+rdocs = rest.execute("select id, owner, kind, data, updated from journey_docs").fetchall()
+only_test = all(TEST.match(e) for e in ru.values()) and all(TEST.match(ru.get(o, "")) for (_, o, _, _, _) in rdocs)
 if os.environ["DRILL_MODE"] == "real-data":
     out["DRILL_RESTORED_TEST_ONLY"] = "skipped"
 else:
     out["DRILL_RESTORED_TEST_ONLY"] = "yes" if only_test else "no"
 
+# 快照时刻：恢复库里最晚的写入时间（PocketBase 的时间字符串可以直接按字符串比较）；恢复库是空的才退回备份时间
+ucols = [r[1] for r in rest.execute("PRAGMA table_info(users)")]
+stamps = [u for (_, _, _, _, u) in rdocs if u]
+for c in ("created", "updated"):
+    if c in ucols:
+        stamps += [r[0] for r in rest.execute("select %s from users" % c) if r[0]]
+snap = max(stamps) if stamps else ts.replace("T", " ")
+
 cols = [r[1] for r in live.execute("PRAGMA table_info(users)")]
 if "created" in cols:
-    live_ids = {r[0] for r in live.execute("select id from users where created <= ?", (ts,))}
+    live_ids = {r[0] for r in live.execute("select id from users where created <= ?", (snap,))}
     out["DRILL_USERS_MATCH"] = "yes" if live_ids == set(ru) else "no"
 else:
     live_ids = {r[0] for r in live.execute("select id from users")}
@@ -343,23 +361,27 @@ def digest(d):
 compared = 0
 mismatch = 0
 changed = 0
-for (doc_id, _owner, _kind, data) in rdocs:
+missing_live = 0
+for (doc_id, _owner, _kind, data, rupd) in rdocs:
     row = live.execute("select updated, data from journey_docs where id = ?", (doc_id,)).fetchone()
     if row is None:
-        mismatch += 1
-    elif row[0] <= ts:
+        missing_live += 1
+    elif row[0] == rupd:
         compared += 1
         if digest(row[1]) != digest(data):
             mismatch += 1
-    else:
+    elif row[0] > rupd:
         changed += 1
+    else:
+        mismatch += 1
 out["DRILL_DOCS"] = len(rdocs)
 out["DRILL_DOCS_COMPARED"] = compared
 out["DRILL_DOCS_MISMATCH"] = mismatch
 out["DRILL_DOCS_CHANGED_SINCE"] = changed
+out["DRILL_DOCS_MISSING_LIVE"] = missing_live
 
 kinds = {}
-for (_id, owner, kind, _data) in rdocs:
+for (_id, owner, kind, _data, _upd) in rdocs:
     kinds.setdefault(owner, set()).add(kind)
 out["DRILL_USERS_WITH_BOTH_DOCS"] = sum(1 for v in kinds.values() if {"state", "plan"} <= v)
 
@@ -370,7 +392,7 @@ PY
 OK_ALL=yes
 while IFS= read -r line; do
   case "$line" in
-    DRILL_INTEGRITY=*|DRILL_RESTORED_TEST_ONLY=*|DRILL_USERS_MATCH=*|DRILL_DOCS=*|DRILL_DOCS_COMPARED=*|DRILL_DOCS_MISMATCH=*|DRILL_DOCS_CHANGED_SINCE=*|DRILL_USERS_WITH_BOTH_DOCS=*)
+    DRILL_INTEGRITY=*|DRILL_RESTORED_TEST_ONLY=*|DRILL_USERS_MATCH=*|DRILL_DOCS=*|DRILL_DOCS_COMPARED=*|DRILL_DOCS_MISMATCH=*|DRILL_DOCS_CHANGED_SINCE=*|DRILL_DOCS_MISSING_LIVE=*|DRILL_USERS_WITH_BOTH_DOCS=*)
       echo "$line"
       ;;
   esac
@@ -397,6 +419,11 @@ BOTH="$(printf '%s\n' "$VERIFY" | sed -n 's/^DRILL_USERS_WITH_BOTH_DOCS=//p' | h
 case "$BOTH" in
   ''|*[!0-9]*) OK_ALL=no ;;
   *) if [ "$BOTH" -lt 1 ]; then OK_ALL=no; fi ;;
+esac
+CMP="$(printf '%s\n' "$VERIFY" | sed -n 's/^DRILL_DOCS_COMPARED=//p' | head -n 1)"
+case "$CMP" in
+  ''|*[!0-9]*) OK_ALL=no ;;
+  *) if [ "$CMP" -lt 1 ]; then OK_ALL=no; fi ;;
 esac
 if [ "$OK_ALL" != "yes" ]; then
   die "只读核对没有通过（见上面的 DRILL_ 输出）。"

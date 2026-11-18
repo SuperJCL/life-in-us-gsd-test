@@ -948,6 +948,48 @@ export function c22(ctx) {
     if (mo && !mo[1].startsWith('DRILL_')) problems.push(`输出键 ${mo[1]} 没有 DRILL_ 前缀`);
   }
   if (!/DRILL_RESULT=/.test(code)) problems.push('restore-drill 没有 DRILL_RESULT');
+
+  // WR-07：备份不超过 40 小时、至少比对 1 份、按快照边界比对、线上已删除的文档单独计数
+  const iRead = idx(/\bread -r N_AUTO AGE_H\b/);
+  const iAge = idx(/"\$AGE_H" -gt 40(?![0-9])/);
+  const iDname = idx(/^\s*DNAME=/);
+  if (iAge < 0) problems.push('restore-drill 没有“最新的自动备份超过 40 小时就失败”的判断（"$AGE_H" -gt 40）');
+  else {
+    if (iRead >= 0 && iAge < iRead) problems.push('40 小时的判断在读出备份年龄之前');
+    if (iDname >= 0 && iAge > iDname) problems.push('40 小时的判断在写演练备份（DNAME=）之后');
+    if (!lines.slice(iAge, iAge + 3).some((l) => /\bdie\b/.test(l))) problems.push('40 小时的判断后面两行之内没有 die');
+  }
+  const iNone = idx(/^\s*if row is None:\s*$/);
+  if (!code.includes('missing_live += 1')) problems.push('restore-drill 没有 missing_live += 1（线上已删除的文档要单独计数）');
+  if (iNone < 0) problems.push('restore-drill 没有 if row is None: 分支');
+  else {
+    const next = lines[iNone + 1] || '';
+    if (/\bmismatch\s*\+=/.test(next)) problems.push('线上已删除的文档（row is None）被计成不一致');
+    else if (!/\bmissing_live \+= 1\b/.test(next)) problems.push('if row is None: 后面一行不是 missing_live += 1');
+  }
+  for (const k of ['DRILL_DOCS_MISSING_LIVE', 'DRILL_DOCS_CHANGED_SINCE']) {
+    if (!code.includes(`out["${k}"]`)) problems.push(`restore-drill 的 Python 没有输出 ${k}`);
+  }
+  const iWl = idx(/DRILL_INTEGRITY=\*\|/);
+  if (iWl < 0) problems.push('restore-drill 没有输出白名单的 case 行');
+  else {
+    for (const k of ['DRILL_DOCS_MISSING_LIVE', 'DRILL_DOCS_CHANGED_SINCE']) {
+      if (!lines[iWl].includes(`${k}=*`)) problems.push(`${k} 不在输出白名单里`);
+    }
+  }
+  if (idx(/s\/\^DRILL_DOCS_COMPARED=\/\/p/) < 0) problems.push('restore-drill 没有从核对结果里取 DRILL_DOCS_COMPARED 的值');
+  const iCmpLt = idx(/"\$CMP" -lt 1\b/);
+  if (iCmpLt < 0 || !/OK_ALL=no/.test(lines[iCmpLt])) problems.push('DRILL_DOCS_COMPARED 小于 1 时没有把 OK_ALL 置 no（至少比对 1 份才算通过）');
+  if (!code.includes('select id, owner, kind, data, updated from journey_docs')) problems.push('恢复库的文档查询没有选出 updated');
+  if (!/elif row\[0\] == rupd:/.test(code)) problems.push('compared 分支的条件不是“线上 updated 等于恢复副本里的 updated”');
+  if (/row\[0\]\s*<=\s*ts\b/.test(code)) problems.push('仍按备份文件的上传时间（ts）判断文档是否比对');
+  if (!/^snap = max\(/m.test(code)) problems.push('没有算快照时刻 snap（恢复库里最晚的写入时间）');
+  if (!/created <= \?", \(snap,\)/.test(code)) problems.push('用户比对的 SQL 没有用快照时刻 snap 作边界');
+  if (/created <= \?", \(ts,\)/.test(code)) problems.push('用户比对仍按备份文件的上传时间（ts）');
+  for (const l of lines) {
+    const mm = /\(([^()]*)\)\s+in rdocs\b/.exec(l);
+    if (mm && mm[1].split(',').length !== 5) problems.push(`rdocs 的拆分不是 5 个字段：${l.trim().slice(0, 60)}`);
+  }
   return problems;
 }
 
@@ -1059,7 +1101,7 @@ export const CHECKS = [
   { id: 'C-19', title: '05 有 ERR 回滚、EXIT 清理、同目录临时文件加 mv -T、nginx -t、certbot 干跑、logrotate -d，删探针片段在干跑之后，www 跳转有两项只读判断', run: c19 },
   { id: 'C-20', title: '06 的所有 install、ln、mv 都在 SHA256SUMS 和 SDK 哈希核对之后，切换用 mv -T，有 ERR 回滚和 nginx -t，CSP 先过渡后最终、两次 reload 夹住切换', run: c20 },
   { id: 'C-21', title: 'logrotate：/var/log/usj/*.log 按天、rotate 30、压缩、create 0640 www-data adm、USR1', run: c21 },
-  { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_、只接受 --with-real-data（未知参数在一切读写之前拒绝）、DRILL_MODE、导入后模式读不出线上库仍拒绝', run: c22 },
+  { id: 'C-22', title: 'restore-drill：时间窗、127.0.0.1:8091、演练目录、RuntimeMaxSec=900、EXIT 清理、线上库只读、守卫在复制之前、先关 cron 和 SMTP 再列备份、输出键都带 DRILL_、只接受 --with-real-data（未知参数在一切读写之前拒绝）、DRILL_MODE、导入后模式读不出线上库仍拒绝、备份不超过 40 小时、至少比对 1 份、按快照边界比对、线上已删除的文档单独计数', run: c22 },
   { id: 'C-23', title: '两个迁移目录的 .js = 上传包、03 的 MIGRATIONS 和 PB_MIGRATIONS_APP、04 和 00-status 的循环、README 的文件数；build-site、verify-site 不写死迁移名；server-config-check 只引用存在的迁移', run: c23 },
   { id: 'C-24', title: '06 的 csp_union 把新旧 CSP 的哈希合并成过渡策略，结果与 build-site 的格式逐字节相同', run: c24 },
   { id: 'C-25', title: '03 只在迁移、钩子、环境文件要变时要求先停 PocketBase，pb-admin.sh 和恢复演练脚本的安装不受服务状态影响（WR-03）', run: c25 },
@@ -1536,6 +1578,11 @@ const GOOD_DRILL =
     'systemd-run --unit="$UNIT" --collect --property=RuntimeMaxSec=900 "$PB_BIN" serve --http=127.0.0.1:8091',
     'printf \'%s\' \'{"backups":{"cron":""},"smtp":{"enabled":false}}\' | api -X PATCH --data-binary @- "$BASE/api/settings"',
     'api "$BASE/api/backups"',
+    'IFS=\'|\' read -r N_AUTO AGE_H BACKUP_TS NEWEST_KEY <<<"$INFO"',
+    'if ! [[ "$AGE_H" =~ ^-?[0-9]+$ ]] || [ "$AGE_H" -gt 40 ]; then',
+    '  die "x"',
+    'fi',
+    'DNAME="drill_$(date -u +%Y%m%d%H%M%S).zip"',
     'systemctl stop "$UNIT"',
     "VERIFY=\"$(runuser -u pocketbase -- env X=1 python3 -I - <<'PY' 2>/dev/null || echo ERR",
     'live = sqlite3.connect("file:/var/lib/pocketbase/pb_data/data.db?mode=ro", uri=True, timeout=10)',
@@ -1544,8 +1591,37 @@ const GOOD_DRILL =
     'out["DRILL_RESTORED_TEST_ONLY"] = "yes"',
     'if os.environ["DRILL_MODE"] == "real-data":',
     '    out["DRILL_RESTORED_TEST_ONLY"] = "skipped"',
+    'rdocs = rest.execute("select id, owner, kind, data, updated from journey_docs").fetchall()',
+    'stamps = [u for (_, _, _, _, u) in rdocs if u]',
+    'snap = max(stamps) if stamps else ts.replace("T", " ")',
+    'live_ids = {r[0] for r in live.execute("select id from users where created <= ?", (snap,))}',
+    'missing_live = 0',
+    'for (doc_id, _owner, _kind, data, rupd) in rdocs:',
+    '    row = live.execute("select updated, data from journey_docs where id = ?", (doc_id,)).fetchone()',
+    '    if row is None:',
+    '        missing_live += 1',
+    '    elif row[0] == rupd:',
+    '        compared += 1',
+    '    elif row[0] > rupd:',
+    '        changed += 1',
+    'out["DRILL_DOCS_CHANGED_SINCE"] = changed',
+    'out["DRILL_DOCS_MISSING_LIVE"] = missing_live',
+    'for (_id, owner, kind, _data, _upd) in rdocs:',
+    '    kinds.setdefault(owner, set()).add(kind)',
     'PY',
     ')"',
+    'while IFS= read -r line; do',
+    '  case "$line" in',
+    '    DRILL_INTEGRITY=*|DRILL_DOCS_COMPARED=*|DRILL_DOCS_CHANGED_SINCE=*|DRILL_DOCS_MISSING_LIVE=*|DRILL_USERS_WITH_BOTH_DOCS=*)',
+    '      echo "$line"',
+    '      ;;',
+    '  esac',
+    'done <<<"$VERIFY"',
+    'CMP="$(printf \'%s\\n\' "$VERIFY" | sed -n \'s/^DRILL_DOCS_COMPARED=//p\' | head -n 1)"',
+    'case "$CMP" in',
+    '  \'\'|*[!0-9]*) OK_ALL=no ;;',
+    '  *) if [ "$CMP" -lt 1 ]; then OK_ALL=no; fi ;;',
+    'esac',
     'echo "DRILL_RESULT=PASS"',
     '',
   ].join('\n');
@@ -1993,6 +2069,22 @@ function selfTest() {
   expect('C-22 坏：python 输出键没有 DRILL_ 前缀', () => fails(c22, gd((t) => t.replace('out["DRILL_RESTORED_TEST_ONLY"]', 'out["RESTORED"]'))));
   expect('C-22 坏：没有 DRILL_RESULT', () => fails(c22, gd((t) => t.replaceAll('DRILL_RESULT', 'DRILL_END'))));
   expect('C-22 坏：缺少脚本', () => fails(c22, { ...good, sh: { 'x.sh': '' } }));
+  // C-22 的 WR-07 条款（锚点失效时 gd 会抛错）
+  expect('C-22 坏：没有 40 小时上限', () => fails(c22, gd((t) => t.replace('"$AGE_H" -gt 40', '"$AGE_H" -gt 4000'))));
+  expect('C-22 坏：40 小时的判断在写演练备份之后', () => fails(c22, gd((t) => t.replace('if ! [[ "$AGE_H" =~ ^-?[0-9]+$ ]] || [ "$AGE_H" -gt 40 ]; then\n  die "x"\nfi\nDNAME=', 'DNAME=').replace('systemctl stop "$UNIT"\nVERIFY', 'if ! [[ "$AGE_H" =~ ^-?[0-9]+$ ]] || [ "$AGE_H" -gt 40 ]; then\n  die "x"\nfi\nsystemctl stop "$UNIT"\nVERIFY'))));
+  expect('C-22 坏：40 小时的判断后面没有 die', () => fails(c22, gd((t) => t.replace('[ "$AGE_H" -gt 40 ]; then\n  die "x"\nfi', '[ "$AGE_H" -gt 40 ]; then\n  :\n  :\n  :\nfi\ndie_x=1'))));
+  expect('C-22 坏：线上已删除的文档算成不一致', () => fails(c22, gd((t) => t.replace('missing_live += 1', 'mismatch += 1'))));
+  expect('C-22 坏：不要求至少比对 1 份', () => fails(c22, gd((t) => t.replace('"$CMP" -lt 1', '"$CMP" -lt 0'))));
+  expect('C-22 坏：DRILL_DOCS_MISSING_LIVE 不在输出白名单', () => fails(c22, gd((t) => t.replace('DRILL_DOCS_MISSING_LIVE=*|', ''))));
+  expect('C-22 坏：DRILL_DOCS_CHANGED_SINCE 不在输出白名单', () => fails(c22, gd((t) => t.replace('DRILL_DOCS_CHANGED_SINCE=*|', ''))));
+  expect('C-22 坏：Python 里没有 DRILL_DOCS_CHANGED_SINCE', () => fails(c22, gd((t) => t.replace('out["DRILL_DOCS_CHANGED_SINCE"] = changed', 'out["DRILL_DOCS_CHANGED"] = changed'))));
+  expect('C-22 坏：Python 里没有 DRILL_DOCS_MISSING_LIVE', () => fails(c22, gd((t) => t.replace('out["DRILL_DOCS_MISSING_LIVE"] = missing_live', ''))));
+  expect('C-22 坏：仍按备份上传时间判断文档是否比对', () => fails(c22, gd((t) => t.replace('elif row[0] == rupd:', 'elif row[0] <= ts:'))));
+  expect('C-22 坏：恢复库的文档查询没有选出 updated', () => fails(c22, gd((t) => t.replace('select id, owner, kind, data, updated from journey_docs', 'select id, owner, kind, data from journey_docs'))));
+  expect('C-22 坏：用户比对仍按备份上传时间', () => fails(c22, gd((t) => t.replace('(snap,)', '(ts,)'))));
+  expect('C-22 坏：没有算快照时刻 snap', () => fails(c22, gd((t) => t.replace('snap = max(stamps) if stamps else ts.replace("T", " ")', 'snap = ts'))));
+  expect('C-22 坏：rdocs 的拆分还是 4 个字段', () => fails(c22, gd((t) => t.replace('for (_id, owner, kind, _data, _upd) in rdocs:', 'for (_id, owner, kind, _data) in rdocs:'))));
+  expect('C-22 坏：没有从核对结果里取 DRILL_DOCS_COMPARED', () => fails(c22, gd((t) => t.replace("s/^DRILL_DOCS_COMPARED=//p", "s/^DRILL_DOCS=//p"))));
   const ARGS = DRILL_ARGS_BLOCK.trimEnd();
   const MODE_ECHO = 'echo "DRILL_MODE=$MODE"\n';
   const GUARD_ECHO = 'echo "DRILL_GUARD=$GUARD_STATE"\n';
