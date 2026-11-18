@@ -1,6 +1,6 @@
 // Phase 13 的“有新版本，点此更新”用例（OPS-04、D-08）：只在 npm run test:cloud 里运行，只用合成账号和合成数据。
 // 新版本发布 = Service Worker 的 sw.js 字节变了：Playwright 拦截不了 worker 的更新请求，所以版本由测试静态服务器自己变，
-// 用例经 request fixture（不经过页面护栏）调 GET /__test/sw-version/<版本>，再在页面里 registration.update() 让浏览器去取一次。
+// 用例经 request fixture（不经过页面护栏）调带 x-usj-test: 1 头的 GET /__test/sw-version/<版本>（不带头回 403），再在页面里 registration.update() 让浏览器去取一次。
 // 静态服务器在整个运行里共用，所以每条用例的 finally 里都要把版本调回 test（SW_TEST_VERSION），否则后面的用例缓存名对不上。
 //
 // 只在本文件放开 Service Worker：test.use({ serviceWorkers: 'allow' }) 作用于默认的 context fixture；配置文件不改。
@@ -32,7 +32,7 @@ test.use({ serviceWorkers: 'allow' });
 
 // 让测试静态服务器之后提供的 sw.js 带上这个版本（204 才算成功）
 async function setVersion(request: APIRequestContext, version: string) {
-  const response = await request.get(SW_VERSION_CONTROL_PATH + version);
+  const response = await request.get(SW_VERSION_CONTROL_PATH + version, { headers: { 'x-usj-test': '1' } });
   expect(response.status()).toBe(204);
 }
 

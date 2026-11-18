@@ -6,7 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { test, expect } from '../../support/test';
-import { APP_FILE_NAME, APP_SHA256, PB_SDK_PATH, PB_SDK_SHA256, PORT } from '../../support/constants';
+import { APP_FILE_NAME, APP_SHA256, PB_SDK_PATH, PB_SDK_SHA256, PORT, SW_VERSION_CONTROL_PATH } from '../../support/constants';
 
 // 应用文件固定在仓库根目录；只读，绝不写入
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -142,6 +142,26 @@ test('ENV-03 the static server refuses foreign Host headers and non-GET methods'
   const head = await rawRequest({ path: '/', method: 'HEAD', host: `127.0.0.1:${PORT}` });
   expect(head.status).toBe(200);
   expect(head.body).toBe('');
+});
+
+// IN-07：版本开关要带 x-usj-test: 1 头。跨站页面（例如开发者同时打开的网页用 <img>）发不出带自定义头的简单请求，所以改不了测试服务器的版本
+test("ENV-03 the static server's test version switch answers 403 without the x-usj-test header and leaves the served Service Worker version unchanged", async ({
+  request,
+}) => {
+  const before = await request.get('/sw.js');
+  expect(before.status()).toBe(200);
+  const beforeText = await before.text();
+
+  // 不带头：403，版本不变
+  const refused = await request.get(SW_VERSION_CONTROL_PATH + 'zz');
+  expect(refused.status()).toBe(403);
+  // 带头但版本格式不对（含大写字母）：400，版本同样不变；全程不把版本改成别的合法值
+  const malformed = await request.get(SW_VERSION_CONTROL_PATH + 'ZZ', { headers: { 'x-usj-test': '1' } });
+  expect(malformed.status()).toBe(400);
+
+  const after = await request.get('/sw.js');
+  expect(after.status()).toBe(200);
+  expect(await after.text(), '版本开关被拒绝之后，sw.js 的内容不应变化').toBe(beforeText);
 });
 
 // 尝试连接到某个地址，返回是否连通（只连本机自己的地址，不碰外部主机）

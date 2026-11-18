@@ -25,7 +25,8 @@ const SITE_DIR = path.resolve(__dirname, '..', '..', 'deploy', 'site');
 const SW_FILE = path.join(SITE_DIR, 'sw.js');
 let swVersion = 'test';
 
-// 只供测试的版本开关（OPS-04、D-08）：GET /__test/sw-version/<v> 把上面的 swVersion 改成 <v>（回 204），格式不对回 400，
+// 只供测试的版本开关（OPS-04、D-08）：带 `x-usj-test: 1` 头的 GET /__test/sw-version/<v> 才把上面的 swVersion 改成 <v>（回 204），格式不对回 400，
+// 没有这个头回 403 且版本不变（跨站页面发不出带自定义头的简单请求，开发者浏览的网页因此改不了测试服务器的版本，IN-07），
 // /__test/ 下的其他路径落到最后的 404。只给 tests/cloud/sw-update.spec.ts 用：Playwright 拦截不了 Service Worker 的更新请求，
 // 所以“新版本发布”只能由服务器自己变；仍只绑回环、只接受两个 Host，也不读写任何文件；线上 nginx 没有这个路径。
 const SW_VERSION_CONTROL_PATH = '/__test/sw-version/';
@@ -144,6 +145,11 @@ const server = http.createServer((req, res) => {
     headers = { 'content-type': 'image/png', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
   } else if (pathname.startsWith(SW_VERSION_CONTROL_PATH)) {
     // 只供 tests/cloud/sw-update.spec.ts 用的版本开关：版本必须匹配 ^[a-z0-9]{1,16}$，只改内存里的一个字符串，不读写任何文件
+    if (req.headers['x-usj-test'] !== '1') {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
     const v = pathname.slice(SW_VERSION_CONTROL_PATH.length);
     if (/^[a-z0-9]{1,16}$/.test(v)) {
       swVersion = v;

@@ -2,7 +2,7 @@
 // 它不碰 /api/ 和 /_/：令牌、账号数据和后台页面都不能进缓存，也不能被离线外壳顶替；/sw.js 自己也不被代答。
 //
 // 版本占位见下面 V 的取值（整个文件里恰好出现一次）：构建脚本（13-04）换成外壳哈希前 12 位；测试静态服务器换成 test。
-// 缓存名是 usj-shell-<版本>；外壳变了版本就变，旧缓存在 activate 时删掉。
+// 缓存名是 usj-shell-<版本>；外壳变了版本就变，旧缓存在 activate 时删掉（只删 usj-shell- 开头的，同源下别的缓存不动）。
 //
 // 为什么既不在 install 里 skipWaiting()，也不在 activate 里接管已打开的页面：
 //  - 首次安装时，新 worker 不接管已经打开的页面，页面没有 controller，所以不会触发 controllerchange，
@@ -14,11 +14,12 @@ const SHELL = ['/', '/vendor/pocketbase.iife.js', '/manifest.webmanifest', '/ico
 
 self.addEventListener('install', (e) => e.waitUntil(
   caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) =>
-    // cache:'reload' 绕过 HTTP 缓存，缓存里放的是服务器上当下的真文件；任何一个取不到就抛错，安装失败，不留半套缓存
-    fetch(u, { cache: 'reload' }).then((r) => { if (!r.ok) throw new Error(u); return c.put(u, r); }))))));
+    // cache:'reload' 绕过 HTTP 缓存，缓存里放的是服务器上当下的真文件；任何一个取不到就抛错：先删掉这次建了一半的缓存，安装失败，旧版本继续用
+    fetch(u, { cache: 'reload' }).then((r) => { if (!r.ok) throw new Error(u); return c.put(u, r); }))))
+    .catch((err) => caches.delete(CACHE).then(() => { throw err; }))));
 
 self.addEventListener('activate', (e) => e.waitUntil(
-  caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))));
+  caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('usj-shell-') && k !== CACHE).map((k) => caches.delete(k))))));
 
 self.addEventListener('message', (e) => { if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting(); });
 
