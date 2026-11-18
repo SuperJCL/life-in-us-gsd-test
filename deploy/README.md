@@ -15,7 +15,7 @@
 - 钥匙（`PB_ENCRYPTION_KEY`）只在服务器上生成，存在 `/etc/usj/pocketbase.env`，从不打印；邮箱授权码和 R2 令牌只填在 PocketBase 后台里，由 PocketBase 用这把钥匙加密保存。
 - 本机构建输出写 `private/deploy-out/`，验收用的大文件写 `private/acceptance/`，都被 git 忽略，不提交。
 - 线上检查和服务器输出一律经 `node tools/privacy/redact.mjs` 过滤再看、再贴、再写进文档，这样域名和 IP 不会出现在终端记录和规划文档里。
-- 日志：nginx 访问日志记客户端 IP，保留 30 天，只在服务器上，格式里用 `$uri`，不含查询串（后台下载备份的链接带令牌，不会进日志）。nginx 错误日志也会记客户端 IP，按包默认保留约 14 天（IN-07），同样只在服务器上。PocketBase 请求日志保留 30 天，不记账号 id。
+- 日志：nginx 访问日志记客户端 IP，保留 30 天，只在服务器上，格式里用 `$uri`，不含查询串。错误日志在上游出错时含完整请求行（包括后台下载备份链接里的 `?token=`，令牌短时有效），同样记客户端 IP，按包默认保留约 14 天，只在服务器上。PocketBase 请求日志保留 30 天，不记账号 id。
 - 报告里（验收结论、SUMMARY）不写域名、IP、账号和真实内容。
 
 ## 3. 文件清单
@@ -125,7 +125,7 @@ sudo -u pocketbase bash -c 'IFS= read -r -p "超级用户邮箱: " EM; IFS= read
 
 - **应用（页面）：** 改仓库 → 本机 `npm test` → 构建（`node deploy/build-site.mjs`）→ `--check-bundle` → 只批准变了的文件和 06（从 `SHA256SUMS` 对比上次）→ 运行 06：先装过渡 CSP（新旧页面的内联块哈希都放行）并 reload，再原子换页面，再装只含新哈希的最终 CSP 并 reload；两次 reload 夹住切换，任何时刻 `/` 返回的页面都能在当时的 CSP 下运行，Service Worker 不会缓存到「新页面加旧 CSP」（13-REVIEW WR-01）。首次部署（还没有旧 CSP 或还没挂应用 include）和 CSP 不变时不做过渡，06 输出 `CSP_TRANSITION=skipped`；做了过渡输出 `CSP_TRANSITION=done`；过渡中任何一步失败，06 都回滚到旧链接和旧 CSP。部署后立刻跑 `verify-site --stage full`（它会让本机 IP 的后台登录等 60 秒，不要排在马上要登录后台之前），并在两台设备上各打开一次页面。已经打开的应用下一次回到前台会出现「有新版本」横幅。同一个构建部署两次，版本号不变，不会出现更新提示。
 - **nginx 结构变化**（位置块、响应头）：只批准变了的 nginx 文件和 05；05 自带备份、`nginx -t`、`certbot renew --dry-run`、`logrotate -d`，失败自动恢复。
-- **PocketBase 版本：** 改 `02-install-pocketbase.sh` 里钉死的下载地址和 sha256、改版本号，**所有者批准下载**（D-17）；先在本机一次性实例上用新版本重跑 `npm run pb:isolation` 和 `node deploy/server-config-check.mjs --local`。
+- **PocketBase 版本：** PocketBase 本体升级目前没有自动化脚本：02 只做首次安装，遇到已装的旧版本会拒绝，C-10 也要求钉死值与 Phase 6 相同，所以不能靠改 02 升级。真要升级时，先新增一个经所有者批准的 `02b-upgrade-pocketbase.sh`（备份 pb_data、停服务、换二进制、再跑 04），先在本机一次性实例上用新版本重跑 `npm run pb:isolation` 和 `node deploy/server-config-check.mjs --local`；下载同样先批准。
 - HSTS 现在是一天。期望值在 `deploy/build-site.mjs` 的 `HSTS_MAX_AGE`，`verify-site` 和 `server-check` 都用它。验收通过、见过一次真实的证书续期之后再提高：改 `HSTS_MAX_AGE` 和 `usj-headers-common.conf`、`usj-headers-proxy.conf` 两个头文件，同一次批准，不要只改一处。
 
 ## 9. 回滚
@@ -202,4 +202,4 @@ sudo -u pocketbase /usr/local/sbin/pb-admin.sh superuser otp "$EM"
 
 ## 15. 和验收的关系
 
-总体验收的清单在 `.planning/phases/13-deploy-hardening-acceptance/13-ACCEPTANCE.md`：先用临时测试账号做 A 到 I（含会删数据的操作），确认没有问题后，所有者在本机运行 `node tools/plan/migrate-backup.mjs <旧备份.json>` 迁移真实数据；只测模式的恢复演练在导入真实数据之前完成，导入之后用导入后模式（`--with-real-data`）。
+总体验收的清单在 `.planning/phases/16-release-acceptance/16-ACCEPTANCE.md`（`13-ACCEPTANCE.md` 留作历史）：Phase 16 发布修复版本之后，每台设备先换成新版本，再用临时测试账号做其余各项（含会删数据的操作）；确认没有挡迁移的问题后，所有者在本机运行 `node tools/plan/migrate-backup.mjs <旧备份.json>` 迁移真实数据；只测模式的恢复演练在导入真实数据之前完成，导入之后用导入后模式（`--with-real-data`）。

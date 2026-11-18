@@ -145,6 +145,7 @@
 | ACCT03-1、-2 | 匿名或已登录账号创建 users 记录 | 403，无字段错误码 |
 | ACCT03-3、-4 | A 删除自己或 B 的账号 | 403 |
 | ACCT03-5 | 创建规则为空的认证集合上匿名注册 | 200 |
+| ACCT03-6、-7 | 缺字段（请求体 `{}`）的匿名注册：锁住的 users、放开的 users_open | 403、400（`validation_required`），账号数都不变；`deploy/verify-site.mjs` 的 F-11 靠这两个码区分 |
 | ACCT04-1、-2 | 列表 | 200，条数按规则过滤 |
 | ACCT04-3 | A 查看 B 的文档 | 404 |
 | ACCT04-4 | A 更新 B 的文档 | 404 |
@@ -185,7 +186,7 @@
 换 PocketBase 或 SDK 的版本时：
 
 1. 先经所有者批准（程序和 SDK 都是单一来源，哈希核对只能防下载损坏）；
-2. `npm run pb:isolation`：重新断言账号隔离，最后一行应是 `ISOLATION OK 48/48`；
+2. `npm run pb:isolation`：重新断言账号隔离，最后一行应是 `ISOLATION OK 50/50`；
 3. `node tools/pb/record-samples.mjs`：重新录制，最后一行 `SAMPLES WRITTEN 28`；录到的状态码与场景表的 `expect` 不同时会以 `STATUS MISMATCH` 中止，先查原因，不改 `expect` 去迁就；
 4. `node tools/pb/record-samples.mjs --check`：最后一行 `SAMPLES CLEAN 2`；
 5. 08-07 的契约自测：让假服务器对同一份场景表产生响应，与新样本比对状态码、键集合和归一化后的正文。

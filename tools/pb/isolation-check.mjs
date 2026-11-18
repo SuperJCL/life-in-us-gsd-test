@@ -42,7 +42,7 @@ try {
 // ---------- 编号表 ----------
 
 export const EXPECTED_IDS = [
-  'ACCT03-1', 'ACCT03-2', 'ACCT03-3', 'ACCT03-4', 'ACCT03-5',
+  'ACCT03-1', 'ACCT03-2', 'ACCT03-3', 'ACCT03-4', 'ACCT03-5', 'ACCT03-6', 'ACCT03-7',
   'ACCT04-1', 'ACCT04-2', 'ACCT04-3', 'ACCT04-4', 'ACCT04-5', 'ACCT04-6', 'ACCT04-7', 'ACCT04-8', 'ACCT04-9', 'ACCT04-10',
   'ACCT04-11', 'ACCT04-12', 'ACCT04-13', 'ACCT04-14', 'ACCT04-15', 'ACCT04-16', 'ACCT04-17', 'ACCT04-18', 'ACCT04-19', 'ACCT04-20',
   'ACCT04-21', 'ACCT04-22', 'ACCT04-23', 'ACCT04-24', 'ACCT04-25', 'ACCT04-26', 'ACCT04-27',
@@ -598,6 +598,32 @@ export function registerAll(reg) {
       return out(r.status === 200, r);
     },
     { write: true, readback: usersOpenCount, expect: (before, after) => after === before + 1 },
+  );
+
+  // ACCT03-6、ACCT03-7：verify-site 的 F-11 用缺字段（请求体 {}）的注册请求探测线上，不会建账号。
+  // 这两条在本机一次性实例上实测锁住和放开时各自的状态码（--observe 的 OBS 行），F11_LOCKED_STATUS、F11_OPEN_STATUS 取自这里；
+  // 断言本身不预设具体状态码，只要求被拒（4xx，不含限流 429）且账号数不变。换 PocketBase 版本时重测。
+  const rejected = (r) => r.status >= 400 && r.status < 500 && r.status !== 429;
+
+  check(
+    'ACCT03-6',
+    '匿名用缺字段的注册请求：锁住的 users 被拒（4xx）且账号数不变',
+    async (c) => {
+      const r = await c.api('POST', '/api/collections/users/records', { body: {} });
+      return out(rejected(r), r);
+    },
+    { write: true, readback: usersCount },
+  );
+
+  check(
+    'ACCT03-7',
+    '反向对照：createRule 为空的 users_open 上缺字段的注册请求被拒（4xx）且账号数不变',
+    async (c) => {
+      await ensureUsersOpen(c);
+      const r = await c.api('POST', '/api/collections/users_open/records', { body: {} });
+      return out(rejected(r), r);
+    },
+    { write: true, readback: usersOpenCount },
   );
 
   // ----- ACCT-04：journey_docs 的跨账号读写 -----

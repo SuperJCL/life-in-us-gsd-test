@@ -204,6 +204,21 @@ export function anonListEmpty(status, bodyText) {
   }
 }
 
+// F-11 的匿名注册探测用缺字段的请求（请求体 {}，不带邮箱和口令）：PocketBase 在规则放行时会在校验阶段拒绝它，所以不会在线上建账号。
+// 两个状态码在本机一次性 PocketBase 0.41.1 上由 tools/pb/isolation-check.mjs 的 ACCT03-6（锁住的 users）和 ACCT03-7（放开的 users_open）实测；
+// 换 PocketBase 版本时重测（node tools/pb/isolation-check.mjs --observe 的 OBS 行），两者必须不同。
+export const F11_LOCKED_STATUS = 403;
+export const F11_OPEN_STATUS = 400;
+
+// 缺字段的匿名注册请求得到的状态码：true 通过；'inconclusive' 是限流或上游出错（既不算通过也不算规则放开）；其余是 { ok: false, note }
+export function anonSignupVerdict(status) {
+  if (status === F11_LOCKED_STATUS) return true;
+  if (status === F11_OPEN_STATUS) return { ok: false, note: '注册规则好像放开了（缺字段的请求得到放开时的状态码，没有创建账号）' };
+  if (status >= 200 && status < 300) return { ok: false, note: '匿名注册请求成功了：请在后台删除 anon- 开头的账号' };
+  if (status === 429 || status >= 500) return 'inconclusive';
+  return { ok: false, note: '匿名注册探测得到意外的状态码' };
+}
+
 // 后台登录限流：恰好 6 个状态码，前 5 个不是 429，第 6 个是 429
 export const loginLimitOk = (statuses) => statuses.length === 6 && statuses.slice(0, 5).every((s) => s !== 429) && statuses[5] === 429;
 
@@ -677,9 +692,15 @@ async function runFull(cfg) {
   });
 
   await run('F-11', '匿名注册被拒，匿名读不到任何文档', async () => {
-    const pw = hex(12);
-    const reg = await request(`${base}/api/collections/users/records`, { method: 'POST', json: { email: `anon-${hex(4)}@example.com`, password: pw, passwordConfirm: pw } });
-    if (isOk(reg.status)) return { ok: false, note: '匿名注册成功了' };
+    // 缺字段的请求：规则放开也只会得到校验错误，不会建账号（D-01 IN-09）；限流或上游出错时等一等再试，最多三次
+    let verdict = anonSignupVerdict((await request(`${base}/api/collections/users/records`, { method: 'POST', json: {} })).status);
+    for (const wait of [5000, 15000]) {
+      if (verdict !== 'inconclusive') break;
+      await sleep(wait);
+      verdict = anonSignupVerdict((await request(`${base}/api/collections/users/records`, { method: 'POST', json: {} })).status);
+    }
+    if (verdict === 'inconclusive') return { ok: false, note: '结果不确定（限流或上游错误），不说明注册规则有问题：隔一分钟后重跑 --stage full' };
+    if (verdict !== true) return verdict;
     const list = await request(`${base}/api/collections/journey_docs/records`);
     return anonListEmpty(list.status, list.body.toString('utf8')) ? true : { ok: false, note: '匿名读到了记录' };
   });
@@ -832,6 +853,11 @@ function selfTest() {
   expect('CORS：别的源没有头或不同值才算拦住', corsBlocks(evil, null) && corsBlocks(evil, own) && !corsBlocks(evil, evil) && !corsBlocks(evil, '*'));
   expect('CORS：本站源必须得到同值', corsAllows(own, own) && !corsAllows(own, null) && !corsAllows(own, '*'));
   expect('匿名列集合：4xx 或空列表都算读不到', anonListEmpty(403, '{}') && anonListEmpty(200, '{"items":[],"totalItems":0}') && !anonListEmpty(200, '{"items":[{"id":"x"}],"totalItems":1}') && !anonListEmpty(200, 'not json'));
+  const vOpen = anonSignupVerdict(F11_OPEN_STATUS);
+  const v2xx = anonSignupVerdict(201);
+  const vOther = anonSignupVerdict(404);
+  expect('匿名注册探测：实测的锁住状态码算通过，实测的放开状态码和 2xx 都不通过且 note 不同', F11_LOCKED_STATUS !== F11_OPEN_STATUS && anonSignupVerdict(F11_LOCKED_STATUS) === true && vOpen.ok === false && v2xx.ok === false && vOther.ok === false && new Set([vOpen.note, v2xx.note, vOther.note]).size === 3);
+  expect('匿名注册探测：429 和 5xx 算不确定，既不通过也不判为规则放开', anonSignupVerdict(429) === 'inconclusive' && anonSignupVerdict(500) === 'inconclusive' && anonSignupVerdict(503) === 'inconclusive');
   expect('后台限流：前 5 次不是 429、第 6 次 429', loginLimitOk([400, 400, 400, 400, 400, 429]) && !loginLimitOk([400, 400, 400, 429, 429, 429]) && !loginLimitOk([400, 400, 400, 400, 400, 400]) && !loginLimitOk([400, 429]));
 
   // BD-09 的地址和邮箱判定（公网地址和外部邮箱在运行时拼出来，源码里不放字面值）
