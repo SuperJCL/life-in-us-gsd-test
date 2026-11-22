@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — EXECUTING
 Plan: 7 of 8
 Status: Ready to execute
-Last activity: 2026-11-21 - Completed quick task 261121-uax: 健身页重量支持 lb 和 kg（本地完成，未上线）
+Last activity: 2026-11-22 - quick 261121-uax 已上线（f99fb5fa3d7d，只运行 06，VERIFY OK）
 
 Progress: [█████████░] 91%
 

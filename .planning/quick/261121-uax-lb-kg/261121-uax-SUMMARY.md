@@ -95,3 +95,12 @@ None. 没有新端点，新字段只走已有的 state 文档、备份和本机�
 
 - 文件存在：`tests/e2e/fitness/units.spec.ts`、本 SUMMARY。
 - 三个提交都是 HEAD 的祖先；`APP_SHA256` 与应用文件的 sha256 一致。
+
+## 上线（2026-11-22）
+
+- 构建：`node deploy/build-site.mjs` 得到 BUILD_VERSION `f99fb5fa3d7d`（线上旧版本 `84d1fc754072`），`verify-site --check-bundle` 输出 BUNDLE OK (9 checks)。和上次发布的 `SHA256SUMS` 相比只变了 `BUILD_VERSION`、`server/nginx/usj-csp.conf`（页面内联块的哈希）、`site/index.html`、`site/sw.js`；`deploy/` 代码自上次发布以来没改，CSP 的结构不变。
+- 批准清单：13 行（`SHA256SUMS` 自身 `4a876d6d…5b51704` 加 06 读取的 `BUILD_VERSION`、`server/06-install-site.sh`、`server/nginx/usj-csp.conf` 和 9 个 `site/` 文件），只运行 06，不运行 03（没有迁移、钩子和环境变量的变化）。命令文件 sha256 `6df38691…0165744`。
+- 所有者批准：2026-11-22 06:53 UTC 前后展示清单、四个变化文件的白话说明、六条命令原文和影响说明；所有者回复“批准”，06:54 UTC 开始执行。
+- 结果：命令 1、2、5 正常（本机核对 13 行 OK）；命令 3 `UPLOAD_CHECK=ok FILES=13`；命令 4（06）`SITE_VERSION=f99fb5fa3d7d`、`SITE_SWAP=done`、`CSP_CONF=installed`、`CSP_TRANSITION=done`、`NGINX_RELOAD=done`；命令 6 `VERIFY OK (19 checks)`，第一次运行即通过，没有重跑。
+- 之后的只读状态：`SITE_VERSION=f99fb5fa3d7d`、`PB_SERVICE_ACTIVE=active`、`PB_HEALTH=ok`、`NGINX_TEST=ok`、`UPLOAD_DIRS=0`。PocketBase 全程没有停，账号数据没有动。
+- 所有输出都经过 `tools/privacy/redact.mjs`，`--check` 干净。
