@@ -456,6 +456,10 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 #tab-fit .primary{padding:8px 16px;font-size:14px;min-height:36px}
 #tab-fit .seg{gap:8px} #tab-fit .seg button{padding:8px 12px;font-size:14px;min-height:36px}
 #tab-fit .seg button[aria-pressed="true"]{background:var(--s);color:var(--ink);border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+.fit-unit{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:12px}
+.fit-unit-l{font-size:14px;color:var(--muted)}
+.wu-alt{display:inline-block;margin-left:6px;font-family:var(--sans);font-size:12px;font-weight:400;color:var(--muted)}
+.fw-lv .wu-alt{font-size:12px}
 #tab-fit :is(button:disabled,[aria-disabled="true"]){opacity:.4;cursor:not-allowed}
 #tab-fit .ghost:is(:disabled,[aria-disabled="true"]):hover{color:var(--muted);border-color:var(--line)}
 #tab-fit :is(input[type=number],input[type=date]){font-size:16px;line-height:1.55;min-width:0;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
@@ -665,6 +669,7 @@ dialog#confirm .ed-h h3{font-family:var(--serif);font-weight:600;font-size:16px;
 
   <section id="tab-fit" class="hidden" aria-labelledby="fit-h2">
     <h2 id="fit-h2" class="sr-only">健身</h2>
+    <div class="fit-unit k-fit"><span id="wu-l" class="fit-unit-l">重量单位</span><div class="seg" role="group" aria-labelledby="wu-l"><button type="button" data-wu="kg" aria-pressed="true">kg</button><button type="button" data-wu="lb" aria-pressed="false">lb</button></div></div>
     <section class="panel" id="fl" aria-labelledby="fl-title"></section>
     <section class="panel" id="fw" aria-labelledby="fw-title"></section>
     <section class="panel" id="fc" aria-labelledby="fc-title"></section>
@@ -878,6 +883,16 @@ function woPut(s,date,day){
 }
 const woBlank=v=>v==null||String(v).trim()==="";
 const woR2=v=>{const n=Number(v),t=Number(n+"e2");return isFinite(t)?Math.round(t)/100:Math.round(n*100)/100};
+/* quick-261121-uax：重量单位（kg | lb）。state.workouts 里的重量永远是力量项自己的单位，所选单位 state.wu 只管输入和显示，在边上换算，不改存储格式。1 kg = 2.20462262 lb；
+   wuKind 认出单位文字（kg、公斤 → kg；lb、lbs、磅 → lb，不分大小写），其余（次等）不是重量单位、不换算；wuShow 最多 1 位小数；wuMain 和 wuLbl 给显示用，力量项自己的单位和所选单位相同时保持原文字；wuAlt 是灰色小字的另一种单位 */
+const WU_LB=2.20462262;
+const wuKind=u=>{if(typeof u!=="string")return null;const t=u.trim().toLowerCase();return t==="kg"||t==="公斤"?"kg":t==="lb"||t==="lbs"||t==="磅"?"lb":null};
+const wuConv=(v,from,to)=>!from||!to||from===to?v:from==="kg"?v*WU_LB:v/WU_LB;
+const wuShow=v=>String(Math.round(v*10)/10);
+const wuOf=s=>isObj(s)&&s.wu==="lb"?"lb":"kg";
+const wuMain=(v,unit,u)=>{if(typeof v!=="number"||!isFinite(v))return String(v);const k=wuKind(unit);return k&&u&&k!==u?wuShow(wuConv(v,k,u)):String(v)};
+const wuLbl=(unit,u)=>{const k=wuKind(unit);return k&&u&&k!==u?u:unit};
+const wuAlt=(v,unit,u)=>{const k=wuKind(unit);if(!k||typeof v!=="number"||!isFinite(v)||v===0)return "";const o=u==="lb"?"kg":"lb";return "≈ "+wuShow(wuConv(v,k,o))+" "+o};
 /* 记录区草稿（输入框里的字符串）转成要保存的一天：整行空的组丢掉，没有组的动作丢掉，保持草稿里的顺序；只在 workoutProblems 返回空数组之后调用 */
 function woFromDraft(d){
   const lifts=[],cardio=[];
@@ -1103,7 +1118,7 @@ function normalize(s){
     });
     if(ls.length||cs.length)wo[k]={lifts:ls,cardio:cs};
   });
-  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets,...(Object.keys(wo).length?{workouts:wo}:{})};
+  return {arrival:typeof s.arrival==="string"&&(s.arrival===""||realDate(s.arrival))?s.arrival:"",tasks,custom,logs,lifts,reviews,presets,...(Object.keys(wo).length?{workouts:wo}:{}),...(s.wu==="kg"||s.wu==="lb"?{wu:s.wu}:{})};
 }
 /* IO-07、IO-08（Phase 11）：导入前先认出文件是哪一种备份。LEGACY_KEYS 是原 Artifact 旧备份（裸 state）的八个已知字段（Phase 15 加 workouts）和各自的类型判断；
    presets 的每个值都必须是对象（计划里的 presets 是“类别到字符串数组”，所以裸计划对象不会被当成旧备份）。
@@ -2654,6 +2669,15 @@ const T_FL_RM_LIFT="移除这个动作",T_FL_RM_CARDIO="移除这个有氧项",T
 const T_FL_SEC_CARDIO="有氧",T_FL_CAP_CARDIO="点一下有氧项，加进这次训练",T_FL_CTARGET=s=>"目标 "+s,T_FL_EVERY_KM=v=>"每次 "+v+" 公里",T_FL_EVERY_MIN=v=>"每次 "+v+" 分钟",T_FL_LBL_MIN="时长（分钟）",T_FL_LBL_KM="距离（公里，选填）";
 const T_FL_HINT_REMOTE="这一天的训练刚在别的设备上更新了。保存会覆盖它；想先看新版，就放弃未保存的内容。",T_FL_HINT_OFFLINE="现在没有网络，训练会先存在这台设备上，联网后自动同步。",T_FL_STATE_RESTORED="已恢复上次没保存的内容。",T_FL_CF_DATE_T="换一天记录？",T_FL_CF_DATE_B="这次训练填的内容还没有保存，换日期会丢掉。",T_FL_DATE_KEEP="先不换",T_FL_DATE_GO="丢掉并换日期";
 const T_FL_LIFT_NONE="计划里还没有力量项。",T_FL_CARDIO_NONE="计划里还没有有氧项。",T_FL_LIFT_ALL_ADDED="计划里的力量项都已加进这次训练。",T_FL_CARDIO_ALL_ADDED="计划里的有氧项都已加进这次训练。",T_FL_EMPTY_ALL="计划里还没有力量项和有氧项，先去编辑计划添加动作，才能记录训练。",T_FL_GO_PLAN="去编辑计划添加动作";
+/* quick-261121-uax：重量单位开关。wuAltH 是灰色小字的换算（文字过 esc）；renderWu 只改两个静态按钮的 aria-pressed，按钮不重画，键盘焦点不丢 */
+const T_WU_LIVE=u=>"重量单位已切换为 "+u;
+const wuAltH=(v,unit,u)=>{const t=wuAlt(v,unit,u);return t?`<span class="wu-alt">${esc(t)}</span>`:""};
+function renderWu(){const u=wuOf(state);document.querySelectorAll(".fit-unit [data-wu]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.wu===u)))}
+document.querySelector(".fit-unit").addEventListener("click",e=>{
+  const b=e.target.closest("[data-wu]"),v=b&&b.dataset.wu;
+  if(!v||(v!=="kg"&&v!=="lb")||v===wuOf(state)||b.disabled)return;
+  commit(["wu"],s=>{s.wu=v});renderAll();$("fl-live").textContent=T_WU_LIVE(v);
+});
 let fl=null;
 function flDraftOf(day){
   const d=isObj(day)?day:{};
@@ -2817,8 +2841,8 @@ function renderFw(){
   const dots=days.map((x,i)=>`<li class="fw-d${set.has(x)?" on":""}${x===t?" today":""}"><i></i><span>${"一二三四五六日"[i]}</span></li>`).join("");
   const goal=plan.fitGoal;
   const lifts=activeLifts().map(L=>{
-    const v=liftNow(state,L),n=Number(v.v),cur=isFinite(n)?n:0,pct=Math.max(0,Math.min(100,(cur/L.target)*100)),done=pct>=100;
-    return `<div class="fw-lift k-fit" data-lift="${esc(L.id)}"><p class="fw-ln">${esc(L.n)}</p><p class="fw-lv">${esc(String(v.v))}<small> ${esc(L.unit)}</small></p><p class="fw-tg">${esc(T_FW_TARGET(L.target,L.unit))}</p>
+    const v=liftNow(state,L),u=wuOf(state),n=Number(v.v),cur=isFinite(n)?n:0,pct=Math.max(0,Math.min(100,(cur/L.target)*100)),done=pct>=100;
+    return `<div class="fw-lift k-fit" data-lift="${esc(L.id)}"><p class="fw-ln">${esc(L.n)}</p><p class="fw-lv">${esc(wuMain(v.v,L.unit,u))}<small> ${esc(wuLbl(L.unit,u))}</small>${wuAltH(n,L.unit,u)}</p><p class="fw-tg">${esc(T_FW_TARGET(wuMain(L.target,L.unit,u),wuLbl(L.unit,u)))}${wuAltH(L.target,L.unit,u)}</p>
       <div class="fw-bar" role="progressbar" aria-label="${esc(T_FW_BAR_ARIA(L.n))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i data-w="${pct}"></i></div>
       <p class="fw-cap">${esc(T_FW_PCT(Math.round(pct)))}${done?"　"+esc(T_FW_REACHED):""}</p>
       <p class="fw-cap">${esc(v.date?T_FW_LAST(md(v.date)):T_FW_NO_TRAINING)}</p>${v.bw?`<p class="fw-cap">${esc(T_FW_BW(v.reps))}</p>`:""}${L.note?`<p class="fw-cap">${esc(L.note)}</p>`:""}</div>`}).join("");
@@ -2891,6 +2915,7 @@ function fhDelete(date){
 }
 /* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
 function renderFit(force){
+  renderWu();
   const rs=flTryRestore();
   if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
   else{flRemoteCheck();flHint()}

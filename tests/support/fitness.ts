@@ -307,7 +307,9 @@ export type LiftGoalRead = {
   lift: string | null; // data-lift，只在属于 ids 时返回，否则 null
   value: string | null; // .fw-lv 里单位之前的文字（当前值，原样）；只对 lift 不为 null 的卡返回
   unit: string | null; // .fw-lv small 的文字（带前导空格），同上
-  target: string | null; // .fw-tg 的文字，同上
+  target: string | null; // .fw-tg 的文字（不含 .wu-alt 里的换算），同上
+  valueAlt: string | null; // .fw-lv .wu-alt 的文字，没有是空串，同上
+  targetAlt: string | null; // .fw-tg .wu-alt 的文字，没有是空串，同上
   dataW: number | null; // 进度条 i 的 data-w（未取整的百分比）
   width: string | null; // 进度条 i 的 style.width（CSSOM 赋值的结果，如 100%）
   now: string | null; // 进度条的 aria-valuenow
@@ -327,7 +329,15 @@ export async function readLiftGoals(page: Page, ids: readonly string[]): Promise
         lift: ok ? id : null,
         value: ok ? (card.querySelector('.fw-lv')?.firstChild?.textContent ?? '') : null,
         unit: ok ? (small?.textContent ?? '') : null,
-        target: ok ? (card.querySelector('.fw-tg')?.textContent ?? '') : null,
+        target: ok
+          ? (() => {
+              const tg = card.querySelector('.fw-tg')?.cloneNode(true) as HTMLElement | undefined;
+              tg?.querySelectorAll('.wu-alt').forEach((x) => x.remove());
+              return tg?.textContent ?? '';
+            })()
+          : null,
+        valueAlt: ok ? (card.querySelector('.fw-lv .wu-alt')?.textContent ?? '') : null,
+        targetAlt: ok ? (card.querySelector('.fw-tg .wu-alt')?.textContent ?? '') : null,
         dataW: bar ? parseFloat(bar.getAttribute('data-w') ?? 'NaN') : null,
         width: bar ? bar.style.width : null,
         now: card.querySelector('.fw-bar')?.getAttribute('aria-valuenow') ?? null,

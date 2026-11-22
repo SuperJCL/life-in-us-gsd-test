@@ -987,3 +987,9 @@ export const pkLimR = (k: number): string => `有氧项最多 20 个，还能再
 export const PK_FULL_R = '有氧项已满（20 个），先删掉一个再添加';
 // 每个示例有氧项的说明行：直接是目标说明（「每次 5 公里」等，用 peCardioSum 拼），没有目标时「没有目标」
 export const pkCardioTarget = (s: string): string => s;
+
+// ---- quick-261121-uax：重量单位开关（应用里 T_WU_LIVE、开关标签和 wuAlt 的文字，逐字相同）----
+export const WU_LABEL = '重量单位';
+export const wuLive = (u: string): string => `重量单位已切换为 ${u}`;
+// 灰色小字换算：wuAlt 的文字是「≈ 数值 单位」（数值已经是最多 1 位小数）
+export const wuAltText = (v: string, u: string): string => `≈ ${v} ${u}`;
