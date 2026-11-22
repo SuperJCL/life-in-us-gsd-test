@@ -6,6 +6,9 @@ import { test, expect } from '../../support/test';
 import { loadAppPure } from '../../support/app-source';
 import { FROZEN_NOW, FROZEN_TODAY } from '../../support/constants';
 import { serveAppVariant } from '../../support/app-variant';
+import { fullBackup, legacyBackup } from '../../support/backup-files';
+import { downloadOf } from '../../support/download';
+import { answerNextDialog, chooseImportFile, jsonImportFile } from '../../support/import-file';
 import {
   FL_ERR_WRANGE,
   WU_LABEL,
@@ -365,4 +368,50 @@ test('FIT-UNIT the fitness tab in lb has no horizontal overflow at 375 px and th
   expect(m.cards, 'no lift card overflows').toBe(true);
   expect(m.btns.length, 'two unit buttons').toBe(2);
   expect(m.btns.every((x) => x.visible && x.h >= 44), 'unit buttons visible and at least 44 px high').toBe(true);
+});
+
+// 导出导入（本地模式，写法同 tests/e2e/io 下的导出和导入用例）：下载只在内存里比较；导入文件只在内存里构造，名字以 synth- 开头
+test.describe('FIT-UNIT backup', () => {
+  test.use({ acceptDownloads: true });
+
+  test('FIT-UNIT a JSON backup carries the weight unit, importing it restores lb, and an old backup or an invalid value falls back to kg', async ({ page, app }) => {
+    const seedWo = { '2026-03-16': wo({ bench: [[40, 3]] }) };
+    await app.open({ seed: { _synthetic: true, workouts: seedWo, wu: 'lb' } });
+    await gotoFitness(page);
+    await expect(page.locator('[data-wu="lb"]'), 'seeded lb is pressed').toHaveAttribute('aria-pressed', 'true');
+
+    // 导出：完整备份的 state 带 wu，训练和已保存的一致
+    const { text } = await downloadOf(page, () => page.locator('#exportJson').click());
+    const backup = JSON.parse(text);
+    expect(backup.kind, 'full backup').toBe('full');
+    expect(backup.state.wu, 'backup carries the unit').toBe('lb');
+    expect(backup.state.workouts, 'backup carries the workouts').toEqual(plain(seedWo));
+
+    const importFile = async (name: string, value: unknown) => {
+      const dialogs = answerNextDialog(page, 'accept');
+      await chooseImportFile(page, jsonImportFile(name, value));
+      await expect.poll(() => dialogs.length, { message: '等待替换确认框' }).toBe(1);
+    };
+
+    // 先切到 kg，再导入这份备份：wu 随整份数据替换，回到 lb
+    await page.locator('[data-wu="kg"]').click();
+    await app.expectSaved((s) => s.wu === 'kg', 'wait for kg saved');
+    await importFile('synth-unit-roundtrip.json', backup);
+    await app.expectSaved((s) => s.wu === 'lb', 'wait for lb restored');
+    await expect(page.locator('[data-wu="lb"]'), 'lb pressed after import').toHaveAttribute('aria-pressed', 'true');
+
+    // 旧备份（没有 wu）：导入后没有这个键，回到 kg
+    await importFile('synth-unit-legacy.json', legacyBackup('uw1'));
+    await app.expectSaved((s) => s.logs.some((l: any) => l.id === 'synth-uw1-1'), 'wait for the legacy import');
+    expect(Object.prototype.hasOwnProperty.call(await app.saved(), 'wu'), 'old backup leaves no unit').toBe(false);
+    await expect(page.locator('[data-wu="kg"]'), 'kg pressed after the old backup').toHaveAttribute('aria-pressed', 'true');
+
+    // 带非法 wu 的完整备份：被接受，wu 被丢掉，还是 kg
+    await page.locator('[data-wu="lb"]').click();
+    await app.expectSaved((s) => s.wu === 'lb', 'wait for lb saved again');
+    await importFile('synth-unit-invalid.json', fullBackup(backup.plan, { ...legacyBackup('uw2'), wu: 'LB' }));
+    await app.expectSaved((s) => s.logs.some((l: any) => l.id === 'synth-uw2-1'), 'wait for the invalid-unit import');
+    expect(Object.prototype.hasOwnProperty.call(await app.saved(), 'wu'), 'invalid unit is dropped').toBe(false);
+    await expect(page.locator('[data-wu="kg"]'), 'kg pressed after the invalid unit').toHaveAttribute('aria-pressed', 'true');
+  });
 });

@@ -438,3 +438,43 @@ test('FIT-05 a remote redraw of the training history keeps the focus on the edit
     await second.context.close();
   }
 });
+
+test('FIT-UNIT the weight unit chosen on one device is uploaded with the state and switches the other device without a reload, converting its unsaved draft', async ({
+  app,
+  page,
+  browser,
+  guard,
+}) => {
+  await app.open({ mode: 'cloud', seed: syntheticState('fu'), plan: syntheticPlan('fu', 1), login: 0 });
+  const second = await openDevice({ browser, guard, fake: app.fake });
+  try {
+    const sp = second.page;
+    await second.app.open({ mode: 'cloud', login: 0 });
+    await gotoFitness(page);
+    await gotoFitness(sp);
+    await expect.poll(() => app.fake.connectionCount(), { message: '两台设备都订阅了实时事件' }).toBe(2);
+
+    // B 在填一组，不保存
+    await flAddLift(sp, 'l-fu1');
+    await flFillSet(sp, 'l-fu1', 0, '20', '8');
+    await sp.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+    // A 切到 lb：随 state 上传
+    await page.locator('[data-wu="lb"]').click();
+    await expect.poll(() => app.fake.lastState(0)?.wu ?? null, { message: '等待 wu 上传到 state 文档' }).toBe('lb');
+
+    // B 不刷新：lb 按下，未保存的草稿跟着换成 lb，力量目标卡按 lb 显示
+    await expect(sp.locator('[data-wu="lb"]'), 'device B switched to lb').toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => readFl(sp), { message: 'device B draft converted' }).toEqual([{ id: 'l-fu1', sets: [{ w: '44.1', r: '8' }] }]);
+    const card = (await readLiftGoals(sp, ['l-fu1'])).find((g) => g.lift === 'l-fu1');
+    expect([card?.value, card?.unit], 'the lift goal card shows lb on device B').toEqual(['22', ' lb']);
+
+    // B 保存：存的还是力量项自己的单位（20 kg）
+    await flSave(sp);
+    await expect
+      .poll(() => JSON.stringify(app.fake.lastState(0)?.workouts?.[FROZEN_TODAY]?.lifts ?? null), { message: '等待 B 的训练上传' })
+      .toBe(JSON.stringify([{ id: 'l-fu1', sets: [{ w: 20, r: 8 }] }]));
+  } finally {
+    await second.context.close();
+  }
+});
