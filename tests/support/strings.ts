@@ -993,3 +993,8 @@ export const WU_LABEL = '重量单位';
 export const wuLive = (u: string): string => `重量单位已切换为 ${u}`;
 // 灰色小字换算：wuAlt 的文字是「≈ 数值 单位」（数值已经是最多 1 位小数）
 export const wuAltText = (v: string, u: string): string => `≈ ${v} ${u}`;
+// 记录区重量列标题 T_FL_COL_W(u)；训练历史带单位的力量动作一行 T_FH_LIFT_U(n,u,s)（s 是「重量 × 次数」用「，」连起来）
+export const flColW = (u: string): string => `重量（${u}）`;
+export const fhLiftUnitLine = (n: string, u: string, s: string): string => `${n}（${u}）：${s}`;
+// 换算后超过上限的错误文字 T_FL_ERR.wconv
+export const FL_ERR_WCONV = '换算成这个动作自己的单位后超过 1000'; // T_FL_ERR.wconv

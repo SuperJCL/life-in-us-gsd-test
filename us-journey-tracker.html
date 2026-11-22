@@ -893,15 +893,23 @@ const wuOf=s=>isObj(s)&&s.wu==="lb"?"lb":"kg";
 const wuMain=(v,unit,u)=>{if(typeof v!=="number"||!isFinite(v))return String(v);const k=wuKind(unit);return k&&u&&k!==u?wuShow(wuConv(v,k,u)):String(v)};
 const wuLbl=(unit,u)=>{const k=wuKind(unit);return k&&u&&k!==u?u:unit};
 const wuAlt=(v,unit,u)=>{const k=wuKind(unit);if(!k||typeof v!=="number"||!isFinite(v)||v===0)return "";const o=u==="lb"?"kg":"lb";return "≈ "+wuShow(wuConv(v,k,o))+" "+o};
+/* wuIn：输入框里显示的文字。取在草稿单位 u 里「换回力量项自己的单位 k 并按两位小数保存后，正好是现在这个存储值」的最短小数（0 到 3 位），所以打开再保存永远不改存储值，
+   一位小数的 lb 和两位小数的 kg 输入都原样读回；单位相同或不是重量单位时保持原文字 */
+const wuIn=(s,k,u)=>{
+  if(typeof s!=="number"||!isFinite(s)||!k||!u||k===u)return String(s);
+  const v=wuConv(s,k,u);
+  for(let d=0;d<=3;d++){const c=Number(v.toFixed(d));if(woR2(wuConv(c,u,k))===s)return String(c)}
+  return String(woR2(v));
+};
 /* 记录区草稿（输入框里的字符串）转成要保存的一天：整行空的组丢掉，没有组的动作丢掉，保持草稿里的顺序；只在 workoutProblems 返回空数组之后调用 */
-function woFromDraft(d){
+function woFromDraft(d,cv){
   const lifts=[],cardio=[];
-  (d.lifts||[]).forEach(x=>{const sets=(x.sets||[]).filter(z=>!(woBlank(z.w)&&woBlank(z.r))).map(z=>({w:woR2(z.w),r:Number(z.r)}));if(sets.length)lifts.push({id:x.id,sets})});
+  (d.lifts||[]).forEach(x=>{const sets=(x.sets||[]).filter(z=>!(woBlank(z.w)&&woBlank(z.r))).map(z=>({w:woR2(cv?cv(x.id,Number(z.w)):z.w),r:Number(z.r)}));if(sets.length)lifts.push({id:x.id,sets})});
   (d.cardio||[]).forEach(x=>{const o={id:x.id,m:Number(x.m)};if(!woBlank(x.d))o.d=woR2(x.d);cardio.push(o)});
   return {lifts,cardio};
 }
 /* 记录区校验（距离和重量按保存时的两位小数判断：舍入后变成 0 的距离、或非 0 输入舍入成 0 的重量都报错，不会悄悄存成 0）：返回 [{key,code}]，按页面顺序；整行空不报；key 是 fl:<动作下标>:<组下标>:w|r、fl:<动作下标>:ex、fc:<有氧下标>:m|d；错误文字由渲染层按 code 映射 */
-function workoutProblems(d){
+function workoutProblems(d,cv){
   const out=[],P=(key,code)=>out.push({key,code});
   (d.lifts||[]).forEach((x,i)=>{
     let used=0;
@@ -910,7 +918,7 @@ function workoutProblems(d){
       if(j>=WO_MAX.sets){if(j===WO_MAX.sets)P(k+"w","slimit");return}
       if(woBlank(z.w)&&woBlank(z.r))return;
       used++;
-      if(woBlank(z.w))P(k+"w","wnone");else{const w=Number(z.w);if(!isFinite(w)||w<0||w>WO_MAX.w||(w!==0&&woR2(w)===0))P(k+"w","wrange")}
+      if(woBlank(z.w))P(k+"w","wnone");else{const w=Number(z.w);if(!isFinite(w)||w<0||w>WO_MAX.w||(w!==0&&woR2(w)===0))P(k+"w","wrange");else if(cv){const sv=woR2(cv(x.id,w));if(w!==0&&sv===0)P(k+"w","wrange");else if(sv>WO_MAX.w)P(k+"w","wconv")}}
       if(woBlank(z.r))P(k+"r","rnone");else{const r=Number(z.r);if(!Number.isInteger(r)||r<1||r>WO_MAX.r)P(k+"r","rint")}
     });
     if(!used)P("fl:"+i+":ex","exnone");
@@ -2663,7 +2671,7 @@ const T_FW_NOTE_BTN="健身说明",T_FW_LIFTS="力量目标",T_FW_TARGET=(t,u)=>
 /* fl 是记录区的一次会话 {date,draft,orig,seen,tried}：draft 是输入框里的字符串（形状同 woFromDraft 的参数），orig 是载入时 draft 的 JSON，用来判断有没有未保存的改动；seen 是失去过焦点的字段键，tried 是点过保存；点「保存训练」才写进 state.workouts */
 const T_FL_STATE_SAVED="这一天已经记过训练，改动保存后会更新。",T_FL_DELETE="删除这次训练",T_FL_DELETED=d=>"已删除 "+d+" 的训练",T_FL_UNDO_DEL="撤销删除",T_FL_LIVE_UNDONE="已撤销：",T_FL_COPY="复制上一组";
 const T_FL_HINT_DIRTY="有没保存的内容",T_FL_HINT_EMPTY="先添加动作或有氧项，再保存",T_FL_HINT_SAVED="已保存";
-const T_FL_ERR={wnone:"请填写重量，徒手动作填 0",wrange:"重量要在 0 到 1000 之间",rnone:"请填写次数",rint:"次数要是 1 到 999 之间的整数",exnone:"这个动作还没有记录任何一组，填一组或移除这个动作",slimit:"最多 20 组",mnone:"请填写时长（分钟）",mint:"时长要是 1 到 1440 之间的整数",drange:"距离要大于 0，不超过 1000"};
+const T_FL_ERR={wnone:"请填写重量，徒手动作填 0",wrange:"重量要在 0 到 1000 之间",rnone:"请填写次数",rint:"次数要是 1 到 999 之间的整数",exnone:"这个动作还没有记录任何一组，填一组或移除这个动作",slimit:"最多 20 组",mnone:"请填写时长（分钟）",mint:"时长要是 1 到 1440 之间的整数",drange:"距离要大于 0，不超过 1000",wconv:"换算成这个动作自己的单位后超过 1000"};
 const T_FL_DEL_SET_ARIA=(n,i)=>"删除"+n+"第 "+i+" 组",T_FL_DEL_SET="删除",T_FL_SET_DELETED=i=>"已删除第 "+i+" 组",T_FL_LIVE_SET_DELETED=(n,i)=>"已删除"+n+"第 "+i+" 组",T_FL_SET_LIMIT="最多 20 组",T_FL_LAST=(d,s)=>"上次（"+d+"）："+s,T_FL_LAST_MORE=n=>"…共 "+n+" 组",T_FL_LAST_NONE="还没有这个动作的训练记录。",T_FL_BW="徒手",T_FL_FILL_LAST="照上次填";
 const T_FL_RM_LIFT="移除这个动作",T_FL_RM_CARDIO="移除这个有氧项",T_FL_REMOVED=n=>"已移除："+n,T_FL_UNDO_RM="撤销移除",T_FL_DISCARD="放弃未保存的内容",T_FL_CF_DISCARD_T="放弃没保存的内容？",T_FL_CF_DISCARD_B="这次训练填的内容还没有保存，放弃后会恢复成上次保存的样子。",T_FL_KEEP="继续填写",T_FL_DISCARD_OK="放弃内容";
 const T_FL_SEC_CARDIO="有氧",T_FL_CAP_CARDIO="点一下有氧项，加进这次训练",T_FL_CTARGET=s=>"目标 "+s,T_FL_EVERY_KM=v=>"每次 "+v+" 公里",T_FL_EVERY_MIN=v=>"每次 "+v+" 分钟",T_FL_LBL_MIN="时长（分钟）",T_FL_LBL_KM="距离（公里，选填）";
@@ -2679,14 +2687,35 @@ document.querySelector(".fit-unit").addEventListener("click",e=>{
   commit(["wu"],s=>{s.wu=v});renderAll();$("fl-live").textContent=T_WU_LIVE(v);
 });
 let fl=null;
-function flDraftOf(day){
+/* flK：计划里这个力量项的重量单位种类（kg、lb；不是重量单位或已不在计划里是 null）。fl.u 是草稿里重量字符串用的单位（"kg"、"lb"，旧版本地留底没有时是 null = 各力量项自己的单位）；
+   flCv() 给 woFromDraft 和 workoutProblems 用：把草稿单位的重量换成力量项自己的单位 */
+const flK=id=>{const L=plan.lifts.find(l=>l.id===id);return L?wuKind(L.unit):null};
+const flCv=()=>(id,w)=>wuConv(w,fl.u,flK(id));
+function flDraftOf(day,u){
   const d=isObj(day)?day:{};
-  return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>isObj(x)&&typeof x.id==="string"&&LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:(Array.isArray(x.sets)?x.sets:[]).filter(isObj).map(z=>({w:String(z.w),r:String(z.r)}))})),
+  return {lifts:(Array.isArray(d.lifts)?d.lifts:[]).filter(x=>isObj(x)&&typeof x.id==="string"&&LIFT_ID_RE.test(x.id)).map(x=>({id:x.id,sets:(Array.isArray(x.sets)?x.sets:[]).filter(isObj).map(z=>({w:u?wuIn(z.w,flK(x.id),u):String(z.w),r:String(z.r)}))})),
     cardio:(Array.isArray(d.cardio)?d.cardio:[]).filter(x=>isObj(x)&&typeof x.id==="string"&&CARDIO_ID_RE.test(x.id)).map(x=>({id:x.id,m:String(x.m),d:x.d==null?"":String(x.d)}))};
+}
+/* flReunit：草稿单位换成 nu（本机点开关、或别的设备改了单位）：草稿和载入时的 orig 里每个能通过重量检查的数字，先按旧单位换回力量项自己的单位（两位小数保存口径），再按 nu 取最短读回文字；
+   空的和不合格的字符串、不是重量单位的力量项原样不动，所以干净的草稿仍然干净、没保存的仍然没保存 */
+function flReunit(nu){
+  const conv=d=>{(d.lifts||[]).forEach(x=>{
+    const k=flK(x.id);if(!k)return;
+    const from=fl.u||k;if(from===nu)return;
+    (x.sets||[]).forEach(z=>{
+      const t=String(z.w).trim();if(t==="")return;
+      const w=Number(t);if(!isFinite(w)||w<0||w>WO_MAX.w||(w!==0&&woR2(w)===0))return;
+      const sv=woR2(wuConv(w,from,k));if((w!==0&&sv===0)||sv>WO_MAX.w)return;
+      z.w=wuIn(sv,k,nu);
+    });
+  })};
+  conv(fl.draft);
+  try{const o=JSON.parse(fl.orig);conv(o);fl.orig=JSON.stringify(o)}catch(e){}
+  fl.u=nu;
 }
 const flSavedJson=date=>JSON.stringify(woMap(state)[date]||null);
 /* base 是载入时这一天已保存内容的 JSON：草稿有内容时它和现在已保存的不同，说明这一天在别的设备上更新过（fl.remote） */
-function flOpen(date){const dr=flDraftOf(woMap(state)[date]);fl={date,draft:dr,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(date),remote:false,restored:false}}
+function flOpen(date){const u=wuOf(state),dr=flDraftOf(woMap(state)[date],u);fl={date,u,draft:dr,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(date),remote:false,restored:false}}
 const flDirty=()=>!!fl&&JSON.stringify(fl.draft)!==fl.orig;
 const flEmpty=()=>!!fl&&!fl.draft.lifts.length&&!fl.draft.cardio.length;
 /* 本机留底（只在云端版）：草稿每次变化 500 ms 后写进 usj:v2:<用户 id>:wodraft = {date, draft}；保存、删除、放弃、确认换日期、退出登录、换账号时删掉。写不进（容量、隐私模式）就算了 */
@@ -2696,7 +2725,7 @@ function flKeep(){
   if(!(CLOUD&&me)||!fl)return;
   flKeepT=setTimeout(()=>{
     flKeepT=null;if(!(CLOUD&&me)||!fl)return;
-    try{if(flDirty())localStorage.setItem(cacheKey("wodraft"),JSON.stringify({date:fl.date,draft:fl.draft}));else localStorage.removeItem(cacheKey("wodraft"))}catch(e){}
+    try{if(flDirty())localStorage.setItem(cacheKey("wodraft"),JSON.stringify({date:fl.date,draft:fl.draft,u:fl.u}));else localStorage.removeItem(cacheKey("wodraft"))}catch(e){}
   },500);
 }
 function flKeepClear(){clearTimeout(flKeepT);flKeepT=null;if(!(CLOUD&&me))return;try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}}
@@ -2711,9 +2740,9 @@ function flRestore(){
     &&o.draft.cardio.every(x=>isObj(x)&&typeof x.id==="string"&&CARDIO_ID_RE.test(x.id)&&str(x.m)&&str(x.d))&&uniq(o.draft.lifts)&&uniq(o.draft.cardio);
   if(!ok){try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}return null}
   const draft={lifts:o.draft.lifts.map(x=>({id:x.id,sets:x.sets.map(z=>({w:z.w,r:z.r}))})),cardio:o.draft.cardio.map(x=>({id:x.id,m:x.m,d:x.d}))};
-  const dr=flDraftOf(woMap(state)[o.date]);
+  const u=o.u==="kg"||o.u==="lb"?o.u:null,dr=flDraftOf(woMap(state)[o.date],u);
   if(JSON.stringify(draft)===JSON.stringify(dr)){try{localStorage.removeItem(cacheKey("wodraft"))}catch(e){}return null}
-  return {date:o.date,draft,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(o.date),remote:false,restored:true};
+  return {date:o.date,u,draft,orig:JSON.stringify(dr),seen:new Set(),tried:false,base:flSavedJson(o.date),remote:false,restored:true};
 }
 /* 登录后（state 已读进来）第一次画健身页时，草稿没有内容就看一眼本机留底；每个会话只看一次，退出登录和换账号时复位 */
 function flTryRestore(){
@@ -2730,7 +2759,7 @@ const flLiftName=id=>{const L=plan.lifts.find(l=>l.id===id);return L?L.n:T_FIT_G
 const flCardioName=id=>{const C=planCardio(plan).find(c=>c.id===id);return C?C.n:T_FIT_GONE_C};
 const flShort=n=>{const a=Array.from(n);return a.length>10?a.slice(0,10).join("")+"…":n};
 const flBlankSet=z=>woBlank(z.w)&&woBlank(z.r);
-const flLastText=l=>T_FL_LAST(md(l.date),l.sets.slice(0,8).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，")+(l.sets.length>8?T_FL_LAST_MORE(l.sets.length):""));
+const flLastText=(l,unit)=>T_FL_LAST(md(l.date),l.sets.slice(0,8).map(z=>(z.w===0?T_FL_BW:wuMain(z.w,unit,wuOf(state)))+" × "+z.r).join("，")+(l.sets.length>8?T_FL_LAST_MORE(l.sets.length):""));
 /* 字段元素 → 校验键（同 workoutProblems 的 key）：data-flw / data-flr 是 <动作下标>:<组下标>，data-flm / data-fld 是 <有氧下标> */
 function flKeyOf(el){
   const d=el&&el.dataset;if(!d)return null;
@@ -2742,7 +2771,7 @@ function flKeyOf(el){
 function flErrs(){
   if(!fl||!$("fl-save"))return;
   const bad=new Map();
-  workoutProblems(fl.draft).forEach(x=>{if(!bad.has(x.key))bad.set(x.key,x.code)});
+  workoutProblems(fl.draft,flCv()).forEach(x=>{if(!bad.has(x.key))bad.set(x.key,x.code)});
   const show=k=>fl.tried||fl.seen.has(k),inv=(el,on)=>{if(!el)return;if(on)el.setAttribute("aria-invalid","true");else el.removeAttribute("aria-invalid")};
   const say=(er,t)=>{if(!er)return;er.hidden=!t;er.textContent=t||""};
   fl.draft.lifts.forEach((x,i)=>{
@@ -2774,7 +2803,7 @@ function flFirstBad(pr){
 /* 保存栏提示行按优先级只写一条：1 点过保存但校验没通过 > 2 草稿有内容且这一天在别的设备上更新过 > 3 草稿有未保存内容 > 4 断网（不挡保存） > 5 草稿是空的且这一天没保存过 > 6 已保存没有改动；保存按钮的 aria-disabled 只看「草稿空且没保存过」或「已保存且没改动」，不弹 toast；「放弃未保存的内容」只在有未保存内容时在提示行后面出现 */
 function flHint(){
   const h=$("fl-hint"),sb=$("fl-save");if(!fl||!h||!sb)return;
-  const saved=!!woMap(state)[fl.date],dirty=flDirty(),pr=fl.tried?workoutProblems(fl.draft):[];
+  const saved=!!woMap(state)[fl.date],dirty=flDirty(),pr=fl.tried?workoutProblems(fl.draft,flCv()):[];
   let t="",tone="";
   if(pr.length){t=T_PE_HINT_ERRORS(pr.length);tone="error"}
   else if(dirty&&fl.remote){t=T_FL_HINT_REMOTE;tone="warn"}
@@ -2800,10 +2829,10 @@ function flSyncCopy(){
   });
 }
 function flExHTML(x,i){
-  const L=plan.lifts.find(l=>l.id===x.id),n=L?L.n:T_FIT_GONE_L,u=L?L.unit:"kg",id=esc(x.id),full=x.sets.length>=WO_MAX.sets;
+  const L=plan.lifts.find(l=>l.id===x.id),n=L?L.n:T_FIT_GONE_L,du=wuOf(state),u=L?wuLbl(L.unit,fl.u):"kg",id=esc(x.id),full=x.sets.length>=WO_MAX.sets;
   const last=liftLast(state,x.id,fl.date);
   const rows=x.sets.map((z,j)=>`<li class="fl-set"><span class="fl-n" aria-hidden="true">${j+1}</span><label class="sr-only" for="fl-w-${id}-${j}">${esc(T_FL_LBL_W(n,j+1,u))}</label><input id="fl-w-${id}-${j}" type="number" inputmode="decimal" min="0" max="1000" step="any" data-fl data-flw="${i}:${j}" value="${esc(z.w)}" aria-describedby="fl-e-${id}-${j}"><span class="fl-x" aria-hidden="true">×</span><label class="sr-only" for="fl-r-${id}-${j}">${esc(T_FL_LBL_R(n,j+1))}</label><input id="fl-r-${id}-${j}" type="number" inputmode="numeric" min="1" max="999" step="1" data-fl data-flr="${i}:${j}" value="${esc(z.r)}" aria-describedby="fl-e-${id}-${j}"><button type="button" class="ghost" data-fl data-flact="delset" data-fli="${i}" data-flj="${j}" aria-label="${esc(T_FL_DEL_SET_ARIA(n,j+1))}">${T_FL_DEL_SET}</button><p class="pe-err" id="fl-e-${id}-${j}" hidden></p></li>`).join("");
-  return `<fieldset class="fl-ex k-fit" data-lift="${id}"><legend><span class="fl-name">${esc(n)}</span>${L&&L.archived?`<span class="arch-mark">${T_ARCH_MARK}</span>`:""}${L?`<span class="fl-tg">${esc(T_FL_TARGET(L.target,u))}</span>`:""}</legend><p class="fl-last">${last?esc(flLastText(last)):T_FL_LAST_NONE}</p><div class="fl-cols" aria-hidden="true"><span></span><span>${esc(T_FL_COL_W(u))}</span><span></span><span>${esc(T_FL_COL_R)}</span><span></span></div><ol class="fl-sets">${rows}</ol><p class="pe-err" id="fl-ex-e-${id}" hidden></p><div class="fl-ex-act"><button type="button" class="ghost" data-fl data-flact="addset" data-fli="${i}"${full?" disabled":""}>${T_FL_ADD_SET}</button>${full?`<span class="fl-cap">${T_FL_SET_LIMIT}</span>`:""}<button type="button" class="ghost" data-fl data-flact="copyset" data-fli="${i}"${flCopyOff(x)?" disabled":""}>${T_FL_COPY}</button>${last&&x.sets.every(flBlankSet)?`<button type="button" class="ghost" data-fl data-flact="filllast" data-fli="${i}">${T_FL_FILL_LAST}</button>`:""}<button type="button" class="ghost fl-rm" data-fl data-flact="rmex" data-fli="${i}">${T_FL_RM_LIFT}</button></div></fieldset>`;
+  return `<fieldset class="fl-ex k-fit" data-lift="${id}"><legend><span class="fl-name">${esc(n)}</span>${L&&L.archived?`<span class="arch-mark">${T_ARCH_MARK}</span>`:""}${L?`<span class="fl-tg">${esc(T_FL_TARGET(wuMain(L.target,L.unit,du),wuLbl(L.unit,du)))}${wuAltH(L.target,L.unit,du)}</span>`:""}</legend><p class="fl-last">${last?esc(flLastText(last,L?L.unit:null)):T_FL_LAST_NONE}</p><div class="fl-cols" aria-hidden="true"><span></span><span>${esc(T_FL_COL_W(u))}</span><span></span><span>${esc(T_FL_COL_R)}</span><span></span></div><ol class="fl-sets">${rows}</ol><p class="pe-err" id="fl-ex-e-${id}" hidden></p><div class="fl-ex-act"><button type="button" class="ghost" data-fl data-flact="addset" data-fli="${i}"${full?" disabled":""}>${T_FL_ADD_SET}</button>${full?`<span class="fl-cap">${T_FL_SET_LIMIT}</span>`:""}<button type="button" class="ghost" data-fl data-flact="copyset" data-fli="${i}"${flCopyOff(x)?" disabled":""}>${T_FL_COPY}</button>${last&&x.sets.every(flBlankSet)?`<button type="button" class="ghost" data-fl data-flact="filllast" data-fli="${i}">${T_FL_FILL_LAST}</button>`:""}<button type="button" class="ghost fl-rm" data-fl data-flact="rmex" data-fli="${i}">${T_FL_RM_LIFT}</button></div></fieldset>`;
 }
 function flCdHTML(x,k){
   const C=planCardio(plan).find(c=>c.id===x.id),n=C?C.n:T_FIT_GONE_C,id=esc(x.id);
@@ -2866,14 +2895,22 @@ $("fw").addEventListener("click",e=>{if(e.target.closest("#fwNoteBtn"))fwNoteTog
 /* 进度条宽度：和 goalsBars 一样只用 CSSOM（style-src-attr 'none'），没有过渡 */
 function fitBars(){$("fw").querySelectorAll("i[data-w]").forEach(i=>{i.style.width=i.getAttribute("data-w")+"%"})}
 /* S8：训练历史。只列 state.workouts 里的训练（不列手填的力量点），按月分组、日期倒序，一次画 fhN 条（默认 20，「显示更早的记录」每点一次加 20）；每次训练一个 details，展开状态存在 fhOpen（日期键）里，页面打开期间跨重画保留；和趋势图一样，健身页没显示时不画 */
-const T_FH_TITLE="训练历史",T_FH_MONTH=(y,m)=>y+" 年 "+m+" 月",T_FH_DAY=(d,w)=>d+" 周"+w,T_FH_LIFT=(n,s)=>n+"："+s,T_FH_CARDIO=(n,m,d)=>n+"："+m+" 分钟"+(d!=null?"，"+d+" 公里":""),T_FH_EDIT="修改这次训练",T_FH_MORE="显示更早的记录",T_FH_MORE_LIVE=n=>"已显示更早的 "+n+" 次训练",T_FH_EMPTY="还没有训练记录。在上面记下第一次训练吧。";
+const T_FH_TITLE="训练历史",T_FH_MONTH=(y,m)=>y+" 年 "+m+" 月",T_FH_DAY=(d,w)=>d+" 周"+w,T_FH_LIFT=(n,s)=>n+"："+s,T_FH_LIFT_U=(n,u,s)=>n+"（"+u+"）："+s,T_FH_CARDIO=(n,m,d)=>n+"："+m+" 分钟"+(d!=null?"，"+d+" 公里":""),T_FH_EDIT="修改这次训练",T_FH_MORE="显示更早的记录",T_FH_MORE_LIVE=n=>"已显示更早的 "+n+" 次训练",T_FH_EMPTY="还没有训练记录。在上面记下第一次训练吧。";
 const FH_PAGE=20,fhOpen=new Set();let fhN=FH_PAGE;
 function fhBody(day){
   const lines=[];
   if(!isObj(day))return "";
-  (Array.isArray(day.lifts)?day.lifts:[]).filter(isObj).forEach(x=>{const f=plan.lifts.find(l=>l.id===x.id),sets=(Array.isArray(x.sets)?x.sets:[]).filter(isObj).map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，");lines.push(T_FH_LIFT(f?f.n:T_FIT_GONE_L,sets))});
-  (Array.isArray(day.cardio)?day.cardio:[]).filter(isObj).forEach(x=>{const f=planCardio(plan).find(c=>c.id===x.id);lines.push(T_FH_CARDIO(f?f.n:T_FIT_GONE_C,x.m,x.d))});
-  return lines.map(l=>`<p>${esc(l)}</p>`).join("");
+  const du=wuOf(state),P=(t,alt)=>lines.push(`<p>${esc(t)}${alt||""}</p>`);
+  (Array.isArray(day.lifts)?day.lifts:[]).filter(isObj).forEach(x=>{
+    const f=plan.lifts.find(l=>l.id===x.id),ss=(Array.isArray(x.sets)?x.sets:[]).filter(isObj),k=f?wuKind(f.unit):null;
+    const ws=ss.map(z=>z.w).filter(w=>typeof w==="number"&&isFinite(w)&&w>0);
+    if(k&&ws.length){
+      const o=du==="lb"?"kg":"lb",a=wuShow(wuConv(Math.min(...ws),k,o)),b=wuShow(wuConv(Math.max(...ws),k,o));
+      P(T_FH_LIFT_U(f.n,wuLbl(f.unit,du),ss.map(z=>(z.w===0?T_FL_BW:wuMain(z.w,f.unit,du))+" × "+z.r).join("，")),`<span class="wu-alt">${esc("≈ "+(a===b?a:a+"～"+b)+" "+o)}</span>`);
+    }else P(T_FH_LIFT(f?f.n:T_FIT_GONE_L,ss.map(z=>(z.w===0?T_FL_BW:z.w)+" × "+z.r).join("，")));
+  });
+  (Array.isArray(day.cardio)?day.cardio:[]).filter(isObj).forEach(x=>{const f=planCardio(plan).find(c=>c.id===x.id);P(T_FH_CARDIO(f?f.n:T_FIT_GONE_C,x.m,x.d))});
+  return lines.join("");
 }
 function renderFh(){
   const el=$("fh");
@@ -2916,8 +2953,10 @@ function fhDelete(date){
 /* force 为假（renderAll 调用）时，草稿有未保存内容或焦点在记录区里（flBusy）就不重画记录区，免得别的设备的同步冲掉正在填的内容，只检查这一天有没有在别的设备上更新过；重画时草稿没有未保存内容就按 state 重新载入这一天；本机留底只在第一次画时恢复 */
 function renderFit(force){
   renderWu();
-  const rs=flTryRestore();
-  if(force||rs||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl()}
+  const rs=flTryRestore(),ru=!!fl&&fl.u!==wuOf(state);
+  if(ru)flReunit(wuOf(state));
+  const fa=document.activeElement,fid=ru&&fa&&fa.id&&$("fl").contains(fa)?fa.id:"";
+  if(force||rs||ru||!flBusy()){if(fl&&!flDirty())flOpen(fl.date);renderFl();if(fid){const t=$(fid);if(t&&document.activeElement!==t)t.focus({preventScroll:true})}}
   else{flRemoteCheck();flHint()}
   renderFw();renderFc();renderFh();
   applyGate();
@@ -2947,13 +2986,13 @@ function flLive(d,date){
 function flSave(){
   if(!fl)return;
   fl.tried=true;
-  const pr=workoutProblems(fl.draft);
+  const pr=workoutProblems(fl.draft,flCv());
   if(pr.length){
     flErrs();flHint();
     const el=flFirstBad(pr);if(el){el.focus();el.scrollIntoView({block:"center",behavior:"auto"})}
     return;
   }
-  const date=fl.date,day=woFromDraft(flLive(fl.draft,date));
+  const date=fl.date,day=woFromDraft(flLive(fl.draft,date),flCv());
   if(!day.lifts.length&&!day.cardio.length){if(!woMap(state)[date]){flOpen(date);renderFit(true)}else flDelete();return}
   commit(["wo:"+date],s=>woPut(s,date,day));
   flKeepClear();flOpen(date);renderAll();renderFit(true);
@@ -3036,7 +3075,7 @@ $("fl").addEventListener("click",e=>{
     const w=$("fl-w-"+ex.id+"-"+(ex.sets.length-1));if(w){w.focus();w.select()}
   }else if(act==="filllast"){
     const ex=fl.draft.lifts[i],last=ex&&liftLast(state,ex.id,fl.date);if(!ex||!last||!ex.sets.every(flBlankSet))return;
-    ex.sets=last.sets.slice(0,WO_MAX.sets).map(z=>({w:String(z.w),r:String(z.r)}));renderFl();
+    ex.sets=last.sets.slice(0,WO_MAX.sets).map(z=>({w:wuIn(z.w,flK(ex.id),fl.u),r:String(z.r)}));renderFl();
     const w=$("fl-w-"+ex.id+"-0");if(w)w.focus();
   }else if(act==="delset")flDelSet(i,+b.dataset.flj);
   else if(act==="rmex")flRemove("lift",i);
@@ -3097,8 +3136,14 @@ const fcMq=matchMedia("(max-width:560px)"),fcPer=()=>fcMq.matches?3:4;
 let fc={metric:"max",range:fcRangeLoad(),page:0,stale:false};
 const fcInfo=new WeakMap(),r1=x=>Math.round(x*10)/10,fcFmt=v=>String(Math.round(v*100)/100);
 const fcUnit=(L,mode,m)=>mode==="reps"?"次":m==="vol"?L.unit+"×次":L.unit;
+/* fcLift：图里读单位和目标的地方都经过它：力量项自己的单位和所选单位不同时，换成所选单位（目标取 1 位小数）；fcSer 把重量模式的点同样换算，次数模式不动。图里没有灰色小字，只显示所选单位 */
+const fcLift=L=>{const k=wuKind(L.unit),du=wuOf(state);return k&&k!==du?{...L,unit:du,target:r1(wuConv(L.target,k,du))}:L};
 const fcSub=(L,mode,m)=>mode==="reps"?(m==="vol"?T_FC_SUB.rsum():T_FC_SUB.rmax()):T_FC_SUB[m](L.unit);
-const fcSer=id=>seriesOf(state,plan,id,fc.metric,fc.range,today());
+const fcSer=id=>{
+  const L=plan.lifts.find(l=>l.id===id),k=L?wuKind(L.unit):null,du=wuOf(state),sr=seriesOf(state,plan,id,fc.metric,fc.range,today());
+  if(sr.mode==="weight"&&k&&k!==du)sr.pts=sr.pts.map(p=>({...p,v:r1(wuConv(p.v,k,du))}));
+  return sr;
+};
 /* 健身页没有显示时不画（也不留旧内容）：显示时 showTab 会再调 renderFit，这样隐藏的标签里没有图，也不白算。
    每页 fcPer() 张（手机 3、其余 4），只画当前页的力量项；指标和范围对所有页的图一起生效；重画时保住「查看数据」的展开状态和焦点 */
 function renderFc(){
@@ -3114,7 +3159,7 @@ function renderFc(){
   const seg=(attr,list,cur,names,label)=>`<div class="seg fc-seg" role="group" aria-label="${label}">${list.map(k=>`<button type="button" data-fit-ro data-${attr}="${k}" aria-pressed="${k===cur}">${esc(names[k])}</button>`).join("")}</div>`;
   const ctl=`<div class="fc-ctl">${seg("fc-metric",FC_METRICS,fc.metric,T_FC_METRIC,T_FC_GRP_METRIC)}${seg("fc-range",FC_RANGES,fc.range,T_FC_RANGE,T_FC_GRP_RANGE)}</div><p id="fc-mnote" class="fc-mnote" aria-live="off">${T_FC_MNOTE[fc.metric]+(bw?T_FC_MNOTE_BW:"")}</p>`;
   const figs=pl.map((L,i)=>{
-    const ser=sers[i],sub=fcSub(L,ser.mode,fc.metric);
+    const ser=sers[i],sub=fcSub(fcLift(L),ser.mode,fc.metric);
     const rows=ser.pts.slice().reverse().map(p=>`<tr><td>${esc(md(p.date))}</td><td>${esc(fcFmt(p.v))}</td><td>${p.old?T_FC_SRC_HAND:T_FC_SRC_WO}</td></tr>`).join("");
     return `<figure class="fc k-fit" data-lift="${esc(L.id)}" data-mode="${ser.mode}"><figcaption class="fc-h"><span class="fc-name" title="${esc(L.n)}">${esc(L.n)}</span><span class="fc-metric">${esc(sub)}</span></figcaption><p class="fc-read"></p><div class="fc-pl"></div><div class="fc-notes"></div>${rows?`<details class="fc-data"${open.has(L.id)?" open":""}><summary data-fit-ro>${T_FC_DATA}</summary><div class="fc-tbl" tabindex="0"><table><thead><tr><th>${T_FC_COL_DATE}</th><th>${esc(sub)}</th><th>${T_FC_COL_SRC}</th></tr></thead><tbody>${rows}</tbody></table></div></details>`:""}</figure>`;
   });
@@ -3143,8 +3188,9 @@ function fcGo(d){
 }
 /* 画一张折线图：宽度取 .fc-pl 的 clientWidth（容器隐藏时是 0，记 stale 后返回，显示后再画），高 160；绘图区 L=40 R=W-12 T=12 B=136；横轴按日期比例，纵轴从 0 起；点超过 40 个只画折线和最后一个点 */
 function fcDraw(fig){
-  const pl=fig.querySelector(".fc-pl"),nt=fig.querySelector(".fc-notes"),rd=fig.querySelector(".fc-read"),L=plan.lifts.find(x=>x.id===fig.dataset.lift);
-  if(!pl||!L)return;
+  const pl=fig.querySelector(".fc-pl"),nt=fig.querySelector(".fc-notes"),rd=fig.querySelector(".fc-read"),L0=plan.lifts.find(x=>x.id===fig.dataset.lift);
+  if(!pl||!L0)return;
+  const L=fcLift(L0);
   const W=Math.round(pl.clientWidth);if(!W){fc.stale=true;return}
   const t=today(),ser=fcSer(L.id),pts=ser.pts,mode=ser.mode,m=fc.metric,u=fcUnit(L,mode,m),n=pts.length;
   fcInfo.delete(fig);nt.innerHTML="";rd.textContent="";
