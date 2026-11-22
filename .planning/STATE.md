@@ -6,10 +6,10 @@ current_phase: 16
 current_phase_name: 新版本上线与总体验收（Release & Acceptance）
 status: executing
 stopped_at: "Phase 16 plan 16-07 Task 1 checkpoint: owner confirms E-5, then J (migrate own data) and K (delete test accounts); acceptance skipped per D-19"
-last_updated: "2026-11-18T07:39:19.517Z"
+last_updated: "2026-11-22T06:46:31.994Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 execution started
-state_head: 7100b3e314e11569ea1c4bb42e63737c5fd11eeb
+state_head: fc0492619269f2e73572e74994799bcb7b5a51f9
 progress:
   total_phases: 11
   completed_phases: 10
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
 Phase: 16 (新版本上线与总体验收（Release & Acceptance）) — EXECUTING
 Plan: 7 of 8
 Status: Ready to execute
-Last activity: 2026-11-17 — Phase 16 execution started
+Last activity: 2026-11-21 - Completed quick task 261121-uax: 健身页重量支持 lb 和 kg（本地完成，未上线）
 
 Progress: [█████████░] 91%
 
@@ -487,6 +487,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 | 8 | 修 14-UI-REVIEW 的 3 处：桌面宽度下空计划卡片和编辑页「从示例添加」按钮至少 36px 高；pkSave 计划校验失败时提示行显示错误；被断网或过期挡住时刷新提示行 | 2026-11-12 | 85fb682 | — |
 | 9 | 修 15-UI-REVIEW 的 3 处：训练历史的展开指示、窄屏保存栏顺序、375px 力量目标卡两列（427395e） | 2026-11-16 | 427395e | — |
 | 261117-lwq | 修 13-REVIEW 的 WR-04（迁移清单自动收集，server-check C-23）和 IN-01（恢复演练导入后模式 --with-real-data） | 2026-11-17 | d6dc94e | [261117-lwq-13-review-wr-04-in-01](./quick/261117-lwq-13-review-wr-04-in-01/) |
+| 261121-uax | 健身页的重量支持磅（lb）和公斤（kg）：一个开关管记录和显示，所选单位大字、换算小字，设置跟账号走 | 2026-11-21 | fc04926 | [261121-uax-lb-kg](./quick/261121-uax-lb-kg/) |
 
 ### Roadmap Evolution
 
