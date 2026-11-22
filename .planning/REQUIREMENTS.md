@@ -68,12 +68,12 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 - [x] **OPS-01**：服务器每天自动备份数据库，并复制一份到服务器以外（Cloudflare R2）；做过一次恢复演练。
 - [x] **OPS-02**：服务器重启后，PocketBase 和 HTTPS 自动恢复，不需要手动操作。
 - [x] **OPS-03**：部署和升级有写好的步骤和脚本；PocketBase 固定版本，安装前核对校验和。
-- [ ] **OPS-04**：页面打开过一次后，断网时也能打开（冷启动离线），也可以添加到手机主屏幕。
+- [x] **OPS-04**：页面打开过一次后，断网时也能打开（冷启动离线），也可以添加到手机主屏幕。
 
 ### 测试（TEST）
 
 - [x] **TEST-01**：v1.0 的 154 条测试在新版应用上继续通过，走旧路径；应用 sha256 基线机制随应用改动更新。
-- [ ] **TEST-02**：新增基于模拟 PocketBase 的测试，覆盖登录、云端存取、离线、实时同步、导入导出和编辑计划；测试运行时不连接任何真实服务器。
+- [x] **TEST-02**：新增基于模拟 PocketBase 的测试，覆盖登录、云端存取、离线、实时同步、导入导出和编辑计划；测试运行时不连接任何真实服务器。
 - [x] **TEST-03**：N3 和 B2 的已知 bug 用例翻转为正常通过的断言，`tests/KNOWN-BUGS.md` 同步更新。
 - [x] **TEST-04**：在一次性的本机 PocketBase 上，用合成账号验证账号隔离。下载 PocketBase 二进制需要用户批准，这项验证不进默认的 `npm test`。
 
@@ -147,9 +147,9 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 | OPS-01 | Phase 13 | Complete |
 | OPS-02 | Phase 13 | Complete |
 | OPS-03 | Phase 13 | Complete |
-| OPS-04 | Phase 16 | Pending |
+| OPS-04 | Phase 16 | Complete |
 | TEST-01 | Phase 7 | Complete |
-| TEST-02 | Phase 8 | Pending |
+| TEST-02 | Phase 16 | Complete |
 | TEST-03 | Phase 11 | Complete |
 | TEST-04 | Phase 8 | Complete |
 
@@ -160,4 +160,4 @@ v1.0 的需求已归档到 `.planning/milestones/v1.0-REQUIREMENTS.md`。本文�
 
 ---
 *Requirements defined: 2026-11-06*
-*Last updated: 2026-11-17 — OPS-01..OPS-03 and SEC-02 complete (Phase 13); OPS-04 stays Pending until the Phase 16 real-device check*
+*Last updated: 2026-11-22 — OPS-04 (Phase 16: automated coverage, owner waived the real-device check, D-19) and TEST-02 (Phase 16 full regression: cloud 288, default 247) complete*
