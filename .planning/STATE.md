@@ -21,10 +21,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-17 after Phase 13)
+See: .planning/PROJECT.md (updated 2026-11-22 after Phase 16)
 
 **Core value:** 3 个人各自在手机和电脑上随时记一笔：记录按账号隔离、不会丢失，并且在设备之间实时同步，中国和美国都能访问。
-**Current focus:** Phase 16 — 新版本上线与总体验收（Release & Acceptance）
+**Current focus:** v2.0 的全部阶段已完成，下一步是里程碑收尾（`/gsd-complete-milestone`）
 
 ## Current Position
 
@@ -418,6 +418,8 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 16]: 16-02: F-11 改用缺字段注册请求（本机 PocketBase 0.41.1 实测锁住 403、放开 400），HSTS 期望值收成 HSTS_MAX_AGE 单一来源，数值仍是一天
 - [Phase 16]: 16-04: backstop 的 20x50 正好是编辑页上限 PLAN_MAX，synth-backstop.json 由 make-acceptance-data 一并生成；16-ACCEPTANCE 共 73 项、可选恰好四项；13-REVIEW 台账 18 fixed、IN-03 skipped、open 0；发布前 cloud 287、默认 239、server-check 25 项全部通过
 - [Phase 16]: D-19：所有者决定不做总体验收，16-ACCEPTANCE.md 中 J 之前的检查记为不适用；E-5 是 J 的前提，J、K、次日演练、全量套件照常
+- [Phase 16]: D-20：所有者 2026-11-22 决定先不迁移旧数据、不做导入后恢复演练（J、K、L 不适用），阶段收尾；E-5 由所有者确认每台设备都已换版，T-16-24 关闭
+- [Phase 16]: 16-08：两条全量套件在 208e1da 的代码上通过（cloud 288、默认 247），OPS-04（自动化覆盖 + 所有者放弃真机验收）和 TEST-02 收口
 
 ### Pending Todos
 
@@ -430,7 +432,7 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - Phase 15：决定要不要提前做「两台设备的离线修改都保留」（Phase 10 D-03 现在也影响训练数据）。
 - Phase 13：13-REVIEW 剩下 17 条按 16-CONTEXT D-01 在 Phase 16 发布前一次修完（所有者 2026-11-17 未选讨论，按推荐定，可以再改）。
 - Phase 6、13、16：批准每个在服务器上执行的脚本，在服务器上输入凭据。
-- Phase 16（R2 存储桶和密钥已在 Phase 13 开好）：所有设备换成新版本、总体验收通过后，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，再删测试账号。
+- ~~Phase 16（R2 存储桶和密钥已在 Phase 13 开好）：所有设备换成新版本、总体验收通过后，从原 Artifact 导出自己的备份，在本机用 `tools/plan/migrate-backup.mjs` 合成新格式备份后导入自己的账号，再删测试账号。~~ 所有者 2026-11-22 决定先不迁移（16-CONTEXT D-20）；以后想迁，按 16-ACCEPTANCE 的 J、K、L 节做。
 
 ### Blockers/Concerns
 
@@ -464,10 +466,13 @@ Phase 13 要点（完整记录在 PROJECT.md Key Decisions）：
 - [Phase 12 审查]: 7 条发现全部修完（`12-REVIEW-FIX.md` all_fixed，`12-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，首要 3 处已修。
 - [Phase 15 安全]: `15-SECURITY.md` verified，29 条威胁全部关闭；旧页面丢 `workouts` 的风险（T-15-04）按接受登记，靠 Phase 16 的上线顺序。
 - [Phase 15 审查]: 12 条发现全部修完（`15-REVIEW-FIX.md`、`15-REVIEW-DISPOSITION.md` 无未处理项）；UI 审计 17/24，3 处已修。
-- [Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。
+- ~~[Phase 16，来自 Phase 15]: 上线顺序：先让所有设备和标签页都换成新版本，再记第一条训练、迁移真实数据。~~ 已解决（2026-11-22）：所有者确认每台设备、每个标签页都已换成新版本（16-SECURITY T-16-24）。
 - [Phase 16 规划，所有者 2026-11-17 选择按现计划执行]: 计划核查第 3 轮（上限）还剩 2 个阻塞、1 个警告，所有者选「按现在的计划执行」，执行时要处理：(1) 16-01 Task 3 把恢复演练的文档查询改成 5 列（加 `updated`），但 `restore-drill.sh` 里另外 3 处仍按 4 个字段拆分 `rdocs`（约第 324、346、362 行），必须一起改成 5 个字段；本机没有检查会实际运行这段 Python（本机有 `python` 3.12，可以用合成 sqlite 跑一遍），不改会到 16-08 的服务器演练时才暴露。(2) 16-06 Task 1 只跑 `tests/cloud/migration.spec.ts`，但 check-report 还要求 `IO-09 importing the plan first and then the legacy backup keeps every task progress (D-07)`，这条在 `tests/cloud/import.spec.ts`，要把它一起跑进去或从核对标题里去掉（migration.spec 里是 2 条 IO-09，不是 3 条）。(3) 警告：16-01 和 16-06 各有一条在 HEAD 上已经成立的 grep，只是保留性检查。
 - [Phase 16，来自 Phase 12 验收]: 所有者 2026-11-12 决定部署后做总体验收，Phase 12 的 5 项人工验收并入（见 12-UAT.md Deferred Follow-Ups）。
 - [Phase 13 安全]: `13-SECURITY.md` verified，52 条威胁全部关闭；AR-13-01（服务器日志记 IP 30 天，D-03）和 AR-13-02（不装包的计划）按接受登记。
+- [Phase 16 安全]: `16-SECURITY.md` verified，35 条威胁全部关闭；T-16-24 由所有者确认换版后关闭。
+- [Phase 16 审查]: 8 条发现（0 严重、4 警告、4 提示）全部 open（`16-REVIEW-DISPOSITION.md`）；WR-04（4 秒兜底刷新会丢掉这几秒里新输入的草稿）最值得先修，修不修由所有者决定。
+- [Phase 16 验收]: 所有者按 D-19 不做真机验收、按 D-20 不迁移旧数据和不做导入后演练；上面标着「[Phase 16，来自 …]」的真机项都没有所有者结论，日常使用中发现再报；含真实数据的备份没演练过恢复。
 - [Phase 13 审查]: 19 条发现（0 严重、8 警告、11 提示）；WR-04（迁移清单）和 IN-01（导入后的恢复演练）已由 quick 261117-lwq 修好（8e7e92a、d6dc94e），其余 17 条 open（`13-REVIEW-DISPOSITION.md`），等所有者决定；WR-05（README 的 PocketBase 本体升级步骤走不通）要在下次升级 PocketBase 之前补。
 - [Phase 16，来自 Phase 13 验收]: 6 项真机和所有者本人检查（13-UAT.md Deferred Follow-Ups）：设备甲的更新提示、手机冷启动离线、添加到主屏幕、R2 次日回看和演练残留、后台口令和重新登录、接近上限的文件在真实线路上保存。
 - ~~06-04: private/server.env missing~~ 已解决（2026-11-07）：所有者在会话中给过域名和 IP，编排器据此建好被忽略的 private/server.env，`redact.mjs --verify-env` 输出 ENV REDACTION OK。
@@ -506,9 +511,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T07:39:16.246Z
-Stopped at: Phase 16 complete — all phases complete
-Resume file: .planning/phases/16-release-acceptance/16-07-PLAN.md
+Last session: 2026-11-22T17:50:00.000Z
+Stopped at: Phase 16 complete — v2.0 all phases complete, ready for milestone completion
+Resume file: None
 
 ## Operator Next Steps
 
@@ -522,6 +527,7 @@ Resume file: .planning/phases/16-release-acceptance/16-07-PLAN.md
 - Phase 16 已规划（2026-11-17）：8 个计划、7 个波次。16-01..16-03 本机修 13-REVIEW 的 17 条，16-04 写 16-ACCEPTANCE.md 并跑发布前全量，16-05 发布修复版本（要所有者批准清单、当场确认命令），16-06..16-08 是所有者的总体验收、J/K 和次日演练。核查 3 轮后所有者选择按现计划执行，剩两个已知问题见 Blockers/Concerns
 - Phase 16 执行进度（2026-11-18）：16-01..16-05 完成；修复版本 84d1fc754072 已上线（06:54 UTC 所有者批准，VERIFY OK (19 checks)，新演练脚本已装未运行）。16-06 停在 Task 2：所有者按 16-ACCEPTANCE.md 做 J 之前的验收，所有者选择改天再做；准备工作已完成（只读状态 DB_USERS_NONTEST=0、合成文件在 private/acceptance/、D-12 迁移用例 3 条通过）
 - 所有者 2026-11-18 决定不做总体验收（16-CONTEXT D-19，「只跳过验收，照常上线」）：16-06 已按 D-19 收口（J 之前的检查记为不适用，J-0 通过）；OPS-04 真机部分为接受的风险
-- 接下来：16-07 Task 1——所有者先确认 E-5（每台设备换成新版本），再做 J（建正式账号、本机迁移、导入、核对、手动备份）和 K（删两个测试账号），一口气做完、不跨 19:00 UTC，回报结论后续跑 `/gsd-execute-phase 16`；之后 16-08 次日跑导入后演练（所有者确认命令）和两条全量套件
+- Phase 16 已完成（2026-11-22）：16-07、16-08 按 D-20 收口（J、K、L 不适用，E-5 通过）；安全 35/35 关闭，代码审查 8 条 open，验证 passed（按 D-19、D-20 修订后的目标）；两条全量套件 cloud 288、默认 247；OPS-04、TEST-02 已标完成，v2.0 的 43 条需求都已勾选
+- 接下来：里程碑收尾 `/gsd-complete-milestone`（所有者决定什么时候做）；16-REVIEW 的 4 个警告要不要修由所有者决定
 - Phase 12 已完成并转场（2026-11-12）：自动检查全部通过，人工验收 5 项按所有者决定推迟到部署后的总体验收，验证报告记为所有者批准的绕过
 - 所有者确认：Phase 9 的 AR-02（T-09-36）；Phase 10 的 WR-01、WR-03 写法和 AR-02、AR-03；三处体验问题；IN-01 删不删；Phase 11 的 AR-01、AR-02
